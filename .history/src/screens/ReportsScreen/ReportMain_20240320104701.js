@@ -1,0 +1,31 @@
+import { StyleSheet, Text, View } from 'react-native'
+import React from 'react'
+import CustomHeader from '../../components/CustomHeader'
+import PortalCards from '../../components/EmployeePortalComponents/PortalCards'
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6'
+
+
+const ReportMain = ({navigation}) => {
+  return (
+    <View style={{flex:1}}>
+      <CustomHeader title={'Reports'}/>
+      <PortalCards
+          onPress={() =>navigation.navigate('Liquidity')}
+          text='Liquidity'
+          icon={<FontAwesome6 name='hand-holding-dollar' size={25} color="#00b0f0" />}
+        />
+      <PortalCards
+          text='Profitability'
+          icon={<FontAwesome6 name='arrow-up-wide-short' size={25} color="#0050C0" />}
+        />
+      <PortalCards
+          text='Financial Position'
+          icon={<FontAwesome6 name='file-invoice-dollar' size={25} color="#0050C0" />}
+        />
+    </View>
+  )
+}
+
+export default ReportMain
+
+const styles = StyleSheet.create({})
