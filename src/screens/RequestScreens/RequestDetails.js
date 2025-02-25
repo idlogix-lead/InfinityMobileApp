@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Image, Modal, ScrollView, Dimensions, PermissionsAndroid, ToastAndroid, Platform, Animated, TextInput } from 'react-native'
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Image, Modal, ScrollView, Dimensions, PermissionsAndroid, ToastAndroid, Platform, Animated, TextInput, PixelRatio } from 'react-native'
 import React, { useEffect, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TopHeader from '../../components/RequestScreenComponents/TopHeader';
@@ -13,9 +13,11 @@ import RNFS from 'react-native-fs';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
 import AntDesign from 'react-native-vector-icons/dist/AntDesign';
+import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { TouchableWithoutFeedback } from 'react-native';
 import axios from 'axios';
+import { format } from 'date-fns';
 
 const { height, width } = Dimensions.get('window');
 const deviceWidth = Dimensions.get('window').width;
@@ -67,8 +69,10 @@ const RequestDetails = ({ navigation, route }) => {
   const [recordsData, setRecordsData] = useState([]);
   const [getmassages, setGetmassages] = useState([]);
   const [showVoiceView, setShowVoiceView] = useState(false);
+  const [SMS, setSMS] = useState([])
 
-  console.log(documentNo,'documentNoInRequestSrn')
+
+  // console.log(documentNo, 'documentNoInRequestSrn')
 
   let dateDummyStart, dateDummyEnd
 
@@ -87,32 +91,88 @@ const RequestDetails = ({ navigation, route }) => {
   };
 
 
+  useEffect(() => {
+    if (unique_ID) {
+      console.log("Calling getAPIData1 with unique_ID:", unique_ID);
+      ChatScreenShowDataGETAPI();
+    }
+  }, [unique_ID]);
+
+
+
+
   // all message show in screen
 
-  const getAPIData1 = async (protocol, host, port, userId, token) => {
+  const ChatScreenShowDataGETAPI = async () => {
+    const protocol = await AsyncStorage.getItem("protocol");
+    const host = await AsyncStorage.getItem("host");
+    const port = await AsyncStorage.getItem("port");
+    const token = await AsyncStorage.getItem("token");
+
+    setIsLoading(true);
+    if (!unique_ID) {
+      console.warn("unique_ID is undefined, skipping API call");
+      return;  // Agar unique_ID undefined ho to API call na karein
+    }
     try {
-      // const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq 1000019`;
-      const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${request_id}`;
-      console.log(url, 'ChatSrnDataGET')
-      const response = await fetch(url, {
-        method: 'GET',
+
+
+      if (!protocol || !host || !port || !token) {
+        console.error("Missing required values from AsyncStorage.");
+        setIsLoading(false);
+        return;
+      }
+
+      if (!unique_ID) {
+        console.error("ID is undefined. Cannot make API call.");
+        setIsLoading(false);
+        return;
+      }
+
+      const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${unique_ID}`;
+      console.log(url, "R_RequestUpdateURLCheck");
+
+      const response = await axios.get(url, {
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
-      console.log(response?.data, 'AllMessageShow')
-      const json = await response.json();
 
-      setSMS(json.records)
-      setIsLoading(false)
+      const records = response?.data?.records || [];
+      if (records.length > 0) {
+        const mappedData = records.map((record) => ({
+          createdTime: record.Created
+            ? format(new Date(record.Created), "MMM d, yyyy, h:mm a") // Format date
+            : "N/A",
+          createdBy: record.CreatedBy?.identifier || "N/A",
+          result: record.Result || "N/A",
+          createdRaw: record.Created || null, // Add raw date for sorting
+        }));
+
+        // Sort data based on createdRaw field (descending order)
+        const sortedData = mappedData.sort((a, b) => {
+          return new Date(b.createdRaw) - new Date(a.createdRaw);
+        });
+
+        setRecordsData(sortedData);
+      } else {
+        console.log("No records found in API response.");
+        setRecordsData([]);
+      }
     } catch (error) {
-      console.error(error);
-      setIsLoading(false)
+      console.error(
+        error.response?.data || error.message,
+        "ChatScreenShowDataGETAPI Error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
 
-  }
+
+
 
 
   //  POST call in Message
@@ -142,7 +202,7 @@ const RequestDetails = ({ navigation, route }) => {
         const isoDate = date.toISOString();
         return isoDate.split(".")[0] + "Z";
       };
-      console.log(formatDate,'formatDateTime')
+      console.log(formatDate, 'formatDateTime')
       // setText('');
       // setInputText('')
 
@@ -191,7 +251,7 @@ const RequestDetails = ({ navigation, route }) => {
         QtySpent: 0,
         QtyInvoiced: 0,
         // Result: selectedResponseText,
-        Result:message,
+        Result: message,
       };
       console.log(payload, "InfinityERPPOSTPayloadData");
       const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate`;
@@ -210,6 +270,7 @@ const RequestDetails = ({ navigation, route }) => {
       // alert("Chat Message successfully delivered")
       ToastAndroid.show("Chat Message successfully delivered", ToastAndroid.SHORT);
       console.log("Chat Message successfully delivered");
+      setMessage('')
     } catch (error) {
       console.error(error, "Error in passdata1:");
     } finally {
@@ -217,8 +278,10 @@ const RequestDetails = ({ navigation, route }) => {
       // setInputText("")
       // ChatScreenShowDataGETAPI();
       setIsLoading(false);
+      setMessage('')
     }
   };
+
 
 
   // Take Photo
@@ -282,20 +345,19 @@ const RequestDetails = ({ navigation, route }) => {
 
   // UseRef Hook  for ALL data show in screen
   const getallmassages = async () => {
-
     const protocol = await AsyncStorage.getItem("Protocol")
     const IPAddress = await AsyncStorage.getItem("IpAddress")
     const Port = await AsyncStorage.getItem("port")
     const token = await AsyncStorage.getItem("auth_token")
-
-
 
     console.log(protocol, IPAddress, Port, token)
 
     setIsLoading(true);
     try {
 
-      const url = `${protocol}://${IPAddress}:${Port}/api/chat/${id}`;
+      // const url = `${protocol}://${IPAddress}:${Port}/api/chat/${id}`;
+
+      const url = `${protocol}://${IPAddress}:${Port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${unique_ID}`;
       const response = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -338,8 +400,6 @@ const RequestDetails = ({ navigation, route }) => {
 
 
 
-
-
   const getAPIData = async (protocol, host, port, userId, id) => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -357,7 +417,7 @@ const RequestDetails = ({ navigation, route }) => {
       // console.log(records,'AllResponseData')
 
       const filterRecords = records.filter(item => item.id === id);
-      console.log(filterRecords, 'GETForTaskScreen')
+      // console.log(filterRecords, 'GETForTaskScreen')
       setDocumentNo(filterRecords[0].DocumentNo)
       setStatusID(filterRecords[0].R_Status_ID.id)
       setSubOrdinateID(filterRecords[0].SalesRep_ID.id)
@@ -411,7 +471,7 @@ const RequestDetails = ({ navigation, route }) => {
         console.log('No records found with the provided ID');
       }
       const url = `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`;
-      console.log(url, 'urlForTaskScreen')
+      // console.log(url, 'urlForTaskScreen')
       response = await fetch(`${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`, {
         method: 'GET',
         headers: {
@@ -437,6 +497,14 @@ const RequestDetails = ({ navigation, route }) => {
       alert(error.message);
     }
   };
+
+
+
+
+
+
+
+
 
   const requestStoragePermission = async () => {
     if (Platform.OS === 'android' && Platform.Version >= 23) {
@@ -793,35 +861,35 @@ const RequestDetails = ({ navigation, route }) => {
   useEffect(() => {
   }, [getmassages]);
 
-  useEffect(() => {
-    if (showVoiceView) {
-      fadeAnim.setValue(0);
-      const animation = Animated.loop(
-        Animated.sequence([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      animation.start();
-      return () => animation.stop();
-    }
-  }, [showVoiceView, fadeAnim]);
-  useEffect(() => {
-    if (showVoiceView) {
-      const timerID = setInterval(function run() {
-        onStartRecord();
-        clearInterval(timerID);
-      }, 1000);
-    }
-  }, [showVoiceView]);
+  // useEffect(() => {
+  //   if (showVoiceView) {
+  //     fadeAnim.setValue(0);
+  //     const animation = Animated.loop(
+  //       Animated.sequence([
+  //         Animated.timing(fadeAnim, {
+  //           toValue: 1,
+  //           duration: 1000,
+  //           useNativeDriver: true,
+  //         }),
+  //         Animated.timing(fadeAnim, {
+  //           toValue: 0,
+  //           duration: 1000,
+  //           useNativeDriver: true,
+  //         }),
+  //       ]),
+  //     );
+  //     animation.start();
+  //     return () => animation.stop();
+  //   }
+  // }, [showVoiceView, fadeAnim]);
+  // useEffect(() => {
+  //   if (showVoiceView) {
+  //     const timerID = setInterval(function run() {
+  //       onStartRecord();
+  //       clearInterval(timerID);
+  //     }, 1000);
+  //   }
+  // }, [showVoiceView]);
 
   return (
     <>
@@ -842,7 +910,7 @@ const RequestDetails = ({ navigation, route }) => {
               </TouchableOpacity>
 
               {/* Status Button */}
-              <TouchableOpacity style={styles.statusContainer}>
+              <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
                 <AntDesign name='edit' size={20} color='#000' />
                 <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>Status</Text>
               </TouchableOpacity>
@@ -850,6 +918,36 @@ const RequestDetails = ({ navigation, route }) => {
           </View>
 
           <ScrollView style={{ flex: 1 }} showsHorizontalScrollIndicator={false}>
+
+
+
+
+          <Modal
+                visible={show} 
+                animationType="slide" 
+                transparent={true} 
+              >
+                <View style={styles.modalContainer}>
+                  <View style={styles.modalView}>
+                    <Text style={styles.txt}>Set Status</Text>
+                    <TouchableOpacity onPress={() => modalClose('Open', 1000000)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Open</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => modalClose('Waiting', 1000001)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Waiting</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => modalClose('Close', 1000002)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Close</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => modalClose('Final Close', 1000003)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Final Close</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
+                      <Text style={styles.txtBtn}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
 
             {/* <View style={{ alignItems: 'center'}}>
               <Modal visible={showCalendar} animationType="slide" transparent={true}>
@@ -1143,10 +1241,36 @@ const RequestDetails = ({ navigation, route }) => {
                 <Text style={styles.txtTaskDetailStyle}>Task Details</Text>
               </View>
 
+
+              {/* Task Name Conatianer */}
+              {/* <View style={{ marginTop: "1%", width: "90%", flexDirection:"row",alignSelf: "center",  }}>
+             
+                <Text style={[styles.descriptionWordStyle,{}]}>Task Name:</Text>
+                <Text style={[styles.descriptionTxtStyle, {alignSelf:"center", marginTop:"-1%", paddingLeft:"1%"}]}>{taskName}</Text>
+              </View> */}
+
+              <View style={{
+                marginTop: '1%',
+                width: '90%',
+                flexDirection: 'row',
+                alignSelf: 'center',
+                // flexWrap: 'wrap',
+              }}>
+                {/* Heading Task Name */}
+                <Text style={styles.txtStyle}>Task Name:</Text>
+                <Text style={{
+                  width: '65%',
+                  color: 'black',
+                  fontSize: PixelRatio.get() <= 2 ? 14 : 16, // Adjust font size based on pixel density
+                  fontWeight: '600',
+                  // marginTop: '3%',
+                }}>{taskName}</Text>
+              </View>
+
               {/* Container For Creater by and Assigned To */}
               <View style={styles.containerStyle}>
                 <View style={{ flexDirection: "row" }}>
-                  <AntDesign name='user' size={38} color='#000' />
+                  <AntDesign name='user' size={20} color='#000' />
                   <View>
                     <Text style={styles.txtStyle}>Created</Text>
                     <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{assignedBy}</Text>
@@ -1159,13 +1283,7 @@ const RequestDetails = ({ navigation, route }) => {
                 </View>
               </View>
 
-              {/* Task Name Conatianer */}
 
-              <View style={{ marginTop: "5%", width: "95%", alignSelf: "center" }}>
-                {/* Heading Task Name */}
-                <Text style={styles.descriptionWordStyle}>Task Name:</Text>
-                <Text style={[styles.descriptionTxtStyle, { paddingLeft: "4%" }]}>{taskName}</Text>
-              </View>
 
               {/* Date Container */}
               <View style={styles.containerStyle} >
@@ -1184,7 +1302,7 @@ const RequestDetails = ({ navigation, route }) => {
                   <View style={styles.DateContainer}>
                     <AntDesign name='calendar' size={30} color='#000' style={{ alignSelf: "center" }} />
                     <View>
-                      <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>End Date</Text>
+                      <Text style={[styles.txtStyle, { paddingLeft: 10 }]}>End Date</Text>
                       <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>21-2-2025</Text>
                     </View>
                   </View>
@@ -1193,26 +1311,27 @@ const RequestDetails = ({ navigation, route }) => {
               </View>
               {/* Description Container */}
 
-              <View style={{ marginTop: "5%", width: "95%", alignSelf: "center" }}>
-                <Text style={styles.descriptionWordStyle}>Description:</Text>
-                <Text style={[styles.descriptionTxtStyle, { paddingLeft: "4%" }]}> {summary}</Text>
+              {/* <View style={styles.sameContainer}> */}
+              <View style={styles.sameContainer}>
+                <Text style={styles.txtStyle}>Description:</Text>
+                <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: "4%" }]}> {summary}</Text>
               </View>
 
               {/* Attachment View */}
 
-              {/* <View style={[styles.attchmentcontainer,{marginTop: "5%", backgroundColor:"red"}]}> */}
-              <View style={{ marginTop: "5%", width: "95%", alignSelf: "center" }}>
-                <Text style={styles.descriptionWordStyle}>Attachments:</Text>
+              <View style={styles.sameContainer}>
+                <Text style={styles.txtStyle}>Attachments:</Text>
 
                 {/* Attachment Button */}
-                <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]} onPress={() => console.log("Attachment Pressed")}>
+                <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]}  onPress={() => downloadFile()}>
                   <AntDesign name="plus" size={32} color="black" />
                 </TouchableOpacity>
               </View>
 
               {/* Create this Task */}
-              <View style={{ marginTop: "5%", width: "95%", alignSelf: "center" }}>
-                <Text style={styles.descriptionWordStyle}>{assignedTo} created this task</Text>
+              <View style={styles.sameContainer}>
+                {/* <Text style={styles.descriptionWordStyle}>{assignedTo} created this task</Text> */}
+                <Text style={styles.txtStyle}>{assignedTo} created this task</Text>
               </View>
             </View>
 
@@ -1343,45 +1462,45 @@ const RequestDetails = ({ navigation, route }) => {
 
           </ScrollView >
 
-            
 
-            {/* Message Text View is here */}
+
+          {/* Message Text View is here */}
           <View style={{
-              width: '100%', // Adjust width
-              // padding: 10,
-              backgroundColor: 'white',
-              borderRadius: 10,
-              elevation: 10,
-              // backgroundColor: "red",
-              position: 'absolute',
-              bottom:0,
-              alignSelf:"center"
-            }}>
-              <View style={styles.inputContainer}>
-                <View style={styles.form_col_2}>
-                  {showVoiceView && (
-                    <View style={styles.voiceviev_cont}>
-                      <View style={styles.voiceview_row}>
-                        <View style={styles.voicecol_1}>
-                          <Text style={{ textAlign: 'center', color: '#000' }}>
-                            {recordTime}
-                          </Text>
-                        </View>
-                        <View style={styles.voicecol_2}>
-                          <Animated.Text
-                            style={{
-                              color: '#000',
-                              fontWeight: 'bold',
-                              opacity: fadeAnim,
-                            }}
-                          >
-                            Recording...
-                          </Animated.Text>
-                        </View>
+            width: '100%', // Adjust width
+            // padding: 10,
+            backgroundColor: 'white',
+            borderRadius: 10,
+            elevation: 10,
+            // backgroundColor: "red",
+            position: 'absolute',
+            bottom: 0,
+            alignSelf: "center"
+          }}>
+            <View style={styles.inputContainer}>
+              <View style={styles.form_col_2}>
+                {/* {showVoiceView && (
+                  <View style={styles.voiceviev_cont}>
+                    <View style={styles.voiceview_row}>
+                      <View style={styles.voicecol_1}>
+                        <Text style={{ textAlign: 'center', color: '#000' }}>
+                          {recordTime}
+                        </Text>
+                      </View>
+                      <View style={styles.voicecol_2}>
+                        <Animated.Text
+                          style={{
+                            color: '#000',
+                            fontWeight: 'bold',
+                            opacity: fadeAnim,
+                          }}
+                        >
+                          Recording...
+                        </Animated.Text>
                       </View>
                     </View>
-                  )}
-                  {/* <TouchableOpacity
+                  </View>
+                )} */}
+                {/* <TouchableOpacity
                     style={{
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1392,14 +1511,14 @@ const RequestDetails = ({ navigation, route }) => {
                   >
                     <Entypo name="attachment" size={20} color={'#568086'} />
                   </TouchableOpacity> */}
-                  <TextInput
-                    placeholder="Send Message"
-                    placeholderTextColor={'#000'}
-                    style={styles.text_input_2}
-                    onChangeText={(text) => setMessage(text)}
-                    value={message}
-                  />
-                  {/* <TouchableOpacity onPress={takePhoto}>
+                <TextInput
+                  placeholder="Send Message"
+                  placeholderTextColor={'#000'}
+                  style={styles.text_input_2}
+                  onChangeText={(text) => setMessage(text)}
+                  value={message}
+                />
+                {/* <TouchableOpacity onPress={takePhoto}>
                     <View
                       style={{
                         alignItems: 'center',
@@ -1412,52 +1531,56 @@ const RequestDetails = ({ navigation, route }) => {
                       <FontAwesome name={'camera'} size={20} color={'#a0a0a0'} />
                     </View>
                   </TouchableOpacity> */}
-                </View>
-                {message && message.length > 0 && (
+              </View>
+              {/* {message && message.length > 0 && ( */}
+              <View style={styles.sendButton}>
+                <TouchableOpacity style={styles.sendButtonText} onPress={() => {
+                  if (!message.trim()) {
+                    alert("Please enter a message before sending.");
+                    return;
+                  }
+                  passdata1();
+                }}
+
+
+                >
+                  <MaterialCommunityIcons name={'send'} size={20} color={'#fff'} />
+                </TouchableOpacity>
+              </View>
+              {/* )} */}
+              {/* {!showVoiceView && message.length === 0 && (
+                <TouchableWithoutFeedback
+                  onPress={() => setShowVoiceView(true)}
+                  style={styles.sendButton}
+                >
                   <View style={styles.sendButton}>
-                    <TouchableOpacity style={styles.sendButtonText} onPress={() => {
-                      passdata1();
-                    }}>
-                      <MaterialCommunityIcons name={'send'} size={20} color={'#fff'} />
-                    </TouchableOpacity>
+                    <FontAwesome name={'microphone'} size={20} color={'#fff'} />
+                   
                   </View>
-                )}
-                {!showVoiceView && message.length === 0 && (
-                  <TouchableWithoutFeedback
-                    onPress={() => setShowVoiceView(true)}
+                </TouchableWithoutFeedback>
+              )}
+              {showVoiceView && (
+                <View style={{ marginLeft: 10 }}>
+                  <TouchableOpacity
                     style={styles.sendButton}
+                    onPress={() => {
+                      setShowVoiceView(false);
+                      onStopRecord();
+                    }}
                   >
-                    <View style={styles.sendButton}>
-                      <FontAwesome name={'microphone'} size={20} color={'#fff'} />
-                    </View>
-                  </TouchableWithoutFeedback>
-                )}
-                {showVoiceView && (
-                  <View style={{ marginLeft: 10 }}>
-                    <TouchableOpacity
-                      style={styles.sendButton}
-                      onPress={() => {
-                        setShowVoiceView(false);
-                        onStopRecord();
-                      }}
-                    >
-                      <FontAwesome name={'send'} size={20} color={'#fff'} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-                {/* Close Modal Button */}
-                {/* <TouchableOpacity
+                    <FontAwesome name={'send'} size={20} color={'#fff'} />
+                  </TouchableOpacity>
+                </View>
+              )} */}
+              {/* Close Modal Button */}
+              {/* <TouchableOpacity
                             style={styles.closeModalButton}
                             onPress={() => setShowModal(false)}
                         >
                             <Text style={styles.closeModalText}>Close</Text>
                         </TouchableOpacity> */}
-              </View>
             </View>
-
-
-
-
+          </View>
         </>
       )
       }
@@ -1472,7 +1595,7 @@ const styles = StyleSheet.create({
   innerHeaderContainerStyle: { flexDirection: "row", width: "95%", alignSelf: "center", justifyContent: "space-between", alignItems: "center", marginTop: "10%" },
   BackHandlerStyle: {
     backgroundColor: "#fff",
-    width: "10%",  // Adjusted width for better responsiveness
+    width: "10%",
     aspectRatio: 1,
     borderRadius: 50,
     justifyContent: "center",
@@ -1502,11 +1625,12 @@ const styles = StyleSheet.create({
     elevation: 10,
     color: "#fff"
   },
+  sameContainer: { marginTop: "2%", width: "95%", alignSelf: "center" },
   txtStyle: { paddingLeft: '1%', color: "gray", fontSize: 16 },
-  containerStyle: { width: "95%", marginTop: "5%", alignSelf: "center", flexDirection: "row", justifyContent: 'space-between' },
+  containerStyle: { width: "95%", marginTop: "2%", alignSelf: "center", flexDirection: "row", justifyContent: 'space-between' },
   DateContainer: { flexDirection: "row", backgroundColor: "#ededed", padding: 5, borderRadius: 30, paddingHorizontal: 20, elevation: 2 },
-  descriptionTxtStyle: { width: "95%", alignSelf: "center", color: "black", fontSize: 14 },
-  descriptionWordStyle: { width: "95%", color: "black", alignSelf: "center", fontSize: 18, fontWeight: 600 },
+  descriptionTxtStyle: { width: "95%", alignSelf: "center", color: "black", fontSize: 14, },
+  descriptionWordStyle: { width: "95%", color: "black", fontSize: 16, fontWeight: 600, },
   attchmentcontainer: {
     width: "95%",
     alignSelf: "center"
@@ -1584,45 +1708,53 @@ const styles = StyleSheet.create({
   },
   container: {
     // flex: 1,
-    backgroundColor: '#f5f5f5',
+    // backgroundColor: '#f5f5f5',
+    backgroundColor: '#E6E6E6',
     padding: 10,
-    width: "92%",
+    width: "100%",
     alignSelf: "center",
-    borderRadius: 20
-},
-responseAPIStyle: {
-  marginBottom: 16,
-  padding: 12,
-  backgroundColor: "#fff",
-  borderRadius: 8,
-  shadowColor: "#000",
-  shadowOpacity: 0.1,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
-  elevation: 2,
-},
-lableStyle: {
-  fontWeight: "600",
-  fontSize: 12,
-  color: "#333",
-},
-noDataContainer: {
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginTop: 20,
-},
-noDataText: {
-  fontSize: 20,
-  color: 'black',
-  fontStyle: 'italic',
-  fontWeight:"bold"
-},
+    // borderRadius: 20,
+    // backgroundColor:"red"
 
-text_input_2: {
-  width: deviceWidth / 6,
-  flex: 1,
-  color: '#000',
-},
+  },
+  responseAPIStyle: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  lableStyle: {
+    fontWeight: "600",
+    fontSize: 12,
+    color: "#333",
+  },
+  noDataContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  noDataText: {
+    fontSize: 20,
+    color: 'black',
+    fontStyle: 'italic',
+    fontWeight: "bold"
+  },
+
+  text_input_2: {
+    width: deviceWidth / 6,
+    flex: 1,
+    color: '#000',
+  },
+  username: {
+    color: '#6ed1f5',
+    fontWeight: '500',
+    fontSize: 16,
+  },
 
 
 
@@ -1668,70 +1800,71 @@ text_input_2: {
   //   fontFamily: 'K2D-Regular'
   // },
 
-  // modalContainer: {
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   backgroundColor: 'rgba(0,0,0,0.5)',
-  //   flex: 1
-  // },
-  // modalView: {
-  //   backgroundColor: '#00B0F0',
-  //   height: '50%',
-  //   width: '90%',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 15
-  // },
-  // modalViewDue: {
-  //   backgroundColor: '#00B0F0',
-  //   height: '40%',
-  //   width: '90%',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 15
-  // },
-  // modalViewPrior: {
-  //   backgroundColor: '#00B0F0',
-  //   height: '55%',
-  //   width: '90%',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 15
-  // },
-  // modalViewAssigned: {
-  //   backgroundColor: '#00B0F0',
-  //   height: '50%',
-  //   width: '90%',
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 15
-  // },
-  // txtContainer: {
-  //   height: '12%',
-  //   width: '80%',
-  //   marginBottom: 10,
-  //   alignItems: 'center',
-  //   justifyContent: 'center'
-  // },
-  // txt: {
-  //   color: 'white',
-  //   fontSize: 20,
-  //   fontFamily: 'K2D-Regular'
-  // },
-  // btn: {
-  //   backgroundColor: 'white',
-  //   height: '12%',
-  //   width: '80%',
-  //   marginBottom: 10,
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 20
-  // },
-  // txtBtn: {
-  //   color: '#00B0F0',
-  //   fontSize: 20,
-  //   fontFamily: 'K2D-Regular'
-  // },
+  modalContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1
+  },
+  modalView: {
+    // backgroundColor: '#00B0F0',
+    backgroundColor: '#002E62',
+    height: '50%',
+    width: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15
+  },
+  modalViewDue: {
+    backgroundColor: '#00B0F0',
+    height: '40%',
+    width: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15
+  },
+  modalViewPrior: {
+    backgroundColor: '#00B0F0',
+    height: '55%',
+    width: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15
+  },
+  modalViewAssigned: {
+    backgroundColor: '#00B0F0',
+    height: '50%',
+    width: '90%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15
+  },
+  txtContainer: {
+    height: '12%',
+    width: '80%',
+    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  txt: {
+    color: 'white',
+    fontSize: 20,
+    fontFamily: 'K2D-Regular'
+  },
+  btn: {
+    backgroundColor: 'white',
+    height: '12%',
+    width: '80%',
+    marginBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20
+  },
+  txtBtn: {
+    color: '#00B0F0',
+    fontSize: 20,
+    fontFamily: 'K2D-Regular'
+  },
   // item: {
   //   alignItems: 'center',
   //   justifyContent: 'center'
