@@ -557,7 +557,7 @@ const HomeScreen = ({ navigation, route }) => {
           <View style={styles.headerView}>
             <ImageBackground 
             source={require('../../asserts/HomeScreenAssets/HeaderImage/Group474.png')}  
-              style={{width:"100%", height:"150%" }}>
+              style={{width:"100%", height:"110%" }}>
             
             <View style={{ width: '100%', marginTop: 30 }}>
               <View style={{ flexDirection: 'row', width: '100%' }}>
@@ -567,8 +567,7 @@ const HomeScreen = ({ navigation, route }) => {
 
                   <Image
                   source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
-                  style={{width:76, height:70, alignSelf:"center"}}                  
-                  
+                  style={{width:76, height:70, alignSelf:"center"}}b         
                   />
                 </View>
                 <View style={{ width: '20%', flexDirection: 'row', alignItems: "center", justifyContent: 'center' }}>

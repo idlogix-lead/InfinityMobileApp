@@ -70,6 +70,7 @@ const RequestDetails = ({ navigation, route }) => {
   const [getmassages, setGetmassages] = useState([]);
   const [showVoiceView, setShowVoiceView] = useState(false);
   const [SMS, setSMS] = useState([])
+  const [selectedStatus, setSelectedStatus] = useState("Status");
 
 
   // console.log(documentNo, 'documentNoInRequestSrn')
@@ -80,6 +81,11 @@ const RequestDetails = ({ navigation, route }) => {
 
   // console.log(requestID,'requestID')
   // console.log(attachmentName,'attachment')
+
+  const modalCloseStatus = (status) => {
+    setSelectedStatus(status); // Select status and update button
+    setShow(false); // Close modal
+  };
 
 
   const toggleBoth = () => {
@@ -207,7 +213,7 @@ const RequestDetails = ({ navigation, route }) => {
       // setInputText('')
 
       const payload = {
-        id: documentNo,
+        id: unique_ID,
         // uid: "e77425fc-4907-4b55-8f57-73e0826d35c2",
         AD_Client_ID: {
           propertyLabel: "Tenant",
@@ -221,7 +227,8 @@ const RequestDetails = ({ navigation, route }) => {
           identifier: "United Actros General Trading",
           "model-name": "ad_org",
         },
-        IsActive: "true",
+        // IsActive: "true",
+        // IsActive: "Y",
         Created: formatDate(new Date()),
         CreatedBy: {
           propertyLabel: "Created By",
@@ -238,7 +245,7 @@ const RequestDetails = ({ navigation, route }) => {
         },
         R_Request_ID: {
           propertyLabel: "Request",
-          id: documentNo,
+          id: unique_ID,
           identifier: "-1_1000002",
           "model-name": "r_request",
         },
@@ -279,6 +286,7 @@ const RequestDetails = ({ navigation, route }) => {
       // ChatScreenShowDataGETAPI();
       setIsLoading(false);
       setMessage('')
+      ChatScreenShowDataGETAPI();
     }
   };
 
@@ -417,7 +425,7 @@ const RequestDetails = ({ navigation, route }) => {
       // console.log(records,'AllResponseData')
 
       const filterRecords = records.filter(item => item.id === id);
-      // console.log(filterRecords, 'GETForTaskScreen')
+      console.log(filterRecords, 'GETForTaskScreen')
       setDocumentNo(filterRecords[0].DocumentNo)
       setStatusID(filterRecords[0].R_Status_ID.id)
       setSubOrdinateID(filterRecords[0].SalesRep_ID.id)
@@ -429,9 +437,10 @@ const RequestDetails = ({ navigation, route }) => {
       setRequest(filterRecords[0].id)
       // setUniqueID(filterRecords[0]?.R_RequestType_ID?.id)
       setUniqueID(filterRecords[0]?.id)
-      console.log(unique_ID, 'unique_ID')
-      let dateStart = moment(filterRecords[0].StartDate).format('YYYY-DD-MM')
-      let dateEnd = moment(filterRecords[0].EndTime).format('YYYY-DD-MM')
+      console.log(unique_ID, 'unique_IDMoazzamBiag')
+      // let dateStart = moment(filterRecords[0].StartDate).format('YYYY-DD-MM')
+      let dateStart = moment(filterRecords[0].StartDate).format('DD-MM-YYYY')
+      let dateEnd = moment(filterRecords[0].EndTime).format('DD-MM-YYYY')
       setStartDate(dateStart)
       setEndDate(dateEnd)
       setStatus(filterRecords[0].R_Status_ID.identifier.split("_")[1])
@@ -481,8 +490,6 @@ const RequestDetails = ({ navigation, route }) => {
       });
 
       data = await response.json();
-
-
       const array1 = [{ Name: value, id: userId }];
       records = data.records;
 
@@ -904,20 +911,20 @@ const RequestDetails = ({ navigation, route }) => {
 
           <View style={styles.headerContainer}>
             <View style={styles.innerHeaderContainerStyle}>
-              {/* Back Handler Button */}
+            
               <TouchableOpacity style={styles.BackHandlerStyle} onPress={() => { handleBackPress() }}>
                 <Entypo name='chevron-left' size={18} color='#000' />
               </TouchableOpacity>
 
-              {/* Status Button */}
+             
               <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
                 <AntDesign name='edit' size={20} color='#000' />
-                <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>Status</Text>
+                <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>{selectedStatus}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          <ScrollView style={{ flex: 1 }} showsHorizontalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1,}} showsHorizontalScrollIndicator={false}>
 
 
 
@@ -930,16 +937,16 @@ const RequestDetails = ({ navigation, route }) => {
                 <View style={styles.modalContainer}>
                   <View style={styles.modalView}>
                     <Text style={styles.txt}>Set Status</Text>
-                    <TouchableOpacity onPress={() => modalClose('Open', 1000000)} style={styles.txtContainer}>
+                    <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
                       <Text style={styles.txt}>Open</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Waiting', 1000001)} style={styles.txtContainer}>
+                    <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
                       <Text style={styles.txt}>Waiting</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Close', 1000002)} style={styles.txtContainer}>
+                    <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
                       <Text style={styles.txt}>Close</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Final Close', 1000003)} style={styles.txtContainer}>
+                    <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
                       <Text style={styles.txt}>Final Close</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
@@ -1290,20 +1297,20 @@ const RequestDetails = ({ navigation, route }) => {
                 {/* Start Date Container */}
                 <TouchableOpacity >
                   <View style={styles.DateContainer}>
-                    <AntDesign name='calendar' size={30} color='#000' style={{ alignSelf: "center" }} />
+                    <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
                     <View>
                       <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>Start Date</Text>
-                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>21-2-2025</Text>
+                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{startDate}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
                 {/* End Date */}
                 <TouchableOpacity >
                   <View style={styles.DateContainer}>
-                    <AntDesign name='calendar' size={30} color='#000' style={{ alignSelf: "center" }} />
+                    <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
                     <View>
-                      <Text style={[styles.txtStyle, { paddingLeft: 10 }]}>End Date</Text>
-                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>21-2-2025</Text>
+                      <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>End Date</Text>
+                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{endDate}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -1336,9 +1343,8 @@ const RequestDetails = ({ navigation, route }) => {
             </View>
 
             {/*Message screen Start*/}
-            <View style={styles.CardContainer}></View>
-            <ScrollView>
-              <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between" }}>
+            {/* <ScrollView  style={{flex:1}}> */}
+              <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between",  }}>
                 <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
                 {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
                   <MaterialCommunityIcons
@@ -1371,7 +1377,10 @@ const RequestDetails = ({ navigation, route }) => {
                         <Text
                           style={[
                             styles.lableStyle,
-                            { fontWeight: '800', fontSize: 16, marginBottom: '4%', color: 'blue' },
+                            { fontWeight: '800', fontSize: 16, marginBottom: '4%',
+                              //  color: 'blue'
+                               color: '#002E62'
+                               },
                           ]}
                         >
                           {record?.createdBy}
@@ -1394,7 +1403,7 @@ const RequestDetails = ({ navigation, route }) => {
                 {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
                 <View>
 
-                  <ScrollView style={styles.messagesContainer} ref={scrollViewRef}>
+                  <ScrollView style={[styles.messagesContainer,{}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
                     {Array.isArray(getmassages) &&
                       getmassages.map((msg, index) => (
                         <View key={index}>
@@ -1413,7 +1422,7 @@ const RequestDetails = ({ navigation, route }) => {
                             </View>
                             {msg.type && msg.type == 'text_msg' && (
                               <View>
-                                <Text style={styles.messageText}>{msg.message.text_msg}</Text>
+                                <Text style={[styles.messageText]}>{msg.message.text_msg}</Text>
                                 <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
                                   <Text style={styles.messageText1}>
                                     {formatDateTime(msg.message.created_at)}
@@ -1450,14 +1459,14 @@ const RequestDetails = ({ navigation, route }) => {
                           </View>
                         </View>
                       ))}
-                    <View style={{ height: 20 }}></View>
+                    <View style={{ height: 20,  }}></View>
                   </ScrollView>
                 </View>
               </View>
 
 
 
-            </ScrollView>
+            {/* </ScrollView> */}
 
 
           </ScrollView >
@@ -1755,6 +1764,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontSize: 16,
   },
+  messagesContainer: {
+    // flex: 2,
+    // padding: 5,
+    // backgroundColor:"yellow"
+},
 
 
 
