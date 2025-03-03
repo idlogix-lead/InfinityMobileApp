@@ -50,7 +50,8 @@ const CustomHeader = ({ title, RightIcon, RightPress, style,MessageNameIcon,Mess
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: '#0050C0',
+        // backgroundColor: '#0050C0',
+        backgroundColor: "#002E62",
         borderBottomRightRadius: 10,
         borderBottomLeftRadius: 10,
         justifyContent: 'center',

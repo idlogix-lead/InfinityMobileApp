@@ -7,17 +7,24 @@ import CalendarPicker from 'react-native-calendar-picker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Picker } from '@react-native-picker/picker';
 import Loader from '../../../components/Loader';
+// import DateTimePickerModal from "react-native-modal-datetime-picker";
+import DatePicker from 'react-native-date-picker';
 
 const AnnualLeave = ({ navigation, route }) => {
 
     const isEdit = route.params?.isEdit || false;
 
     const [isLoading, setIsLoading] = useState(false)
-    const [startDate, setStartDate] = useState('')
-    const [endDate, setEndDate] = useState('')
+    // const [startDate, setStartDate] = useState('')
+    const [startDate, setStartDate] = useState(new Date())
+    console.log(startDate, 'startDate')
+    // const [endDate, setEndDate] = useState('')
+    const [endDate, setEndDate] = useState(new Date());
+    console.log(endDate, 'EndDate')
+
     const [description, setDescription] = useState('')
     const [partnerId, setPartnerId] = useState(null);
-    const [showCalendarStart, setShowCalendarStart] = useState(false);
+    // const [showCalendarStart, setShowCalendarStart] = useState(false);
     const [showCalendarEnd, setShowCalendarEnd] = useState(false);
     const [leaveTypes, setLeaveTypes] = useState([]);
     const [selectedLeaveType, setSelectedLeaveType] = useState(null);
@@ -30,14 +37,16 @@ const AnnualLeave = ({ navigation, route }) => {
     const [selectedOrganization, setSelectedOrganization] = useState(null);
     const [paramData, setParamData] = useState(null);
     const [selectedYear, setSelectedYear] = useState(null);
+    // const [date, setDate] = useState(new Date());
+    const [showCalendarStart, setShowCalendarStart] = useState(false);
 
 
     const handleYearSelection = (year) => {
         // Just store the label
         setSelectedYear(year.value);  // Store only the label
-        console.log(year.value,'YearSelected')
+        console.log(year.value, 'YearSelected')
     };
-    
+
 
     // console.log(years, 'yearsLeave')
 
@@ -45,7 +54,7 @@ const AnnualLeave = ({ navigation, route }) => {
     const currentDate = new Date();
     const formattedDate = currentDate.toISOString();
     const ptnrId = partnerId?.C_BPartner_ID?.id;
-    // console.log(ptnrId,'ptnrId')
+    // console.log(ptnrId, 'ptnrIdForTopOfScreen')
     const ptnrName = partnerId?.C_BPartner_ID?.identifier;
 
     const handleOrganizationChange = (itemValue) => {
@@ -341,16 +350,24 @@ const AnnualLeave = ({ navigation, route }) => {
         const clientId = await AsyncStorage.getItem('clientId');
         const clientName = await AsyncStorage.getItem('clientName');
         const C_BPartner_ID = await AsyncStorage.getItem('C_BPartner_ID');
+        const ptnrId = partnerId?.C_BPartner_ID?.id;
+        console.log(ptnrId, 'ptnrIdForLeaveAnnualStatus')
         const organizationId = await AsyncStorage.getItem('organizationId');
         const Id = await AsyncStorage.getItem("userId");
         const value = await AsyncStorage.getItem('userName');
+        const allKeys = await AsyncStorage.getAllKeys();
+        const allData = await AsyncStorage.multiGet(allKeys);
+        // console.log(allData, "allDataShowInAsyncStorage"); 
 
+
+        // console.log(C_BPartner_ID, 'C_BPartner_IDForAnnualLeavePosting')
         // Create payload with only the label from selectedYear
         const payload = {
             'HR_Employee_ID': employeeId,
             'AD_Client_ID': { 'id': clientId, 'identifier': clientName },
             'AD_Org_ID': organizationId,
-            'C_BPartner_ID': C_BPartner_ID,
+            // 'C_BPartner_ID': C_BPartner_ID,
+            'C_BPartner_ID': ptnrId,
             "IsActive": true,
             "Created": formattedDate,
             "CreatedBy": { "id": parseInt(Id), "identifier": value, "model-name": "ad_user" },
@@ -367,6 +384,11 @@ const AnnualLeave = ({ navigation, route }) => {
         console.log(payload, 'PayloadForLeaveFrom')
 
         try {
+
+
+            const url = `${protocol}://${host}:${port}/api/v1/models/HR_EmpLev_Posting`;
+            console.log(url, 'URLForAnnualLeave')
+
             const response = await axios.post(`${protocol}://${host}:${port}/api/v1/models/HR_EmpLev_Posting`, payload, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -477,8 +499,14 @@ const AnnualLeave = ({ navigation, route }) => {
         }
     }, [partnerId]);
 
+    // const onDateChangeStart = (date) => {
+    //     setStartDate(date);
+    //     // console.log(setStartDate,'DateSelectIncalender')
+    //     setShowCalendarStart(false);
+    // };
+
     const onDateChangeStart = (date) => {
-        setStartDate(date);
+        setStartDate(date); // This will store both date and time
         setShowCalendarStart(false);
     };
     const onDateChangeEnd = (date) => {
@@ -505,7 +533,7 @@ const AnnualLeave = ({ navigation, route }) => {
         <View style={{ flex: 1, }}>
             <CustomHeader title='Annual Leave' />
             {/* Start Date Modal */}
-            <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
+            {/* <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
                 <View style={styles.blurView}  >
                     <View style={styles.modal}>
                         <CalendarPicker
@@ -522,10 +550,53 @@ const AnnualLeave = ({ navigation, route }) => {
                         </TouchableOpacity>
                     </View>
                 </View>
+            </Modal> */}
+
+            {/* Start Date Modal */}
+            <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
+                <View style={styles.blurView}>
+                    <View style={styles.modal}>
+                        <DatePicker
+                            modal
+                            open={showCalendarStart}
+                            date={startDate instanceof Date ? startDate : new Date()} // ✅ Ensure it’s a valid Date object
+                            mode="date"
+                            onConfirm={(selectedDate) => {
+                                if (selectedDate) {
+                                    const currentTime = new Date();
+                                    const newDateTime = new Date(
+                                        selectedDate.getFullYear(),
+                                        selectedDate.getMonth(),
+                                        selectedDate.getDate(),
+                                        currentTime.getHours(),
+                                        currentTime.getMinutes(),
+                                        currentTime.getSeconds(),
+                                        currentTime.getMilliseconds()
+                                    );
+
+                                    // ✅ Format Date: "YYYY-MM-DD HH:mm:ss.SSS"
+                                    const formattedDate = `${newDateTime.getFullYear()}-${(newDateTime.getMonth() + 1)
+                                        .toString().padStart(2, '0')}-${newDateTime.getDate().toString().padStart(2, '0')} ` + 
+                                        `${newDateTime.getHours().toString().padStart(2, '0')}:${newDateTime.getMinutes()
+                                        .toString().padStart(2, '0')}:${newDateTime.getSeconds().toString().padStart(2, '0')}.${newDateTime.getMilliseconds().toString().padStart(3, '0')}`;
+                                    
+                                    setStartDate(formattedDate); // ✅ Now it will be in one line
+                                    // ✅ Store valid Date object
+                                }
+                                setShowCalendarStart(false);
+                            }}
+                        />
+
+                        <TouchableOpacity style={styles.closeBtn} onPress={() => setShowCalendarStart(false)}>
+                            <Text style={styles.close}>Close</Text>
+                        </TouchableOpacity>
+
+                    </View>
+                </View>
             </Modal>
 
             {/* end date model */}
-            <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
+            {/* <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
                 <View style={styles.blurView}  >
                     <View style={styles.modal}>
                         <CalendarPicker
@@ -542,7 +613,54 @@ const AnnualLeave = ({ navigation, route }) => {
                         </TouchableOpacity>
                     </View>
                 </View>
+            </Modal> */}
+
+            {/* end date */}
+
+
+            <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
+                <View style={styles.blurView}>
+                    <View style={styles.modal}>
+                        {/* Date Picker */}
+                        <DatePicker
+                            modal
+                            open={showCalendarEnd}
+                            date={endDate instanceof Date ? endDate : new Date()} // ✅ Ensure it’s a valid Date object
+                            mode="date"
+                            onConfirm={(selectedDate) => {
+                                if (selectedDate) {
+                                    const currentTime = new Date();
+                                    const newDateTime = new Date(
+                                        selectedDate.getFullYear(),
+                                        selectedDate.getMonth(),
+                                        selectedDate.getDate(),
+                                        currentTime.getHours(),
+                                        currentTime.getMinutes(),
+                                        currentTime.getSeconds(),
+                                        currentTime.getMilliseconds()
+                                    );
+
+                                    // ✅ Format Date: "YYYY-MM-DD HH:mm:ss.SSS"
+                                    const formattedDate = `${newDateTime.getFullYear()}-${(newDateTime.getMonth() + 1)
+                                        .toString().padStart(2, '0')}-${newDateTime.getDate().toString().padStart(2, '0')} ` + 
+                                        `${newDateTime.getHours().toString().padStart(2, '0')}:${newDateTime.getMinutes()
+                                        .toString().padStart(2, '0')}:${newDateTime.getSeconds().toString().padStart(2, '0')}.${newDateTime.getMilliseconds().toString().padStart(3, '0')}`;
+                                    
+                                    setEndDate(formattedDate); // ✅ Now it will be in one line
+                                                                    }
+                                setShowCalendarEnd(false);
+                            }}
+                        />
+                        {/* Close Button */}
+                        <TouchableOpacity style={styles.closeBtn} onPress={() => setShowCalendarEnd(false)}>
+                            <Text style={styles.close}>Close</Text>
+                        </TouchableOpacity>
+
+                    </View>
+                </View>
             </Modal>
+
+
 
             <ScrollView >
                 <View style={{ marginBottom: '7%' }}>

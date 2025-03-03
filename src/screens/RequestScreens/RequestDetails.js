@@ -77,6 +77,9 @@ const RequestDetails = ({ navigation, route }) => {
 
   let dateDummyStart, dateDummyEnd
 
+
+  const firstTwoChars = assignedBy.split(" ")[0]?.slice(0, 2).toUpperCase() || "";
+
   console.log(unique_ID, 'unique_ID')
 
   // console.log(requestID,'requestID')
@@ -85,6 +88,7 @@ const RequestDetails = ({ navigation, route }) => {
   const modalCloseStatus = (status) => {
     setSelectedStatus(status); // Select status and update button
     setShow(false); // Close modal
+    StatusChangePostCall()
   };
 
 
@@ -176,7 +180,114 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
+  const StatusChangePostCall = async () => {
+    try {
+      // Retrieve AsyncStorage values
+      const protocol = await AsyncStorage.getItem("protocol");
+      const host = await AsyncStorage.getItem("host");
+      const port = await AsyncStorage.getItem("port");
+      const token = await AsyncStorage.getItem("token");
+      const clientId = await AsyncStorage.getItem("clientId");
+      const organizationId = await AsyncStorage.getItem("organizationId");
+      const roleId = await AsyncStorage.getItem("roleId");
+      const roleNameSelected = await AsyncStorage.getItem("roleNameSelected");
+      const userId = await AsyncStorage.getItem("userId");
+      const userName = await AsyncStorage.getItem("userName");
+      const usersData = await AsyncStorage.getItem("usersData");
+      const warehouseId = await AsyncStorage.getItem("warehouseId");
+      const warehouseNameSelected = await AsyncStorage.getItem("warehouseNameSelected");
 
+      // Check for required values
+      if (!protocol || !host || !port || !token) {
+        console.error("Missing required values from AsyncStorage.");
+        return;
+      }
+      const formatDate = (date) => {
+        const isoDate = date.toISOString();
+        return isoDate.split(".")[0] + "Z";
+      };
+      console.log(formatDate, 'formatDateTime')
+      // setText('');
+      // setInputText('')
+
+      const payload = {
+        id: unique_ID,
+        // uid: "e77425fc-4907-4b55-8f57-73e0826d35c2",
+        AD_Client_ID: {
+          propertyLabel: "Tenant",
+          id: clientId ? parseInt(clientId) : null,
+          identifier: "UActros",
+          "model-name": "ad_client",
+        },
+        AD_Org_ID: {
+          propertyLabel: "Organization",
+          id: organizationId ? parseInt(organizationId) : null,
+          identifier: "United Actros General Trading",
+          "model-name": "ad_org",
+        },
+        // IsActive: "true",
+        // IsActive: "Y",
+        Created: formatDate(new Date()),
+        CreatedBy: {
+          propertyLabel: "Created By",
+          id: userId ? parseInt(userId) : null,
+          identifier: userName || "Admin",
+          "model-name": "ad_user",
+        },
+        Updated: formatDate(new Date()),
+        UpdatedBy: {
+          propertyLabel: "Updated By",
+          id: userId ? parseInt(userId) : null,
+          identifier: userName || "Admin",
+          "model-name": "ad_user",
+        },
+        R_Request_ID: {
+          propertyLabel: "Request",
+          id: unique_ID,
+          identifier: "-1_1000002",
+          "model-name": "r_request",
+        },
+        ConfidentialTypeEntry: {
+          propertyLabel: "Entry Confidentiality",
+          id: "I",
+          identifier: "Internal",
+          "model-name": "ad_ref_list",
+        },
+        QtySpent: 0,
+        QtyInvoiced: 0,
+        // Result: selectedResponseText,
+        // Result: message,
+        status:selectedStatus,
+      };
+      console.log(payload, "InfinityERPPOSTPayloadData");
+      const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate`;
+      // const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${request_id}`;
+      // console.log(url, "APIURLForChatSrn");
+      // API Call
+      setIsLoading(true);
+      const response = await axios.post(url, payload, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log(response?.data, "APIResponseForChatSrn:");
+      // alert("Chat Message successfully delivered")
+      ToastAndroid.show("Chat Message successfully delivered", ToastAndroid.SHORT);
+      console.log("Chat Message successfully delivered");
+      setMessage('')
+    } catch (error) {
+      console.error(error, "Error in passdata1:");
+    } finally {
+      // setSelectedResponseText("");
+      // setInputText("")
+      // ChatScreenShowDataGETAPI();
+      setIsLoading(false);
+      setMessage('')
+      ChatScreenShowDataGETAPI();
+    }
+  };
 
 
 
@@ -907,16 +1018,17 @@ const RequestDetails = ({ navigation, route }) => {
       )}
       {!isLoading && (
         <>
+        <View style={{flex:1, backgroundColor:"#fff"}}>
           {/* <CustomHeader title="Task Detail" RightIcon='chat-processing-outline' RightPress={() => navigation.navigate('ChatScreen',{taskNo:documentNo, request_id:unique_ID})} /> */}
 
           <View style={styles.headerContainer}>
             <View style={styles.innerHeaderContainerStyle}>
-            
+
               <TouchableOpacity style={styles.BackHandlerStyle} onPress={() => { handleBackPress() }}>
                 <Entypo name='chevron-left' size={18} color='#000' />
               </TouchableOpacity>
 
-             
+
               <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
                 <AntDesign name='edit' size={20} color='#000' />
                 <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>{selectedStatus}</Text>
@@ -924,37 +1036,37 @@ const RequestDetails = ({ navigation, route }) => {
             </View>
           </View>
 
-          <ScrollView style={{ flex: 1,}} showsHorizontalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
 
 
 
 
-          <Modal
-                visible={show} 
-                animationType="slide" 
-                transparent={true} 
-              >
-                <View style={styles.modalContainer}>
-                  <View style={styles.modalView}>
-                    <Text style={styles.txt}>Set Status</Text>
-                    <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Open</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Waiting</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Final Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
-                      <Text style={styles.txtBtn}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
+            <Modal
+              visible={show}
+              animationType="slide"
+              transparent={true}
+            >
+              <View style={styles.modalContainer}>
+                <View style={styles.modalView}>
+                  <Text style={styles.txt}>Set Status</Text>
+                  <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
+                    <Text style={styles.txt}>Open</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
+                    <Text style={styles.txt}>Waiting</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                    <Text style={styles.txt}>Close</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
+                    <Text style={styles.txt}>Final Close</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
+                    <Text style={styles.txtBtn}>Cancel</Text>
+                  </TouchableOpacity>
                 </View>
-              </Modal>
+              </View>
+            </Modal>
 
             {/* <View style={{ alignItems: 'center'}}>
               <Modal visible={showCalendar} animationType="slide" transparent={true}>
@@ -1271,34 +1383,37 @@ const RequestDetails = ({ navigation, route }) => {
                   fontSize: PixelRatio.get() <= 2 ? 14 : 16, // Adjust font size based on pixel density
                   fontWeight: '600',
                   // marginTop: '3%',
+                  paddingLeft: '1%'
                 }}>{taskName}</Text>
               </View>
 
               {/* Container For Creater by and Assigned To */}
               <View style={styles.containerStyle}>
                 <View style={{ flexDirection: "row" }}>
-                  <AntDesign name='user' size={20} color='#000' />
-                  <View>
+                  {/* <AntDesign name='user' size={20} color='#000' /> */}
+                  <View style={{width:"22%", backgroundColor:"#FB999A", borderRadius:40,justifyContent:"center", alignItems:"center"}}> 
+                    <Text style={{ fontSize:14, color:"black", fontWeight:600 }}>{firstTwoChars}</Text>
+                 </View>
+                 <View style={{paddingLeft:"3%"}}>
                     <Text style={styles.txtStyle}>Created</Text>
-                    <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{assignedBy}</Text>
+                    <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedBy}</Text>
                   </View>
-                </View>
-                {/* Assigned To */}
-                <View>
+                 </View>
+                 {/* Assigned To */}
+                 <View>
                   <Text style={styles.txtStyle}>Assigned To</Text>
-                  <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{assignedTo}</Text>
+                  <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedTo}</Text>
                 </View>
               </View>
 
 
-
               {/* Date Container */}
-              <View style={styles.containerStyle} >
+              <View style={[styles.containerStyle,{marginTop:"5%"}]} >
                 {/* Start Date Container */}
                 <TouchableOpacity >
                   <View style={styles.DateContainer}>
                     <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
-                    <View>
+                    <View style={{paddingLeft:"5%"}}>
                       <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>Start Date</Text>
                       <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{startDate}</Text>
                     </View>
@@ -1308,7 +1423,7 @@ const RequestDetails = ({ navigation, route }) => {
                 <TouchableOpacity >
                   <View style={styles.DateContainer}>
                     <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
-                    <View>
+                    <View style={{paddingLeft:"5%"}} >
                       <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>End Date</Text>
                       <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{endDate}</Text>
                     </View>
@@ -1330,7 +1445,7 @@ const RequestDetails = ({ navigation, route }) => {
                 <Text style={styles.txtStyle}>Attachments:</Text>
 
                 {/* Attachment Button */}
-                <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]}  onPress={() => downloadFile()}>
+                <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]} onPress={() => downloadFile()}>
                   <AntDesign name="plus" size={32} color="black" />
                 </TouchableOpacity>
               </View>
@@ -1344,9 +1459,9 @@ const RequestDetails = ({ navigation, route }) => {
 
             {/*Message screen Start*/}
             {/* <ScrollView  style={{flex:1}}> */}
-              <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between",  }}>
-                <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
-                {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
+            <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
+              <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
+              {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
                   <MaterialCommunityIcons
                     name={'message-reply-text'}
                     size={30}
@@ -1354,13 +1469,13 @@ const RequestDetails = ({ navigation, route }) => {
                     style={{ paddingLeft: 3, marginTop: "3%" }}
                   />
                 </TouchableOpacity> */}
-              </View>
+            </View>
 
-              {/* this code for start the CHART screen here */}
-              <View style={[styles.container]}>
-                <View>
-                  {/* Old Code */}
-                  {/* {recordsData.map((record, index) => (
+            {/* this code for start the CHART screen here */}
+            <View style={[styles.container]}>
+              <View>
+                {/* Old Code */}
+                {/* {recordsData.map((record, index) => (
                             <View key={index} style={[styles.responseAPIStyle,{backgroundColor:"red"}]}>
 
                                 <Text style={[styles.lableStyle, { fontWeight: "800", fontSize: 16, marginBottom: "4%", color: "blue" }]} > {record?.createdBy}</Text>
@@ -1370,99 +1485,101 @@ const RequestDetails = ({ navigation, route }) => {
                                 </View>
                             </View>
                         ))} */}
-                  {/* New code */}
-                  {recordsData && recordsData.length > 0 ? (
-                    recordsData.map((record, index) => (
-                      <View key={index} style={styles.responseAPIStyle}>
-                        <Text
-                          style={[
-                            styles.lableStyle,
-                            { fontWeight: '800', fontSize: 16, marginBottom: '4%',
-                              //  color: 'blue'
-                               color: '#002E62'
-                               },
-                          ]}
-                        >
-                          {record?.createdBy}
+                {/* New code */}
+                {recordsData && recordsData.length > 0 ? (
+                  recordsData.map((record, index) => (
+                    <View key={index} style={styles.responseAPIStyle}>
+                      <Text
+                        style={[
+                          styles.lableStyle,
+                          {
+                            fontWeight: '800', fontSize: 16, marginBottom: '4%',
+                            //  color: 'blue'
+                            color: '#002E62'
+                          },
+                        ]}
+                      >
+                        {record?.createdBy}
+                      </Text>
+                      <Text style={styles.lableStyle}>{record?.result}</Text>
+                      <View>
+                        <Text style={{ color: '#333', alignSelf: 'flex-end' }}>
+                          {record.createdTime}
                         </Text>
-                        <Text style={styles.lableStyle}>{record?.result}</Text>
-                        <View>
-                          <Text style={{ color: '#333', alignSelf: 'flex-end' }}>
-                            {record.createdTime}
-                          </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  // <View style={styles.noDataContainer}>
+                  <View style={styles.responseAPIStyle}>
+                    <Text style={[styles.noDataText,{alignSelf:"center"}]}>No conversation here</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
+              <View>
+
+                <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
+                  {Array.isArray(getmassages) &&
+                    getmassages.map((msg, index) => (
+                      <View key={index}>
+                        <View
+                          style={[
+                            styles.messageBubble,
+                            isSupport ? styles.supportMessage : styles.userMessage,
+                          ]}>
+                          <View style={{ flexDirection: 'row' }}>
+                            <Ionicons
+                              name="person-circle-outline"
+                              color="#6ed1f5"
+                              size={20}
+                            />
+                            <Text style={styles.username}>{msg?.message?.sender?.name}</Text>
+                          </View>
+                          {msg.type && msg.type == 'text_msg' && (
+                            <View>
+                              <Text style={[styles.messageText]}>{msg.message.text_msg}</Text>
+                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                <Text style={styles.messageText1}>
+                                  {formatDateTime(msg.message.created_at)}
+                                </Text>
+                              </View>
+                              {
+                                console.log(msg, "ksm")
+                              }
+                            </View>
+                          )}
+                          {msg.type && msg.type == 'audio' && (
+                            <View>
+                              {console.log(AudioPlayer, 'AudioPlayer')}
+                              <AudioPlayer uri={`${baseURL}/api/storage/${msg.message.voice_msg_path}`} />
+                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                <Text style={styles.messageText1}>
+                                  {formatDateTime(msg.message.created_at)}
+
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+                          {msg.type && msg.type == 'image' && (
+                            <View>
+                              <Showimage uri={`${baseURL}/api/storage/${msg.message.attachment_path}`} />
+                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                <Text style={styles.messageText1}>
+                                  {formatDateTime(msg.message.created_at)}
+
+                                </Text>
+                              </View>
+                            </View>
+                          )}
                         </View>
                       </View>
-                    ))
-                  ) : (
-                    <View style={styles.noDataContainer}>
-                      <Text style={styles.noDataText}>No conversation here</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
-                <View>
-
-                  <ScrollView style={[styles.messagesContainer,{}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
-                    {Array.isArray(getmassages) &&
-                      getmassages.map((msg, index) => (
-                        <View key={index}>
-                          <View
-                            style={[
-                              styles.messageBubble,
-                              isSupport ? styles.supportMessage : styles.userMessage,
-                            ]}>
-                            <View style={{ flexDirection: 'row' }}>
-                              <Ionicons
-                                name="person-circle-outline"
-                                color="#6ed1f5"
-                                size={20}
-                              />
-                              <Text style={styles.username}>{msg?.message?.sender?.name}</Text>
-                            </View>
-                            {msg.type && msg.type == 'text_msg' && (
-                              <View>
-                                <Text style={[styles.messageText]}>{msg.message.text_msg}</Text>
-                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                  <Text style={styles.messageText1}>
-                                    {formatDateTime(msg.message.created_at)}
-                                  </Text>
-                                </View>
-                                {
-                                  console.log(msg, "ksm")
-                                }
-                              </View>
-                            )}
-                            {msg.type && msg.type == 'audio' && (
-                              <View>
-                                {console.log(AudioPlayer, 'AudioPlayer')}
-                                <AudioPlayer uri={`${baseURL}/api/storage/${msg.message.voice_msg_path}`} />
-                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                  <Text style={styles.messageText1}>
-                                    {formatDateTime(msg.message.created_at)}
-
-                                  </Text>
-                                </View>
-                              </View>
-                            )}
-                            {msg.type && msg.type == 'image' && (
-                              <View>
-                                <Showimage uri={`${baseURL}/api/storage/${msg.message.attachment_path}`} />
-                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                  <Text style={styles.messageText1}>
-                                    {formatDateTime(msg.message.created_at)}
-
-                                  </Text>
-                                </View>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                      ))}
-                    <View style={{ height: 20,  }}></View>
-                  </ScrollView>
-                </View>
+                    ))}
+                  <View style={{ height: 20, }}></View>
+                </ScrollView>
               </View>
+            </View>
 
 
 
@@ -1590,6 +1707,9 @@ const RequestDetails = ({ navigation, route }) => {
                         </TouchableOpacity> */}
             </View>
           </View>
+
+
+          </View>
         </>
       )
       }
@@ -1626,18 +1746,26 @@ const styles = StyleSheet.create({
     paddingLeft: "5%"
   },
   txtTaskDetailStyle: {
-    padding: 10,
+    padding: 14,
     backgroundColor: "#002E62",
     borderRadius: 20,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 500,
     elevation: 10,
     color: "#fff"
   },
-  sameContainer: { marginTop: "2%", width: "95%", alignSelf: "center" },
+  sameContainer: { marginTop: "5%", width: "95%", alignSelf: "center" },
   txtStyle: { paddingLeft: '1%', color: "gray", fontSize: 16 },
   containerStyle: { width: "95%", marginTop: "2%", alignSelf: "center", flexDirection: "row", justifyContent: 'space-between' },
-  DateContainer: { flexDirection: "row", backgroundColor: "#ededed", padding: 5, borderRadius: 30, paddingHorizontal: 20, elevation: 2 },
+  DateContainer: {
+    flexDirection: "row",
+    // backgroundColor: "#ededed",
+    backgroundColor: "#FAFAFA",
+    padding: 1,
+    borderRadius: 30,
+    paddingHorizontal: 10,
+    elevation: 10,
+  },
   descriptionTxtStyle: { width: "95%", alignSelf: "center", color: "black", fontSize: 14, },
   descriptionWordStyle: { width: "95%", color: "black", fontSize: 16, fontWeight: 600, },
   attchmentcontainer: {
@@ -1651,7 +1779,7 @@ const styles = StyleSheet.create({
   },
   attachmentBox: {
     width: 100,
-    height: 100,
+    height: 90,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: 'black',
@@ -1704,7 +1832,8 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     // backgroundColor: '#00A978',
-    backgroundColor: '#568086',
+    // backgroundColor: '#568086',
+    backgroundColor: '#00B0F0',
     borderRadius: 100,
     width: 52,
     height: 52,
@@ -1718,7 +1847,7 @@ const styles = StyleSheet.create({
   container: {
     // flex: 1,
     // backgroundColor: '#f5f5f5',
-    backgroundColor: '#E6E6E6',
+    // backgroundColor: '#E6E6E6',
     padding: 10,
     width: "100%",
     alignSelf: "center",
@@ -1729,7 +1858,8 @@ const styles = StyleSheet.create({
   responseAPIStyle: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
+    backgroundColor: "#F7F7F7",
     borderRadius: 8,
     shadowColor: "#000",
     shadowOpacity: 0.1,
@@ -1758,6 +1888,7 @@ const styles = StyleSheet.create({
     width: deviceWidth / 6,
     flex: 1,
     color: '#000',
+    // paddingLeft: 10
   },
   username: {
     color: '#6ed1f5',
@@ -1768,7 +1899,7 @@ const styles = StyleSheet.create({
     // flex: 2,
     // padding: 5,
     // backgroundColor:"yellow"
-},
+  },
 
 
 

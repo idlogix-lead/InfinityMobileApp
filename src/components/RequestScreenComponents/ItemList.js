@@ -56,14 +56,20 @@ const ItemList = ({ onPress, employName, name, startDate, endDate, status, onPre
             <View style={styles.taskStatusContainer}>
                 <View style={styles.dotTaskContainer}>
                     <View style={styles.dotView}></View>
-                    <Text style={{ color: "black", alignSelf: "center", paddingLeft: 3 }}>{name}</Text>
+                    <Text style={{ color: "#002E62", alignSelf: "center", paddingLeft: 3, fontWeight:600 }}>{name}</Text>
                 </View>
                 <View style={{
                     //  backgroundColor: "#90EE90", 
-                    backgroundColor: "#AFE1AF",
-                    padding: 3, borderRadius: 7
+                    // backgroundColor: "#AFE1AF",
+                    backgroundColor: "#ECECEC",
+                    padding: 3,
+                    paddingLeft:10,
+                    paddingRight:10,
+                     borderRadius: 7,
+                    elevation:1,
+                    shadowColor:"F0F0F0"
                 }}>
-                    <Text style={{ color: "black" }}>{status}</Text>
+                    <Text style={{ color: "black", alignSelf:"center" }}>{status}</Text>
                 </View>
             </View>
 
@@ -121,7 +127,8 @@ const styles = StyleSheet.create({
     },
     dotTaskContainer: {
         flexDirection: "row",
-        backgroundColor: "#DEEFF5",
+        // backgroundColor: "#DEEFF5",
+        // backgroundColor: "#089080",
         padding: 3,
         borderRadius: 10,
         alignItems: "center"
@@ -129,7 +136,9 @@ const styles = StyleSheet.create({
     dotView: {
         width: 8,
         height: 8,
-        backgroundColor: "blue",
+        // backgroundColor: "blue",
+        // backgroundColor: "#089080",
+         backgroundColor: '#00B0F0',
         borderRadius: 4,
         // marginRight: 1,
     },
