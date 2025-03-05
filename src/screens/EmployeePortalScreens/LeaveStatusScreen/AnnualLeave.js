@@ -15,11 +15,11 @@ const AnnualLeave = ({ navigation, route }) => {
     const isEdit = route.params?.isEdit || false;
 
     const [isLoading, setIsLoading] = useState(false)
-    // const [startDate, setStartDate] = useState('')
-    const [startDate, setStartDate] = useState(new Date())
+    const [startDate, setStartDate] = useState('')
+    // const [startDate, setStartDate] = useState(new Date())
     console.log(startDate, 'startDate')
-    // const [endDate, setEndDate] = useState('')
-    const [endDate, setEndDate] = useState(new Date());
+    const [endDate, setEndDate] = useState('')
+    // const [endDate, setEndDate] = useState(new Date());
     console.log(endDate, 'EndDate')
 
     const [description, setDescription] = useState('')
@@ -533,7 +533,7 @@ const AnnualLeave = ({ navigation, route }) => {
         <View style={{ flex: 1, }}>
             <CustomHeader title='Annual Leave' />
             {/* Start Date Modal */}
-            {/* <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
+            <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
                 <View style={styles.blurView}  >
                     <View style={styles.modal}>
                         <CalendarPicker
@@ -550,53 +550,11 @@ const AnnualLeave = ({ navigation, route }) => {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal> */}
-
-            {/* Start Date Modal */}
-            <Modal visible={showCalendarStart} animationType="slide" transparent={true}>
-                <View style={styles.blurView}>
-                    <View style={styles.modal}>
-                        <DatePicker
-                            modal
-                            open={showCalendarStart}
-                            date={startDate instanceof Date ? startDate : new Date()} // ✅ Ensure it’s a valid Date object
-                            mode="date"
-                            onConfirm={(selectedDate) => {
-                                if (selectedDate) {
-                                    const currentTime = new Date();
-                                    const newDateTime = new Date(
-                                        selectedDate.getFullYear(),
-                                        selectedDate.getMonth(),
-                                        selectedDate.getDate(),
-                                        currentTime.getHours(),
-                                        currentTime.getMinutes(),
-                                        currentTime.getSeconds(),
-                                        currentTime.getMilliseconds()
-                                    );
-
-                                    // ✅ Format Date: "YYYY-MM-DD HH:mm:ss.SSS"
-                                    const formattedDate = `${newDateTime.getFullYear()}-${(newDateTime.getMonth() + 1)
-                                        .toString().padStart(2, '0')}-${newDateTime.getDate().toString().padStart(2, '0')} ` + 
-                                        `${newDateTime.getHours().toString().padStart(2, '0')}:${newDateTime.getMinutes()
-                                        .toString().padStart(2, '0')}:${newDateTime.getSeconds().toString().padStart(2, '0')}.${newDateTime.getMilliseconds().toString().padStart(3, '0')}`;
-                                    
-                                    setStartDate(formattedDate); // ✅ Now it will be in one line
-                                    // ✅ Store valid Date object
-                                }
-                                setShowCalendarStart(false);
-                            }}
-                        />
-
-                        <TouchableOpacity style={styles.closeBtn} onPress={() => setShowCalendarStart(false)}>
-                            <Text style={styles.close}>Close</Text>
-                        </TouchableOpacity>
-
-                    </View>
-                </View>
             </Modal>
+            
 
             {/* end date model */}
-            {/* <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
+            <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
                 <View style={styles.blurView}  >
                     <View style={styles.modal}>
                         <CalendarPicker
@@ -613,54 +571,7 @@ const AnnualLeave = ({ navigation, route }) => {
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Modal> */}
-
-            {/* end date */}
-
-
-            <Modal visible={showCalendarEnd} animationType="slide" transparent={true}>
-                <View style={styles.blurView}>
-                    <View style={styles.modal}>
-                        {/* Date Picker */}
-                        <DatePicker
-                            modal
-                            open={showCalendarEnd}
-                            date={endDate instanceof Date ? endDate : new Date()} // ✅ Ensure it’s a valid Date object
-                            mode="date"
-                            onConfirm={(selectedDate) => {
-                                if (selectedDate) {
-                                    const currentTime = new Date();
-                                    const newDateTime = new Date(
-                                        selectedDate.getFullYear(),
-                                        selectedDate.getMonth(),
-                                        selectedDate.getDate(),
-                                        currentTime.getHours(),
-                                        currentTime.getMinutes(),
-                                        currentTime.getSeconds(),
-                                        currentTime.getMilliseconds()
-                                    );
-
-                                    // ✅ Format Date: "YYYY-MM-DD HH:mm:ss.SSS"
-                                    const formattedDate = `${newDateTime.getFullYear()}-${(newDateTime.getMonth() + 1)
-                                        .toString().padStart(2, '0')}-${newDateTime.getDate().toString().padStart(2, '0')} ` + 
-                                        `${newDateTime.getHours().toString().padStart(2, '0')}:${newDateTime.getMinutes()
-                                        .toString().padStart(2, '0')}:${newDateTime.getSeconds().toString().padStart(2, '0')}.${newDateTime.getMilliseconds().toString().padStart(3, '0')}`;
-                                    
-                                    setEndDate(formattedDate); // ✅ Now it will be in one line
-                                                                    }
-                                setShowCalendarEnd(false);
-                            }}
-                        />
-                        {/* Close Button */}
-                        <TouchableOpacity style={styles.closeBtn} onPress={() => setShowCalendarEnd(false)}>
-                            <Text style={styles.close}>Close</Text>
-                        </TouchableOpacity>
-
-                    </View>
-                </View>
             </Modal>
-
-
 
             <ScrollView >
                 <View style={{ marginBottom: '7%' }}>

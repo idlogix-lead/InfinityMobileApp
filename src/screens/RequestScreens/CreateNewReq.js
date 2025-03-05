@@ -182,6 +182,8 @@ const CreateNewReq = ({ navigation }) => {
           "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
         }),
       });
+      console.log(body,'ece')
+
       const requestData = await requestResponse.json();
       // setStartDate(null);
       setEndDate(null);

@@ -470,8 +470,7 @@ const AllTaskScreen = ({ navigation }) => {
                     />
                     <TouchableOpacity
                         style={styles.floatingButton}
-                        onPress={() => { navigation.navigate('CreateNewReq') }}
-                    >
+                        onPress={() => { navigation.navigate('CreateNewReq') }}>
                         <MaterialCommunityIcons name='plus' size={30} color='#fff' />
                     </TouchableOpacity>
                     <RBSheet
@@ -509,23 +508,18 @@ const AllTaskScreen = ({ navigation }) => {
                             </View>
                             <View style={{ marginTop: 5 }}>
                                 <Text style={{ fontSize: 18, color: '#000' }}>Date</Text>
-
                                 <View style={{ flexDirection: 'row', marginTop: 5, marginBottom: 5, justifyContent: 'space-between' }}>
                                     <TouchableOpacity style={styles.fromBtn} onPress={() => setShowCalendarStart(true)}>
                                         <View style={{ width: '80%', borderWidth: 1, alignItems: 'center', justifyContent: 'center', height: 30, borderRadius: 5 }} >
                                             <Text style={styles.txt}>{startDate ? moment(startDate).format("DD-MM-YYYY") : "Start Date"}</Text>
-
                                         </View>
                                         <MaterialCommunityIcons name='calendar-month-outline' size={26} color='#00B0F0' style={styles.calender} />
-
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.toBtn} onPress={() => setShowCalendarEnd(true)}>
                                         <View style={{ width: '80%', borderWidth: 1, alignItems: 'center', justifyContent: 'center', height: 30, borderRadius: 5 }}>
                                             <Text style={styles.txt}>{endDate ? moment(endDate).format("DD-MM-YYYY") : 'End Date'}</Text>
                                         </View>
                                         <MaterialCommunityIcons name='calendar-month-outline' size={26} color='#00B0F0' style={styles.calender} />
-
-
                                     </TouchableOpacity>
 
                                 </View>
