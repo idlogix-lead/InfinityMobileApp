@@ -70,7 +70,7 @@ const RequestDetails = ({ navigation, route }) => {
   const [getmassages, setGetmassages] = useState([]);
   const [showVoiceView, setShowVoiceView] = useState(false);
   const [SMS, setSMS] = useState([])
-  const [selectedStatus, setSelectedStatus] = useState("Status");
+  const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState(null);
   console.log(selectedStatus, 'StatusSelectKiyaHai')
   const currentDate = new Date();
@@ -91,230 +91,6 @@ const RequestDetails = ({ navigation, route }) => {
   // console.log(attachmentName,'attachment')
 
 
-  // Put Request in TaskDetail
-
-  // const saveData = async () => {
-  //   try {
-  //     const clientName = await AsyncStorage.getItem('clientName');
-  //     const value = await AsyncStorage.getItem('userName');
-  //     const userId = await AsyncStorage.getItem('userId');
-  //     const protocol = await AsyncStorage.getItem('protocol');
-  //     const host = await AsyncStorage.getItem('host');
-  //     const port = await AsyncStorage.getItem('port');
-  //     const token = await AsyncStorage.getItem('token');
-  //     const roleId = await AsyncStorage.getItem('roleId');
-  //     const clientId = await AsyncStorage.getItem('clientId');
-  //     const organizationId = await AsyncStorage.getItem("organizationId");
-
-  //     console.log(organizationId,'organizationIdPutRequest')
-
-
-  //     setIsLoading(true);
-  //     // const rolesResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`, {
-  //     //   method: 'GET',
-  //     //   headers: {
-  //     //     'Authorization': `Bearer ${token}`,
-  //     //     'Content-Type': 'application/json',
-  //     //   },
-  //     // });
-  //     // const rolesData = await rolesResponse.json();
-  //     // const AD_Role_ID = rolesData.roles.find(item => item.id == roleId);
-
-  //     // const orgResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${roleId}`, {
-  //     //   method: 'GET',
-  //     //   headers: {
-  //     //     'Content-Type': 'application/json',
-  //     //     'Authorization': `Bearer ${token}`,
-  //     //   },
-  //     // });
-  //     // const orgData = await orgResponse.json();
-  //     // const AD_Org_ID = orgData.organizations.find(item => item.id == organizationId);
-
-
-  //     const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
-  //       method: 'PUT',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         'Accept': 'application/json',
-  //         'Authorization': `Bearer ${token}`,
-  //       },
-  //       body: JSON.stringify({
-  //         "id": id,
-  //         "Status": selectedStatus,
-  //         "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
-  //         // "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
-  //         "AD_Org_ID": organizationId,
-  //         // "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
-  //         "CloseDate": "",
-  //         "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-  //         "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-  //         "Created": formattedDate,
-  //         "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-  //         "DateLastAction": "",
-  //         "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-  //         "IsActive": true,
-  //         "IsEscalated": false,
-  //         "IsInvoiced": false,
-  //         "IsSelfService": false,
-  //         "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-  //         "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-  //         // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
-  //         "Processed": false,
-  //         "QtyInvoiced": 0,
-  //         "QtyPlan": 0,
-  //         "QtySpent": 0,
-  //         "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
-  //         "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
-  //         "RequestAmt": 0,
-  //         // "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
-  //         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-  //         "Summary": summary,
-  //         "Updated": "",
-  //         "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
-  //         "id": parseInt(userId),
-  //         "model-name": "r_request",
-  //         "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-  //         "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-  //         "Name": taskName,
-  //         "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-  //       }),
-  //     });
-  //     // console.log(body,'ece')
-
-  //     const requestData = await requestResponse.json();
-  //     // setStartDate(null);
-  //     setEndDate(null);
-  //     setSummary('');
-  //     // setPriority(priorityData[0]);
-  //     setAssigned(requestData[0]);
-  //     setName('');
-  //     let newDocId = requestData.id;
-  //     // console.log('newDocId', newDocId);
-
-  //     // Handle attachments
-  //     // const attachmentResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${newDocId}/attachments`, {
-  //     //   method: 'POST',
-  //     //   body: JSON.stringify(attachment),
-  //     //   headers: {
-  //     //     'Content-Type': 'application/json',
-  //     //     'Accept': 'application/json',
-  //     //     'Access-Control-Allow-Origin': '*',
-  //     //     'Authorization': `Bearer ${token}`,
-  //     //   },
-  //     //   credentials: 'same-origin',
-  //     // });
-  //     // const attachmentData = await attachmentResponse.json();
-
-
-  //     // const attachmentData = await attachmentResponse;
-  //     // console.log(attachmentData);
-
-  //     navigation.goBack();
-
-  //   } catch (error) {
-  //     console.log(error);
-  //     // alert(error,'Eeeeeeeeeeee');
-  //     setIsLoading(false);
-  //   }
-  //   finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
-  //  New call for PUT Request 
-
-  //   const saveData = async () => {
-  //     try {
-  //         const clientName = await AsyncStorage.getItem('clientName');
-  //         const value = await AsyncStorage.getItem('userName');
-  //         const userId = await AsyncStorage.getItem('userId');
-  //         const protocol = await AsyncStorage.getItem('protocol');
-  //         const host = await AsyncStorage.getItem('host');
-  //         const port = await AsyncStorage.getItem('port');
-  //         const token = await AsyncStorage.getItem('token');
-  //         const roleId = await AsyncStorage.getItem('roleId');
-  //         const clientId = await AsyncStorage.getItem('clientId');
-  //         const organizationId = await AsyncStorage.getItem("organizationId");
-
-  //         console.log(organizationId, 'organizationIdPutRequest');
-
-  //         setIsLoading(true);
-
-  //         const requestBody = {
-  //             // "id": parseInt(userId),
-  //             "id":id,
-  //             "Status": selectedStatus || "",
-  //             "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName || "" },
-  //             "AD_Org_ID": organizationId ? { "id": parseInt(organizationId), "identifier": "" } : null,
-  //             "CloseDate": "",
-  //             "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-  //             "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-  //             "Created": formattedDate || "",
-  //             "CreatedBy": { "id": parseInt(userId), "identifier": value || "", "model-name": "ad_user" },
-  //             "DateLastAction": "",
-  //             "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-  //             "IsActive": true,
-  //             "IsEscalated": false,
-  //             "IsInvoiced": false,
-  //             "IsSelfService": false,
-  //             "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-  //             "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-  //             "Processed": false,
-  //             "QtyInvoiced": 0,
-  //             "QtyPlan": 0,
-  //             "QtySpent": 0,
-  //             "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
-  //             "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
-  //             "RequestAmt": 0,
-  //             "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-  //             "Summary": summary || "",
-  //             "Updated": "",
-  //             "UpdatedBy": { "id": parseInt(userId), "identifier": value || "", "model-name": "ad_user", "propertyLabel": "Updated By" },
-  //             "model-name": "r_request",
-  //             "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-  //             "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-  //             "Name": taskName || "",
-  //             "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-  //         };
-
-  //         console.log("PUT Request Body:", JSON.stringify(requestBody, null, 2));
-
-  //         const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
-  //             method: 'PUT',
-  //             headers: {
-  //                 'Content-Type': 'application/json',
-  //                 'Accept': 'application/json',
-  //                 'Authorization': `Bearer ${token}`,
-  //             },
-  //             body: JSON.stringify(requestBody),
-  //         });
-  //         if (!requestResponse.ok) {
-  //             const errorText = await requestResponse.text();
-  //             throw new Error(`Request failed with status ${requestResponse.status}: ${errorText}`);
-  //         }
-  //         const requestData = await requestResponse.json();
-  //         console.log("API Response:", requestData);
-
-  //         setEndDate(null);
-  //         setSummary('');
-  //         setAssigned(requestData[0] || null);
-  //         setName('');
-
-  //         let newDocId = requestData.id;
-  //         console.log('newDocId', newDocId);
-
-  //         navigation.goBack();
-
-  //     } catch (error) {
-  //         console.error("Error in saveData:", error.message);
-  //         setIsLoading(false);
-  //     } finally {
-  //         setIsLoading(false);
-  //     }
-  // };
-
-  // DeepSeek Code
-
   const saveData = async () => {
     try {
       setIsLoading(true);
@@ -332,58 +108,27 @@ const RequestDetails = ({ navigation, route }) => {
       const organizationId = await AsyncStorage.getItem('organizationId');
 
       console.log('Retrieved organizationId:', organizationId);
-
-      // Prepare the request body
-      // const requestBody = {
-      //   "id": id, // Replace with the actual ID you want to update
-       
-      //  " AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
-      //   "AD_Org_ID": organizationId,
-      //  " ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-      //   "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-      //   "Created": moment(formattedDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-      //  " CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-      //   "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-      //   "IsActive": true,
-      //   "IsEscalated": false,
-      //   "IsInvoiced": false,
-      //   "IsSelfService": false,
-      //   "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-      //   "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-      //   "Processed": false,
-      //   "QtyInvoiced": 0,
-      //   "QtyPlan": 0,
-      //   "QtySpent": 0,
-      //   "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", propertyLabel: "Request Type" },
-      //   "R_Status_ID": { "id": 1000000, "identifier": selectedStatus, "model-name": "r_status" },
-      //   "RequestAmt": 0,
-      //   "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-      //   "Summary": summary, // Replace with the actual summary
-      //   "Updated":"",
-      //   "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
-      //   "model-name": "r_request",
-      //   "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-      //   "EndTime": moment().add(1, 'hour').format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-      //   "Name": taskName,// Replace with the actual task name
-      //   "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-      // };
       const requestBody = {
         "id": id,
         "R_Status_ID": {
-          "id": 1000000,  
-          "identifier": selectedStatus,
-          "model-name": "r_status"
+          "id": selectedStatusId,
+          "model-name": "r_status",
         }
       };
       console.log('Request Body:', JSON.stringify(requestBody, null, 2));
 
+      const putRequestURl = `${protocol}://${host}:${port}/api/v1/models/R_Request/${id}`;
+      console.log(putRequestURl, 'snfsjdf')
+
+
       // Make the PUT request
-      const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
+      const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(requestBody),
       });
@@ -408,25 +153,17 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
-
-
-  // const modalCloseStatus = (status) => {
-  //   setSelectedStatus(status);
-  //   setShow(false);
-  //   saveData()
-  // };
-
-  const modalCloseStatus = (status) => {
-    setSelectedStatus(status); // Status update karega
+  const modalCloseStatus = (status, id) => {
+    setSelectedStatus(status);
+    setSelectedStatusId(id);
     setShow(false);
   };
 
-  // Jab bhi selectedStatus change hoga, saveData() chalega
   useEffect(() => {
-    if (selectedStatus !== "Status") {  // Default value ko ignore karein
+    if (selectedStatus !== "Status" && selectedStatusId !== null) {
       saveData();
     }
-  }, [selectedStatus]);
+  }, [selectedStatus, selectedStatusId]);
 
 
 
@@ -760,7 +497,8 @@ const RequestDetails = ({ navigation, route }) => {
       const filterRecords = records.filter(item => item.id === id);
       console.log(filterRecords, 'GETForTaskScreen')
       setDocumentNo(filterRecords[0].DocumentNo)
-      setStatusID(filterRecords[0].R_Status_ID.id)
+      // setStatusID(filterRecords[0].R_Status_ID.id)
+      setStatusID(filterRecords[0].R_Status_ID.identifier)
       setSubOrdinateID(filterRecords[0].SalesRep_ID.id)
       setpriorityID(filterRecords[0].PriorityUser.id)
       setDueID(filterRecords[0].DueType.id)
@@ -1243,46 +981,30 @@ const RequestDetails = ({ navigation, route }) => {
                 </TouchableOpacity>
 
 
-                <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
+                {/* <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
                   <AntDesign name='edit' size={20} color='#000' />
-                  <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>{selectedStatus}</Text>
+                  <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>
+                    {status}                    
+                    
+                    </Text>
+                </TouchableOpacity> */}
+
+                <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
+                  <AntDesign name="edit" size={20} color="#000" />
+                  <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: "600" }}>
+                    {selectedStatus ? selectedStatus : status}
+                  </Text>
                 </TouchableOpacity>
+
+
+
+
+
+
               </View>
             </View>
 
             <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
-
-
-
-
-              {/* <Modal
-              visible={show}
-              animationType="slide"
-              transparent={true}
-            >
-              <View style={styles.modalContainer}>
-                <View style={styles.modalView}>
-                  <Text style={styles.txt}>Set Status</Text>
-                  <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
-                    <Text style={styles.txt}>Open</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
-                    <Text style={styles.txt}>Waiting</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
-                    <Text style={styles.txt}>Close</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
-                    <Text style={styles.txt}>Final Close</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
-                    <Text style={styles.txtBtn}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>   */}
-
-
 
               <Modal visible={show} animationType="slide" transparent={true}>
                 <View style={styles.modalContainer}>

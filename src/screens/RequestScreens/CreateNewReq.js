@@ -495,9 +495,10 @@ const CreateNewReq = ({ navigation }) => {
                   <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
                 </View>
                 <View style={{ paddingLeft: 10 }}>
-                  <Text style={styles.topTxt}>{assigned || "Select Subordinate"}</Text>
+                  <Text style={styles.topTxt}>{assigned || "Select Assignor"}</Text>
                 </View>
               </TouchableOpacity>
+              
               <RBSheet
                 ref={rbSheetRef}
                 closeOnDragDown={true}
@@ -548,6 +549,95 @@ const CreateNewReq = ({ navigation }) => {
                   )}
                 </View>
               </TouchableOpacity>
+            </View>
+
+            {/* Select Assignee and select collaborator  */}
+            <View style={{flexDirection:"row",marginTop:"5%"}}>
+
+            <TouchableOpacity onPress={() => rbSheetRef.current.open()}
+                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
+                  <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
+                </View>
+                <View style={{ paddingLeft: 10 }}>
+                  <Text style={styles.topTxt}>{assigned || "Select Assignee"}</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <RBSheet
+                ref={rbSheetRef}
+                closeOnDragDown={true}
+                closeOnPressMask={true}
+                customStyles={{
+                  wrapper: {
+                    backgroundColor: "transparent"
+                  },
+                  draggableIcon: {
+                    backgroundColor: "#000"
+                  }
+                }}
+              >
+                {/* <FlatList
+                  data={subdata}
+                  keyExtractor={(item, index) => index.toString()}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.sheetButton}
+                      onPress={() => {
+                        const itemId = item.id || null; // Pass null if 'id' is not available
+                        getID(itemId, item.Name);
+                        // getID(item.id, item.Name);
+                        rbSheetRef.current.close();
+                      }}>
+                      <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
+                    </TouchableOpacity>
+                  )}
+                /> */}
+              </RBSheet>
+
+              <TouchableOpacity onPress={() => rbSheetRef.current.open()}
+                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
+                  <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
+                </View>
+                <View style={{ paddingLeft: 10 }}>
+                  <Text style={styles.topTxt}>{assigned || "Collaborator"}</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <RBSheet
+                ref={rbSheetRef}
+                closeOnDragDown={true}
+                closeOnPressMask={true}
+                customStyles={{
+                  wrapper: {
+                    backgroundColor: "transparent"
+                  },
+                  draggableIcon: {
+                    backgroundColor: "#000"
+                  }
+                }}
+              >
+                {/* <FlatList
+                  data={subdata}
+                  keyExtractor={(item, index) => index.toString()}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.sheetButton}
+                      onPress={() => {
+                        const itemId = item.id || null; // Pass null if 'id' is not available
+                        getID(itemId, item.Name);
+                        // getID(item.id, item.Name);
+                        rbSheetRef.current.close();
+                      }}>
+                      <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
+                    </TouchableOpacity>
+                  )}
+                /> */}
+              </RBSheet>
+
+
+
             </View>
 
             <View>
