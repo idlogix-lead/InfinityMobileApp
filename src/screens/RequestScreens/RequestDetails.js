@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Image, Modal, ScrollView, Dimensions, PermissionsAndroid, ToastAndroid, Platform, Animated, TextInput, PixelRatio } from 'react-native'
+import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Image, Modal, ScrollView, Dimensions, PermissionsAndroid, ToastAndroid, Platform, Animated, TextInput, PixelRatio, Alert } from 'react-native'
 import React, { useEffect, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TopHeader from '../../components/RequestScreenComponents/TopHeader';
@@ -27,7 +27,7 @@ const RequestDetails = ({ navigation, route }) => {
   // console.log(route.params, "data")
   const [isLoading, setIsLoading] = useState(false)
   const { id } = route.params
-  // console.log(id)
+  // console.log(id,'ParamSyIDGetKihai')
 
 
   const scrollViewRef = useRef();
@@ -71,6 +71,11 @@ const RequestDetails = ({ navigation, route }) => {
   const [showVoiceView, setShowVoiceView] = useState(false);
   const [SMS, setSMS] = useState([])
   const [selectedStatus, setSelectedStatus] = useState("Status");
+  const [selectedStatusId, setSelectedStatusId] = useState(null);
+  console.log(selectedStatus, 'StatusSelectKiyaHai')
+  const currentDate = new Date();
+  const formattedDate = currentDate.toISOString();
+
 
 
   // console.log(documentNo, 'documentNoInRequestSrn')
@@ -88,8 +93,233 @@ const RequestDetails = ({ navigation, route }) => {
 
   // Put Request in TaskDetail
 
+  // const saveData = async () => {
+  //   try {
+  //     const clientName = await AsyncStorage.getItem('clientName');
+  //     const value = await AsyncStorage.getItem('userName');
+  //     const userId = await AsyncStorage.getItem('userId');
+  //     const protocol = await AsyncStorage.getItem('protocol');
+  //     const host = await AsyncStorage.getItem('host');
+  //     const port = await AsyncStorage.getItem('port');
+  //     const token = await AsyncStorage.getItem('token');
+  //     const roleId = await AsyncStorage.getItem('roleId');
+  //     const clientId = await AsyncStorage.getItem('clientId');
+  //     const organizationId = await AsyncStorage.getItem("organizationId");
+
+  //     console.log(organizationId,'organizationIdPutRequest')
+
+
+  //     setIsLoading(true);
+  //     // const rolesResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`, {
+  //     //   method: 'GET',
+  //     //   headers: {
+  //     //     'Authorization': `Bearer ${token}`,
+  //     //     'Content-Type': 'application/json',
+  //     //   },
+  //     // });
+  //     // const rolesData = await rolesResponse.json();
+  //     // const AD_Role_ID = rolesData.roles.find(item => item.id == roleId);
+
+  //     // const orgResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${roleId}`, {
+  //     //   method: 'GET',
+  //     //   headers: {
+  //     //     'Content-Type': 'application/json',
+  //     //     'Authorization': `Bearer ${token}`,
+  //     //   },
+  //     // });
+  //     // const orgData = await orgResponse.json();
+  //     // const AD_Org_ID = orgData.organizations.find(item => item.id == organizationId);
+
+
+  //     const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
+  //       method: 'PUT',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         'Accept': 'application/json',
+  //         'Authorization': `Bearer ${token}`,
+  //       },
+  //       body: JSON.stringify({
+  //         "id": id,
+  //         "Status": selectedStatus,
+  //         "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
+  //         // "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
+  //         "AD_Org_ID": organizationId,
+  //         // "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
+  //         "CloseDate": "",
+  //         "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+  //         "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+  //         "Created": formattedDate,
+  //         "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
+  //         "DateLastAction": "",
+  //         "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
+  //         "IsActive": true,
+  //         "IsEscalated": false,
+  //         "IsInvoiced": false,
+  //         "IsSelfService": false,
+  //         "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
+  //         "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
+  //         // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
+  //         "Processed": false,
+  //         "QtyInvoiced": 0,
+  //         "QtyPlan": 0,
+  //         "QtySpent": 0,
+  //         "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
+  //         "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
+  //         "RequestAmt": 0,
+  //         // "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
+  //         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+  //         "Summary": summary,
+  //         "Updated": "",
+  //         "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
+  //         "id": parseInt(userId),
+  //         "model-name": "r_request",
+  //         "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
+  //         "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+  //         "Name": taskName,
+  //         "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
+  //       }),
+  //     });
+  //     // console.log(body,'ece')
+
+  //     const requestData = await requestResponse.json();
+  //     // setStartDate(null);
+  //     setEndDate(null);
+  //     setSummary('');
+  //     // setPriority(priorityData[0]);
+  //     setAssigned(requestData[0]);
+  //     setName('');
+  //     let newDocId = requestData.id;
+  //     // console.log('newDocId', newDocId);
+
+  //     // Handle attachments
+  //     // const attachmentResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${newDocId}/attachments`, {
+  //     //   method: 'POST',
+  //     //   body: JSON.stringify(attachment),
+  //     //   headers: {
+  //     //     'Content-Type': 'application/json',
+  //     //     'Accept': 'application/json',
+  //     //     'Access-Control-Allow-Origin': '*',
+  //     //     'Authorization': `Bearer ${token}`,
+  //     //   },
+  //     //   credentials: 'same-origin',
+  //     // });
+  //     // const attachmentData = await attachmentResponse.json();
+
+
+  //     // const attachmentData = await attachmentResponse;
+  //     // console.log(attachmentData);
+
+  //     navigation.goBack();
+
+  //   } catch (error) {
+  //     console.log(error);
+  //     // alert(error,'Eeeeeeeeeeee');
+  //     setIsLoading(false);
+  //   }
+  //   finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
+  //  New call for PUT Request 
+
+  //   const saveData = async () => {
+  //     try {
+  //         const clientName = await AsyncStorage.getItem('clientName');
+  //         const value = await AsyncStorage.getItem('userName');
+  //         const userId = await AsyncStorage.getItem('userId');
+  //         const protocol = await AsyncStorage.getItem('protocol');
+  //         const host = await AsyncStorage.getItem('host');
+  //         const port = await AsyncStorage.getItem('port');
+  //         const token = await AsyncStorage.getItem('token');
+  //         const roleId = await AsyncStorage.getItem('roleId');
+  //         const clientId = await AsyncStorage.getItem('clientId');
+  //         const organizationId = await AsyncStorage.getItem("organizationId");
+
+  //         console.log(organizationId, 'organizationIdPutRequest');
+
+  //         setIsLoading(true);
+
+  //         const requestBody = {
+  //             // "id": parseInt(userId),
+  //             "id":id,
+  //             "Status": selectedStatus || "",
+  //             "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName || "" },
+  //             "AD_Org_ID": organizationId ? { "id": parseInt(organizationId), "identifier": "" } : null,
+  //             "CloseDate": "",
+  //             "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+  //             "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+  //             "Created": formattedDate || "",
+  //             "CreatedBy": { "id": parseInt(userId), "identifier": value || "", "model-name": "ad_user" },
+  //             "DateLastAction": "",
+  //             "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
+  //             "IsActive": true,
+  //             "IsEscalated": false,
+  //             "IsInvoiced": false,
+  //             "IsSelfService": false,
+  //             "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
+  //             "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
+  //             "Processed": false,
+  //             "QtyInvoiced": 0,
+  //             "QtyPlan": 0,
+  //             "QtySpent": 0,
+  //             "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
+  //             "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
+  //             "RequestAmt": 0,
+  //             "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+  //             "Summary": summary || "",
+  //             "Updated": "",
+  //             "UpdatedBy": { "id": parseInt(userId), "identifier": value || "", "model-name": "ad_user", "propertyLabel": "Updated By" },
+  //             "model-name": "r_request",
+  //             "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
+  //             "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+  //             "Name": taskName || "",
+  //             "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
+  //         };
+
+  //         console.log("PUT Request Body:", JSON.stringify(requestBody, null, 2));
+
+  //         const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
+  //             method: 'PUT',
+  //             headers: {
+  //                 'Content-Type': 'application/json',
+  //                 'Accept': 'application/json',
+  //                 'Authorization': `Bearer ${token}`,
+  //             },
+  //             body: JSON.stringify(requestBody),
+  //         });
+  //         if (!requestResponse.ok) {
+  //             const errorText = await requestResponse.text();
+  //             throw new Error(`Request failed with status ${requestResponse.status}: ${errorText}`);
+  //         }
+  //         const requestData = await requestResponse.json();
+  //         console.log("API Response:", requestData);
+
+  //         setEndDate(null);
+  //         setSummary('');
+  //         setAssigned(requestData[0] || null);
+  //         setName('');
+
+  //         let newDocId = requestData.id;
+  //         console.log('newDocId', newDocId);
+
+  //         navigation.goBack();
+
+  //     } catch (error) {
+  //         console.error("Error in saveData:", error.message);
+  //         setIsLoading(false);
+  //     } finally {
+  //         setIsLoading(false);
+  //     }
+  // };
+
+  // DeepSeek Code
+
   const saveData = async () => {
     try {
+      setIsLoading(true);
+
+      // Retrieve data from AsyncStorage
       const clientName = await AsyncStorage.getItem('clientName');
       const value = await AsyncStorage.getItem('userName');
       const userId = await AsyncStorage.getItem('userId');
@@ -99,119 +329,105 @@ const RequestDetails = ({ navigation, route }) => {
       const token = await AsyncStorage.getItem('token');
       const roleId = await AsyncStorage.getItem('roleId');
       const clientId = await AsyncStorage.getItem('clientId');
+      const organizationId = await AsyncStorage.getItem('organizationId');
 
-      setIsLoading(true);
-      const rolesResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      const rolesData = await rolesResponse.json();
-      const AD_Role_ID = rolesData.roles.find(item => item.id == roleId);
+      console.log('Retrieved organizationId:', organizationId);
 
-      const orgResponse = await fetch(`${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${roleId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      const orgData = await orgResponse.json();
-      const AD_Org_ID = orgData.organizations.find(item => item.id == organizationId);
+      // Prepare the request body
+      // const requestBody = {
+      //   "id": id, // Replace with the actual ID you want to update
+       
+      //  " AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
+      //   "AD_Org_ID": organizationId,
+      //  " ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+      //   "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+      //   "Created": moment(formattedDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+      //  " CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
+      //   "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
+      //   "IsActive": true,
+      //   "IsEscalated": false,
+      //   "IsInvoiced": false,
+      //   "IsSelfService": false,
+      //   "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
+      //   "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
+      //   "Processed": false,
+      //   "QtyInvoiced": 0,
+      //   "QtyPlan": 0,
+      //   "QtySpent": 0,
+      //   "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", propertyLabel: "Request Type" },
+      //   "R_Status_ID": { "id": 1000000, "identifier": selectedStatus, "model-name": "r_status" },
+      //   "RequestAmt": 0,
+      //   "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+      //   "Summary": summary, // Replace with the actual summary
+      //   "Updated":"",
+      //   "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
+      //   "model-name": "r_request",
+      //   "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
+      //   "EndTime": moment().add(1, 'hour').format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+      //   "Name": taskName,// Replace with the actual task name
+      //   "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+      // };
+      const requestBody = {
+        "id": id,
+        "R_Status_ID": {
+          "id": 1000000,  
+          "identifier": selectedStatus,
+          "model-name": "r_status"
+        }
+      };
+      console.log('Request Body:', JSON.stringify(requestBody, null, 2));
 
-
+      // Make the PUT request
       const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
-          "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
-          "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
-          "CloseDate": "",
-          "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-          "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-          "Created": formattedDate,
-          "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-          "DateLastAction": "",
-          "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-          "IsActive": true,
-          "IsEscalated": false,
-          "IsInvoiced": false,
-          "IsSelfService": false,
-          "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-          "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-          // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
-          "Processed": false,
-          "QtyInvoiced": 0,
-          "QtyPlan": 0,
-          "QtySpent": 0,
-          "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
-          "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
-          "RequestAmt": 0,
-          "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
-          "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-          "Summary": summary,
-          "Updated": "",
-          "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
-          "id": parseInt(userId),
-          "model-name": "r_request",
-          "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-          "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-          "Name": name,
-          "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-        }),
+        body: JSON.stringify(requestBody),
       });
-      console.log(body,'ece')
 
+      // Check if the response is OK
+      if (!requestResponse.ok) {
+        const errorText = await requestResponse.text();
+        throw new Error(`Server error: ${requestResponse.status} ${requestResponse.statusText}\n${errorText}`);
+      }
+
+      // Parse the JSON response
       const requestData = await requestResponse.json();
-      // setStartDate(null);
-      setEndDate(null);
-      setSummary('');
-      // setPriority(priorityData[0]);
-      setAssigned(requestData[0]);
-      setName('');
-      let newDocId = requestData.id;
-      // console.log('newDocId', newDocId);
+      console.log('Response Data:', requestData);
 
-      // Handle attachments
-      const attachmentResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${newDocId}/attachments`, {
-        method: 'POST',
-        body: JSON.stringify(attachment),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: 'same-origin',
-      });
-      // const attachmentData = await attachmentResponse.json();
-      const attachmentData = await attachmentResponse;
-      // console.log(attachmentData);
-
-      navigation.goBack();
-
+      // Handle success
+      Alert.alert('Success', 'Data saved successfully!');
     } catch (error) {
-      console.log(error);
-      // alert(error,'Eeeeeeeeeeee');
-      setIsLoading(false);
-    }
-    finally {
+      console.error('Error during saveData:', error);
+      Alert.alert('Error', 'An error occurred while saving the data. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
+
+
+
+  // const modalCloseStatus = (status) => {
+  //   setSelectedStatus(status);
+  //   setShow(false);
+  //   saveData()
+  // };
 
   const modalCloseStatus = (status) => {
-    setSelectedStatus(status); 
+    setSelectedStatus(status); // Status update karega
     setShow(false);
-    StatusChangePostCall()
   };
+
+  // Jab bhi selectedStatus change hoga, saveData() chalega
+  useEffect(() => {
+    if (selectedStatus !== "Status") {  // Default value ko ignore karein
+      saveData();
+    }
+  }, [selectedStatus]);
+
 
 
   const handleBackPress = () => {
@@ -298,118 +514,6 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
-  const StatusChangePostCall = async () => {
-    try {
-      // Retrieve AsyncStorage values
-      const protocol = await AsyncStorage.getItem("protocol");
-      const host = await AsyncStorage.getItem("host");
-      const port = await AsyncStorage.getItem("port");
-      const token = await AsyncStorage.getItem("token");
-      const clientId = await AsyncStorage.getItem("clientId");
-      const organizationId = await AsyncStorage.getItem("organizationId");
-      const roleId = await AsyncStorage.getItem("roleId");
-      const roleNameSelected = await AsyncStorage.getItem("roleNameSelected");
-      const userId = await AsyncStorage.getItem("userId");
-      const userName = await AsyncStorage.getItem("userName");
-      const usersData = await AsyncStorage.getItem("usersData");
-      const warehouseId = await AsyncStorage.getItem("warehouseId");
-      const warehouseNameSelected = await AsyncStorage.getItem("warehouseNameSelected");
-
-      // Check for required values
-      if (!protocol || !host || !port || !token) {
-        console.error("Missing required values from AsyncStorage.");
-        return;
-      }
-      const formatDate = (date) => {
-        const isoDate = date.toISOString();
-        return isoDate.split(".")[0] + "Z";
-      };
-      console.log(formatDate, 'formatDateTime')
-      // setText('');
-      // setInputText('')
-
-      const payload = {
-        id: unique_ID,
-        // uid: "e77425fc-4907-4b55-8f57-73e0826d35c2",
-        AD_Client_ID: {
-          propertyLabel: "Tenant",
-          id: clientId ? parseInt(clientId) : null,
-          identifier: "UActros",
-          "model-name": "ad_client",
-        },
-        AD_Org_ID: {
-          propertyLabel: "Organization",
-          id: organizationId ? parseInt(organizationId) : null,
-          identifier: "United Actros General Trading",
-          "model-name": "ad_org",
-        },
-        // IsActive: "true",
-        // IsActive: "Y",
-        Created: formatDate(new Date()),
-        CreatedBy: {
-          propertyLabel: "Created By",
-          id: userId ? parseInt(userId) : null,
-          identifier: userName || "Admin",
-          "model-name": "ad_user",
-        },
-        Updated: formatDate(new Date()),
-        UpdatedBy: {
-          propertyLabel: "Updated By",
-          id: userId ? parseInt(userId) : null,
-          identifier: userName || "Admin",
-          "model-name": "ad_user",
-        },
-        R_Request_ID: {
-          propertyLabel: "Request",
-          id: unique_ID,
-          identifier: "-1_1000002",
-          "model-name": "r_request",
-        },
-        ConfidentialTypeEntry: {
-          propertyLabel: "Entry Confidentiality",
-          id: "I",
-          identifier: "Internal",
-          "model-name": "ad_ref_list",
-        },
-        QtySpent: 0,
-        QtyInvoiced: 0,
-        // Result: selectedResponseText,
-        // Result: message,
-        status:selectedStatus,
-      };
-      console.log(payload, "InfinityERPPOSTPayloadData");
-      const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate`;
-      // const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${request_id}`;
-      // console.log(url, "APIURLForChatSrn");
-      // API Call
-      setIsLoading(true);
-      const response = await axios.post(url, payload, {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      console.log(response?.data, "APIResponseForChatSrn:");
-      // alert("Chat Message successfully delivered")
-      ToastAndroid.show("Chat Message successfully delivered", ToastAndroid.SHORT);
-      console.log("Chat Message successfully delivered");
-      setMessage('')
-    } catch (error) {
-      console.error(error, "Error in passdata1:");
-    } finally {
-      // setSelectedResponseText("");
-      // setInputText("")
-      // ChatScreenShowDataGETAPI();
-      setIsLoading(false);
-      setMessage('')
-      ChatScreenShowDataGETAPI();
-    }
-  };
-
-
-
-
   //  POST call in Message
   const passdata1 = async () => {
     try {
@@ -427,6 +531,8 @@ const RequestDetails = ({ navigation, route }) => {
       const usersData = await AsyncStorage.getItem("usersData");
       const warehouseId = await AsyncStorage.getItem("warehouseId");
       const warehouseNameSelected = await AsyncStorage.getItem("warehouseNameSelected");
+
+      console.log(organizationId, 'StatusPOSTAPICall')
 
       // Check for required values
       if (!protocol || !host || !port || !token) {
@@ -518,8 +624,6 @@ const RequestDetails = ({ navigation, route }) => {
       ChatScreenShowDataGETAPI();
     }
   };
-
-
 
   // Take Photo
   const takePhoto = () => {
@@ -733,14 +837,6 @@ const RequestDetails = ({ navigation, route }) => {
       alert(error.message);
     }
   };
-
-
-
-
-
-
-
-
 
   const requestStoragePermission = async () => {
     if (Platform.OS === 'android' && Platform.Version >= 23) {
@@ -1136,30 +1232,30 @@ const RequestDetails = ({ navigation, route }) => {
       )}
       {!isLoading && (
         <>
-        <View style={{flex:1, backgroundColor:"#fff"}}>
-          {/* <CustomHeader title="Task Detail" RightIcon='chat-processing-outline' RightPress={() => navigation.navigate('ChatScreen',{taskNo:documentNo, request_id:unique_ID})} /> */}
+          <View style={{ flex: 1, backgroundColor: "#fff" }}>
+            {/* <CustomHeader title="Task Detail" RightIcon='chat-processing-outline' RightPress={() => navigation.navigate('ChatScreen',{taskNo:documentNo, request_id:unique_ID})} /> */}
 
-          <View style={styles.headerContainer}>
-            <View style={styles.innerHeaderContainerStyle}>
+            <View style={styles.headerContainer}>
+              <View style={styles.innerHeaderContainerStyle}>
 
-              <TouchableOpacity style={styles.BackHandlerStyle} onPress={() => { handleBackPress() }}>
-                <Entypo name='chevron-left' size={18} color='#000' />
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.BackHandlerStyle} onPress={() => { handleBackPress() }}>
+                  <Entypo name='chevron-left' size={18} color='#000' />
+                </TouchableOpacity>
 
 
-              <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
-                <AntDesign name='edit' size={20} color='#000' />
-                <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>{selectedStatus}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
+                  <AntDesign name='edit' size={20} color='#000' />
+                  <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>{selectedStatus}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
-
+            <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
 
 
 
-            <Modal
+
+              {/* <Modal
               visible={show}
               animationType="slide"
               transparent={true}
@@ -1184,9 +1280,40 @@ const RequestDetails = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               </View>
-            </Modal>
+            </Modal>   */}
 
-            {/* <View style={{ alignItems: 'center'}}>
+
+
+              <Modal visible={show} animationType="slide" transparent={true}>
+                <View style={styles.modalContainer}>
+                  <View style={styles.modalView}>
+                    <Text style={styles.txt}>Set Status</Text>
+
+                    <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Open</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Waiting</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Close</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
+                      <Text style={styles.txt}>Final Close</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => setShow(!show)} style={styles.btn}>
+                      <Text style={styles.txtBtn}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
+
+
+              {/* <View style={{ alignItems: 'center'}}>
               <Modal visible={showCalendar} animationType="slide" transparent={true}>
                 <View style={styles.blurView}  >
                   <View style={styles.modal}>
@@ -1472,114 +1599,114 @@ const RequestDetails = ({ navigation, route }) => {
               </View>
             </View> */}
 
-            <View>
-              {/* Button Task Detail*/}
-              <View style={styles.taskStatusContianer}>
-                <Text style={styles.txtTaskDetailStyle}>Task Details</Text>
-              </View>
+              <View>
+                {/* Button Task Detail*/}
+                <View style={styles.taskStatusContianer}>
+                  <Text style={styles.txtTaskDetailStyle}>Task Details</Text>
+                </View>
 
 
-              {/* Task Name Conatianer */}
-              {/* <View style={{ marginTop: "1%", width: "90%", flexDirection:"row",alignSelf: "center",  }}>
+                {/* Task Name Conatianer */}
+                {/* <View style={{ marginTop: "1%", width: "90%", flexDirection:"row",alignSelf: "center",  }}>
              
                 <Text style={[styles.descriptionWordStyle,{}]}>Task Name:</Text>
                 <Text style={[styles.descriptionTxtStyle, {alignSelf:"center", marginTop:"-1%", paddingLeft:"1%"}]}>{taskName}</Text>
               </View> */}
 
-              <View style={{
-                marginTop: '1%',
-                width: '90%',
-                flexDirection: 'row',
-                alignSelf: 'center',
-                // flexWrap: 'wrap',
-              }}>
-                {/* Heading Task Name */}
-                <Text style={styles.txtStyle}>Task Name:</Text>
-                <Text style={{
-                  width: '65%',
-                  color: 'black',
-                  fontSize: PixelRatio.get() <= 2 ? 14 : 16, // Adjust font size based on pixel density
-                  fontWeight: '600',
-                  // marginTop: '3%',
-                  paddingLeft: '1%'
-                }}>{taskName}</Text>
-              </View>
+                <View style={{
+                  marginTop: '1%',
+                  width: '90%',
+                  flexDirection: 'row',
+                  alignSelf: 'center',
+                  // flexWrap: 'wrap',
+                }}>
+                  {/* Heading Task Name */}
+                  <Text style={styles.txtStyle}>Task Name:</Text>
+                  <Text style={{
+                    width: '65%',
+                    color: 'black',
+                    fontSize: PixelRatio.get() <= 2 ? 14 : 16, // Adjust font size based on pixel density
+                    fontWeight: '600',
+                    // marginTop: '3%',
+                    paddingLeft: '1%'
+                  }}>{taskName}</Text>
+                </View>
 
-              {/* Container For Creater by and Assigned To */}
-              <View style={styles.containerStyle}>
-                <View style={{ flexDirection: "row" }}>
-                  {/* <AntDesign name='user' size={20} color='#000' /> */}
-                  <View style={{width:"22%", backgroundColor:"#FB999A", borderRadius:40,justifyContent:"center", alignItems:"center"}}> 
-                    <Text style={{ fontSize:14, color:"black", fontWeight:600 }}>{firstTwoChars}</Text>
-                 </View>
-                 <View style={{paddingLeft:"3%"}}>
-                    <Text style={styles.txtStyle}>Created</Text>
-                    <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedBy}</Text>
+                {/* Container For Creater by and Assigned To */}
+                <View style={styles.containerStyle}>
+                  <View style={{ flexDirection: "row" }}>
+                    {/* <AntDesign name='user' size={20} color='#000' /> */}
+                    <View style={{ width: "22%", backgroundColor: "#FB999A", borderRadius: 40, justifyContent: "center", alignItems: "center" }}>
+                      <Text style={{ fontSize: 14, color: "black", fontWeight: 600 }}>{firstTwoChars}</Text>
+                    </View>
+                    <View style={{ paddingLeft: "3%" }}>
+                      <Text style={styles.txtStyle}>Created</Text>
+                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedBy}</Text>
+                    </View>
                   </View>
-                 </View>
-                 {/* Assigned To */}
-                 <View>
-                  <Text style={styles.txtStyle}>Assigned To</Text>
-                  <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedTo}</Text>
+                  {/* Assigned To */}
+                  <View>
+                    <Text style={styles.txtStyle}>Assigned To</Text>
+                    <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedTo}</Text>
+                  </View>
+                </View>
+
+
+                {/* Date Container */}
+                <View style={[styles.containerStyle, { marginTop: "5%" }]} >
+                  {/* Start Date Container */}
+                  <TouchableOpacity >
+                    <View style={styles.DateContainer}>
+                      <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
+                      <View style={{ paddingLeft: "5%" }}>
+                        <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>Start Date</Text>
+                        <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{startDate}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                  {/* End Date */}
+                  <TouchableOpacity >
+                    <View style={styles.DateContainer}>
+                      <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
+                      <View style={{ paddingLeft: "5%" }} >
+                        <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>End Date</Text>
+                        <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{endDate}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+
+                </View>
+                {/* Description Container */}
+
+                {/* <View style={styles.sameContainer}> */}
+                <View style={styles.sameContainer}>
+                  <Text style={styles.txtStyle}>Description:</Text>
+                  <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: "4%" }]}> {summary}</Text>
+                </View>
+
+                {/* Attachment View */}
+
+                <View style={styles.sameContainer}>
+                  <Text style={styles.txtStyle}>Attachments:</Text>
+
+                  {/* Attachment Button */}
+                  <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]} onPress={() => downloadFile()}>
+                    <AntDesign name="plus" size={32} color="black" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Create this Task */}
+                <View style={styles.sameContainer}>
+                  {/* <Text style={styles.descriptionWordStyle}>{assignedTo} created this task</Text> */}
+                  <Text style={styles.txtStyle}>{assignedTo} created this task</Text>
                 </View>
               </View>
 
-
-              {/* Date Container */}
-              <View style={[styles.containerStyle,{marginTop:"5%"}]} >
-                {/* Start Date Container */}
-                <TouchableOpacity >
-                  <View style={styles.DateContainer}>
-                    <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
-                    <View style={{paddingLeft:"5%"}}>
-                      <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>Start Date</Text>
-                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{startDate}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-                {/* End Date */}
-                <TouchableOpacity >
-                  <View style={styles.DateContainer}>
-                    <AntDesign name='calendar' size={24} color='#000' style={{ alignSelf: "center" }} />
-                    <View style={{paddingLeft:"5%"}} >
-                      <Text style={[styles.txtStyle, { paddingLeft: "3%" }]}>End Date</Text>
-                      <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: 4 }]}>{endDate}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-
-              </View>
-              {/* Description Container */}
-
-              {/* <View style={styles.sameContainer}> */}
-              <View style={styles.sameContainer}>
-                <Text style={styles.txtStyle}>Description:</Text>
-                <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, paddingLeft: "4%" }]}> {summary}</Text>
-              </View>
-
-              {/* Attachment View */}
-
-              <View style={styles.sameContainer}>
-                <Text style={styles.txtStyle}>Attachments:</Text>
-
-                {/* Attachment Button */}
-                <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]} onPress={() => downloadFile()}>
-                  <AntDesign name="plus" size={32} color="black" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Create this Task */}
-              <View style={styles.sameContainer}>
-                {/* <Text style={styles.descriptionWordStyle}>{assignedTo} created this task</Text> */}
-                <Text style={styles.txtStyle}>{assignedTo} created this task</Text>
-              </View>
-            </View>
-
-            {/*Message screen Start*/}
-            {/* <ScrollView  style={{flex:1}}> */}
-            <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
-              <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
-              {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
+              {/*Message screen Start*/}
+              {/* <ScrollView  style={{flex:1}}> */}
+              <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
+                <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
+                {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
                   <MaterialCommunityIcons
                     name={'message-reply-text'}
                     size={30}
@@ -1587,13 +1714,13 @@ const RequestDetails = ({ navigation, route }) => {
                     style={{ paddingLeft: 3, marginTop: "3%" }}
                   />
                 </TouchableOpacity> */}
-            </View>
+              </View>
 
-            {/* this code for start the CHART screen here */}
-            <View style={[styles.container]}>
-              <View>
-                {/* Old Code */}
-                {/* {recordsData.map((record, index) => (
+              {/* this code for start the CHART screen here */}
+              <View style={[styles.container]}>
+                <View>
+                  {/* Old Code */}
+                  {/* {recordsData.map((record, index) => (
                             <View key={index} style={[styles.responseAPIStyle,{backgroundColor:"red"}]}>
 
                                 <Text style={[styles.lableStyle, { fontWeight: "800", fontSize: 16, marginBottom: "4%", color: "blue" }]} > {record?.createdBy}</Text>
@@ -1603,126 +1730,126 @@ const RequestDetails = ({ navigation, route }) => {
                                 </View>
                             </View>
                         ))} */}
-                {/* New code */}
-                {recordsData && recordsData.length > 0 ? (
-                  recordsData.map((record, index) => (
-                    <View key={index} style={styles.responseAPIStyle}>
-                      <Text
-                        style={[
-                          styles.lableStyle,
-                          {
-                            fontWeight: '800', fontSize: 16, marginBottom: '4%',
-                            //  color: 'blue'
-                            color: '#002E62'
-                          },
-                        ]}
-                      >
-                        {record?.createdBy}
-                      </Text>
-                      <Text style={styles.lableStyle}>{record?.result}</Text>
-                      <View>
-                        <Text style={{ color: '#333', alignSelf: 'flex-end' }}>
-                          {record.createdTime}
-                        </Text>
-                      </View>
-                    </View>
-                  ))
-                ) : (
-                  // <View style={styles.noDataContainer}>
-                  <View style={styles.responseAPIStyle}>
-                    <Text style={[styles.noDataText,{alignSelf:"center"}]}>No conversation here</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
-              <View>
-
-                <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
-                  {Array.isArray(getmassages) &&
-                    getmassages.map((msg, index) => (
-                      <View key={index}>
-                        <View
+                  {/* New code */}
+                  {recordsData && recordsData.length > 0 ? (
+                    recordsData.map((record, index) => (
+                      <View key={index} style={styles.responseAPIStyle}>
+                        <Text
                           style={[
-                            styles.messageBubble,
-                            isSupport ? styles.supportMessage : styles.userMessage,
-                          ]}>
-                          <View style={{ flexDirection: 'row' }}>
-                            <Ionicons
-                              name="person-circle-outline"
-                              color="#6ed1f5"
-                              size={20}
-                            />
-                            <Text style={styles.username}>{msg?.message?.sender?.name}</Text>
-                          </View>
-                          {msg.type && msg.type == 'text_msg' && (
-                            <View>
-                              <Text style={[styles.messageText]}>{msg.message.text_msg}</Text>
-                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                <Text style={styles.messageText1}>
-                                  {formatDateTime(msg.message.created_at)}
-                                </Text>
-                              </View>
-                              {
-                                console.log(msg, "ksm")
-                              }
-                            </View>
-                          )}
-                          {msg.type && msg.type == 'audio' && (
-                            <View>
-                              {console.log(AudioPlayer, 'AudioPlayer')}
-                              <AudioPlayer uri={`${baseURL}/api/storage/${msg.message.voice_msg_path}`} />
-                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                <Text style={styles.messageText1}>
-                                  {formatDateTime(msg.message.created_at)}
-
-                                </Text>
-                              </View>
-                            </View>
-                          )}
-                          {msg.type && msg.type == 'image' && (
-                            <View>
-                              <Showimage uri={`${baseURL}/api/storage/${msg.message.attachment_path}`} />
-                              <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
-                                <Text style={styles.messageText1}>
-                                  {formatDateTime(msg.message.created_at)}
-
-                                </Text>
-                              </View>
-                            </View>
-                          )}
+                            styles.lableStyle,
+                            {
+                              fontWeight: '800', fontSize: 16, marginBottom: '4%',
+                              //  color: 'blue'
+                              color: '#002E62'
+                            },
+                          ]}
+                        >
+                          {record?.createdBy}
+                        </Text>
+                        <Text style={styles.lableStyle}>{record?.result}</Text>
+                        <View>
+                          <Text style={{ color: '#333', alignSelf: 'flex-end' }}>
+                            {record.createdTime}
+                          </Text>
                         </View>
                       </View>
-                    ))}
-                  <View style={{ height: 20, }}></View>
-                </ScrollView>
+                    ))
+                  ) : (
+                    // <View style={styles.noDataContainer}>
+                    <View style={styles.responseAPIStyle}>
+                      <Text style={[styles.noDataText, { alignSelf: "center" }]}>No conversation here</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
+                <View>
+
+                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
+                    {Array.isArray(getmassages) &&
+                      getmassages.map((msg, index) => (
+                        <View key={index}>
+                          <View
+                            style={[
+                              styles.messageBubble,
+                              isSupport ? styles.supportMessage : styles.userMessage,
+                            ]}>
+                            <View style={{ flexDirection: 'row' }}>
+                              <Ionicons
+                                name="person-circle-outline"
+                                color="#6ed1f5"
+                                size={20}
+                              />
+                              <Text style={styles.username}>{msg?.message?.sender?.name}</Text>
+                            </View>
+                            {msg.type && msg.type == 'text_msg' && (
+                              <View>
+                                <Text style={[styles.messageText]}>{msg.message.text_msg}</Text>
+                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                  <Text style={styles.messageText1}>
+                                    {formatDateTime(msg.message.created_at)}
+                                  </Text>
+                                </View>
+                                {
+                                  console.log(msg, "ksm")
+                                }
+                              </View>
+                            )}
+                            {msg.type && msg.type == 'audio' && (
+                              <View>
+                                {console.log(AudioPlayer, 'AudioPlayer')}
+                                <AudioPlayer uri={`${baseURL}/api/storage/${msg.message.voice_msg_path}`} />
+                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                  <Text style={styles.messageText1}>
+                                    {formatDateTime(msg.message.created_at)}
+
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
+                            {msg.type && msg.type == 'image' && (
+                              <View>
+                                <Showimage uri={`${baseURL}/api/storage/${msg.message.attachment_path}`} />
+                                <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
+                                  <Text style={styles.messageText1}>
+                                    {formatDateTime(msg.message.created_at)}
+
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    <View style={{ height: 20, }}></View>
+                  </ScrollView>
+                </View>
               </View>
-            </View>
 
 
 
-            {/* </ScrollView> */}
+              {/* </ScrollView> */}
 
 
-          </ScrollView >
+            </ScrollView >
 
 
 
-          {/* Message Text View is here */}
-          <View style={{
-            width: '100%', // Adjust width
-            // padding: 10,
-            backgroundColor: 'white',
-            borderRadius: 10,
-            elevation: 10,
-            // backgroundColor: "red",
-            position: 'absolute',
-            bottom: 0,
-            alignSelf: "center"
-          }}>
-            <View style={styles.inputContainer}>
-              <View style={styles.form_col_2}>
-                {/* {showVoiceView && (
+            {/* Message Text View is here */}
+            <View style={{
+              width: '100%', // Adjust width
+              // padding: 10,
+              backgroundColor: 'white',
+              borderRadius: 10,
+              elevation: 10,
+              // backgroundColor: "red",
+              position: 'absolute',
+              bottom: 0,
+              alignSelf: "center"
+            }}>
+              <View style={styles.inputContainer}>
+                <View style={styles.form_col_2}>
+                  {/* {showVoiceView && (
                   <View style={styles.voiceviev_cont}>
                     <View style={styles.voiceview_row}>
                       <View style={styles.voicecol_1}>
@@ -1744,7 +1871,7 @@ const RequestDetails = ({ navigation, route }) => {
                     </View>
                   </View>
                 )} */}
-                {/* <TouchableOpacity
+                  {/* <TouchableOpacity
                     style={{
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1755,14 +1882,14 @@ const RequestDetails = ({ navigation, route }) => {
                   >
                     <Entypo name="attachment" size={20} color={'#568086'} />
                   </TouchableOpacity> */}
-                <TextInput
-                  placeholder="Send Message"
-                  placeholderTextColor={'#000'}
-                  style={styles.text_input_2}
-                  onChangeText={(text) => setMessage(text)}
-                  value={message}
-                />
-                {/* <TouchableOpacity onPress={takePhoto}>
+                  <TextInput
+                    placeholder="Send Message"
+                    placeholderTextColor={'#000'}
+                    style={styles.text_input_2}
+                    onChangeText={(text) => setMessage(text)}
+                    value={message}
+                  />
+                  {/* <TouchableOpacity onPress={takePhoto}>
                     <View
                       style={{
                         alignItems: 'center',
@@ -1775,24 +1902,24 @@ const RequestDetails = ({ navigation, route }) => {
                       <FontAwesome name={'camera'} size={20} color={'#a0a0a0'} />
                     </View>
                   </TouchableOpacity> */}
-              </View>
-              {/* {message && message.length > 0 && ( */}
-              <View style={styles.sendButton}>
-                <TouchableOpacity style={styles.sendButtonText} onPress={() => {
-                  if (!message.trim()) {
-                    alert("Please enter a message before sending.");
-                    return;
-                  }
-                  passdata1();
-                }}
+                </View>
+                {/* {message && message.length > 0 && ( */}
+                <View style={styles.sendButton}>
+                  <TouchableOpacity style={styles.sendButtonText} onPress={() => {
+                    if (!message.trim()) {
+                      alert("Please enter a message before sending.");
+                      return;
+                    }
+                    passdata1();
+                  }}
 
 
-                >
-                  <MaterialCommunityIcons name={'send'} size={20} color={'#fff'} />
-                </TouchableOpacity>
-              </View>
-              {/* )} */}
-              {/* {!showVoiceView && message.length === 0 && (
+                  >
+                    <MaterialCommunityIcons name={'send'} size={20} color={'#fff'} />
+                  </TouchableOpacity>
+                </View>
+                {/* )} */}
+                {/* {!showVoiceView && message.length === 0 && (
                 <TouchableWithoutFeedback
                   onPress={() => setShowVoiceView(true)}
                   style={styles.sendButton}
@@ -1816,15 +1943,15 @@ const RequestDetails = ({ navigation, route }) => {
                   </TouchableOpacity>
                 </View>
               )} */}
-              {/* Close Modal Button */}
-              {/* <TouchableOpacity
+                {/* Close Modal Button */}
+                {/* <TouchableOpacity
                             style={styles.closeModalButton}
                             onPress={() => setShowModal(false)}
                         >
                             <Text style={styles.closeModalText}>Close</Text>
                         </TouchableOpacity> */}
+              </View>
             </View>
-          </View>
 
 
           </View>

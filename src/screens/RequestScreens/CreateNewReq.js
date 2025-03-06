@@ -137,6 +137,47 @@ const CreateNewReq = ({ navigation }) => {
       const AD_Org_ID = orgData.organizations.find(item => item.id == organizationId);
 
 
+      const payload = {
+        "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
+        "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
+        "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
+        "CloseDate": "",
+        "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+        "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+        "Created": formattedDate,
+        "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
+        "DateLastAction": "",
+        "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
+        "IsActive": true,
+        "IsEscalated": false,
+        "IsInvoiced": false,
+        "IsSelfService": false,
+        "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
+        "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
+        // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
+        "Processed": false,
+        "QtyInvoiced": 0,
+        "QtyPlan": 0,
+        "QtySpent": 0,
+        "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
+        "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
+        "RequestAmt": 0,
+        "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
+        "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+        "Summary": summary,
+        "Updated": "",
+        "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
+        "id": parseInt(userId),
+        "model-name": "r_request",
+        "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
+        "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+        "Name": name,
+        "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
+      };
+
+      console.log(payload,"POSTCallPayLoad")
+
+
       const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
         method: 'POST',
         headers: {
@@ -144,45 +185,47 @@ const CreateNewReq = ({ navigation }) => {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
-          "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
-          "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
-          "CloseDate": "",
-          "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-          "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-          "Created": formattedDate,
-          "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-          "DateLastAction": "",
-          "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-          "IsActive": true,
-          "IsEscalated": false,
-          "IsInvoiced": false,
-          "IsSelfService": false,
-          "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-          "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-          // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
-          "Processed": false,
-          "QtyInvoiced": 0,
-          "QtyPlan": 0,
-          "QtySpent": 0,
-          "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
-          "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
-          "RequestAmt": 0,
-          "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
-          "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-          "Summary": summary,
-          "Updated": "",
-          "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
-          "id": parseInt(userId),
-          "model-name": "r_request",
-          "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-          "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-          "Name": name,
-          "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-        }),
+        // body: JSON.stringify({
+        //   "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
+        //   "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
+        //   "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
+        //   "CloseDate": "",
+        //   "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+        //   "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
+        //   "Created": formattedDate,
+        //   "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
+        //   "DateLastAction": "",
+        //   "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
+        //   "IsActive": true,
+        //   "IsEscalated": false,
+        //   "IsInvoiced": false,
+        //   "IsSelfService": false,
+        //   "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
+        //   "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
+        //   // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
+        //   "Processed": false,
+        //   "QtyInvoiced": 0,
+        //   "QtyPlan": 0,
+        //   "QtySpent": 0,
+        //   "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
+        //   "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
+        //   "RequestAmt": 0,
+        //   "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
+        //   "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+        //   "Summary": summary,
+        //   "Updated": "",
+        //   "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
+        //   "id": parseInt(userId),
+        //   "model-name": "r_request",
+        //   "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
+        //   "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
+        //   "Name": name,
+        //   "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
+        // }),
+
+        body: JSON.stringify(payload)
       });
-      console.log(body,'ece')
+      // console.log(body,'ece')
 
       const requestData = await requestResponse.json();
       // setStartDate(null);

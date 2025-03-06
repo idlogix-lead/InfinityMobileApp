@@ -43,6 +43,7 @@ const AllTaskScreen = ({ navigation }) => {
     const [endDate, setEndDate] = useState(null)
     const [showRBSheet, setShowRBSheet] = useState(false);
     const [filteredData, setFilteredData] = useState(data);
+    // console.log(filteredData,'AllDataInTaskTrick')
 
     const [pickerData, setPickerData] = useState([]);
 
