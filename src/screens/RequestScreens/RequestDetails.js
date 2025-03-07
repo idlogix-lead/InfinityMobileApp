@@ -72,24 +72,14 @@ const RequestDetails = ({ navigation, route }) => {
   const [SMS, setSMS] = useState([])
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState(null);
-  console.log(selectedStatus, 'StatusSelectKiyaHai')
+  // console.log(selectedStatus, 'StatusSelectKiyaHai')
   const currentDate = new Date();
   const formattedDate = currentDate.toISOString();
-
-
-
-  // console.log(documentNo, 'documentNoInRequestSrn')
 
   let dateDummyStart, dateDummyEnd
 
 
   const firstTwoChars = assignedBy.split(" ")[0]?.slice(0, 2).toUpperCase() || "";
-
-  console.log(unique_ID, 'unique_ID')
-
-  // console.log(requestID,'requestID')
-  // console.log(attachmentName,'attachment')
-
 
   const saveData = async () => {
     try {
@@ -211,7 +201,7 @@ const RequestDetails = ({ navigation, route }) => {
       }
 
       const url = `${protocol}://${host}:${port}/api/v1/models/R_RequestUpdate?$filter=R_Request_ID eq ${unique_ID}`;
-      console.log(url, "R_RequestUpdateURLCheck");
+      // console.log(url, "R_RequestUpdateURLCheck");
 
       const response = await axios.get(url, {
         headers: {
@@ -495,7 +485,7 @@ const RequestDetails = ({ navigation, route }) => {
       // console.log(records,'AllResponseData')
 
       const filterRecords = records.filter(item => item.id === id);
-      console.log(filterRecords, 'GETForTaskScreen')
+      // console.log(filterRecords, 'GETForTaskScreen')
       setDocumentNo(filterRecords[0].DocumentNo)
       // setStatusID(filterRecords[0].R_Status_ID.id)
       setStatusID(filterRecords[0].R_Status_ID.identifier)
@@ -508,7 +498,7 @@ const RequestDetails = ({ navigation, route }) => {
       setRequest(filterRecords[0].id)
       // setUniqueID(filterRecords[0]?.R_RequestType_ID?.id)
       setUniqueID(filterRecords[0]?.id)
-      console.log(unique_ID, 'unique_IDMoazzamBiag')
+      // console.log(unique_ID, 'unique_IDMoazzamBiag')
       // let dateStart = moment(filterRecords[0].StartDate).format('YYYY-DD-MM')
       let dateStart = moment(filterRecords[0].StartDate).format('DD-MM-YYYY')
       let dateEnd = moment(filterRecords[0].EndTime).format('DD-MM-YYYY')
