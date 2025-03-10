@@ -927,7 +927,7 @@ const RequestDetails = ({ navigation, route }) => {
 
                 <View style={{
                   marginTop: '1%',
-                  width: '90%',
+                  width: '95%',
                   flexDirection: 'row',
                   alignSelf: 'center',
                   // flexWrap: 'wrap',
@@ -1194,7 +1194,7 @@ const styles = StyleSheet.create({
     marginTop: "8%",
     justifyContent: "flex-end",
     alignItems: "flex-start",
-    paddingLeft: "5%"
+    paddingLeft: "3%"
   },
   txtTaskDetailStyle: {
     padding: 14,
