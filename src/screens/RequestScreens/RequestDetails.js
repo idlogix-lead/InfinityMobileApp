@@ -72,7 +72,6 @@ const RequestDetails = ({ navigation, route }) => {
   const [SMS, setSMS] = useState([])
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState(null);
-  // console.log(selectedStatus, 'StatusSelectKiyaHai')
   const currentDate = new Date();
   const formattedDate = currentDate.toISOString();
 
@@ -149,18 +148,10 @@ const RequestDetails = ({ navigation, route }) => {
     setShow(false);
   };
 
-  useEffect(() => {
-    if (selectedStatus !== "Status" && selectedStatusId !== null) {
-      saveData();
-    }
-  }, [selectedStatus, selectedStatusId]);
-
-
 
   const handleBackPress = () => {
     navigation.goBack();
   };
-
 
   useEffect(() => {
     if (unique_ID) {
@@ -168,9 +159,6 @@ const RequestDetails = ({ navigation, route }) => {
       ChatScreenShowDataGETAPI();
     }
   }, [unique_ID]);
-
-
-
 
   // all message show in screen
 
@@ -466,8 +454,6 @@ const RequestDetails = ({ navigation, route }) => {
   };
 
 
-
-
   const getAPIData = async (protocol, host, port, userId, id) => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -644,139 +630,6 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
-  // const downloadFile = async () => {
-  //   const protocol = await AsyncStorage.getItem('protocol');
-  //   const host = await AsyncStorage.getItem('host');
-  //   const port = await AsyncStorage.getItem('port');
-  //   const token = await AsyncStorage.getItem('token'); 
-
-  //   const permissionGranted = await requestStoragePermission();
-  //   if (!permissionGranted) {
-  //     console.log('Storage Permission Not Granted');
-  //     return;
-  //   }
-
-  //   const fileUrl = `${protocol}://${host}:${port}/api/v1/models/R_Request/${requestID}/attachments/${attachmentName}`;
-  //   console.log(fileUrl,'fileurl')
-
-  //   try {
-  //     const response = await fetch(fileUrl, {
-  //       method:'GET',
-  //       headers: {
-  //         'Authorization': `Bearer ${token}` 
-  //       }
-  //     });
-
-  //     if (!response.ok) {
-  //       console.error(`Error fetching file: ${response.status}`);
-  //       return;
-  //     }
-
-  //     const actualFileUrl = response.url;
-  //     const localFilePath = `${RNFS.DownloadDirectoryPath}/${attachmentName}`;
-
-  //     // RNFS.mkdir(`${RNFS.DownloadDirectoryPath}/MyDirectory`)
-  //     console.log(localFilePath,'local')
-
-  //     const downloadResult = await RNFS.downloadFile({
-  //       fromUrl: actualFileUrl,
-  //       toFile: localFilePath,
-  //       headers: {
-  //         'Authorization': `Bearer ${token}` 
-  //       },
-  //       background: true,
-  //       begin: (res) => {
-  //         console.log('Download started', res);
-  //       },
-  //       progress: (res) => {
-  //         console.log(`${(res.bytesWritten / res.contentLength).toFixed(2) * 100}%`);
-  //       },
-  //     }).promise.then(response => {
-  //       console.log('77777777777777777777777file download', response)
-  //     }).catch((error)=>{
-  //       console.log('error',error.message)
-  //     });
-
-
-  //     console.log('=========================',fileUrl)
-
-  //     const fileExists = await RNFS.exists(localFilePath);
-  //     if (fileExists) {
-  //       console.log('File downloaded and exists at:', localFilePath);
-  //       const targetlocation = `${RNFS.DownloadDirectoryPath}/${attachmentName}`;
-  //         RNFS.moveFile(localFilePath, targetlocation);
-  //       if (Platform.OS === 'android') {
-  //       }
-  //     } else {
-  //       console.error('File downloaded but does not exist at the expected path:', localFilePath);
-  //     }
-  //   } catch (error) {
-  //     console.error('Error downloading file:', error);
-  //   }
-  // };
-
-
-
-
-  // const getAPIData = async (protocol, host, port, userId, id) => {
-  //   const token = await AsyncStorage.getItem('token')
-  //   const value = await AsyncStorage.getItem('userName');
-  //   fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
-  //     method: 'GET',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': `Bearer ${token}`
-  //     }
-  //   })
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       let records = data.records
-  //       const filterRecords = records.filter(item => item.id === id);
-  //       setStatusID(filterRecords[0].R_Status_ID.id)
-  //       setSubOrdinateID(filterRecords[0].SalesRep_ID.id)
-  //       setpriorityID(filterRecords[0].PriorityUser.id)
-  //       setDueID(filterRecords[0].DueType.id)
-  //       setFilterRecordsId(filterRecords[0].R_Status_ID.id)
-  //       setTaskName(filterRecords[0].Name)
-  //       setassignedBy(filterRecords[0].CreatedBy.identifier)
-  //       setRequest(filterRecords[0].id)
-  //       let dateStart = moment(filterRecords[0].StartDate).format('YYYY-DD-MM')
-  //       let dateEnd = moment(filterRecords[0].EndTime).format('YYYY-DD-MM')
-  //       setStartDate(dateStart)
-  //       setEndDate(dateEnd)
-  //       setStatus(filterRecords[0].R_Status_ID.identifier.split("_")[1])
-  //       setDueType(filterRecords[0].DueType.identifier)
-  //       setPriority(filterRecords[0].PriorityUser.identifier)
-  //       setSummary(filterRecords[0].Summary)
-  //       setClientName(filterRecords[0].AD_Client_ID.identifier)
-  //       setOrganizationName(filterRecords[0].AD_Org_ID.identifier)
-  //       setAssignedTo(filterRecords[0].SalesRep_ID.identifier)
-  //       fetch(`${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`, {
-  //         method: 'GET',
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': `Bearer ${token}`
-  //         }
-  //       })
-  //         .then(response => response.json())
-  //         .then(data => {
-  //           const array1 = [{ Name: value, Name: value, id: userId }]
-  //           let records = data.records
-  //           const newArray = array1.concat(records)
-  //           setSubData(newArray)
-  //           setIsLoading(false)
-  //         })
-  //         .catch(error => {
-  //           console.error(error)
-  //           setIsLoading(false)
-  //         });
-  //     })
-  //     .catch(error => {
-  //       alert(error)
-  //       setIsLoading(false)
-  //     });
-  // }
-
   const navigateBack = () => {
     setIsLoading(true)
     const unsubscribe = navigation.addListener('focus', async () => {
@@ -813,59 +666,6 @@ const RequestDetails = ({ navigation, route }) => {
     setAssignedToModal(false)
   }
 
-  // const saveButton = async () => {
-  //   let startDateDummy, endDateDummy
-  //   const parsedStartDate = moment(startDate, 'YYYY-DD-MM');
-  //   startDateDummy = moment(parsedStartDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-  //   const parsedEndDate = moment(endDate, 'YYYY-DD-MM');
-  //   endDateDummy = moment(parsedEndDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-  //   const protocol = await AsyncStorage.getItem('protocol')
-  //   const host = await AsyncStorage.getItem('host')
-  //   const port = await AsyncStorage.getItem('port')
-  //   const token = await AsyncStorage.getItem('token')
-  //   const userId = await AsyncStorage.getItem('userId')
-
-  //   console.log('dueID', dueID, "dueType", dueType)
-  //   fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${id}`, {
-  //     method: 'PUT',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': `Bearer ${token}`,
-  //     },
-  //     body: JSON.stringify({
-  //       "Name": taskName,
-  //       "StartDate": startDate,
-  //       "EndTime": endDate,
-  //       "Summary": summary,
-  //       "PriorityUser": { "id": priorityID, "identifier": priority, "model-name": "ad_ref_list" },
-  //       "DueType": { "id": dueID, "identifier": dueType, "model-name": "ad_ref_list" },
-  //       "SalesRep_ID": { "id": subOrdinateID, "identifier": assignedTo, "model-name": "ad_user" },
-  //       "R_Status_ID": { "id": statusID, "identifier": status, "model-name": "r_status" }
-  //       // "DueType": { "id": dueID, "identifier": dueType, "model-name": "ad_ref_list" },
-  //       // "PriorityUser": { "id": priorityID, "identifier": priority, "model-name": "ad_ref_list" },
-  //       // "R_Status_ID": { "id": statusID, "identifier": status, "model-name": "r_status" },
-  //       // "SalesRep_ID": { "id": subOrdinateID, "identifier": assignedTo, "model-name": "ad_user" },
-  //       // "Summary": summary,
-  //       // "EndTime": endDate,
-  //       // "Name": taskName,
-  //       // "StartTime": startDate
-  //     })
-  //   })
-  //     .then(response => {
-  //       return response.json();
-  //     })
-  //     .then(data => {
-  //       console.log(data)
-  //       setIsLoading(true)
-  //       getAPIData(protocol, host, port, userId, id)
-  //     })
-  //     .catch(error => {
-  //       // Handle the error
-  //       alert(error)
-  //       setIsLoading(false)
-  //       // ...
-  //     });
-  // }
 
   const saveButton = async () => {
     try {
@@ -911,7 +711,11 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
-  // saveButton();
+  useEffect(() => {
+    if (selectedStatus !== "Status" && selectedStatusId !== null) {
+      saveData();
+    }
+  }, [selectedStatus, selectedStatusId]);
 
 
   useEffect(() => {
@@ -920,36 +724,6 @@ const RequestDetails = ({ navigation, route }) => {
 
   useEffect(() => {
   }, [getmassages]);
-
-  // useEffect(() => {
-  //   if (showVoiceView) {
-  //     fadeAnim.setValue(0);
-  //     const animation = Animated.loop(
-  //       Animated.sequence([
-  //         Animated.timing(fadeAnim, {
-  //           toValue: 1,
-  //           duration: 1000,
-  //           useNativeDriver: true,
-  //         }),
-  //         Animated.timing(fadeAnim, {
-  //           toValue: 0,
-  //           duration: 1000,
-  //           useNativeDriver: true,
-  //         }),
-  //       ]),
-  //     );
-  //     animation.start();
-  //     return () => animation.stop();
-  //   }
-  // }, [showVoiceView, fadeAnim]);
-  // useEffect(() => {
-  //   if (showVoiceView) {
-  //     const timerID = setInterval(function run() {
-  //       onStartRecord();
-  //       clearInterval(timerID);
-  //     }, 1000);
-  //   }
-  // }, [showVoiceView]);
 
   return (
     <>
@@ -970,27 +744,12 @@ const RequestDetails = ({ navigation, route }) => {
                   <Entypo name='chevron-left' size={18} color='#000' />
                 </TouchableOpacity>
 
-
-                {/* <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
-                  <AntDesign name='edit' size={20} color='#000' />
-                  <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: 600 }}>
-                    {status}                    
-                    
-                    </Text>
-                </TouchableOpacity> */}
-
                 <TouchableOpacity style={styles.statusContainer} onPress={() => setShow(true)}>
                   <AntDesign name="edit" size={20} color="#000" />
                   <Text style={{ color: "black", marginLeft: 5, fontSize: 16, fontWeight: "600" }}>
                     {selectedStatus ? selectedStatus : status}
                   </Text>
                 </TouchableOpacity>
-
-
-
-
-
-
               </View>
             </View>
 
@@ -1078,33 +837,6 @@ const RequestDetails = ({ navigation, route }) => {
                   </View>
                 </View>
               </Modal>
-
-              <Modal
-                visible={show} 
-                animationType="slide" 
-                transparent={true} 
-              >
-                <View style={styles.modalContainer}>
-                  <View style={styles.modalView}>
-                    <Text style={styles.txt}>Set Status</Text>
-                    <TouchableOpacity onPress={() => modalClose('Open', 1000000)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Open</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Waiting', 1000001)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Waiting</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Close', 1000002)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => modalClose('Final Close', 1000003)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Final Close</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setShow(!show) }} style={styles.btn}>
-                      <Text style={styles.txtBtn}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
               <Modal
                 visible={dueTypeModal}
                 animationType="slide"
@@ -1185,130 +917,6 @@ const RequestDetails = ({ navigation, route }) => {
 
               </Modal>
               <View style={styles.formCon}>
-
-
-                <View style={{ flexDirection: 'row' }}>
-                  <SmallInput
-                    txt="Task Name"
-                    // placeholder={taskName}
-                    value={taskName}
-                    onChangeText={(txt) => setTaskName(txt)}
-                    width='40%'
-                  />
-                  <ModalStatus
-                    txt="Assigned To"
-                    width="57%"
-                    status={assignedTo}
-                    widthStatus="85%"
-                    marginLeft={10}
-                    source={require('../../asserts/taskDetailAssets/arrow.png')}
-                    onPress={() => setAssignedToModal(true)}
-                  />
-
-                </View>
-
-                
-                <View style={{ flexDirection: 'row' }}>
-                  <NonEditAble
-                    txt="Assigned By"
-                    width='40%'
-                    value={assignedBy} />
-                  <NonEditAble
-                    txt="Request"
-                    width='57%'
-                    value={request}
-                    marginLeft={10} />
-                </View>
-
-                <View style={{ flexDirection: 'row' }}>
-                  <Calender
-                    dateTxt={startDate}
-                    width="40%"
-                    widthDate="72%"
-                    txt="Start Date"
-                    showCalendarPress={() => setShowCalendar(true)}
-                  />
-                  <Calender
-                    width="57%"
-                    dateTxt={endDate}
-                    marginLeft={10}
-                    widthDate='75%'
-                    txt="End Date"
-                    showCalendarPress={() => setShowCalendarEnd(true)}
-                  />
-                </View>
-
-               
-                <View style={{ flexDirection: 'row' }}>
-                  <ModalStatus
-                    txt="Status"
-                    width="40%"
-                    status={status}
-                    widthStatus="82%"
-                    source={require('../../asserts/taskDetailAssets/arrow.png')}
-                    onPress={() => setShow(true)}
-                    marginTop={10}
-                  />
-                  <ModalStatus
-                    txt="Due type"
-                    width="57%"
-                    status={dueType}
-                    widthStatus="85%"
-                    marginLeft={10}
-                    source={require('../../asserts/taskDetailAssets/arrow.png')}
-                    onPress={() => setDueTypeModal(true)}
-                    marginTop={10}
-                  />
-                </View>
-
-             
-                <View style={{ flexDirection: 'row' }}>
-                  <ModalStatus
-                    txt="Priority"
-                    width="40%"
-                    status={priority}
-                    widthStatus="82%"
-                    source={require('../../asserts/taskDetailAssets/arrow.png')}
-                    onPress={() => setPriorityModal(true)}
-                    marginTop={10}
-                  />
-                  <ModalStatus
-                    txt="Attachments"
-                    width="57%"
-                    status={attachmentName}
-                    onPress={() => downloadFile()}
-                    widthStatus="85%"
-                    marginLeft={10}
-                    source={require('../../asserts/taskDetailAssets/attach.png')}
-                    marginTop={10}
-                  />
-                </View>
-
-               
-                <View >
-                  <NonEditAble
-                    txt="Client"
-                    width='100%'
-                    value={clientName} />
-                  <NonEditAble
-                    txt="Organization"
-                    width='100%'
-                    value={organizationName}
-                    />
-                </View>
-
-                <SmallInput
-                  txt="Summary"
-                  // placeholder="Summary"
-                  value={summary}
-                  onChangeText={(txt) => setSummary(txt)}
-                  width='100%'
-                />
-                <TouchableOpacity style={styles.saveBtn} onPress={() => saveButton()}>
-                  <Text style={styles.saveBtnTxt} >Save</Text>
-                </TouchableOpacity>
-
-              </View>
             </View> */}
 
               <View>
@@ -1316,14 +924,6 @@ const RequestDetails = ({ navigation, route }) => {
                 <View style={styles.taskStatusContianer}>
                   <Text style={styles.txtTaskDetailStyle}>Task Details</Text>
                 </View>
-
-
-                {/* Task Name Conatianer */}
-                {/* <View style={{ marginTop: "1%", width: "90%", flexDirection:"row",alignSelf: "center",  }}>
-             
-                <Text style={[styles.descriptionWordStyle,{}]}>Task Name:</Text>
-                <Text style={[styles.descriptionTxtStyle, {alignSelf:"center", marginTop:"-1%", paddingLeft:"1%"}]}>{taskName}</Text>
-              </View> */}
 
                 <View style={{
                   marginTop: '1%',
@@ -1418,30 +1018,12 @@ const RequestDetails = ({ navigation, route }) => {
               {/* <ScrollView  style={{flex:1}}> */}
               <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
                 <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
-                {/* <TouchableOpacity style={{ height: "80%", width: "10%", backgroundColor: "#82CED9", marginTop: 5, borderRadius: 5, flexDirection: "row", }} onPress={() => setShowModal(true)}>
-                  <MaterialCommunityIcons
-                    name={'message-reply-text'}
-                    size={30}
-                    color="#f5f5f5"
-                    style={{ paddingLeft: 3, marginTop: "3%" }}
-                  />
-                </TouchableOpacity> */}
+                
               </View>
 
               {/* this code for start the CHART screen here */}
               <View style={[styles.container]}>
                 <View>
-                  {/* Old Code */}
-                  {/* {recordsData.map((record, index) => (
-                            <View key={index} style={[styles.responseAPIStyle,{backgroundColor:"red"}]}>
-
-                                <Text style={[styles.lableStyle, { fontWeight: "800", fontSize: 16, marginBottom: "4%", color: "blue" }]} > {record?.createdBy}</Text>
-                                <Text style={styles.lableStyle}>{record?.result}</Text>
-                                <View>
-                                    <Text style={{ color: "#333", alignSelf: "flex-end" }}>{record.createdTime} </Text>
-                                </View>
-                            </View>
-                        ))} */}
                   {/* New code */}
                   {recordsData && recordsData.length > 0 ? (
                     recordsData.map((record, index) => (
@@ -1537,15 +1119,8 @@ const RequestDetails = ({ navigation, route }) => {
                   </ScrollView>
                 </View>
               </View>
-
-
-
               {/* </ScrollView> */}
-
-
             </ScrollView >
-
-
 
             {/* Message Text View is here */}
             <View style={{
@@ -1561,39 +1136,6 @@ const RequestDetails = ({ navigation, route }) => {
             }}>
               <View style={styles.inputContainer}>
                 <View style={styles.form_col_2}>
-                  {/* {showVoiceView && (
-                  <View style={styles.voiceviev_cont}>
-                    <View style={styles.voiceview_row}>
-                      <View style={styles.voicecol_1}>
-                        <Text style={{ textAlign: 'center', color: '#000' }}>
-                          {recordTime}
-                        </Text>
-                      </View>
-                      <View style={styles.voicecol_2}>
-                        <Animated.Text
-                          style={{
-                            color: '#000',
-                            fontWeight: 'bold',
-                            opacity: fadeAnim,
-                          }}
-                        >
-                          Recording...
-                        </Animated.Text>
-                      </View>
-                    </View>
-                  </View>
-                )} */}
-                  {/* <TouchableOpacity
-                    style={{
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 40,
-                      paddingLeft: 10,
-                    }}
-                    onPress={pickImage}
-                  >
-                    <Entypo name="attachment" size={20} color={'#568086'} />
-                  </TouchableOpacity> */}
                   <TextInput
                     placeholder="Send Message"
                     placeholderTextColor={'#000'}
@@ -1601,21 +1143,7 @@ const RequestDetails = ({ navigation, route }) => {
                     onChangeText={(text) => setMessage(text)}
                     value={message}
                   />
-                  {/* <TouchableOpacity onPress={takePhoto}>
-                    <View
-                      style={{
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 40,
-                        height: 44,
-                        right: '15%',
-                      }}
-                    >
-                      <FontAwesome name={'camera'} size={20} color={'#a0a0a0'} />
-                    </View>
-                  </TouchableOpacity> */}
                 </View>
-                {/* {message && message.length > 0 && ( */}
                 <View style={styles.sendButton}>
                   <TouchableOpacity style={styles.sendButtonText} onPress={() => {
                     if (!message.trim()) {
@@ -1624,44 +1152,10 @@ const RequestDetails = ({ navigation, route }) => {
                     }
                     passdata1();
                   }}
-
-
                   >
                     <MaterialCommunityIcons name={'send'} size={20} color={'#fff'} />
                   </TouchableOpacity>
                 </View>
-                {/* )} */}
-                {/* {!showVoiceView && message.length === 0 && (
-                <TouchableWithoutFeedback
-                  onPress={() => setShowVoiceView(true)}
-                  style={styles.sendButton}
-                >
-                  <View style={styles.sendButton}>
-                    <FontAwesome name={'microphone'} size={20} color={'#fff'} />
-                   
-                  </View>
-                </TouchableWithoutFeedback>
-              )}
-              {showVoiceView && (
-                <View style={{ marginLeft: 10 }}>
-                  <TouchableOpacity
-                    style={styles.sendButton}
-                    onPress={() => {
-                      setShowVoiceView(false);
-                      onStopRecord();
-                    }}
-                  >
-                    <FontAwesome name={'send'} size={20} color={'#fff'} />
-                  </TouchableOpacity>
-                </View>
-              )} */}
-                {/* Close Modal Button */}
-                {/* <TouchableOpacity
-                            style={styles.closeModalButton}
-                            onPress={() => setShowModal(false)}
-                        >
-                            <Text style={styles.closeModalText}>Close</Text>
-                        </TouchableOpacity> */}
               </View>
             </View>
 
@@ -1857,51 +1351,6 @@ const styles = StyleSheet.create({
     // padding: 5,
     // backgroundColor:"yellow"
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // formCon: {
-  //   width: '94%'
-  // },
-  // blurView: {
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   flex: 1,
-  //   backgroundColor: 'rgba(0,0,0,0.5)'
-  // },
-  // modal: {
-  //   width: '90%',
-  //   backgroundColor: '#00B0F0',
-  //   borderRadius: 20,
-  //   alignItems: 'center'
-  // },
-  // closeBtn: {
-  //   backgroundColor: 'white',
-  //   height: '10%',
-  //   width: '40%',
-  //   marginTop: 20,
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   borderRadius: 20
-  // },
-  // close: {
-  //   color: '#00B0F0',
-  //   fontSize: 16,
-  //   fontFamily: 'K2D-Regular'
-  // },
-
   modalContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1967,28 +1416,4 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Regular'
   },
-  // item: {
-  //   alignItems: 'center',
-  //   justifyContent: 'center'
-  // },
-  // title: {
-  //   fontSize: 24,
-  //   color: 'white',
-  //   fontFamily: 'K2D-Regular'
-  // },
-  // saveBtn: {
-  //   backgroundColor: '#00B0F0',
-  //   height: height / 20,
-  //   width: width / 2,
-  //   alignItems: 'center',
-  //   justifyContent: 'center',
-  //   marginVertical: '3%',
-  //   borderRadius: 10,
-  //   alignSelf: 'center'
-  // },
-  // saveBtnTxt: {
-  //   fontSize: 16,
-  //   color: 'white',
-  //   fontFamily: 'K2D-Regular'
-  // }
 })

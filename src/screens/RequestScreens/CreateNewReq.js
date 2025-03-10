@@ -552,7 +552,7 @@ const CreateNewReq = ({ navigation }) => {
             </View>
 
             {/* Select Assignee and select collaborator  */}
-            <View style={{flexDirection:"row",marginTop:"5%"}}>
+            {/* <View style={{flexDirection:"row",marginTop:"5%"}}>
 
             <TouchableOpacity onPress={() => rbSheetRef.current.open()}
                 style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
@@ -577,7 +577,7 @@ const CreateNewReq = ({ navigation }) => {
                   }
                 }}
               >
-                {/* <FlatList
+                <FlatList
                   data={subdata}
                   keyExtractor={(item, index) => index.toString()}
                   renderItem={({ item }) => (
@@ -592,7 +592,7 @@ const CreateNewReq = ({ navigation }) => {
                       <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
                     </TouchableOpacity>
                   )}
-                /> */}
+                />
               </RBSheet>
 
               <TouchableOpacity onPress={() => rbSheetRef.current.open()}
@@ -618,7 +618,7 @@ const CreateNewReq = ({ navigation }) => {
                   }
                 }}
               >
-                {/* <FlatList
+                <FlatList
                   data={subdata}
                   keyExtractor={(item, index) => index.toString()}
                   renderItem={({ item }) => (
@@ -633,12 +633,11 @@ const CreateNewReq = ({ navigation }) => {
                       <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
                     </TouchableOpacity>
                   )}
-                /> */}
+                />
               </RBSheet>
 
 
-
-            </View>
+            </View> */}
 
             <View>
               <TextInput

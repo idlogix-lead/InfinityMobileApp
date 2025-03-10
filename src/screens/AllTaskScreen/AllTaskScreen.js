@@ -389,41 +389,6 @@ const AllTaskScreen = ({ navigation }) => {
             )}
             {!isLoading && (
                 <View style={{ flex: 1, backgroundColor: 'white' }}>
-                    {/* <CustomHeader title=" ATS" RightIcon="filter-variant" RightPress={openBottomSheet} /> */}
-
-
-                    {/* <View style={{ flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 10 }}>
-
-
-                        <View style={{ borderWidth: 2, justifyContent: 'center', padding: 6, borderRadius: 10 }}>
-                            <ToggleSwitch
-                                isOn={showAllTasks}
-                                onColor="green"
-                                offColor="#00B0F0"
-                                label={showAllTasks ? "My Task" : 'Show All'}
-                                labelStyle={{ color: "black", fontWeight: "900" }}
-                                size="small"
-                                onToggle={(isOn) => setShowAllTasks(isOn)}
-                            />
-                        </View>
-                        <TouchableOpacity onPress={() => navigation.navigate("Performance")} style={{ flexDirection: "row", alignItems: 'center', borderWidth: 2, padding: 6, borderRadius: 10 }}>
-                            <Text style={{ fontWeight: 'bold', color: '#000', marginRight: 10 }}>Performance</Text>
-                            <View>
-                                <FontAwesome5 name='sort-amount-up-alt' size={22} color='#fff' />
-                            </View>
-                        </TouchableOpacity>
-                    </View> */}
-
-
-
-                    {/* <Modal
-                        animationType="slide"
-                        transparent={true}
-                        visible={chartData}
-                        onRequestClose={() => setChartData(false)}
-                    >
-                      
-                    </Modal> */}
                     <Modal
                         visible={show}
                         animationType="slide"
@@ -528,17 +493,6 @@ const AllTaskScreen = ({ navigation }) => {
 
                             <View style={{ marginTop: 5 }}>
                                 <Text style={{ fontSize: 18, color: '#000' }}>Status</Text>
-                                {/* <View style={{ borderWidth: 1, marginTop: 10, borderRadius: 10 }}> */}
-                                {/* <Picker
-                                        selectedValue={selectedStatus}
-                                        style={{ borderWidth: 1, paddingLeft: 10 }}
-                                        onValueChange={(itemValue, itemIndex) => setSelectedStatus(itemValue)}>
-                                        <Picker.Item label="All" value={null} />
-                                        <Picker.Item label="Open" value="open" />
-                                        <Picker.Item label="Waiting" value="waiting" />
-                                        <Picker.Item label="Close" value="close" />
-                                        <Picker.Item label="FinalClose" value="finalClose" />
-                                    </Picker> */}
                                 <MultiSelect
                                     // hideTags
                                     items={items}
