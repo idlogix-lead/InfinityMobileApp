@@ -311,8 +311,8 @@ const SelectRoleScreen = ({ navigation, route }) => {
                     key={option.value}
                     label={option.label}
                     value={option.value}
-                    // color="black"
-                    color="#fff"
+                    color="black"
+                    // color="#fff"
                   />
                 ))}
               </Picker>
@@ -340,8 +340,8 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   <Picker.Item label={option.name || option.label}
                     value={option.id || option.value}
                     key={option.id || option.value}
-                    // color="black"
-                     color="#fff"
+                    color="black"
+                    //  color="#fff"
                   />
                 ))}
               </Picker>
@@ -369,8 +369,8 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   <Picker.Item label={option.name || option.label}
                     value={option.id || option.value}
                     key={option.id || option.value}
-                    // color="black"
-                     color="#fff"
+                    color="black"
+                    //  color="#fff"
                   />
                 ))}
               </Picker>
@@ -398,8 +398,8 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   <Picker.Item label={option.name || option.label}
                     value={option.id || option.value}
                     key={option.id || option.value}
-                    // color="black"
-                     color="#fff"
+                    color="black"
+                    //  color="#fff"
                   />
                 ))}
               </Picker>

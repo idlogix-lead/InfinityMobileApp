@@ -72,13 +72,65 @@ const RequestDetails = ({ navigation, route }) => {
   const [SMS, setSMS] = useState([])
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState(null);
+  const [pickerData, setPickerData] = useState([]);
+  console.log(pickerData,'ksjvbiefbvjeb')
+  const [loading, setLoading] = useState(false);
   const currentDate = new Date();
+
   const formattedDate = currentDate.toISOString();
 
   let dateDummyStart, dateDummyEnd
 
 
   const firstTwoChars = assignedBy.split(" ")[0]?.slice(0, 2).toUpperCase() || "";
+
+  // Render Message Show in Message TextInput
+
+  const PerdefineMessage = async () => {
+    setLoading(true);
+    try {
+      const protocol = await AsyncStorage.getItem('protocol');
+      const host = await AsyncStorage.getItem('host');
+      const port = await AsyncStorage.getItem('port');
+      const token = await AsyncStorage.getItem('token');
+
+      if (!protocol || !host || !port || !token) {
+        console.error('❌ Missing values from AsyncStorage');
+        setLoading(false);
+        return;
+      }
+
+      const url = `${protocol}://${host}:${port}/api/v1/models/R_StandardResponse`;
+      // console.log('🌍 API URL:', url);
+
+      const response = await axios.get(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // console.log('✅ API Response:', response?.data?.records);
+
+      // Ensure response is an array
+      if (Array.isArray(response?.data?.records)) {
+        // ✅ Map API response to correct structure
+        const formattedData = response?.data?.records.map((item) => ({
+          id: item.id,
+          Name: item.Name,
+          ResponseText: item.ResponseText,
+        }));
+
+        setPickerData(formattedData);
+      } else {
+        console.error('❌ Expected an array but got:', typeof response.data);
+      }
+    } catch (error) {
+      console.error('⚠️ API Fetch Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const saveData = async () => {
     try {
@@ -161,7 +213,6 @@ const RequestDetails = ({ navigation, route }) => {
   }, [unique_ID]);
 
   // all message show in screen
-
   const ChatScreenShowDataGETAPI = async () => {
     const protocol = await AsyncStorage.getItem("protocol");
     const host = await AsyncStorage.getItem("host");
@@ -174,8 +225,6 @@ const RequestDetails = ({ navigation, route }) => {
       return;  // Agar unique_ID undefined ho to API call na karein
     }
     try {
-
-
       if (!protocol || !host || !port || !token) {
         console.error("Missing required values from AsyncStorage.");
         setIsLoading(false);
@@ -711,6 +760,10 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
+  useEffect(()=>{
+    PerdefineMessage();
+  },[])
+
   useEffect(() => {
     if (selectedStatus !== "Status" && selectedStatusId !== null) {
       saveData();
@@ -1018,11 +1071,10 @@ const RequestDetails = ({ navigation, route }) => {
               {/* <ScrollView  style={{flex:1}}> */}
               <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
                 <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
-                
               </View>
 
               {/* this code for start the CHART screen here */}
-              <View style={[styles.container]}>
+              <View style={styles.container}>
                 <View>
                   {/* New code */}
                   {recordsData && recordsData.length > 0 ? (
@@ -1058,8 +1110,7 @@ const RequestDetails = ({ navigation, route }) => {
 
                 {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
                 <View>
-
-                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20 }} >
+                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 40  }} >
                     {Array.isArray(getmassages) &&
                       getmassages.map((msg, index) => (
                         <View key={index}>
@@ -1107,7 +1158,6 @@ const RequestDetails = ({ navigation, route }) => {
                                 <View style={{ marginLeft: 'auto', paddingTop: 10 }}>
                                   <Text style={styles.messageText1}>
                                     {formatDateTime(msg.message.created_at)}
-
                                   </Text>
                                 </View>
                               </View>
@@ -1127,14 +1177,46 @@ const RequestDetails = ({ navigation, route }) => {
               width: '100%', // Adjust width
               // padding: 10,
               backgroundColor: 'white',
+              // backgroundColor: 'red',
               borderRadius: 10,
               elevation: 10,
               // backgroundColor: "red",
               position: 'absolute',
               bottom: 0,
-              alignSelf: "center"
+              alignSelf: "center",
             }}>
-              <View style={styles.inputContainer}>
+              <View style={{paddingLeft:"2%"}}> 
+              <FlatList
+                horizontal = {true}
+                data={pickerData}
+                keyExtractor={(item) => item.id.toString()}
+                // keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ flexGrow: 1, width:'auto' }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={{
+                      height: 30,
+                      marginHorizontal: 2,
+                      padding: 4,
+                      // backgroundColor: "gray",
+                      // backgroundColor: "white",
+                      backgroundColor: "#002E62",
+                      // backgroundColor:"red",
+                      borderRadius: 15,
+                      marginTop: 5, 
+                      borderWidth: 0.5,
+                      borderColor: "black",
+                    }}
+                    onPress={() => {
+                      setMessage(item?.ResponseText)
+                    }}
+                  >
+                    <Text style={{ color: "#fff" }}>{item.Name}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+              </View>
+              <View style={[styles.inputContainer]}>
                 <View style={styles.form_col_2}>
                   <TextInput
                     placeholder="Send Message"
@@ -1143,7 +1225,7 @@ const RequestDetails = ({ navigation, route }) => {
                     onChangeText={(text) => setMessage(text)}
                     value={message}
                   />
-                </View>
+           </View>
                 <View style={styles.sendButton}>
                   <TouchableOpacity style={styles.sendButtonText} onPress={() => {
                     if (!message.trim()) {
@@ -1243,7 +1325,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,
+    padding: 10,  
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1307,7 +1389,7 @@ const styles = StyleSheet.create({
 
   },
   responseAPIStyle: {
-    marginBottom: 16,
+    marginBottom: 20,
     padding: 12,
     // backgroundColor: "#fff",
     backgroundColor: "#F7F7F7",
