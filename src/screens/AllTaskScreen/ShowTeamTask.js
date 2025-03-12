@@ -59,7 +59,10 @@ import MultiSelect from 'react-native-multiple-select';
       const Id = await AsyncStorage.getItem("userId")
       setUserId(Id);
       let idArray = []
-      fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
+      const teamTaskURL = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`;
+      console.log(teamTaskURL,'teamtaskURL')
+    //   fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
+      fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`,
           {
               method: 'GET',
               headers: {

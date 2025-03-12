@@ -2,74 +2,53 @@ import { StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Toucha
 import React, { useEffect, useState } from 'react'
 import EvilIcons from 'react-native-vector-icons/dist/EvilIcons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
+import NameContainer from '../HomeScreenComponents/NameContainer';
 
 
 
-const ItemList = ({ onPress, employName, name, startDate, endDate, status, onPressModal, statusArrow, onPressReport }) => {
+const ItemList = ({
+    onPress,
+    employName,
+    name,
+    startDate,
+    endDate,
+    status,
+    onPressModal,
+    statusArrow,
+    onPressReport,
+    Name,
+    ProjectName,
+    BusinessName,
+    User_Contact,
+    campaignName,
+    Assets,
+    Invoice,
+    order,
+    payment,
+    shipment,
+    RMA
+
+}) => {
+
     return (
         <View style={styles.itemCon}>
-            {/* <View onPress={onPress} style={styles.item}>
-                <View style={{ marginHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#00B0F0' }} >
-                    <Text style={styles.nameTxt} >{employName}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', height: 100, }}>
-
-                    <View style={styles.singleItem}>
-                        <Text style={styles.topText}>Task Name</Text>
-                        <Text style={[styles.bottomTxt, { paddingLeft: 5 }]}>{name}</Text>
-                    </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        <View style={styles.singleItem}>
-                            <Text style={styles.topText}>Start Date</Text>
-                            <Text style={styles.bottomTxt}>{startDate}</Text>
-                        </View>
-                        <View style={styles.singleItem}>
-                            <Text style={styles.topText}>Due Date</Text>
-                            <Text style={styles.bottomTxt}>{endDate}</Text>
-                        </View>
-                        <View style={styles.singleItem}>
-                            <View >
-                                <TouchableOpacity style={{ flexDirection: 'row', }} onPress={onPressModal}>
-                                    <Text style={styles.topText}>Status</Text>
-                                    <Image source={statusArrow} style={{ height: 20, width: 10, }} />
-                                </TouchableOpacity>
-                            </View>
-                            <Text style={styles.bottomTxt}>{status}</Text>
-                        </View>
-                    </ScrollView>
-                </View>
-                <View style={{ alignItems: 'center', marginBottom: 15 }}>
-                    <View style={{ width: '83%', flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row' }}>
-                            <TouchableOpacity onPress={onPressReport}>
-                                <Text style={styles.report}>Report</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity style={{ flexDirection: 'row' }} onPress={onPress}>
-                            <Text style={styles.details}>Details</Text>
-                            <Image source={require('../../asserts/RequestAsserts/detailArrow.png')} style={{ height: 25, width: 20 }} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </View> */}
-
             <View style={styles.taskStatusContainer}>
                 <View style={styles.dotTaskContainer}>
                     <View style={styles.dotView}></View>
-                    <Text style={{ color: "#002E62", alignSelf: "center", paddingLeft: 3, fontWeight:600 }}>{name}</Text>
+                    <Text style={{ color: "#002E62", alignSelf: "center", paddingLeft: 3, fontWeight: 600 }}>{name}</Text>
                 </View>
                 <View style={{
                     //  backgroundColor: "#90EE90", 
                     // backgroundColor: "#AFE1AF",
                     backgroundColor: "#ECECEC",
                     padding: 3,
-                    paddingLeft:10,
-                    paddingRight:10,
-                     borderRadius: 7,
-                    elevation:1,
-                    shadowColor:"F0F0F0"
+                    paddingLeft: 10,
+                    paddingRight: 10,
+                    borderRadius: 7,
+                    elevation: 1,
+                    shadowColor: "F0F0F0"
                 }}>
-                    <Text style={{ color: "black", alignSelf:"center" }}>{status}</Text>
+                    <Text style={{ color: "black", alignSelf: "center" }}>{status}</Text>
                 </View>
             </View>
 
@@ -86,6 +65,118 @@ const ItemList = ({ onPress, employName, name, startDate, endDate, status, onPre
                 <EvilIcons name='calendar' size={18} color='#000' style={{ alignSelf: "center" }} />
                 <Text style={{ color: "black" }}>{endDate}</Text>
             </View>
+
+            {/* All data Display in screen */}
+
+            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", }}>
+                {
+                    Name &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>Product:</Text>
+                            <Text style={styles.textStyle}>{Name}</Text>
+                        </View>
+                    </View>
+                }
+                {
+                    ProjectName &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>Project:</Text>
+                            <Text style={styles.textStyle}>{ProjectName}</Text>
+                        </View>
+                    </View>
+
+                }
+                {
+                    BusinessName &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>Business Name:</Text>
+                            <Text style={styles.textStyle}>{BusinessName}</Text>
+                        </View>
+                    </View>
+                }
+                {
+                    User_Contact &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>User Contact:</Text>
+                            <Text style={styles.textStyle}>{User_Contact}</Text>
+                        </View>
+                    </View>
+
+                }
+                {
+                    campaignName &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>Campaign:</Text>
+                            <Text style={styles.textStyle}>{campaignName}</Text>
+                        </View>
+                    </View>
+
+                }
+                {
+                    Assets &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>Assets:</Text>
+                            <Text style={styles.textStyle}>{Assets}</Text>
+                        </View>
+                    </View>
+                }
+
+                {
+                    Invoice &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}> Invoice:</Text>
+                            <Text style={styles.textStyle}>{ Invoice}</Text>
+                        </View>
+                    </View>
+
+                }
+                {
+                    order &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>order:</Text>
+                            <Text style={styles.textStyle}>{order}</Text>
+                        </View>
+                    </View>
+                }
+
+                {
+                    payment &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}> payment:</Text>
+                            <Text style={styles.textStyle}>{ payment}</Text>
+                        </View>
+                    </View>
+
+                }
+                {
+                    shipment &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>shipment:</Text>
+                            <Text style={styles.textStyle}>{shipment}</Text>
+                        </View>
+                    </View>
+                }
+
+                {
+                    RMA &&
+                    <View style={styles.NameContainer}>
+                        <View>
+                            <Text style={styles.lableStyle}>RMA:</Text>
+                            <Text style={styles.textStyle}>{RMA}</Text>
+                        </View>
+                    </View>
+                }
+            </ScrollView>
 
             {/* Detail View */}
             <View style={styles.btnContainer}>
@@ -138,7 +229,7 @@ const styles = StyleSheet.create({
         height: 8,
         // backgroundColor: "blue",
         // backgroundColor: "#089080",
-         backgroundColor: '#00B0F0',
+        backgroundColor: '#00B0F0',
         borderRadius: 4,
         // marginRight: 1,
     },
@@ -161,12 +252,25 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between"
     },
-    lineStyle:{
+    lineStyle: {
         borderBottomColor: 'gray',
         borderBottomWidth: 1,
         marginVertical: 10,
         width: '100%',
-    }
+    },
+    NameContainer: {
+        // backgroundColor: "gray",
+         backgroundColor: "#002E62",
+        marginRight: 2,
+        borderRadius: 10,
+        padding: 4,
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop:'0.2%'
+
+    },
+    lableStyle: { color: "#fff", fontSize: 14, },
+    textStyle: { color: "#fff", fontSize: 12, alignSelf: "center" }
 
 
 

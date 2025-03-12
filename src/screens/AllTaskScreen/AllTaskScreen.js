@@ -49,6 +49,7 @@ const AllTaskScreen = ({ navigation }) => {
 
 
     const getAPIData = async () => {
+       
         setIsLoading(true)
         const token = await AsyncStorage.getItem('token')
         const protocol = await AsyncStorage.getItem('protocol')
@@ -57,7 +58,13 @@ const AllTaskScreen = ({ navigation }) => {
         const Id = await AsyncStorage.getItem("userId")
         setUserId(Id);
         let idArray = []
-        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
+        const url = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`;
+        console.log(url,'forMyTask')
+
+        const urlMyTask = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`;
+        console.log(urlMyTask,'wkjbcbwe')
+        // fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`,
             {
                 method: 'GET',
                 headers: {
@@ -415,6 +422,8 @@ const AllTaskScreen = ({ navigation }) => {
                             </View>
                         </View>
                     </Modal>
+                    {/* <ItemList  data={filteredData} /> */}
+                    
                     <FlatList
                         data={filteredData}
                         renderItem={(item) => {
@@ -430,6 +439,20 @@ const AllTaskScreen = ({ navigation }) => {
                                     onPressModal={() => modalView(item)}
                                     statusArrow={require('../../asserts/RequestAsserts/downArrow.png')}
                                     onPressReport={() => getReport(item.item.id)}
+                                    Name={item?.item?.M_Product_ID?.identifier}
+                                    ProjectName={item?.item?.C_Project_ID?.identifier}
+                                    BusinessName={item?.item?.C_BPartner_ID?.identifier}
+                                    // User_Contact={item?.item?.C_BPartner_ID?.identifier}
+                                    campaignName={item?.item?.C_Campaign_ID?.identifier}
+                                    Assets={item?.item?.A_Asset_ID?.identifier}
+                                    Invoice={item?.item?.C_Invoice_ID?.identifier}
+                                    order={item?.item?.C_Order_ID?.identifier}
+                                    payment={item?.item?.C_Payment_ID?.identifier}
+                                    shipment={item?.item?.M_InOut_ID?.identifier}
+                                    RMA={item?.item?.M_RMA_ID?.identifier}
+
+
+
                                 />
                             )
                         }}

@@ -14,7 +14,8 @@ const ChartCards = ({ name, firstTop, secTop, thirdTop, total, comp, unComp, onP
 
     let color = 'lightgray';
     if (percentage >= 1 && percentage < 49) {
-        color = 'red'
+        // color = 'red'
+        color = 'green'
     } else if (percentage >= 50 && percentage < 90) {
         color = 'blue';
     } else if (percentage >= 90) {

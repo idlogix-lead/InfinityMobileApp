@@ -103,10 +103,28 @@ const CreateNewReq = ({ navigation }) => {
     setShowCalendarEnd(false);
   };
 
+ 
+    
+
+  const ValueNameGet = async () => {
+    try {
+      const value = await AsyncStorage.getItem('userName');
+      console.log(value, "ValuesNameInAsyncStorage");
+    } catch (error) {
+      console.error("Error fetching username:", error);
+    }
+  };
+  
+  useEffect(() => {
+    ValueNameGet();
+  }, []);
+  
+
   const saveData = async () => {
     try {
       const clientName = await AsyncStorage.getItem('clientName');
       const value = await AsyncStorage.getItem('userName');
+      
       const userId = await AsyncStorage.getItem('userId');
       const protocol = await AsyncStorage.getItem('protocol');
       const host = await AsyncStorage.getItem('host');
@@ -145,7 +163,9 @@ const CreateNewReq = ({ navigation }) => {
         "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
         "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
         "Created": formattedDate,
+        // Select Sub-Ordinate is Selected
         "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
+        
         "DateLastAction": "",
         "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
         "IsActive": true,
@@ -162,7 +182,9 @@ const CreateNewReq = ({ navigation }) => {
         "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
         "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
         "RequestAmt": 0,
-        "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
+          // is PayLoad ko change krna hai
+        "SalesRep_ID": { "id": subOrdinateKey, "identifier": value, "model-name": "ad_user" },
+
         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
         "Summary": summary,
         "Updated": "",

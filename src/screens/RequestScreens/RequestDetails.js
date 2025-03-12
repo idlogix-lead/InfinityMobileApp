@@ -73,7 +73,6 @@ const RequestDetails = ({ navigation, route }) => {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStatusId, setSelectedStatusId] = useState(null);
   const [pickerData, setPickerData] = useState([]);
-  console.log(pickerData,'ksjvbiefbvjeb')
   const [loading, setLoading] = useState(false);
   const currentDate = new Date();
 

@@ -99,6 +99,7 @@ const HomeScreen = ({ navigation, route }) => {
     const host = await AsyncStorage.getItem('host')
     const port = await AsyncStorage.getItem('port')
     const userId = await AsyncStorage.getItem('userId')
+    console.log(userId,'userIDForo1289ey8723t6r8')
     setProtocol(protocol)
     setHost(host)
     setPort(port)
