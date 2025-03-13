@@ -969,36 +969,259 @@
 
 
 
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Modal } from 'react-native';
+// import React, { useState, useEffect, useRef } from 'react';
+// import { StyleSheet, Text, View, ActivityIndicator, FlatList, TouchableOpacity, Modal } from 'react-native';
+// import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+// import ChartCards from '../../components/RequestScreenComponents/ChartCards';
+// import CalendarPicker from 'react-native-calendar-picker';
+// import moment from 'moment';
+// import CustomHeader from '../../components/CustomHeader';
+// import RBSheet from 'react-native-raw-bottom-sheet';
+// import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
+// import { Picker } from '@react-native-picker/picker';
+// import AllTaskScreen from '../../screens/AllTaskScreen/AllTaskScreen';
+// import ShowTeamTask from '../../screens/AllTaskScreen/ShowTeamTask';
+
+// const TapTab = createMaterialTopTabNavigator();
+
+// const TopNavigationATS = () => {
+//     const bottomSheetRef = useRef();
+//     const [isLoading, setIsLoading] = useState(false);
+//     const [data, setData] = useState([]);
+//     const [filteredData, setFilteredData] = useState([]);
+//     const [userNames, setUserNames] = useState([]);
+//     const [selectedUserName, setSelectedUserName] = useState('');
+//     const [startDate, setStartDate] = useState('');
+//     const [endDate, setEndDate] = useState('');
+//     const [showCalendarStart, setShowCalendarStart] = useState(false);
+//     const [showCalendarEnd, setShowCalendarEnd] = useState(false);
+
+//     // Fetch data from API
+//     const getAPIData = async (selectedFirstDay, selectedLastDay) => {
+//         setIsLoading(true);
+//         try {
+//             const token = await AsyncStorage.getItem('token');
+//             const protocol = await AsyncStorage.getItem('protocol');
+//             const host = await AsyncStorage.getItem('host');
+//             const port = await AsyncStorage.getItem('port');
+//             const userId = await AsyncStorage.getItem('userId');
+
+//             const response = await fetch(
+//                 `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId} OR SalesRep_ID eq ${userId}`,
+//                 {
+//                     method: 'GET',
+//                     headers: {
+//                         'Content-Type': 'application/json',
+//                         Authorization: `Bearer ${token}`,
+//                     },
+//                 }
+//             );
+
+//             const result = await response.json();
+//             const names = [...new Set(result.records.map((item) => item.user_name))];
+//             setUserNames(names);
+//             setData(result.records);
+//             setFilteredData(result.records);
+//         } catch (error) {
+//             console.error('Error fetching data:', error);
+//             alert('Failed to fetch data. Please try again.');
+//         } finally {
+//             setIsLoading(false);
+//         }
+//     };
+
+//     const applyFilter = (filterName) => {
+//         const filtered = chartCardData.filter(item =>
+//             (item.name || "").toLowerCase().includes(filterName.toLowerCase())
+//         );
+//         setFilteredData(filtered);
+//     };
+
+//     const aggregatedData = data.reduce((acc, currentItem) => {
+//         const userName = currentItem.user_name;
+//         if (!acc[userName]) {
+//             acc[userName] = {
+//                 assignedCount: 0,
+//                 completedCount: 0,
+//                 pendingCount: 0,
+//             };
+//         }
+//         acc[userName].assignedCount++;
+//         if (currentItem.R_Status_ID.id == 1000003) {
+//             acc[userName].completedCount++;
+//         } else {
+//             acc[userName].pendingCount++;
+//         }
+//         return acc;
+//     }, {});
+
+//     const chartCardData = Object.keys(aggregatedData).map(userName => ({
+//         name: userName,
+//         assigned: aggregatedData[userName].assignedCount,
+//         completed: aggregatedData[userName].completedCount,
+//         pending: aggregatedData[userName].pendingCount,
+
+//     }));
+
+//     console.log(chartCardData, chartCardData)
+
+//     // Open bottom sheet
+//     const openBottomSheet = () => {
+//         bottomSheetRef.current?.open();
+//     };
+
+//     useEffect(() => {
+//         const firstDayOfMonth = moment().startOf('month').format('YYYY-MM-DD');
+//         const lastDayOfMonth = moment().endOf('month').format('YYYY-MM-DD');
+//         getAPIData(firstDayOfMonth, lastDayOfMonth);
+//     }, []);
+
+
+
+//     // useEffect(() => {
+//     //     // console.log("Filtered Data:", filteredData);
+//     //     console.log("Chart Card Data123123:", chartCardData);
+//     // }, [filteredData, chartCardData]);
+
+//     return (
+//         <View style={{ flex: 1, }}>
+//             <CustomHeader title="ATS" />
+//             <View style={{
+//                 //  backgroundColor: 'white'
+
+//                 // marginBottom:"10%"
+
+
+//                  }}>
+//                 {isLoading ? (
+//                     <ActivityIndicator size="large" color="#0000ff" />
+//                 ) : (
+//                     <FlatList
+//                         data={chartCardData}
+//                         keyExtractor={(item, index) => index.toString()}
+//                         renderItem={({ item }) => {
+//                             const progressPercentage = (item.completed / item.assigned) || 0;
+//                             return (
+//                                 <ChartCards
+//                                     name={item.name}
+//                                     firstTop="Assigned"
+//                                     secTop="Completed"
+//                                     thirdTop="Pending"
+//                                     percentageNum={progressPercentage}
+//                                     total={item.assigned}
+//                                     comp={item.completed}
+//                                     unComp={item.pending}
+//                                 />
+//                             );
+//                         }}
+//                     />
+//                 )}
+//             </View>
+//             {/* Top Tab Navigator */}
+//             <TapTab.Navigator
+//                 screenOptions={{
+//                     tabBarLabelStyle: { fontSize: 14 },
+//                     tabBarIndicatorStyle: { backgroundColor: '#0050C0' },
+//                     tabBarStyle: {
+//                         backgroundColor: '#f9f9f9',
+//                         elevation: 2,
+//                     },
+//                 }}
+//             >
+//                 <TapTab.Screen name="My Task" component={AllTaskScreen} />
+//                 <TapTab.Screen name="Team Task" component={ShowTeamTask} />
+//             </TapTab.Navigator>
+//         </View>
+//     );
+// };
+
+// export default TopNavigationATS;
+
+// const styles = StyleSheet.create({
+//     filterContainer: {
+//         marginHorizontal: 20,
+//     },
+//     filterTitle: {
+//         fontSize: 26,
+//         fontWeight: 'bold',
+//         color: '#000',
+//     },
+//     fromBtn: {
+//         width: '40%',
+//         flexDirection: 'row',
+//         alignItems: 'center',
+//     },
+//     toBtn: {
+//         width: '40%',
+//         flexDirection: 'row',
+//         alignItems: 'center',
+//     },
+//     dateInput: {
+//         width: '80%',
+//         borderWidth: 1,
+//         alignItems: 'center',
+//         justifyContent: 'center',
+//         height: 30,
+//         borderRadius: 5,
+//     },
+//     txt: {
+//         color: 'black',
+//         fontSize: 15,
+//     },
+//     blurView: {
+//         flex: 1,
+//         justifyContent: 'center',
+//         alignItems: 'center',
+//         backgroundColor: 'rgba(0,0,0,0.5)',
+//     },
+//     modal: {
+//         width: '90%',
+//         backgroundColor: '#fff',
+//         borderRadius: 20,
+//         padding: 20,
+//     },
+//     closeBtn: {
+//         marginTop: 20,
+//         alignItems: 'center',
+//     },
+//     close: {
+//         color: '#000',
+//         fontSize: 16,
+//     },
+//     closeButton: {
+//         backgroundColor: '#00B0F0',
+//         width: '50%',
+//         alignSelf: 'center',
+//         alignItems: 'center',
+//         justifyContent: 'center',
+//         padding: 10,
+//         borderRadius: 10,
+//         marginTop: 30,
+//     },
+// });
+
+
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StyleSheet, View, ActivityIndicator, FlatList } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChartCards from '../../components/RequestScreenComponents/ChartCards';
-import CalendarPicker from 'react-native-calendar-picker';
-import moment from 'moment';
 import CustomHeader from '../../components/CustomHeader';
-import RBSheet from 'react-native-raw-bottom-sheet';
-import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import { Picker } from '@react-native-picker/picker';
 import AllTaskScreen from '../../screens/AllTaskScreen/AllTaskScreen';
 import ShowTeamTask from '../../screens/AllTaskScreen/ShowTeamTask';
+import { useFocusEffect } from '@react-navigation/native';
 
 const TapTab = createMaterialTopTabNavigator();
 
 const TopNavigationATS = () => {
-    const bottomSheetRef = useRef();
+    const [myTaskData, setMyTaskData] = useState([]);
+    const [teamTaskData, setTeamTaskData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [data, setData] = useState([]);
-    const [filteredData, setFilteredData] = useState([]);
-    const [userNames, setUserNames] = useState([]);
-    const [selectedUserName, setSelectedUserName] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [showCalendarStart, setShowCalendarStart] = useState(false);
-    const [showCalendarEnd, setShowCalendarEnd] = useState(false);
+    const [activeTab, setActiveTab] = useState('My Task'); // Track active tab
 
-    // Fetch data from API
-    const getAPIData = async (selectedFirstDay, selectedLastDay) => {
+    const getAPIData = async () => {
         setIsLoading(true);
         try {
             const token = await AsyncStorage.getItem('token');
@@ -1007,8 +1230,8 @@ const TopNavigationATS = () => {
             const port = await AsyncStorage.getItem('port');
             const userId = await AsyncStorage.getItem('userId');
 
-            const response = await fetch(
-                `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId} OR SalesRep_ID eq ${userId}`,
+            const myTaskResponse = await fetch(
+                `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=SalesRep_ID eq ${userId}`,
                 {
                     method: 'GET',
                     headers: {
@@ -1017,12 +1240,22 @@ const TopNavigationATS = () => {
                     },
                 }
             );
+            const myTaskResult = await myTaskResponse.json();
 
-            const result = await response.json();
-            const names = [...new Set(result.records.map((item) => item.user_name))];
-            setUserNames(names);
-            setData(result.records);
-            setFilteredData(result.records);
+            const teamTaskResponse = await fetch(
+                `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+            const teamTaskResult = await teamTaskResponse.json();
+
+            setMyTaskData(myTaskResult.records || []);
+            setTeamTaskData(teamTaskResult.records || []);
         } catch (error) {
             console.error('Error fetching data:', error);
             alert('Failed to fetch data. Please try again.');
@@ -1031,68 +1264,60 @@ const TopNavigationATS = () => {
         }
     };
 
-    const applyFilter = (filterName) => {
-        const filtered = chartCardData.filter(item =>
-            (item.name || "").toLowerCase().includes(filterName.toLowerCase())
-        );
-        setFilteredData(filtered);
+    // useEffect(() => {
+    //     getAPIData();
+    // }, []);
+
+    useFocusEffect(
+        useCallback(()=>{
+            getAPIData();
+
+        },[])
+    )
+
+    const processChartData = (data) => {
+        return data.reduce((acc, currentItem) => {
+            const userName = currentItem.user_name;
+            if (!acc[userName]) {
+                acc[userName] = {
+                    assignedCount: 0,
+                    completedCount: 0,
+                    pendingCount: 0,
+                };
+            }
+            acc[userName].assignedCount++;
+            if (currentItem.R_Status_ID?.id == 1000003) {
+                acc[userName].completedCount++;
+            } else {
+                acc[userName].pendingCount++;
+            }
+            return acc;
+        }, {});
     };
 
-    const aggregatedData = data.reduce((acc, currentItem) => {
-        const userName = currentItem.user_name;
-        if (!acc[userName]) {
-            acc[userName] = {
-                assignedCount: 0,
-                completedCount: 0,
-                pendingCount: 0,
-            };
-        }
-        acc[userName].assignedCount++;
-        if (currentItem.R_Status_ID.id == 1000003) {
-            acc[userName].completedCount++;
-        } else {
-            acc[userName].pendingCount++;
-        }
-        return acc;
-    }, {});
-
-    const chartCardData = Object.keys(aggregatedData).map(userName => ({
+    const myTaskChartData = Object.keys(processChartData(myTaskData)).map(userName => ({
         name: userName,
-        assigned: aggregatedData[userName].assignedCount,
-        completed: aggregatedData[userName].completedCount,
-        pending: aggregatedData[userName].pendingCount,
-
+        assigned: processChartData(myTaskData)[userName].assignedCount,
+        completed: processChartData(myTaskData)[userName].completedCount,
+        pending: processChartData(myTaskData)[userName].pendingCount,
     }));
 
-    console.log(chartCardData, chartCardData)
-
-    // Open bottom sheet
-    const openBottomSheet = () => {
-        bottomSheetRef.current?.open();
-    };
-
-    useEffect(() => {
-        const firstDayOfMonth = moment().startOf('month').format('YYYY-MM-DD');
-        const lastDayOfMonth = moment().endOf('month').format('YYYY-MM-DD');
-        getAPIData(firstDayOfMonth, lastDayOfMonth);
-    }, []);
-
-
-
-    // useEffect(() => {
-    //     // console.log("Filtered Data:", filteredData);
-    //     console.log("Chart Card Data123123:", chartCardData);
-    // }, [filteredData, chartCardData]);
+    const teamTaskChartData = Object.keys(processChartData(teamTaskData)).map(userName => ({
+        name: userName,
+        assigned: processChartData(teamTaskData)[userName].assignedCount,
+        completed: processChartData(teamTaskData)[userName].completedCount,
+        pending: processChartData(teamTaskData)[userName].pendingCount,
+    }));
 
     return (
         <View style={{ flex: 1 }}>
             <CustomHeader title="ATS" />
-            <View style={{ backgroundColor: 'white' }}>
+            <View>
                 {isLoading ? (
                     <ActivityIndicator size="large" color="#0000ff" />
                 ) : (
                     <FlatList
-                        data={chartCardData}
+                        data={activeTab === 'My Task' ? myTaskChartData : teamTaskChartData}
                         keyExtractor={(item, index) => index.toString()}
                         renderItem={({ item }) => {
                             const progressPercentage = (item.completed / item.assigned) || 0;
@@ -1112,85 +1337,33 @@ const TopNavigationATS = () => {
                     />
                 )}
             </View>
-            {/* Top Tab Navigator */}
+
             <TapTab.Navigator
                 screenOptions={{
                     tabBarLabelStyle: { fontSize: 14 },
                     tabBarIndicatorStyle: { backgroundColor: '#0050C0' },
-                    tabBarStyle: {
-                        backgroundColor: '#f9f9f9',
-                        elevation: 2,
-                    },
+                    tabBarStyle: { backgroundColor: '#f9f9f9', elevation: 2 },
+                }}
+                screenListeners={{
+                    state: (e) => {
+                        const index = e.data.state.index;
+                        setActiveTab(e.data.state.routeNames[index]); // Update activeTab based on tab change
+                    }
                 }}
             >
-                <TapTab.Screen name="My Task" component={AllTaskScreen} />
-                <TapTab.Screen name="Team Task" component={ShowTeamTask} />
+                <TapTab.Screen
+                    name="My Task"
+                    component={AllTaskScreen}
+                    initialParams={{ data: myTaskData }}
+                />
+                <TapTab.Screen
+                    name="Team Task"
+                    component={ShowTeamTask}
+                    initialParams={{ data: teamTaskData }}
+                />
             </TapTab.Navigator>
         </View>
     );
 };
 
 export default TopNavigationATS;
-
-const styles = StyleSheet.create({
-    filterContainer: {
-        marginHorizontal: 20,
-    },
-    filterTitle: {
-        fontSize: 26,
-        fontWeight: 'bold',
-        color: '#000',
-    },
-    fromBtn: {
-        width: '40%',
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    toBtn: {
-        width: '40%',
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    dateInput: {
-        width: '80%',
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 30,
-        borderRadius: 5,
-    },
-    txt: {
-        color: 'black',
-        fontSize: 15,
-    },
-    blurView: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modal: {
-        width: '90%',
-        backgroundColor: '#fff',
-        borderRadius: 20,
-        padding: 20,
-    },
-    closeBtn: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    close: {
-        color: '#000',
-        fontSize: 16,
-    },
-    closeButton: {
-        backgroundColor: '#00B0F0',
-        width: '50%',
-        alignSelf: 'center',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 10,
-        borderRadius: 10,
-        marginTop: 30,
-    },
-});

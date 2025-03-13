@@ -16,8 +16,9 @@ import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommu
 import base64 from 'base-64';
 import Loader from '../../components/Loader';
 import RBSheet from 'react-native-raw-bottom-sheet';
+import axios from 'axios';
 
-const CreateNewReq = ({ navigation }) => {
+const TeamTaskCreateNewReq = ({ navigation }) => {
   const rbSheetRef = useRef();
   const [startDate, setStartDate] = useState(new Date())
   const [name, setName] = useState('')
@@ -27,6 +28,7 @@ const CreateNewReq = ({ navigation }) => {
   const [priority, setPriority] = useState('medium')
   const [isLoading, setIsLoading] = useState(false);
   const [subdata, setSubData] = useState([])
+  console.log(subdata,'subdataWithGetInID')
   const [assigned, setAssigned] = useState()
   const [summary, setSummary] = useState('');
   const [clientId, setClientId] = useState()
@@ -53,7 +55,7 @@ const CreateNewReq = ({ navigation }) => {
     const value = await AsyncStorage.getItem('userName');
     setClientId(await AsyncStorage.getItem('clientId'))
     seOrganizationId(await AsyncStorage.getItem('organizationId'))
-    fetch(`${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=SalesRep_ID eq ${userId}`, {
+    fetch(`${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -61,15 +63,59 @@ const CreateNewReq = ({ navigation }) => {
       }
     })
       .then(response => response.json())
+      // console.log(response?.data,'kuygsdvcksdjb chjqdv')
       .then(data => {
-        const array1 = [{ Name: 'Select SubOrdinate', Name: 'Select SubOrdinate' }, { Name: value, Name: value, id: userId }]
+        const array1 = 
+        [{ Name: 'Select SubOrdinate', Name: 'Select SubOrdinate' }, { Name: value, Name: value, id: userId }]
         let records = data.records
-        const newArray = array1.concat(records)
+        console.log(records,'askdvbcksbadv')
+        // const newArray = array1.concat(records)
+        const newArray = records;
         setSubData(newArray)
         setIsLoading(false)
       })
       .catch(error => console.error(error));
   }
+
+
+//   const getAPIData = async (protocol, host, port, userId) => {
+//     try {
+//         const token = await AsyncStorage.getItem('token');
+//         const value = await AsyncStorage.getItem('userName');
+//         const setClientId= (await AsyncStorage.getItem('clientId'));
+//        const  setOrganizationId =(await AsyncStorage.getItem('organizationId'));
+
+//         // Make the API call using axios
+//         const response = await axios.get(
+//             `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`,
+//             {
+//                 headers: {
+//                     'Content-Type': 'application/json',
+//                     Authorization: `Bearer ${token}`,
+//                 },
+//             }
+//         );
+
+
+//         // Process the response data
+//         const array1 = [
+//             { Name: 'Select SubOrdinate', id: 'select' }, // Fixed duplicate key issue
+//             { Name: value, id: userId },
+//         ];
+//         const records = response.data.records; // Access data using response.data
+//         // console.log(records, 'askdvbcksbadv');
+
+//         const newArray = array1.concat(records);
+//         // const newArray = records;
+//         setSubData(newArray);
+//         setIsLoading(false);
+//     } catch (error) {
+//         console.error('Error fetching data:', error);
+//         setIsLoading(false); // Ensure loading is set to false even if there's an error
+//     }
+// };
+
+
 
   const navigateBack = () => {
     // setIsLoading(true);
@@ -434,7 +480,7 @@ const CreateNewReq = ({ navigation }) => {
 
   return (
     <View style={{ flex: 1 }}>
-      <CustomHeader title="Create New Task" />
+      <CustomHeader title="Team Create New Task" />
       <View style={{ flex: 1, backgroundColor: '#fff ' }}>
 
         {/* Start Date modal */}
@@ -517,7 +563,7 @@ const CreateNewReq = ({ navigation }) => {
                   <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
                 </View>
                 <View style={{ paddingLeft: 10 }}>
-                  <Text style={styles.topTxt}>{assigned || "Select Assignor"}</Text>
+                  <Text style={styles.topTxt}>{assigned || "Select Assignee"}</Text>
                 </View>
               </TouchableOpacity>
               
@@ -542,6 +588,7 @@ const CreateNewReq = ({ navigation }) => {
                       style={styles.sheetButton}
                       onPress={() => {
                         const itemId = item.id || null; // Pass null if 'id' is not available
+                        {console.log(itemId,'createButtonClick')}
                         getID(itemId, item.Name);
                         // getID(item.id, item.Name);
                         rbSheetRef.current.close();
@@ -801,7 +848,7 @@ const CreateNewReq = ({ navigation }) => {
   )
 }
 
-export default CreateNewReq
+export default TeamTaskCreateNewReq
 
 const styles = StyleSheet.create({
   inputContainer: {

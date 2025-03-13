@@ -45,6 +45,7 @@ import Liquidity from '../screens/ReportsScreen/Liquidity/Liquidity';
 import TopNavigationATS from './TopNavigation/TopNavigationATS';
 import ShowMyTask from '../screens/AllTaskScreen/ShowMyTask';
 import ShowTeamTask from '../screens/AllTaskScreen/ShowTeamTask';
+import TeamTaskCreateNewReq from '../screens/RequestScreens/TeamTaskCreateNewReq';
 
 const Stack = createNativeStackNavigator();
 const Navigation = () => {
@@ -67,6 +68,7 @@ const Navigation = () => {
                     <Stack.Screen name="RequestScreen" component={RequestScreen} />
                     <Stack.Screen name="RequestList" component={RequestList} />
                     <Stack.Screen name="CreateNewReq" component={CreateNewReq} />
+                    <Stack.Screen name="TeamTaskCreateNewReq" component={TeamTaskCreateNewReq} />
                     <Stack.Screen name="RequestDetails" component={RequestDetails} />
                     <Stack.Screen name="UserList" component={UserList} />
                     <Stack.Screen name="ChatScreen" component={ChatScreen} />

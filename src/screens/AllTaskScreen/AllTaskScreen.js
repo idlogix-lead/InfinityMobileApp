@@ -13,10 +13,12 @@ import RBSheet from "react-native-raw-bottom-sheet";
 import CalendarPicker from 'react-native-calendar-picker';
 import { Picker } from '@react-native-picker/picker';
 import MultiSelect from 'react-native-multiple-select';
+import { useNavigation } from '@react-navigation/native';
 
 
-const AllTaskScreen = ({ navigation }) => {
+const AllTaskScreen = () => {
     const multiSelect = useRef(null);
+    const navigation = useNavigation();
 
     const bottomSheetRef = useRef();
     const [assignedName, setAssignedName] = useState('');
@@ -58,11 +60,11 @@ const AllTaskScreen = ({ navigation }) => {
         const Id = await AsyncStorage.getItem("userId")
         setUserId(Id);
         let idArray = []
-        const url = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`;
-        console.log(url,'forMyTask')
+        // const url = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`;
+        // console.log(url,'forMyTask')
 
-        const urlMyTask = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`;
-        console.log(urlMyTask,'wkjbcbwe')
+        // const urlMyTask = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`;
+        // console.log(urlMyTask,'wkjbcbwe')
         // fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
         fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`,
             {

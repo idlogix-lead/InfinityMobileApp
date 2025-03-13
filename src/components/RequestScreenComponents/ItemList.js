@@ -68,7 +68,7 @@ const ItemList = ({
 
             {/* All data Display in screen */}
 
-            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", }}>
+            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", }}   showsHorizontalScrollIndicator={false}>
                 {
                     Name &&
                     <View style={styles.NameContainer}>

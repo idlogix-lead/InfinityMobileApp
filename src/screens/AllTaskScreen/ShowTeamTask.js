@@ -13,9 +13,13 @@ import RBSheet from "react-native-raw-bottom-sheet";
 import CalendarPicker from 'react-native-calendar-picker';
 import { Picker } from '@react-native-picker/picker';
 import MultiSelect from 'react-native-multiple-select';
+import { useNavigation } from '@react-navigation/native';
+import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
 
 
-  const ShowTeamTask = ({navigation}) => {
+  const ShowTeamTask = () => {
+
+    const navigation = useNavigation();
 
 
   const multiSelect = useRef(null);
@@ -443,7 +447,7 @@ import MultiSelect from 'react-native-multiple-select';
                     />
                     <TouchableOpacity
                         style={styles.floatingButton}
-                        onPress={() => { navigation.navigate('CreateNewReq') }}>
+                        onPress={() => { navigation.navigate('TeamTaskCreateNewReq') }}>
                         <MaterialCommunityIcons name='plus' size={30} color='#fff' />
                     </TouchableOpacity>
                     <RBSheet

@@ -1189,6 +1189,7 @@ const RequestDetails = ({ navigation, route }) => {
                 horizontal = {true}
                 data={pickerData}
                 keyExtractor={(item) => item.id.toString()}
+                showsHorizontalScrollIndicator={false}
                 // keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ flexGrow: 1, width:'auto' }}
                 renderItem={({ item }) => (
