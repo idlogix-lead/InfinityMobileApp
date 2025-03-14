@@ -49,9 +49,23 @@ const AllTaskScreen = () => {
 
     const [pickerData, setPickerData] = useState([]);
 
+    // const statusColors = {
+    //     Open: "#FFA500",
+    //     Waiting: "#FFD700",
+    //     Closed: "#FF0000",
+    //     Final_Close : "#008000"
+    // };
+
+    const statusColors = {
+        "Open": "#FFA500",
+        "Waiting on Customers/Others": "#FFD700",
+        "Closed": "#FF0000",
+        "Final Close": "#008000"
+    };
+
 
     const getAPIData = async () => {
-       
+
         setIsLoading(true)
         const token = await AsyncStorage.getItem('token')
         const protocol = await AsyncStorage.getItem('protocol')
@@ -345,8 +359,6 @@ const AllTaskScreen = () => {
         setFilteredData(filtered);
     }, [showAllTasks, selectedStatus, assignedName, startDate, endDate, data]);
 
-
-
     const items = [{
         id: 2,
         name: 'Open',
@@ -367,8 +379,6 @@ const AllTaskScreen = () => {
     },
     ];
 
-
-
     const onSelectedItemsChange = (selectedStatusIds) => {
         const updatedStatuses = items.filter(item => selectedStatusIds.includes(item.id));
         setSelectedStatus(prevStatuses => {
@@ -388,7 +398,6 @@ const AllTaskScreen = () => {
         });
     };
 
-
     return (
         <>
             {isLoading && (
@@ -397,7 +406,7 @@ const AllTaskScreen = () => {
                 </View>
             )}
             {!isLoading && (
-                <View style={{ flex: 1, backgroundColor: 'white' }}>
+                <View style={{ flex: 1, backgroundColor: 'white', }}>
                     <Modal
                         visible={show}
                         animationType="slide"
@@ -424,27 +433,52 @@ const AllTaskScreen = () => {
                             </View>
                         </View>
                     </Modal>
+
+                    {/* Fixed Color in Status */}
+                    <View style={[styles.containerColor, { width: "90%", alignSelf: "center" }]}>
+                        <View style={styles.statusContainer}>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Open</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFD700' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Waiting</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FF0000' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Close</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#008000' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
+                            </View>
+                        </View>
+                    </View>
                     {/* <ItemList  data={filteredData} /> */}
-                    
+
                     <FlatList
                         data={filteredData}
                         renderItem={(item) => {
                             // console.log(filteredData,44444)
+                            const status = item?.item?.R_Status_ID?.identifier.split("_")[1]; // Ensure status exists
+                            const statusBorderColor = statusColors[status] || "#000";
                             return (
+
                                 <ItemList
                                     employName={item.item.user_name ? item.item.user_name : 'My Task'}
                                     name={item.item.Name}
                                     startDate={moment(item.item.StartDate).format("DD-MM-YYYY")}
                                     endDate={moment(item.item.EndTime).format("DD-MM-YYYY")}
                                     onPress={() => navigation.navigate('RequestDetails', { id: item.item.id })}
-                                    status={item?.item?.R_Status_ID?.identifier.split("_")[1]}
+                                    status={status}
+                                    statusBorderColor={statusBorderColor}
                                     onPressModal={() => modalView(item)}
                                     statusArrow={require('../../asserts/RequestAsserts/downArrow.png')}
                                     onPressReport={() => getReport(item.item.id)}
                                     Name={item?.item?.M_Product_ID?.identifier}
                                     ProjectName={item?.item?.C_Project_ID?.identifier}
                                     BusinessName={item?.item?.C_BPartner_ID?.identifier}
-                                    // User_Contact={item?.item?.C_BPartner_ID?.identifier}
                                     campaignName={item?.item?.C_Campaign_ID?.identifier}
                                     Assets={item?.item?.A_Asset_ID?.identifier}
                                     Invoice={item?.item?.C_Invoice_ID?.identifier}
@@ -452,11 +486,9 @@ const AllTaskScreen = () => {
                                     payment={item?.item?.C_Payment_ID?.identifier}
                                     shipment={item?.item?.M_InOut_ID?.identifier}
                                     RMA={item?.item?.M_RMA_ID?.identifier}
-
-
-
                                 />
                             )
+
                         }}
                     />
                     <TouchableOpacity
@@ -731,4 +763,27 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontFamily: 'K2D-Regular'
     },
+
+    containerColor: {
+        marginTop: 10,
+    },
+    // Container for all status items
+    statusContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+    },
+    // Container for each individual status item (box + text)
+    item: {
+        alignItems: "center",
+
+    },
+    statusBoxColor: {
+        padding: 10,
+        borderRadius: 5,
+        marginBottom: 5, // thoda gap text ke liye
+    },
+    statusTextColor: {
+        fontWeight: 'bold',
+    },
+
 })

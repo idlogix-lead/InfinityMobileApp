@@ -26,12 +26,13 @@ const ItemList = ({
     order,
     payment,
     shipment,
-    RMA
+    RMA,
+    statusBorderColor
 
 }) => {
 
     return (
-        <View style={styles.itemCon}>
+        <View style={[styles.itemCon,{borderLeftColor: statusBorderColor,}]}>
             <View style={styles.taskStatusContainer}>
                 <View style={styles.dotTaskContainer}>
                     <View style={styles.dotView}></View>
@@ -207,7 +208,15 @@ const styles = StyleSheet.create({
         // alignItems: 'center',
         // marginTop: 10,
         // marginBottom: 10,
-        flex: 1
+        // flex: 1,
+        // backgroundColor: "#FFF",
+        // padding: 10,
+        marginVertical: 5,
+        borderRadius: 7,
+        borderLeftWidth: 10,  // Left border width
+        
+       
+        
     },
     taskStatusContainer: {
         width: "90%",
@@ -250,13 +259,16 @@ const styles = StyleSheet.create({
         width: "90%",
         marginTop: "3%",
         flexDirection: "row",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        marginBottom:"1%"
     },
     lineStyle: {
         borderBottomColor: 'gray',
         borderBottomWidth: 1,
-        marginVertical: 10,
+        // marginVertical: 10,
+        // marginVertical: 2,
         width: '100%',
+        
     },
     NameContainer: {
         // backgroundColor: "gray",

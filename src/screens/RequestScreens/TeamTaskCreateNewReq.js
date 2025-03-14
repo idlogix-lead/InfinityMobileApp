@@ -75,7 +75,7 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         setIsLoading(false)
       })
       .catch(error => console.error(error));
-  }
+  } 
 
 
 //   const getAPIData = async (protocol, host, port, userId) => {
