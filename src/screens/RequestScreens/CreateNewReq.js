@@ -165,7 +165,6 @@ const CreateNewReq = ({ navigation }) => {
         "Created": formattedDate,
         // Select Sub-Ordinate is Selected
         "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-        
         "DateLastAction": "",
         "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
         "IsActive": true,
@@ -184,7 +183,6 @@ const CreateNewReq = ({ navigation }) => {
         "RequestAmt": 0,
           // is PayLoad ko change krna hai
         "SalesRep_ID": { "id": subOrdinateKey, "identifier": value, "model-name": "ad_user" },
-
         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
         "Summary": summary,
         "Updated": "",
@@ -291,9 +289,11 @@ const CreateNewReq = ({ navigation }) => {
   const Save = async () => {
     if (endDate === null) {
       alert('End Date cannot be empty')
-    } else if (!assigned) {
-      alert('Please select the SubOrdinate')
-    } else if (summary.trim() === '') {
+    }
+    //  else if (!assigned) {
+    //   alert('Please select the SubOrdinate')
+    // }
+     else if (summary.trim() === '') {
       alert('Please Enter the Summary')
     }
     // else if (startDate.toISOString().substring(0, 10) < formattedDate.substring(0, 10)) {
@@ -511,7 +511,7 @@ const CreateNewReq = ({ navigation }) => {
                   ))}
                 </Picker>
               </View> */}
-              <TouchableOpacity onPress={() => rbSheetRef.current.open()}
+              {/* <TouchableOpacity onPress={() => rbSheetRef.current.open()}
                 style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
                   <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
@@ -519,7 +519,7 @@ const CreateNewReq = ({ navigation }) => {
                 <View style={{ paddingLeft: 10 }}>
                   <Text style={styles.topTxt}>{assigned || "Select Assignor"}</Text>
                 </View>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
               
               <RBSheet
                 ref={rbSheetRef}

@@ -471,6 +471,7 @@ const AllTaskScreen = () => {
                                     startDate={moment(item.item.StartDate).format("DD-MM-YYYY")}
                                     endDate={moment(item.item.EndTime).format("DD-MM-YYYY")}
                                     onPress={() => navigation.navigate('RequestDetails', { id: item.item.id })}
+                                    onPressMain={() => navigation.navigate('RequestDetails', { id: item.item.id })}
                                     status={status}
                                     statusBorderColor={statusBorderColor}
                                     onPressModal={() => modalView(item)}

@@ -17,389 +17,421 @@ import { useNavigation } from '@react-navigation/native';
 import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
 
 
-  const ShowTeamTask = () => {
+const ShowTeamTask = () => {
 
     const navigation = useNavigation();
 
 
-  const multiSelect = useRef(null);
+    const multiSelect = useRef(null);
 
-  const bottomSheetRef = useRef();
-  const [assignedName, setAssignedName] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [showAllTasks, setShowAllTasks] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [data, setData] = useState([])
-  const [recordLengths, setRecordLengths] = useState([]);
-  const [currMonth, setCurrMonth] = useState([])
-  const [prevMonth, setPrevMonth] = useState([])
-  const [fCloseCurrMonth, setFCloseCurrMonth] = useState([])
-  const tempResultPre = [];
-  let tempResultCurr = []
-  const [chartData, setChartData] = useState(false)
-  const [fCloseCurrMonthModal, setFCloseCurrMonthModal] = useState(0)
-  const [currMonthModal, setCurrMonthModal] = useState(0)
-  let [pendingList, setPendingList] = useState()
-  const [show, setShow] = useState(false)
-  const [itemId, setItemId] = useState()
-  const [showCalendarStart, setShowCalendarStart] = useState(false);
-  const [startDate, setStartDate] = useState(null)
-  const [showCalendarEnd, setShowCalendarEnd] = useState(false);
-  const [endDate, setEndDate] = useState(null)
-  const [showRBSheet, setShowRBSheet] = useState(false);
-  const [filteredData, setFilteredData] = useState(data);
-  // console.log(filteredData,'AllDataInTaskTrick')
+    const bottomSheetRef = useRef();
+    const [assignedName, setAssignedName] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState([])
+    const [isLoading, setIsLoading] = useState(false)
+    const [showAllTasks, setShowAllTasks] = useState(false);
+    const [userId, setUserId] = useState(null);
+    const [data, setData] = useState([])
+    const [recordLengths, setRecordLengths] = useState([]);
+    const [currMonth, setCurrMonth] = useState([])
+    const [prevMonth, setPrevMonth] = useState([])
+    const [fCloseCurrMonth, setFCloseCurrMonth] = useState([])
+    const tempResultPre = [];
+    let tempResultCurr = []
+    const [chartData, setChartData] = useState(false)
+    const [fCloseCurrMonthModal, setFCloseCurrMonthModal] = useState(0)
+    const [currMonthModal, setCurrMonthModal] = useState(0)
+    let [pendingList, setPendingList] = useState()
+    const [show, setShow] = useState(false)
+    const [itemId, setItemId] = useState()
+    const [showCalendarStart, setShowCalendarStart] = useState(false);
+    const [startDate, setStartDate] = useState(null)
+    const [showCalendarEnd, setShowCalendarEnd] = useState(false);
+    const [endDate, setEndDate] = useState(null)
+    const [showRBSheet, setShowRBSheet] = useState(false);
+    const [filteredData, setFilteredData] = useState(data);
+    // console.log(filteredData,'AllDataInTaskTrick')
 
-  const [pickerData, setPickerData] = useState([]);
+    const [pickerData, setPickerData] = useState([]);
 
-
-  const getAPIData = async () => {
-      setIsLoading(true)
-      const token = await AsyncStorage.getItem('token')
-      const protocol = await AsyncStorage.getItem('protocol')
-      const host = await AsyncStorage.getItem('host')
-      const port = await AsyncStorage.getItem('port')
-      const Id = await AsyncStorage.getItem("userId")
-      setUserId(Id);
-      let idArray = []
-      const teamTaskURL = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`;
-      console.log(teamTaskURL,'teamtaskURL')
-    //   fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
-      fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`,
-          {
-              method: 'GET',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-              }
-          })
-          .then(response => {
-              return response.json();
-          })
-          .then(data => {
-              const sortedData = data.records.sort((a, b) =>
-                  new Date(b.Created) - new Date(a.Created)
-              );
-              setData(sortedData);
-              // console.log('Parsed Data:', JSON.stringify(data));
-              const uniqueNames = [...new Set(sortedData.map(item => item.user_name))];
-              setPickerData(uniqueNames);
-
-              for (let i = 0; i < sortedData.length; i++) {
-                  idArray.push(sortedData[i].id)
-              }
-
-              idArray.push(Id)
-              setData([...data.records])
-
-              fetchBasedOnId(idArray, protocol, host, port, Id, token)
-              setShow(false)
-
-          })
-          .catch(error => {
-              alert(error)
-              setIsLoading(false)
-          });
-      setIsLoading(false)
-  }
-
-  const fetchBasedOnId = async (idArray, protocol, host, port, userId, token) => {
-
-      idArray = [userId];
-      const promises = idArray.map(id =>
-          fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=SalesRep_ID eq ${id} AND CreatedBy eq ${userId}`, {
-              method: 'GET',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-              }
-          })
-              .then(response => response.json())
-
-
-              .catch(error => {
-                  console.error(error);
-                  // return [];
-              })
-      );
-      Promise.all(promises).then(results => {
-          const concatAll = results.reduce((acc, curr) => {
-              return [...acc, ...curr.records];
-          }, []);
-
-          // console.log(concatAll,"ConCatAll");
-
-          let tempResult = [];
-          idArray.forEach(id => {
-              const count = concatAll.length;
-              tempResult.push(count);
-          });
-          setRecordLengths(tempResult);
-
-          fetchMonth(concatAll, idArray);
-
-      });
-  }
-
-  const fetchMonth = async (concatAll, idArray) => {
-      const lastDayOfPreviousMonth = moment().subtract(1, 'months').endOf('month').format('YYYY-MM-DD');
-      const firstDayOfCurrMonth = moment().subtract('months').startOf('month').format('YYYY-MM-DD');
-      const lastDayOfCurrMonth = moment().subtract('months').endOf('month').format('YYYY-MM-DD');
-
-      let tempResultPre = [];
-      idArray.forEach(id => {
-          const count = concatAll.filter(item => {
-              return item.StartTime?.slice(0, 10) <= lastDayOfPreviousMonth;
-          }).length; // Previous Month count for your tasks
-          tempResultPre.push(count);
-      });
-      setPrevMonth(tempResultPre);
-
-      let tempResultCurr = [];
-      idArray.forEach(id => {
-          const count = concatAll.filter(item => {
-              return item.StartTime?.slice(0, 10) >= firstDayOfCurrMonth && item.StartTime?.slice(0, 10) <= lastDayOfCurrMonth;
-          }).length; // Current Month count for your tasks
-          tempResultCurr.push(count);
-      });
-      setCurrMonth(tempResultCurr);
-
-      let fCloseCurr = [];
-      idArray.forEach(id => {
-          const count = concatAll.filter(item => {
-              return item.R_Status_ID.id === 1000003 &&
-                  item.StartTime?.slice(0, 10) >= firstDayOfCurrMonth && item.StartTime?.slice(0, 10) <= lastDayOfCurrMonth;
-          }).length; // Final Close of Current Month count for your tasks
-          fCloseCurr.push(count);
-      });
-      setFCloseCurrMonth(fCloseCurr);
-
-      setIsLoading(false);
-  }
-
-
-  const navigateBack = () => {
-      const unsubscribe = navigation.addListener('focus', () => {
-          getAPIData()
-
-      });
-      return unsubscribe;
-  }
-
-  useEffect(() => {
-      navigateBack()
-      const backAction = () => {
-          navigation.goBack()
-          return true;
-      };
-      const backHandler = BackHandler.addEventListener(
-          "hardwareBackPress",
-          backAction
-      );
-      return () => backHandler.remove();
-  }, [navigation])
-
-  const chartModal = (id) => {
-      setFCloseCurrMonthModal(fCloseCurrMonth[id])
-      setCurrMonthModal(currMonth[id])
-      setChartData(true)
-  }
-
-  const openBottomSheet = () => {
-      if (bottomSheetRef.current) {
-          bottomSheetRef.current.open();
-      }
-  };
-
-  const modalView = async ({ item }) => {
-      let id = item.id
-      setItemId(id)
-      setShow(!show)
-  }
-
-  const updateData = async (statusId, txt) => {
-      const protocol = await AsyncStorage.getItem('protocol')
-      const host = await AsyncStorage.getItem('host')
-      const port = await AsyncStorage.getItem('port')
-      const token = await AsyncStorage.getItem('token')
-      const userId = await AsyncStorage.getItem('userId')
-
-      fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${itemId}`, {
-          method: 'PUT',
-          headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-              "R_Status_ID": { "id": `${statusId}`, "identifier": txt, "model-name": "r_status" }
-          })
-      })
-          .then(response => response.json())
-          .then(data => {
-              setIsLoading(true)
-              getAPIData(protocol, host, port, userId)
-          })
-          .catch(error => {
-              // Handle the error
-          });
-
-  }
-
-  const modalClose = async (txt, id) => {
-      if (txt === "Open") {
-          let statusId = 1000000
-          updateData(statusId, txt)
-      } else if (txt === "Close") {
-          let statusId = 1000002
-          updateData(statusId, txt)
-      } else if (txt === 'Waiting') {
-          let statusId = 1000001
-          updateData(statusId, txt)
-      } else {
-          let statusId = 1000003
-          updateData(statusId, txt)
-      }
-  }
-
-  const getReport = async (id) => {
-      const protocol = await AsyncStorage.getItem('protocol')
-      const host = await AsyncStorage.getItem('host')
-      const port = await AsyncStorage.getItem('port')
-      const token = await AsyncStorage.getItem('token')
-      fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${id}/attachments`, {
-          method: 'GET',
-          headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-          }
-      }).then((response) => response.json())
-          .then(data => {
-              let records = data.attachments
-              if (records.length === 1) {
-                  const decodedString = atob(records[0].contentType)
-                  if (records[0].contentType.startsWith('image/')) {
-                      setImageAPI(decodedString)
-                      setModalVisible(true)
-                  } else if (records[0].contentType === 'application/pdf') {
-                      setPdfAPI(decodedString)
-                  } else {
-                  }
-              } else {
-                  const lastItem = records[data.length - 1]
-              }
-          })
-          .catch((err) => console.log(err))
-  }
-
-  const onDateChangeStart = (date) => {
-      const formattedDate = moment.utc(date).format("YYYY-MM-DD");
-      if (formattedDate > endDate) {
-          alert('This Date must be smaller then end date')
-      } else {
-          setStartDate(formattedDate);
-          setShowCalendarStart(false);
-          //  getAPIData(formattedDate, endDate)
-      }
-  };
-
-  const onDateChangeEnd = (date) => {
-      const formattedDate = moment.utc(date).format("YYYY-MM-DD");
-      if (formattedDate < startDate) {
-          alert('This Date must be greater then start date')
-      } else {
-          setEndDate(formattedDate);
-          setShowCalendarEnd(false);
-          //  getAPIData(startDate, formattedDate)
-      }
-  }
-  useEffect(() => {
-      const filtered = data.filter(item => {
-          const isNameMatched = !assignedName || item?.user_name.includes(assignedName);
-          let isStatusMatched = false;
-
-          if (selectedStatus.length > 0) {
-              isStatusMatched = selectedStatus.some(status => {
-                  if (status.value === 'FinalClose') {
-                      // return item?.R_Status_ID?.toLowerCase() === 'finalClose';
-                      return item?.R_Status_ID?.id === 1000003;
-                  } else if (status.value === 'Close') {
-                      return item?.R_Status_ID?.id === 1000002;
-                  } else {
-                      return item?.R_Status_ID?.identifier.toLowerCase().includes(status.value.toLowerCase());
-                  }
-              });
-          } else {
-              isStatusMatched = true;
-          }
-          const isOwnTask = showAllTasks ? item?.SalesRep_ID?.id == userId : true;
-          const itemStartDate = moment(item?.StartDate, 'DD-MM-YYYY');
-          const itemEndDate = moment(item?.EndTime, 'DD-MM-YYYY');
-          const selectedStartDate = startDate ? moment(startDate, 'DD-MM-YYYY') : null;
-          const selectedEndDate = endDate ? moment(endDate, 'DD-MM-YYYY') : null;
-          const isStartDateMatched = !selectedStartDate || itemStartDate.isSameOrAfter(selectedStartDate);
-          const isEndDateMatched = !selectedEndDate || itemEndDate.isSameOrBefore(selectedEndDate);
-          return isNameMatched && isStatusMatched && isOwnTask && isStartDateMatched && isEndDateMatched;
-      });
-
-      setFilteredData(filtered);
-  }, [showAllTasks, selectedStatus, assignedName, startDate, endDate, data]);
+// Status Color set
+    const statusColors = {
+        "Open": "#FFA500",
+        "Waiting on Customers/Others": "#FFD700",
+        "Closed": "#FF0000",
+        "Final Close": "#008000"
+    };
 
 
 
-  const items = [{
-      id: 2,
-      name: 'Open',
-      value: 'Open'
-  }, {
-      id: 3,
-      name: 'Close',
-      value: 'Close'
-  },
-  {
-      id: 4,
-      name: 'Waiting',
-      value: 'Waiting'
-  }, {
-      id: 5,
-      name: 'FinalClose',
-      value: 'FinalClose'
-  },
-  ];
+    const getAPIData = async () => {
+        setIsLoading(true)
+        const token = await AsyncStorage.getItem('token')
+        const protocol = await AsyncStorage.getItem('protocol')
+        const host = await AsyncStorage.getItem('host')
+        const port = await AsyncStorage.getItem('port')
+        const Id = await AsyncStorage.getItem("userId")
+        setUserId(Id);
+        let idArray = []
+        const teamTaskURL = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`;
+        console.log(teamTaskURL, 'teamtaskURL')
+        //   fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                return response.json();
+            })
+            .then(data => {
+                const sortedData = data.records.sort((a, b) =>
+                    new Date(b.Created) - new Date(a.Created)
+                );
+                setData(sortedData);
+                // console.log('Parsed Data:', JSON.stringify(data));
+                const uniqueNames = [...new Set(sortedData.map(item => item.user_name))];
+                setPickerData(uniqueNames);
+
+                for (let i = 0; i < sortedData.length; i++) {
+                    idArray.push(sortedData[i].id)
+                }
+
+                idArray.push(Id)
+                setData([...data.records])
+
+                fetchBasedOnId(idArray, protocol, host, port, Id, token)
+                setShow(false)
+
+            })
+            .catch(error => {
+                alert(error)
+                setIsLoading(false)
+            });
+        setIsLoading(false)
+    }
+
+    const fetchBasedOnId = async (idArray, protocol, host, port, userId, token) => {
+
+        idArray = [userId];
+        const promises = idArray.map(id =>
+            fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=SalesRep_ID eq ${id} AND CreatedBy eq ${userId}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+                .then(response => response.json())
+
+
+                .catch(error => {
+                    console.error(error);
+                    // return [];
+                })
+        );
+        Promise.all(promises).then(results => {
+            const concatAll = results.reduce((acc, curr) => {
+                return [...acc, ...curr.records];
+            }, []);
+
+            // console.log(concatAll,"ConCatAll");
+
+            let tempResult = [];
+            idArray.forEach(id => {
+                const count = concatAll.length;
+                tempResult.push(count);
+            });
+            setRecordLengths(tempResult);
+
+            fetchMonth(concatAll, idArray);
+
+        });
+    }
+
+    const fetchMonth = async (concatAll, idArray) => {
+        const lastDayOfPreviousMonth = moment().subtract(1, 'months').endOf('month').format('YYYY-MM-DD');
+        const firstDayOfCurrMonth = moment().subtract('months').startOf('month').format('YYYY-MM-DD');
+        const lastDayOfCurrMonth = moment().subtract('months').endOf('month').format('YYYY-MM-DD');
+
+        let tempResultPre = [];
+        idArray.forEach(id => {
+            const count = concatAll.filter(item => {
+                return item.StartTime?.slice(0, 10) <= lastDayOfPreviousMonth;
+            }).length; // Previous Month count for your tasks
+            tempResultPre.push(count);
+        });
+        setPrevMonth(tempResultPre);
+
+        let tempResultCurr = [];
+        idArray.forEach(id => {
+            const count = concatAll.filter(item => {
+                return item.StartTime?.slice(0, 10) >= firstDayOfCurrMonth && item.StartTime?.slice(0, 10) <= lastDayOfCurrMonth;
+            }).length; // Current Month count for your tasks
+            tempResultCurr.push(count);
+        });
+        setCurrMonth(tempResultCurr);
+
+        let fCloseCurr = [];
+        idArray.forEach(id => {
+            const count = concatAll.filter(item => {
+                return item.R_Status_ID.id === 1000003 &&
+                    item.StartTime?.slice(0, 10) >= firstDayOfCurrMonth && item.StartTime?.slice(0, 10) <= lastDayOfCurrMonth;
+            }).length; // Final Close of Current Month count for your tasks
+            fCloseCurr.push(count);
+        });
+        setFCloseCurrMonth(fCloseCurr);
+
+        setIsLoading(false);
+    }
+
+
+    const navigateBack = () => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            getAPIData()
+
+        });
+        return unsubscribe;
+    }
+
+    useEffect(() => {
+        navigateBack()
+        const backAction = () => {
+            navigation.goBack()
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener(
+            "hardwareBackPress",
+            backAction
+        );
+        return () => backHandler.remove();
+    }, [navigation])
+
+    const chartModal = (id) => {
+        setFCloseCurrMonthModal(fCloseCurrMonth[id])
+        setCurrMonthModal(currMonth[id])
+        setChartData(true)
+    }
+
+    const openBottomSheet = () => {
+        if (bottomSheetRef.current) {
+            bottomSheetRef.current.open();
+        }
+    };
+
+    const modalView = async ({ item }) => {
+        let id = item.id
+        setItemId(id)
+        setShow(!show)
+    }
+
+    const updateData = async (statusId, txt) => {
+        const protocol = await AsyncStorage.getItem('protocol')
+        const host = await AsyncStorage.getItem('host')
+        const port = await AsyncStorage.getItem('port')
+        const token = await AsyncStorage.getItem('token')
+        const userId = await AsyncStorage.getItem('userId')
+
+        fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${itemId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                "R_Status_ID": { "id": `${statusId}`, "identifier": txt, "model-name": "r_status" }
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                setIsLoading(true)
+                getAPIData(protocol, host, port, userId)
+            })
+            .catch(error => {
+                // Handle the error
+            });
+
+    }
+
+    const modalClose = async (txt, id) => {
+        if (txt === "Open") {
+            let statusId = 1000000
+            updateData(statusId, txt)
+        } else if (txt === "Close") {
+            let statusId = 1000002
+            updateData(statusId, txt)
+        } else if (txt === 'Waiting') {
+            let statusId = 1000001
+            updateData(statusId, txt)
+        } else {
+            let statusId = 1000003
+            updateData(statusId, txt)
+        }
+    }
+
+    const getReport = async (id) => {
+        const protocol = await AsyncStorage.getItem('protocol')
+        const host = await AsyncStorage.getItem('host')
+        const port = await AsyncStorage.getItem('port')
+        const token = await AsyncStorage.getItem('token')
+        fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request/${id}/attachments`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        }).then((response) => response.json())
+            .then(data => {
+                let records = data.attachments
+                if (records.length === 1) {
+                    const decodedString = atob(records[0].contentType)
+                    if (records[0].contentType.startsWith('image/')) {
+                        setImageAPI(decodedString)
+                        setModalVisible(true)
+                    } else if (records[0].contentType === 'application/pdf') {
+                        setPdfAPI(decodedString)
+                    } else {
+                    }
+                } else {
+                    const lastItem = records[data.length - 1]
+                }
+            })
+            .catch((err) => console.log(err))
+    }
+
+    const onDateChangeStart = (date) => {
+        const formattedDate = moment.utc(date).format("YYYY-MM-DD");
+        if (formattedDate > endDate) {
+            alert('This Date must be smaller then end date')
+        } else {
+            setStartDate(formattedDate);
+            setShowCalendarStart(false);
+            //  getAPIData(formattedDate, endDate)
+        }
+    };
+
+    const onDateChangeEnd = (date) => {
+        const formattedDate = moment.utc(date).format("YYYY-MM-DD");
+        if (formattedDate < startDate) {
+            alert('This Date must be greater then start date')
+        } else {
+            setEndDate(formattedDate);
+            setShowCalendarEnd(false);
+            //  getAPIData(startDate, formattedDate)
+        }
+    }
+    useEffect(() => {
+        const filtered = data.filter(item => {
+            const isNameMatched = !assignedName || item?.user_name.includes(assignedName);
+            let isStatusMatched = false;
+
+            if (selectedStatus.length > 0) {
+                isStatusMatched = selectedStatus.some(status => {
+                    if (status.value === 'FinalClose') {
+                        // return item?.R_Status_ID?.toLowerCase() === 'finalClose';
+                        return item?.R_Status_ID?.id === 1000003;
+                    } else if (status.value === 'Close') {
+                        return item?.R_Status_ID?.id === 1000002;
+                    } else {
+                        return item?.R_Status_ID?.identifier.toLowerCase().includes(status.value.toLowerCase());
+                    }
+                });
+            } else {
+                isStatusMatched = true;
+            }
+            const isOwnTask = showAllTasks ? item?.SalesRep_ID?.id == userId : true;
+            const itemStartDate = moment(item?.StartDate, 'DD-MM-YYYY');
+            const itemEndDate = moment(item?.EndTime, 'DD-MM-YYYY');
+            const selectedStartDate = startDate ? moment(startDate, 'DD-MM-YYYY') : null;
+            const selectedEndDate = endDate ? moment(endDate, 'DD-MM-YYYY') : null;
+            const isStartDateMatched = !selectedStartDate || itemStartDate.isSameOrAfter(selectedStartDate);
+            const isEndDateMatched = !selectedEndDate || itemEndDate.isSameOrBefore(selectedEndDate);
+            return isNameMatched && isStatusMatched && isOwnTask && isStartDateMatched && isEndDateMatched;
+        });
+
+        setFilteredData(filtered);
+    }, [showAllTasks, selectedStatus, assignedName, startDate, endDate, data]);
 
 
 
-  const onSelectedItemsChange = (selectedStatusIds) => {
-      const updatedStatuses = items.filter(item => selectedStatusIds.includes(item.id));
-      setSelectedStatus(prevStatuses => {
+    const items = [{
+        id: 2,
+        name: 'Open',
+        value: 'Open'
+    }, {
+        id: 3,
+        name: 'Close',
+        value: 'Close'
+    },
+    {
+        id: 4,
+        name: 'Waiting',
+        value: 'Waiting'
+    }, {
+        id: 5,
+        name: 'FinalClose',
+        value: 'FinalClose'
+    },
+    ];
 
-          const newStatuses = [...prevStatuses];
-
-          updatedStatuses.forEach(updatedStatus => {
-              const index = newStatuses.findIndex(status => status.id === updatedStatus.id);
-              if (index !== -1) {
-                  newStatuses.splice(index, 1);
-              } else {
-                  newStatuses.push(updatedStatus);
-              }
-          });
-
-          return newStatuses;
-      });
-  };
 
 
+    const onSelectedItemsChange = (selectedStatusIds) => {
+        const updatedStatuses = items.filter(item => selectedStatusIds.includes(item.id));
+        setSelectedStatus(prevStatuses => {
 
-  
-  return (
-    <>
-     {isLoading && (
+            const newStatuses = [...prevStatuses];
+
+            updatedStatuses.forEach(updatedStatus => {
+                const index = newStatuses.findIndex(status => status.id === updatedStatus.id);
+                if (index !== -1) {
+                    newStatuses.splice(index, 1);
+                } else {
+                    newStatuses.push(updatedStatus);
+                }
+            });
+
+            return newStatuses;
+        });
+    };
+
+
+
+
+    return (
+        <>
+            {isLoading && (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator size="large" color="#0050C0" />
                 </View>
             )}
             {!isLoading && (
                 <View style={{ flex: 1, backgroundColor: 'white' }}>
+                    {/* Fixed Color show */}
+                    <View style={[styles.containerColor, { width: "90%", alignSelf: "center", marginTop:"3%" }]}>
+                        <View style={styles.statusContainer}>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Open</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFD700' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Waiting</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#FF0000' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Close</Text>
+                            </View>
+                            <View style={styles.item}>
+                                <View style={[styles.statusBoxColor, { backgroundColor: '#008000' }]} />
+                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Status Modal  */}
                     <Modal
                         visible={show}
                         animationType="slide"
@@ -430,6 +462,8 @@ import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
                         data={filteredData}
                         renderItem={(item) => {
                             // console.log(filteredData,44444)
+                            const status = item?.item?.R_Status_ID?.identifier.split("_")[1]; // Ensure status exists
+                            const statusBorderColor = statusColors[status] || "#000";
                             return (
                                 <ItemList
                                     employName={item.item.user_name ? item.item.user_name : 'My Task'}
@@ -437,7 +471,9 @@ import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
                                     startDate={moment(item.item.StartDate).format("DD-MM-YYYY")}
                                     endDate={moment(item.item.EndTime).format("DD-MM-YYYY")}
                                     onPress={() => navigation.navigate('RequestDetails', { id: item.item.id })}
-                                    status={item?.item?.R_Status_ID?.identifier.split("_")[1]}
+                                    // status={item?.item?.R_Status_ID?.identifier.split("_")[1]}
+                                    status={status}
+                                    statusBorderColor={statusBorderColor}
                                     onPressModal={() => modalView(item)}
                                     statusArrow={require('../../asserts/RequestAsserts/downArrow.png')}
                                     onPressReport={() => getReport(item.item.id)}
@@ -613,109 +649,126 @@ import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
                     </Modal>
                 </View>
             )}
-            </>
-  )
+        </>
+    )
 }
 
 export default ShowTeamTask
 
 const styles = StyleSheet.create({
-  modalContainer: {
-      backgroundColor: 'rgba(38, 70, 83, 0.5)',
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: "center"
-  },
-  modalView: {
-      backgroundColor: '#00B0F0',
-      height: '30%',
-      width: '85%',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 10
-  },
-  fromBtn: {
-      width: '45%',
-      flexDirection: 'row',
-      height: 35,
-      alignItems: 'center',
+    modalContainer: {
+        backgroundColor: 'rgba(38, 70, 83, 0.5)',
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: "center"
+    },
+    modalView: {
+        backgroundColor: '#00B0F0',
+        height: '30%',
+        width: '85%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 10
+    },
+    fromBtn: {
+        width: '45%',
+        flexDirection: 'row',
+        height: 35,
+        alignItems: 'center',
 
-  },
-  txt: {
-      color: 'gray',
-      fontSize: 14,
-      fontFamily: 'K2D-Bold'
-  },
-  toBtn: {
-      width: '45%',
-      alignItems: 'center',
-      flexDirection: 'row',
-      height: 35,
+    },
+    txt: {
+        color: 'gray',
+        fontSize: 14,
+        fontFamily: 'K2D-Bold'
+    },
+    toBtn: {
+        width: '45%',
+        alignItems: 'center',
+        flexDirection: 'row',
+        height: 35,
 
-  },
-  image: {
-      height: '80%',
-      width: '30%'
-  },
-  modalTxt: {
-      color: 'white',
-      fontSize: 18,
-      fontFamily: 'K2D-Regular'
-  },
-  floatingButton: {
-      position: 'absolute',
-      bottom: 30,
-      right: 20,
-      // backgroundColor: '#00B0F0',
-      backgroundColor: "#002E62",
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      alignItems: 'center',
-      justifyContent: 'center',
-      elevation: 5,
-  },
-  filterContainer: {
-      marginHorizontal: 20
+    },
+    image: {
+        height: '80%',
+        width: '30%'
+    },
+    modalTxt: {
+        color: 'white',
+        fontSize: 18,
+        fontFamily: 'K2D-Regular'
+    },
+    floatingButton: {
+        position: 'absolute',
+        bottom: 30,
+        right: 20,
+        // backgroundColor: '#00B0F0',
+        backgroundColor: "#002E62",
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 5,
+    },
+    filterContainer: {
+        marginHorizontal: 20
 
-  },
-  filterTitle: {
-      fontSize: 22,
-      fontWeight: 'bold',
-      fontFamily: 'K2D',
-      color: '#000'
+    },
+    filterTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        fontFamily: 'K2D',
+        color: '#000'
 
-  },
+    },
 
-  blurView: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)'
-  },
-  modal: {
-      width: '90%',
-      backgroundColor: '#00B0F0',
-      borderRadius: 20,
-      alignItems: 'center'
-  },
-  closeBtn: {
-      backgroundColor: 'white',
-      height: '10%',
-      width: '40%',
-      marginTop: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 20
-  },
-  calender: {
-      width: '30%',
-      alignItems: 'center',
-      marginLeft: 10
-  },
-  close: {
-      color: '#800000',
-      fontSize: 16,
-      fontFamily: 'K2D-Regular'
-  },
+    blurView: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)'
+    },
+    modal: {
+        width: '90%',
+        backgroundColor: '#00B0F0',
+        borderRadius: 20,
+        alignItems: 'center'
+    },
+    closeBtn: {
+        backgroundColor: 'white',
+        height: '10%',
+        width: '40%',
+        marginTop: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 20
+    },
+    calender: {
+        width: '30%',
+        alignItems: 'center',
+        marginLeft: 10
+    },
+    close: {
+        color: '#800000',
+        fontSize: 16,
+        fontFamily: 'K2D-Regular'
+    },
+    statusContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+    },
+    // Container for each individual status item (box + text)
+    item: {
+        alignItems: "center",
+
+    },
+    statusBoxColor: {
+        padding: 10,
+        borderRadius: 5,
+        marginBottom: 5, // thoda gap text ke liye
+    },
+    statusTextColor: {
+        fontWeight: 'bold',
+    },
 })
