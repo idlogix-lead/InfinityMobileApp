@@ -1060,10 +1060,10 @@ const RequestDetails = ({ navigation, route }) => {
                 </View>
 
                 {/* Create this Task */}
-                <View style={styles.sameContainer}>
-                  {/* <Text style={styles.descriptionWordStyle}>{assignedTo} created this task</Text> */}
+
+                {/* <View style={styles.sameContainer}>
                   <Text style={styles.txtStyle}>{assignedTo} created this task</Text>
-                </View>
+                </View> */}
               </View>
 
               {/*Message screen Start*/}
@@ -1109,7 +1109,7 @@ const RequestDetails = ({ navigation, route }) => {
 
                 {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
                 <View>
-                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 40  }} >
+                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 50  }} >
                     {Array.isArray(getmassages) &&
                       getmassages.map((msg, index) => (
                         <View key={index}>
@@ -1183,6 +1183,7 @@ const RequestDetails = ({ navigation, route }) => {
               position: 'absolute',
               bottom: 0,
               alignSelf: "center",
+              
             }}>
               <View style={{paddingLeft:"2%"}}> 
               <FlatList
@@ -1191,22 +1192,10 @@ const RequestDetails = ({ navigation, route }) => {
                 keyExtractor={(item) => item.id.toString()}
                 showsHorizontalScrollIndicator={false}
                 // keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ flexGrow: 1, width:'auto' }}
+                contentContainerStyle={{ flexGrow: 1, width:'auto', marginTop:"1%",  }}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={{
-                      height: 30,
-                      marginHorizontal: 2,
-                      padding: 4,
-                      // backgroundColor: "gray",
-                      // backgroundColor: "white",
-                      backgroundColor: "#002E62",
-                      // backgroundColor:"red",
-                      borderRadius: 15,
-                      marginTop: 5, 
-                      borderWidth: 0.5,
-                      borderColor: "black",
-                    }}
+                    style={styles.PerdefineMessageContainer}
                     onPress={() => {
                       setMessage(item?.ResponseText)
                     }}
@@ -1498,4 +1487,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Regular'
   },
+  PerdefineMessageContainer:{
+    height: 30,
+    marginHorizontal: 2,
+    padding: 4,
+    // backgroundColor: "gray",
+    // backgroundColor: "white",
+    backgroundColor: "#002E62",
+    // backgroundColor:"red",
+    borderRadius: 15,
+    marginTop: 5, 
+    borderWidth: 0.5,
+    borderColor: "black",
+    // backgroundColor:'red'
+  }
 })

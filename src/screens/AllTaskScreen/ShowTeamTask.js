@@ -412,22 +412,22 @@ const ShowTeamTask = () => {
                     {/* Fixed Color show */}
                     <View style={[styles.containerColor, { width: "90%", alignSelf: "center", marginTop:"3%" }]}>
                         <View style={styles.statusContainer}>
-                            <View style={styles.item}>
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Open</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FFD700' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Waiting</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FF0000' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Close</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#008000' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -463,17 +463,19 @@ const ShowTeamTask = () => {
                         renderItem={(item) => {
                             // console.log(filteredData,44444)
                             const status = item?.item?.R_Status_ID?.identifier.split("_")[1]; // Ensure status exists
-                            const statusBorderColor = statusColors[status] || "#000";
+                            const backgroundColorDot = statusColors[status] || "#000";
                             return (
                                 <ItemList
                                     employName={item.item.user_name ? item.item.user_name : 'My Task'}
+                                    Idnumber={item?.item?.id}
                                     name={item.item.Name}
                                     startDate={moment(item.item.StartDate).format("DD-MM-YYYY")}
                                     endDate={moment(item.item.EndTime).format("DD-MM-YYYY")}
                                     onPress={() => navigation.navigate('RequestDetails', { id: item.item.id })}
+                                    onPressMain={() => navigation.navigate('RequestDetails', { id: item.item.id })}
                                     // status={item?.item?.R_Status_ID?.identifier.split("_")[1]}
                                     status={status}
-                                    statusBorderColor={statusBorderColor}
+                                    backgroundColorDot={backgroundColorDot}
                                     onPressModal={() => modalView(item)}
                                     statusArrow={require('../../asserts/RequestAsserts/downArrow.png')}
                                     onPressReport={() => getReport(item.item.id)}

@@ -6,7 +6,7 @@ import moment from 'moment';
 import CustomHeader from '../../components/CustomHeader';
 import ItemList from '../../components/RequestScreenComponents/ItemList';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import FontAwesome5 from 'react-native-vector-icons/dist/FontAwesome5';
+import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import ToggleSwitch from 'toggle-switch-react-native'
 import RBSheet from "react-native-raw-bottom-sheet";
@@ -48,14 +48,31 @@ const AllTaskScreen = () => {
     // console.log(filteredData,'AllDataInTaskTrick')
 
     const [pickerData, setPickerData] = useState([]);
+    const [idForTask, setIdForTask] = useState([]);
+    // console.log(idForTask,'ljkadhvbjh')
 
-    // const statusColors = {
-    //     Open: "#FFA500",
-    //     Waiting: "#FFD700",
-    //     Closed: "#FF0000",
-    //     Final_Close : "#008000"
+    const [selectedStatuses, setSelectedStatuses] = useState([]);
+
+
+    const [allData, setAllData] = useState([]); // All data from default API
+    const [filteredDataAPI, setFilteredDataAPI] = useState([]);
+
+    const statuses = [
+        { id: "open", label: "Open", color: "#FFA500" },
+        { id: "waiting", label: "Waiting", color: "#FFD700" },
+        { id: "close", label: "Close", color: "#FF0000" },
+        { id: "complete", label: "Complete", color: "#008000" },
+    ];
+
+    // const toggleStatus = (id) => {
+    //     setSelectedStatuses((prevSelected) =>
+    //         prevSelected.includes(id)
+    //             ? prevSelected.filter((status) => status !== id) // Remove if already selected
+    //             : [...prevSelected, id] // Add if not selected
+    //     );
     // };
 
+    // status color change throught data API GET
     const statusColors = {
         "Open": "#FFA500",
         "Waiting on Customers/Others": "#FFD700",
@@ -64,8 +81,164 @@ const AllTaskScreen = () => {
     };
 
 
-    const getAPIData = async () => {
+    //   OPEN  API status Calling
+    const openStatus = async () => {
+        setIsLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const Id = await AsyncStorage.getItem("userId");
 
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const sortedData = data.records.sort((a, b) =>
+                    new Date(b.Created) - new Date(a.Created)
+                );
+                setFilteredData(sortedData); // Update FlatList with Open data
+                console.log(sortedData,'singleDataShow')
+            })
+            .catch(error => {
+                alert(error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    // Waiting API Status Calling
+    const waitingStatus = async () => {
+        setIsLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const Id = await AsyncStorage.getItem("userId");
+
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const sortedData = data.records.sort((a, b) =>
+                    new Date(b.Created) - new Date(a.Created)
+                );
+                setFilteredData(sortedData); // Update FlatList with Open data
+                console.log(sortedData,'singleDataShow')
+            })
+            .catch(error => {
+                alert(error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    // Close API Status Calling
+    const closeOStatus = async () => {
+        setIsLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const Id = await AsyncStorage.getItem("userId");
+
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const sortedData = data.records.sort((a, b) =>
+                    new Date(b.Created) - new Date(a.Created)
+                );
+                setFilteredData(sortedData); // Update FlatList with Open data
+                console.log(sortedData,'singleDataShow')
+            })
+            .catch(error => {
+                alert(error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+    // Final_Close API Calling
+    const final_CloseOStatus = async () => {
+        setIsLoading(true);
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const Id = await AsyncStorage.getItem("userId");
+
+        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                const sortedData = data.records.sort((a, b) =>
+                    new Date(b.Created) - new Date(a.Created)
+                );
+                setFilteredData(sortedData); // Update FlatList with Open data
+                console.log(sortedData,'singleDataShow')
+            })
+            .catch(error => {
+                alert(error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    };
+
+
+
+    const handleStatusSelection = (id) => {
+        setSelectedStatuses((prevSelected) =>
+            prevSelected.includes(id)
+                ? prevSelected.filter((status) => status !== id) // Remove if already selected 
+                : [...prevSelected, id] // Add if not selected 
+        );
+    };
+
+    const handleOpenStatusClick = (statusId) => {
+        if (statusId === "open") {
+            openStatus();
+            console.log("me Press");
+        } else {
+            setFilteredData(data); // Reset to All Data
+        }
+    };
+
+    // const toggleStatus = (statusId) => {
+    //     if (statusId === "open") {
+    //         singleOpenStatus(); 
+    //         console.log("me Press")
+    //     } else {
+    //         setFilteredData(data); // Reset to All Data
+    //     }
+    // };
+
+
+    const getAPIData = async () => {
         setIsLoading(true)
         const token = await AsyncStorage.getItem('token')
         const protocol = await AsyncStorage.getItem('protocol')
@@ -74,11 +247,6 @@ const AllTaskScreen = () => {
         const Id = await AsyncStorage.getItem("userId")
         setUserId(Id);
         let idArray = []
-        // const url = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`;
-        // console.log(url,'forMyTask')
-
-        // const urlMyTask = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`;
-        // console.log(urlMyTask,'wkjbcbwe')
         // fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id} OR SalesRep_ID eq ${Id}`,
         fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id}`,
             {
@@ -96,9 +264,14 @@ const AllTaskScreen = () => {
                     new Date(b.Created) - new Date(a.Created)
                 );
                 setData(sortedData);
-                // console.log('Parsed Data:', JSON.stringify(data));
+                setFilteredDataAPI(sortedData);
+                // console.log('Parsed Data:', JSON.stringify(data?.records));
                 const uniqueNames = [...new Set(sortedData.map(item => item.user_name))];
                 setPickerData(uniqueNames);
+                const idCreateTask = [...new Set(sortedData.map(item => item.id))];
+                setIdForTask(idCreateTask)
+
+
 
                 for (let i = 0; i < sortedData.length; i++) {
                     idArray.push(sortedData[i].id)
@@ -407,6 +580,7 @@ const AllTaskScreen = () => {
             )}
             {!isLoading && (
                 <View style={{ flex: 1, backgroundColor: 'white', }}>
+
                     <Modal
                         visible={show}
                         animationType="slide"
@@ -435,45 +609,84 @@ const AllTaskScreen = () => {
                     </Modal>
 
                     {/* Fixed Color in Status */}
-                    <View style={[styles.containerColor, { width: "90%", alignSelf: "center" }]}>
+                    {/* <View style={[styles.containerColor, { width: "90%", alignSelf: "center" }]}>
                         <View style={styles.statusContainer}>
-                            <View style={styles.item}>
+                            
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Open</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FFD700' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Waiting</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                           
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FF0000' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Close</Text>
-                            </View>
-                            <View style={styles.item}>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#008000' }]} />
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
-                            </View>
+                            </TouchableOpacity>
                         </View>
+                    </View> */}
+
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        {statuses.map((status) => (
+                            <TouchableOpacity
+                                key={status.id}
+                                style={{
+                                    alignItems: "center",
+                                    padding: 10,
+                                }}
+                                onPress={() => {
+                                    handleStatusSelection("open"); // Tick show/hide ke liye
+                                    handleOpenStatusClick("open"); // API call ke liye
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        backgroundColor: status.color,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        borderRadius: 5,
+                                    }}
+                                >
+                                    {selectedStatuses.includes(status.id) && (
+                                        <FontAwesome name="check" size={18} color="white" />
+                                    )}
+                                </View>
+                                <Text style={{ color: "black", marginTop: 5 }}>
+                                    {status.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
-                    {/* <ItemList  data={filteredData} /> */}
+
+
 
                     <FlatList
                         data={filteredData}
                         renderItem={(item) => {
                             // console.log(filteredData,44444)
                             const status = item?.item?.R_Status_ID?.identifier.split("_")[1]; // Ensure status exists
-                            const statusBorderColor = statusColors[status] || "#000";
+                            const backgroundColorDot = statusColors[status] || "#000";
                             return (
-
                                 <ItemList
                                     employName={item.item.user_name ? item.item.user_name : 'My Task'}
+                                    Idnumber={item?.item?.id}
                                     name={item.item.Name}
                                     startDate={moment(item.item.StartDate).format("DD-MM-YYYY")}
                                     endDate={moment(item.item.EndTime).format("DD-MM-YYYY")}
                                     onPress={() => navigation.navigate('RequestDetails', { id: item.item.id })}
                                     onPressMain={() => navigation.navigate('RequestDetails', { id: item.item.id })}
                                     status={status}
-                                    statusBorderColor={statusBorderColor}
+                                    backgroundColorDot={backgroundColorDot}
                                     onPressModal={() => modalView(item)}
                                     statusArrow={require('../../asserts/RequestAsserts/downArrow.png')}
                                     onPressReport={() => getReport(item.item.id)}
@@ -497,6 +710,7 @@ const AllTaskScreen = () => {
                         onPress={() => { navigation.navigate('CreateNewReq') }}>
                         <MaterialCommunityIcons name='plus' size={30} color='#fff' />
                     </TouchableOpacity>
+
                     <RBSheet
                         ref={bottomSheetRef}
                         height={510}
@@ -713,7 +927,8 @@ const styles = StyleSheet.create({
         bottom: 30,
         right: 20,
         // backgroundColor: '#00B0F0',
-        backgroundColor: "#002E62",
+        // backgroundColor: "#002E62",
+        backgroundColor: '#00B0F0',
         width: 60,
         height: 60,
         borderRadius: 30,
@@ -780,11 +995,13 @@ const styles = StyleSheet.create({
     },
     statusBoxColor: {
         padding: 10,
-        borderRadius: 5,
-        marginBottom: 5, // thoda gap text ke liye
+        borderRadius: 2,
+        // marginBottom: 5, 
+        marginBottom: 3,
     },
     statusTextColor: {
-        fontWeight: 'bold',
+        fontWeight: "700",
+        fontSize: 12
     },
 
 })

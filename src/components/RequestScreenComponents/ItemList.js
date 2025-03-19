@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, TouchableOpacity, Image, Modal } from 'react-native'
+import { StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, TouchableOpacity, Image, Modal, TouchableWithoutFeedback, Dimensions } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import EvilIcons from 'react-native-vector-icons/dist/EvilIcons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
@@ -7,19 +7,16 @@ import FontAwesome5 from 'react-native-vector-icons/dist/FontAwesome5';
 import MaterialIcons from 'react-native-vector-icons/dist/MaterialIcons';
 import SimpleLineIcons from 'react-native-vector-icons/dist/SimpleLineIcons';
 import NameContainer from '../HomeScreenComponents/NameContainer';
+import { baseGestureHandlerProps } from 'react-native-gesture-handler/lib/typescript/handlers/gestureHandlerCommon';
 
 
+const { width, height } = Dimensions.get('window');
 
 const ItemList = ({
     onPress,
-    employName,
     name,
     startDate,
     endDate,
-    status,
-    onPressModal,
-    statusArrow,
-    onPressReport,
     Name,
     ProjectName,
     BusinessName,
@@ -31,8 +28,9 @@ const ItemList = ({
     payment,
     shipment,
     RMA,
-    statusBorderColor,
-    onPressMain
+    backgroundColorDot,
+    onPressMain,
+    Idnumber
 
 }) => {
 
@@ -46,25 +44,16 @@ const ItemList = ({
 
 
     return (
-        <TouchableOpacity style={[styles.itemCon, { borderLeftColor: statusBorderColor, }]} onPress={onPressMain}>
-            <View style={styles.taskStatusContainer}>
+        <TouchableOpacity style={styles.itemCon} onPress={onPressMain}>
+
+            <View style={[styles.taskStatusContainer,]}>
+                {/* Dot and Task Name */}
                 <View style={styles.dotTaskContainer}>
-                    <View style={styles.dotView}></View>
-                    <Text style={{ color: "#002E62", alignSelf: "center", paddingLeft: 3, fontWeight: 600 }}>{name}</Text>
+                    <View style={[styles.dotView, { backgroundColor: backgroundColorDot }]}></View>
+                    <Text style={styles.idStyle}>#{Idnumber}</Text>
+                    <View style={styles.verticalLineStyle}></View>
+                    <Text style={styles.cardNameStyle}>{name}</Text>
                 </View>
-                {/* <View style={{
-                    //  backgroundColor: "#90EE90", 
-                    // backgroundColor: "#AFE1AF",
-                    backgroundColor: "#ECECEC",
-                    padding: 3,
-                    paddingLeft: 10,
-                    paddingRight: 10,
-                    borderRadius: 7,
-                    elevation: 1,
-                    shadowColor: "F0F0F0"
-                }}>
-                    <Text style={{ color: "black", alignSelf: "center" }}>{status}</Text>
-                </View> */}
             </View>
 
             {/*  start Date show  */}
@@ -72,156 +61,31 @@ const ItemList = ({
 
                 <View style={styles.dateContainer}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <EvilIcons name='calendar' size={22} color='#000' />
-                        <Text style={{ color: "black", fontSize: 12 }}>Start Date:</Text>
+                        <EvilIcons name='calendar' size={20} color='#000' />
+                        <Text style={{ color: "black", fontSize: 12, fontWeight: "500" }}>Start Date:</Text>
                     </View>
-                    <Text style={{ color: "black", paddingLeft: "6%" }}>{startDate}</Text>
+                    <Text style={{ color: "black", paddingLeft: "6%", fontSize: 12, }}>{startDate}</Text>
                 </View>
                 {/* End Date Show */}
                 <View style={[styles.dateContainer, { paddingLeft: "5%" }]}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
-                        <EvilIcons name='calendar' size={22} color='#000' />
-                        <Text style={{ color: "black", fontSize: 12 }}>End Date:</Text>
+                        <EvilIcons name='calendar' size={20} color='#000' />
+                        <Text style={{ color: "black", fontSize: 12, fontWeight: "500" }}>End Date:</Text>
 
                     </View>
-                    <Text style={{ color: "black", paddingLeft: "6%" }}>{endDate}</Text>
+                    <Text style={{ color: "black", paddingLeft: "6%", fontSize: 12 }}>{endDate}</Text>
                 </View>
             </View>
+
             {/* All data Display in screen */}
 
-            {/* <ScrollView horizontal style={{ width: "95%", alignSelf: "center", }} showsHorizontalScrollIndicator={false}>
-                {
-                    Name &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                        <View style={{flexDirection:"row", alignItems:"center"}}>
-                        <SimpleLineIcons name='social-dropbox' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}>Product:</Text>
-                        </View>
-                            <Text style={styles.textStyle}>{Name}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-                {
-                    ProjectName &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View style={{flexDirection:"row", alignItems:"center"}}>
-                        <Octicons name='project' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}>Project:</Text>
-                        </View>
-                        <Text style={styles.textStyle}>{ProjectName}</Text>
-                    </TouchableOpacity>
-
-                }
-                {
-                    BusinessName &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                            <Text style={styles.lableStyle}>Business Name:</Text>
-                            <Text style={styles.textStyle}>{BusinessName}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-                {
-                    User_Contact &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                            <Text style={styles.lableStyle}>User Contact:</Text>
-                            <Text style={styles.textStyle}>{User_Contact}</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                }
-                {
-                    campaignName &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                        <View style={{flexDirection:"row", alignItems:"center"}}> 
-                        <Entypo name='megaphone' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}>Campaign:</Text>
-                        </View>
-                            <Text style={styles.textStyle}>{campaignName}</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                }
-                {
-                    Assets &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                            <Text style={styles.lableStyle}>Assets:</Text>
-                            <Text style={styles.textStyle}>{Assets}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-
-                {
-                    Invoice &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                        <View style={{flexDirection:"row", alignItems:"center"}}> 
-                            <FontAwesome5 name='file-invoice' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}> Invoice:</Text>
-                        </View>
-                            <Text style={styles.textStyle}>{Invoice}</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                }
-                {
-                    order &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                            <Text style={styles.lableStyle}>order:</Text>
-                            <Text style={styles.textStyle}>{order}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-
-                {
-                    payment &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                        <View style={{flexDirection:"row", alignItems:"center"}}>
-                        <MaterialIcons name='payments' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}> payment:</Text>
-                            </View>
-                            <Text style={styles.textStyle}>{payment}</Text>
-                        </View>
-                    </TouchableOpacity>
-
-                }
-                {
-                    shipment &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                        <View style={{flexDirection:"row", alignItems:"center"}}> 
-                        <FontAwesome5 name='shipping-fast' size={14} color='#FFF' />
-                            <Text style={styles.lableStyle}>shipment:</Text>
-                            </View>
-                            <Text style={styles.textStyle}>{shipment}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-
-                {
-                    RMA &&
-                    <TouchableOpacity style={styles.NameContainer}>
-                        <View>
-                            <Text style={styles.lableStyle}>Sale return:</Text>
-                            <Text style={styles.textStyle}>{RMA}</Text>
-                        </View>
-                    </TouchableOpacity>
-                }
-            </ScrollView> */}
-
-            <ScrollView horizontal style={{ width: "95%", alignSelf: "center" }} showsHorizontalScrollIndicator={false}>
+            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", marginTop: "2%" }} showsHorizontalScrollIndicator={false}>
                 {Name && (
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Product", value: Name })}>
                         <View>
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", }}>
                                 <SimpleLineIcons name="social-dropbox" size={14} color="#FFF" />
-                                <Text style={styles.lableStyle}>Product:</Text>
+                                <Text style={[styles.lableStyle, { paddingLeft: "2%" }]}>Product:</Text>
                             </View>
                             <Text style={styles.textStyle}>{Name}</Text>
                         </View>
@@ -332,30 +196,31 @@ const ItemList = ({
                 )}
             </ScrollView>
 
+            {/* FlatList Modal Show */}
+
             <Modal visible={modalVisible} animationType="slide" transparent={true} onRequestClose={() => setModalVisible(false)}>
-                <View style={styles.modalContainer}>
-                    <View style={styles.modalView}>
-                        {/* <Text style={styles.txt}>Set Status</Text> */}
+                <TouchableWithoutFeedback onPress={() => setModalVisible(false)} >
+                    <View style={styles.modalContainer}>
+                        <View style={{ backgroundColor: '#D3D3D3', height: '10%', borderRadius: 10, padding: "1%" }}>
+                            <TouchableOpacity style={{ color: "black" }} onPress={() => setModalVisible(false)}>
+                                <Entypo name='cross' size={24} color="#888" style={{ alignSelf: "flex-end", }} />
+                            </TouchableOpacity>
+                            {/* <Text style={styles.txt}>Set Status</Text> */}
+                            <View style={[styles.modalView, { paddingHorizontal: "10%" }]}>
+                                <Text style={styles.txt}>{selectedItem?.title}</Text>
+                                <Text style={{ fontSize: 12, fontWeight: "300", color: "#000" }}>{selectedItem?.value}</Text>
+                            </View>
+                        </View>
 
-                        <Text style={styles.txt}>{selectedItem?.title}</Text>
-                        <Text style={styles.txt}>{selectedItem?.value}</Text>
-
-                        <TouchableOpacity onPress={() =>  setModalVisible(false)} style={styles.btn}>
-                            <Text style={styles.txtBtn}>Cancel</Text>
-                        </TouchableOpacity>
                     </View>
-                </View>
+                </TouchableWithoutFeedback>
             </Modal>
 
             {/* Detail View */}
             <View style={styles.btnContainer}>
-
-                {/* <TouchableOpacity style={styles.btnSty}>
-                    <Text style={{ color: "black" }}> Report </Text>
-                </TouchableOpacity> */}
                 <TouchableOpacity style={styles.btnSty} onPress={onPress}>
-                    <Text style={{ color: "black" }}> Details </Text>
-                    <Entypo name='chevron-right' size={18} color='#000' style={{ alignSelf: "center" }} />
+                    <Text style={{ color: "black", fontSize: 12 }}> Details </Text>
+                    <Entypo name='chevron-right' size={12} color='#000' style={{ alignSelf: "center", marginTop: "4%", }} />
 
                 </TouchableOpacity>
 
@@ -372,43 +237,24 @@ const ItemList = ({
 export default ItemList
 const styles = StyleSheet.create({
     itemCon: {
-        // justifyContent: 'center',
-        // alignItems: 'center',
-        // marginTop: 10,
-        // marginBottom: 10,
-        // flex: 1,
-        // backgroundColor: "#FFF",
-        // padding: 10,
-        marginVertical: 5,
         borderRadius: 7,
-        borderLeftWidth: 10,  // Left border width
-
-
-
     },
-    taskStatusContainer: {
-        width: "90%",
-        justifyContent: "space-between",
-        flexDirection: "row",
-        alignSelf: "center",
-        marginTop: "3%"
+    idStyle:{
+        paddingLeft: "1%",
+        color: "#000",
+        fontSize: 15,
+        fontWeight: 600
     },
-    dotTaskContainer: {
-        flexDirection: "row",
-        // backgroundColor: "#DEEFF5",
-        // backgroundColor: "#089080",
-        padding: 3,
-        borderRadius: 10,
-        alignItems: "center"
+    verticalLineStyle:{
+        marginHorizontal: width * 0.01,
+        height: 20,
+        width: width * 0.004,
+        backgroundColor: '#D3D3D3',
     },
-    dotView: {
-        width: 8,
-        height: 8,
-        // backgroundColor: "blue",
-        // backgroundColor: "#089080",
-        backgroundColor: '#00B0F0',
-        borderRadius: 4,
-        // marginRight: 1,
+    cardNameStyle:{
+        color: "#000",
+        fontSize: 15,
+        alignSelf: "center", paddingLeft: 3, fontWeight: 600
     },
     dateContainer: {
         // width: "90%",
@@ -420,10 +266,14 @@ const styles = StyleSheet.create({
         backgroundColor: "#f5f5f5",
         padding: 3,
         borderRadius: 4,
-        flexDirection: "row"
+        flexDirection: "row",
+        justifyContent: "center",
+
     },
     btnContainer: {
         alignSelf: "center",
+        // justifyContent:"center",
+        // alignItems:"center",
         width: "90%",
         marginTop: "3%",
         flexDirection: "row",
@@ -450,60 +300,31 @@ const styles = StyleSheet.create({
         marginTop: '0.2%'
 
     },
-    lableStyle: { color: "#fff", fontSize: 14, },
-    textStyle: { color: "#fff", fontSize: 12, alignSelf: "center" },
+    lableStyle: { color: "#fff", fontSize: 12, },
+    textStyle: { color: "#fff", fontSize: 10, alignSelf: "center" },
     modalContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.5)',
         flex: 1
-      },
-      modalView: {
-        // backgroundColor: '#00B0F0',
-        backgroundColor: '#002E62',
-        height: '50%',
+    },
+    modalView: {
+        // backgroundColor: '#002E62',
+        // backgroundColor: 'gray',
+
         width: '90%',
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 15
-      },
-      modalViewDue: {
-        backgroundColor: '#00B0F0',
-        height: '40%',
-        width: '90%',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 15
-      },
-      modalViewPrior: {
-        backgroundColor: '#00B0F0',
-        height: '55%',
-        width: '90%',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 15
-      },
-      modalViewAssigned: {
-        backgroundColor: '#00B0F0',
-        height: '50%',
-        width: '90%',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 15
-      },
-      txtContainer: {
-        height: '12%',
-        width: '80%',
-        marginBottom: 10,
-        alignItems: 'center',
-        justifyContent: 'center'
-      },
-      txt: {
-        color: 'white',
-        fontSize: 20,
-        fontFamily: 'K2D-Regular'
-      },
-      btn: {
+    },
+
+    txt: {
+        // color: 'white',
+        color: '#000',
+        fontSize: 16,
+        fontFamily: 'K2D-Regular',
+        fontWeight: "700"
+    },
+    btn: {
         backgroundColor: 'white',
         height: '12%',
         width: '80%',
@@ -511,123 +332,55 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 20
-      },
-      txtBtn: {
+    },
+    txtBtn: {
         color: '#00B0F0',
         fontSize: 20,
         fontFamily: 'K2D-Regular'
-      },
+    },
+    dotView: {
+        width: width * 0.03, // Responsive dot size
+        height: width * 0.03,
+        borderRadius: width * 0.015,
+    },
+    idText: {
+        paddingLeft: width * 0.01,
+        color: "#000",
+        fontSize: width * 0.04, // Responsive font size
+        fontWeight: "600",
+    },
+    separator: {
+        height: "100%",
+        width: width * 0.003, // Responsive width
+        // backgroundColor: '#909090',
+        // backgroundColor: 'red',
+        marginLeft: width * 0.03, // Responsive margin
 
 
+        // height: '100%',
+        // width: 1.5,
+        // backgroundColor: '#909090',
+        // marginLeft: "3%"
+    },
+    nameText: {
+        color: "#000",
+        fontSize: width * 0.04, // Responsive font size
+        alignSelf: "center",
+        paddingLeft: width * 0.01,
+        fontWeight: "600",
+    },
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // item: {
-    //     width: '93%',
-    //     backgroundColor: 'white',
-    //     borderRadius: 20,
-    //     elevation: 8,
-    //     borderLeftWidth: 3,
-    //     borderLeftColor: '#0070C0',
-
-    // },
-    // singleItem: {
-    //     width: '30%',
-    //     alignItems: 'center',
-    //     paddingLeft: 10
-    // },
-    // nameTxt: {
-    //     color: '#0070C0',
-    //     opacity: 0.7,
-    //     fontSize: 14,
-    //     fontFamily: 'K2D-Bold',
-    // },
-    // topText: {
-    //     color: '#000000',
-    //     opacity: 0.7,
-    //     fontSize: 14,
-    //     fontFamily: 'K2D-Bold',
-    //     width: 90,
-    // },
-    // bottomTxt: {
-    //     color: '#0070C0',
-    //     fontSize: 14,
-    //     fontFamily: 'K2D-Bold',
-    //     width: 90,
-    // },
-    // pickerItem: {
-    //     color: '#800000',
-    //     fontFamily: "K2D-Regular",
-    //     fontSize: 16
-    // },
-    // container: {
-    //     flex: 1,
-    //     alignItems: 'center',
-    //     justifyContent: 'center',
-    // },
-    // modalContainer: {
-    //     alignItems: 'center',
-    //     justifyContent: 'center',
-    //     backgroundColor: 'rgba(0,0,0,0.5)',
-    //     flex: 1
-    // },
-    // modalView: {
-    //     backgroundColor: '#800000',
-    //     height: '40%',
-    //     width: '90%',
-    //     alignItems: 'center',
-    //     justifyContent: 'center',
-    //     borderRadius: 15
-    // },
-    // txtContainer: {
-    //     height: '15%',
-    //     width: '80%',
-    //     marginBottom: 10,
-    //     alignItems: 'center',
-    //     justifyContent: 'center'
-    // },
-    // txt: {
-    //     color: 'white',
-    //     fontSize: 20,
-    //     fontFamily: 'K2D-Regular'
-    // },
-    // btn: {
-    //     backgroundColor: 'white',
-    //     height: '15%',
-    //     width: '80%',
-    //     marginBottom: 10,
-    //     alignItems: 'center',
-    //     justifyContent: 'center',
-    //     borderRadius: 20
-    // },
-    // txtBtn: {
-    //     color: '#800000',
-    //     fontSize: 20,
-    //     fontFamily: 'K2D-Regular'
-    // },
-    // report: {
-    //     color: 'black',
-    //     fontSize: 14,
-    //     fontFamily: 'K2D-SemiBold',
-    //     marginLeft: 10,
-    //     textDecorationLine: 'underline'
-    // },
-    // details: {
-    //     color: '#0050C0',
-    //     fontSize: 14,
-    //     fontFamily: 'K2D-SemiBold',
-    //     marginLeft: 10,
-    // }
+    taskStatusContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: height * 0.01, // Responsive padding
+        paddingHorizontal: width * 0.03,
+    },
+    dotTaskContainer: {
+        flexDirection: "row",
+        padding: width * 0.01,
+        borderRadius: 10,
+        alignItems: "center",
+        minHeight: height * 0.05, 
+    },
 })

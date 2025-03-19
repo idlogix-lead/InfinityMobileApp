@@ -648,7 +648,8 @@ const HomeScreen = ({ navigation, route }) => {
             <View style={{ flexDirection: 'row', width: '85%', justifyContent: 'space-between', marginTop: 30 }}>
               <HomeNotifyCard
                 iconName="database"
-                txt="ATS"
+                // txt="ATS"
+                txt="Request"
                 iconColor="green"
                 iconBackgroundColor="#defce0"
                 num={reqNum}
