@@ -759,9 +759,9 @@ const RequestDetails = ({ navigation, route }) => {
     }
   };
 
-  useEffect(()=>{
+  useEffect(() => {
     PerdefineMessage();
-  },[])
+  }, [])
 
   useEffect(() => {
     if (selectedStatus !== "Status" && selectedStatusId !== null) {
@@ -806,34 +806,78 @@ const RequestDetails = ({ navigation, route }) => {
             </View>
 
             <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
+              
+               <Modal visible={show} animationType="slide" transparent={true}>
+                 <TouchableWithoutFeedback onPress={() => setShow(!show)}>
+                   <View style={styles.modalContainer}>
+                     <View style={styles.modalView}>
 
-              <Modal visible={show} animationType="slide" transparent={true}>
-                <View style={styles.modalContainer}>
-                  <View style={styles.modalView}>
-                    <Text style={styles.txt}>Set Status</Text>
+                     <TouchableOpacity style={{ color: "black" }} onPress={() => setShow(!show)}>
+                        <Entypo name='cross' size={24} color="#888" style={{ alignSelf: "flex-end", }} />
+                      </TouchableOpacity>
+                    <View style={{justifyContent:"center", alignItems:"center"}}>
+                       <Text style={styles.txt}>Set Status</Text>
+                       <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
+                         <Text style={styles.txt}>Open</Text>
+                       </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Open</Text>
-                    </TouchableOpacity>
+                       <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
+                         <Text style={styles.txt}>Waiting</Text>
+                       </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Waiting</Text>
-                    </TouchableOpacity>
+                       <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                         <Text style={styles.txt}>Close</Text>
+                       </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Close</Text>
-                    </TouchableOpacity>
+                       <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
+                         <Text style={styles.txt}>Final Close</Text>
+                       </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
-                      <Text style={styles.txt}>Final Close</Text>
-                    </TouchableOpacity>
+                       </View>
 
-                    <TouchableOpacity onPress={() => setShow(!show)} style={styles.btn}>
-                      <Text style={styles.txtBtn}>Cancel</Text>
-                    </TouchableOpacity>
+                     </View>
+                   </View>
+                 </TouchableWithoutFeedback>
+               </Modal>
+
+
+              {/* <Modal visible={show} animationType="slide" transparent={true}>
+                <TouchableWithoutFeedback onPress={() => setShow(!show)}>
+                  <View style={styles.modalContainer}>
+                    <View style={{
+                      //  backgroundColor: '#D3D3D3',
+                      // backgroundColor: 'yellow',
+                      height: '55%',
+                      borderRadius: 10,
+                    }}>
+                      <TouchableOpacity style={{ color: "black" }} onPress={() => setShow(!show)}>
+                        <Entypo name='cross' size={24} color="#888" style={{ alignSelf: "flex-end" }} />
+                      </TouchableOpacity>
+
+                      <Text style={[styles.txt, { alignSelf: "center", }]}>Set Status</Text>
+
+                      <View style={[styles.modalView, { paddingHorizontal: "30%", }]}>
+                        <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
+                          <Text style={[styles.txt, { backgroundColor: "red", color:"red" }]}>Open</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Waiting</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Close</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
+                          <Text style={[styles.txt, { backgroundColor: "red" }]}>Final Close</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </Modal>
+                </TouchableWithoutFeedback>
+              </Modal> */}
+
 
 
               {/* <View style={{ alignItems: 'center'}}>
@@ -971,11 +1015,11 @@ const RequestDetails = ({ navigation, route }) => {
               <View style={styles.formCon}>
             </View> */}
 
-              <View>
+              <View style={{ marginTop: "10%" }}>
                 {/* Button Task Detail*/}
-                <View style={styles.taskStatusContianer}>
-                  <Text style={styles.txtTaskDetailStyle}>Task Details</Text>
-                </View>
+                {/* <View style={styles.taskStatusContianer}>
+                  <Text style={styles.txtTaskDetailStyle}>View Task Details</Text>
+                </View> */}
 
                 <View style={{
                   marginTop: '1%',
@@ -985,11 +1029,12 @@ const RequestDetails = ({ navigation, route }) => {
                   // flexWrap: 'wrap',
                 }}>
                   {/* Heading Task Name */}
-                  <Text style={styles.txtStyle}>Task Name:</Text>
+                  {/* <Text style={styles.txtStyle}>Task Name:</Text> */}
+                  {/* <Text style={styles.txtStyle}>Task:</Text> */}
                   <Text style={{
                     width: '65%',
                     color: 'black',
-                    fontSize: PixelRatio.get() <= 2 ? 14 : 16, // Adjust font size based on pixel density
+                    fontSize: PixelRatio.get() <= 2 ? 18 : 20, // Adjust font size based on pixel density
                     fontWeight: '600',
                     // marginTop: '3%',
                     paddingLeft: '1%'
@@ -1000,17 +1045,17 @@ const RequestDetails = ({ navigation, route }) => {
                 <View style={styles.containerStyle}>
                   <View style={{ flexDirection: "row" }}>
                     {/* <AntDesign name='user' size={20} color='#000' /> */}
-                    <View style={{ width: "22%", backgroundColor: "#FB999A", borderRadius: 40, justifyContent: "center", alignItems: "center" }}>
-                      <Text style={{ fontSize: 14, color: "black", fontWeight: 600 }}>{firstTwoChars}</Text>
+                    <View style={{ width: "20%", backgroundColor: "#FB999A", borderRadius: 50, justifyContent: "center", alignItems: "center" }}>
+                      <Text style={{ fontSize: 12, color: "black", fontWeight: 500 }}>{firstTwoChars}</Text>
                     </View>
                     <View style={{ paddingLeft: "3%" }}>
-                      <Text style={styles.txtStyle}>Created</Text>
+                      <Text style={[styles.txtStyle, { paddingLeft: "4%" }]}>Created by</Text>
                       <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedBy}</Text>
                     </View>
                   </View>
                   {/* Assigned To */}
                   <View>
-                    <Text style={styles.txtStyle}>Assigned To</Text>
+                    <Text style={[styles.txtStyle, { paddingLeft: "4%" }]}>Assigned to</Text>
                     <Text style={[styles.txtStyle, { color: "black", fontWeight: 500, }]}>{assignedTo}</Text>
                   </View>
                 </View>
@@ -1055,9 +1100,15 @@ const RequestDetails = ({ navigation, route }) => {
 
                   {/* Attachment Button */}
                   <TouchableOpacity style={[styles.attachmentBox, { marginLeft: "4%" }]} onPress={() => downloadFile()}>
-                    <AntDesign name="plus" size={32} color="black" />
+                    <AntDesign name="plus" size={28} color="black" />
                   </TouchableOpacity>
                 </View>
+
+
+                <View style={[styles.taskStatusContianer, { justifyContent: "center", alignItems: "center", marginBottom: "5%" }]}>
+                  <Text style={styles.txtTaskDetailStyle}>View Task Details</Text>
+                </View>
+
 
                 {/* Create this Task */}
 
@@ -1069,7 +1120,7 @@ const RequestDetails = ({ navigation, route }) => {
               {/*Message screen Start*/}
               {/* <ScrollView  style={{flex:1}}> */}
               <View style={{ flexDirection: "row", width: "95%", paddingLeft: "5%", justifyContent: "space-between", }}>
-                <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text>
+                {/* <Text style={{ color: "black", alignSelf: "center", marginTop: 5, fontSize: 16, fontWeight: "700", }}>Conversation </Text> */}
               </View>
 
               {/* this code for start the CHART screen here */}
@@ -1109,7 +1160,7 @@ const RequestDetails = ({ navigation, route }) => {
 
                 {/* <View style={{ marginTop: recordsData.length > 0 ? "48%" : "128%", }}> */}
                 <View>
-                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 50  }} >
+                  <ScrollView style={[styles.messagesContainer, {}]} ref={scrollViewRef} contentContainerStyle={{ padding: 20, paddingBottom: 50 }} >
                     {Array.isArray(getmassages) &&
                       getmassages.map((msg, index) => (
                         <View key={index}>
@@ -1183,27 +1234,27 @@ const RequestDetails = ({ navigation, route }) => {
               position: 'absolute',
               bottom: 0,
               alignSelf: "center",
-              
+
             }}>
-              <View style={{paddingLeft:"2%"}}> 
-              <FlatList
-                horizontal = {true}
-                data={pickerData}
-                keyExtractor={(item) => item.id.toString()}
-                showsHorizontalScrollIndicator={false}
-                // keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ flexGrow: 1, width:'auto', marginTop:"1%",  }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.PerdefineMessageContainer}
-                    onPress={() => {
-                      setMessage(item?.ResponseText)
-                    }}
-                  >
-                    <Text style={{ color: "#fff" }}>{item.Name}</Text>
-                  </TouchableOpacity>
-                )}
-              />
+              <View style={{ paddingLeft: "2%" }}>
+                <FlatList
+                  horizontal={true}
+                  data={pickerData}
+                  keyExtractor={(item) => item.id.toString()}
+                  showsHorizontalScrollIndicator={false}
+                  // keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ flexGrow: 1, width: 'auto', marginTop: "1%", }}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.PerdefineMessageContainer}
+                      onPress={() => {
+                        setMessage(item?.ResponseText)
+                      }}
+                    >
+                      <Text style={{ color: "#fff" }}>{item.Name}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
               </View>
               <View style={[styles.inputContainer]}>
                 <View style={styles.form_col_2}>
@@ -1214,7 +1265,7 @@ const RequestDetails = ({ navigation, route }) => {
                     onChangeText={(text) => setMessage(text)}
                     value={message}
                   />
-           </View>
+                </View>
                 <View style={styles.sendButton}>
                   <TouchableOpacity style={styles.sendButtonText} onPress={() => {
                     if (!message.trim()) {
@@ -1264,21 +1315,23 @@ const styles = StyleSheet.create({
   taskStatusContianer: {
     marginTop: "8%",
     justifyContent: "flex-end",
-    alignItems: "flex-start",
-    paddingLeft: "3%"
+    alignItems: "flex-end",
+    // paddingLeft: "3%"
   },
   txtTaskDetailStyle: {
-    padding: 14,
-    backgroundColor: "#002E62",
+    // padding: 14,
+    padding: 8,
+    // backgroundColor: "#002E62",
+    backgroundColor: "#00B0F0",
     borderRadius: 20,
     fontSize: 14,
     fontWeight: 500,
-    elevation: 10,
+    // elevation: 10,
     color: "#fff"
   },
   sameContainer: { marginTop: "5%", width: "95%", alignSelf: "center" },
-  txtStyle: { paddingLeft: '1%', color: "gray", fontSize: 16 },
-  containerStyle: { width: "95%", marginTop: "2%", alignSelf: "center", flexDirection: "row", justifyContent: 'space-between' },
+  txtStyle: { paddingLeft: '1%', color: "gray", fontSize: 13, },
+  containerStyle: { width: "95%", marginTop: "5%", alignSelf: "center", flexDirection: "row", justifyContent: 'space-between' },
   DateContainer: {
     flexDirection: "row",
     // backgroundColor: "#ededed",
@@ -1300,8 +1353,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   attachmentBox: {
-    width: 100,
-    height: 90,
+    width: 80,
+    height: 70,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: 'black',
@@ -1314,7 +1367,7 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 10,  
+    padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1400,7 +1453,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   noDataText: {
-    fontSize: 20,
+    fontSize: 18,
     color: 'black',
     fontStyle: 'italic',
     fontWeight: "bold"
@@ -1430,12 +1483,21 @@ const styles = StyleSheet.create({
   },
   modalView: {
     // backgroundColor: '#00B0F0',
-    backgroundColor: '#002E62',
-    height: '50%',
-    width: '90%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 15
+    // backgroundColor: '#002E62',
+    // height: '50%',
+    // width: '90%',
+    // alignItems: 'center',
+    // justifyContent: 'center',
+    borderRadius: 15,
+
+    backgroundColor: '#D3D3D3',
+    height: '55%',
+    // borderRadius: 10,
+    padding: "2%",
+    width: "60%"
+
+
+
   },
   modalViewDue: {
     backgroundColor: '#00B0F0',
@@ -1471,7 +1533,8 @@ const styles = StyleSheet.create({
   txt: {
     color: 'white',
     fontSize: 20,
-    fontFamily: 'K2D-Regular'
+    fontFamily: 'K2D-Regular',
+    // alignSelf:"center"
   },
   btn: {
     backgroundColor: 'white',
@@ -1487,7 +1550,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Regular'
   },
-  PerdefineMessageContainer:{
+  PerdefineMessageContainer: {
     height: 30,
     marginHorizontal: 2,
     padding: 4,
@@ -1496,7 +1559,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#002E62",
     // backgroundColor:"red",
     borderRadius: 15,
-    marginTop: 5, 
+    marginTop: 5,
     borderWidth: 0.5,
     borderColor: "black",
     // backgroundColor:'red'

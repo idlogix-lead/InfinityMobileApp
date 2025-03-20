@@ -1,19 +1,19 @@
 import { StyleSheet, Text, View, BackHandler, TextInput, Image, ActivityIndicator, FlatList, Modal, TouchableOpacity, Pressable, ScrollView } from 'react-native'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChartCards from '../../components/RequestScreenComponents/ChartCards';
 import moment from 'moment';
 import CustomHeader from '../../components/CustomHeader';
 import ItemList from '../../components/RequestScreenComponents/ItemList';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
+import Octicons from 'react-native-vector-icons/dist/Octicons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import ToggleSwitch from 'toggle-switch-react-native'
 import RBSheet from "react-native-raw-bottom-sheet";
 import CalendarPicker from 'react-native-calendar-picker';
 import { Picker } from '@react-native-picker/picker';
 import MultiSelect from 'react-native-multiple-select';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 
 const AllTaskScreen = () => {
@@ -53,189 +53,103 @@ const AllTaskScreen = () => {
 
     const [selectedStatuses, setSelectedStatuses] = useState([]);
 
-
-    const [allData, setAllData] = useState([]); // All data from default API
     const [filteredDataAPI, setFilteredDataAPI] = useState([]);
 
-    const statuses = [
-        { id: "open", label: "Open", color: "#FFA500" },
-        { id: "waiting", label: "Waiting", color: "#FFD700" },
-        { id: "close", label: "Close", color: "#FF0000" },
-        { id: "complete", label: "Complete", color: "#008000" },
-    ];
+    // const statuses = [
+    //     { id: "open", label: "Open", color: "#FFA500" },
+    //     { id: "waiting", label: "Waiting", color: "#FFD700" },
+    //     { id: "close", label: "Close", color: "#FF0000" },
+    //     { id: "complete", label: "Complete", color: "#008000" },
+    // ];
 
-    // const toggleStatus = (id) => {
-    //     setSelectedStatuses((prevSelected) =>
-    //         prevSelected.includes(id)
-    //             ? prevSelected.filter((status) => status !== id) // Remove if already selected
-    //             : [...prevSelected, id] // Add if not selected
-    //     );
-    // };
+    const statuses = [
+        { id: "open", label: "Open", color: "#3498db" },      // Blue
+        { id: "waiting", label: "Waiting", color: "#f39c12" }, // Orange
+        { id: "close", label: "Close", color: "#e74c3c" },     // Red
+        { id: "complete", label: "Complete", color: "#2ecc71" } // Green
+    ];
+    const statusColors = {
+        "Open": "#3498db",  // Blue
+        "Waiting on Customers/Others": "#f39c12", // Orange
+        "Closed": "#e74c3c", // Red
+        "Final Close": "#2ecc71" // Green
+    };
+    
 
     // status color change throught data API GET
-    const statusColors = {
-        "Open": "#FFA500",
-        "Waiting on Customers/Others": "#FFD700",
-        "Closed": "#FF0000",
-        "Final Close": "#008000"
-    };
+    // const statusColors = {
+    //     "Open": "#FFA500",
+    //     "Waiting on Customers/Others": "#FFD700",
+    //     "Closed": "#FF0000",
+    //     "Final Close": "#008000"
+    // };
 
+    
 
-    //   OPEN  API status Calling
-    const openStatus = async () => {
+    // ALL APIs Calling  one Call
+    const updateFilteredData = async (selectedStatuses) => {
+        if (selectedStatuses.length === 0) {
+            // If no status is selected, show all data
+            getAPIData();
+            return;
+        }
+
         setIsLoading(true);
+
         const token = await AsyncStorage.getItem('token');
         const protocol = await AsyncStorage.getItem('protocol');
         const host = await AsyncStorage.getItem('host');
         const port = await AsyncStorage.getItem('port');
         const Id = await AsyncStorage.getItem("userId");
 
-        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+        // API URL Mapping for each status
+        const statusAPIs = {
+            open: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`,
+            waiting: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000001`,
+            close: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000002`,
+            complete: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000003`
+        };
+
+        let allData = [];
+
+        try {
+            // Fetch data for selected statuses
+            for (const status of selectedStatuses) {
+                if (statusAPIs[status]) {
+                    const response = await fetch(statusAPIs[status], {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await response.json();
+                    allData = [...allData, ...data.records]; // Merge data from different status APIs
+                }
             }
-        })
-            .then(response => response.json())
-            .then(data => {
-                const sortedData = data.records.sort((a, b) =>
-                    new Date(b.Created) - new Date(a.Created)
-                );
-                setFilteredData(sortedData); // Update FlatList with Open data
-                console.log(sortedData,'singleDataShow')
-            })
-            .catch(error => {
-                alert(error);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    };
 
-    // Waiting API Status Calling
-    const waitingStatus = async () => {
-        setIsLoading(true);
-        const token = await AsyncStorage.getItem('token');
-        const protocol = await AsyncStorage.getItem('protocol');
-        const host = await AsyncStorage.getItem('host');
-        const port = await AsyncStorage.getItem('port');
-        const Id = await AsyncStorage.getItem("userId");
-
-        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                const sortedData = data.records.sort((a, b) =>
-                    new Date(b.Created) - new Date(a.Created)
-                );
-                setFilteredData(sortedData); // Update FlatList with Open data
-                console.log(sortedData,'singleDataShow')
-            })
-            .catch(error => {
-                alert(error);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    };
-
-    // Close API Status Calling
-    const closeOStatus = async () => {
-        setIsLoading(true);
-        const token = await AsyncStorage.getItem('token');
-        const protocol = await AsyncStorage.getItem('protocol');
-        const host = await AsyncStorage.getItem('host');
-        const port = await AsyncStorage.getItem('port');
-        const Id = await AsyncStorage.getItem("userId");
-
-        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                const sortedData = data.records.sort((a, b) =>
-                    new Date(b.Created) - new Date(a.Created)
-                );
-                setFilteredData(sortedData); // Update FlatList with Open data
-                console.log(sortedData,'singleDataShow')
-            })
-            .catch(error => {
-                alert(error);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    };
-
-    // Final_Close API Calling
-    const final_CloseOStatus = async () => {
-        setIsLoading(true);
-        const token = await AsyncStorage.getItem('token');
-        const protocol = await AsyncStorage.getItem('protocol');
-        const host = await AsyncStorage.getItem('host');
-        const port = await AsyncStorage.getItem('port');
-        const Id = await AsyncStorage.getItem("userId");
-
-        fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${Id} and R_Status_ID eq 1000000`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        })
-            .then(response => response.json())
-            .then(data => {
-                const sortedData = data.records.sort((a, b) =>
-                    new Date(b.Created) - new Date(a.Created)
-                );
-                setFilteredData(sortedData); // Update FlatList with Open data
-                console.log(sortedData,'singleDataShow')
-            })
-            .catch(error => {
-                alert(error);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    };
-
-
-
-    const handleStatusSelection = (id) => {
-        setSelectedStatuses((prevSelected) =>
-            prevSelected.includes(id)
-                ? prevSelected.filter((status) => status !== id) // Remove if already selected 
-                : [...prevSelected, id] // Add if not selected 
-        );
-    };
-
-    const handleOpenStatusClick = (statusId) => {
-        if (statusId === "open") {
-            openStatus();
-            console.log("me Press");
-        } else {
-            setFilteredData(data); // Reset to All Data
+            // Sorting data by Created date
+            const sortedData = allData.sort((a, b) => new Date(b.Created) - new Date(a.Created));
+            setFilteredData(sortedData);
+        } catch (error) {
+            alert(error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // const toggleStatus = (statusId) => {
-    //     if (statusId === "open") {
-    //         singleOpenStatus(); 
-    //         console.log("me Press")
-    //     } else {
-    //         setFilteredData(data); // Reset to All Data
-    //     }
-    // };
+
+    // new code for ALL API calling
+    const handleStatusSelection = (id) => {
+        setSelectedStatuses((prevSelected) => {
+            const newSelection = prevSelected.includes(id)
+                ? prevSelected.filter((status) => status !== id) // Remove if already selected
+                : [...prevSelected, id]; // Add if not selected
+
+            updateFilteredData(newSelection); // Call API accordingly
+            return newSelection;
+        });
+    };
 
 
     const getAPIData = async () => {
@@ -374,18 +288,7 @@ const AllTaskScreen = () => {
         return unsubscribe;
     }
 
-    useEffect(() => {
-        navigateBack()
-        const backAction = () => {
-            navigation.goBack()
-            return true;
-        };
-        const backHandler = BackHandler.addEventListener(
-            "hardwareBackPress",
-            backAction
-        );
-        return () => backHandler.remove();
-    }, [navigation])
+    
 
     const chartModal = (id) => {
         setFCloseCurrMonthModal(fCloseCurrMonth[id])
@@ -500,37 +403,8 @@ const AllTaskScreen = () => {
             //  getAPIData(startDate, formattedDate)
         }
     }
-    useEffect(() => {
-        const filtered = data.filter(item => {
-            const isNameMatched = !assignedName || item?.user_name.includes(assignedName);
-            let isStatusMatched = false;
 
-            if (selectedStatus.length > 0) {
-                isStatusMatched = selectedStatus.some(status => {
-                    if (status.value === 'FinalClose') {
-                        // return item?.R_Status_ID?.toLowerCase() === 'finalClose';
-                        return item?.R_Status_ID?.id === 1000003;
-                    } else if (status.value === 'Close') {
-                        return item?.R_Status_ID?.id === 1000002;
-                    } else {
-                        return item?.R_Status_ID?.identifier.toLowerCase().includes(status.value.toLowerCase());
-                    }
-                });
-            } else {
-                isStatusMatched = true;
-            }
-            const isOwnTask = showAllTasks ? item?.SalesRep_ID?.id == userId : true;
-            const itemStartDate = moment(item?.StartDate, 'DD-MM-YYYY');
-            const itemEndDate = moment(item?.EndTime, 'DD-MM-YYYY');
-            const selectedStartDate = startDate ? moment(startDate, 'DD-MM-YYYY') : null;
-            const selectedEndDate = endDate ? moment(endDate, 'DD-MM-YYYY') : null;
-            const isStartDateMatched = !selectedStartDate || itemStartDate.isSameOrAfter(selectedStartDate);
-            const isEndDateMatched = !selectedEndDate || itemEndDate.isSameOrBefore(selectedEndDate);
-            return isNameMatched && isStatusMatched && isOwnTask && isStartDateMatched && isEndDateMatched;
-        });
-
-        setFilteredData(filtered);
-    }, [showAllTasks, selectedStatus, assignedName, startDate, endDate, data]);
+    
 
     const items = [{
         id: 2,
@@ -571,6 +445,60 @@ const AllTaskScreen = () => {
         });
     };
 
+    useFocusEffect(
+        useCallback(() => {
+            // Jab bhi screen wapas aaye, selectedStatuses ko empty kar do
+            setSelectedStatuses([]);
+            updateFilteredData([]); // API se saara data show karwana
+        }, [])
+    );
+
+    useEffect(() => {
+        navigateBack()
+        const backAction = () => {
+            navigation.goBack()
+            return true;
+        };
+        const backHandler = BackHandler.addEventListener(
+            "hardwareBackPress",
+            backAction
+        );
+        return () => backHandler.remove();
+    }, [navigation])
+
+    useEffect(() => {
+        const filtered = data.filter(item => {
+            const isNameMatched = !assignedName || item?.user_name.includes(assignedName);
+            let isStatusMatched = false;
+
+            if (selectedStatus.length > 0) {
+                isStatusMatched = selectedStatus.some(status => {
+                    if (status.value === 'FinalClose') {
+                        // return item?.R_Status_ID?.toLowerCase() === 'finalClose';
+                        return item?.R_Status_ID?.id === 1000003;
+                    } else if (status.value === 'Close') {
+                        return item?.R_Status_ID?.id === 1000002;
+                    } else {
+                        return item?.R_Status_ID?.identifier.toLowerCase().includes(status.value.toLowerCase());
+                    }
+                });
+            } else {
+                isStatusMatched = true;
+            }
+            const isOwnTask = showAllTasks ? item?.SalesRep_ID?.id == userId : true;
+            const itemStartDate = moment(item?.StartDate, 'DD-MM-YYYY');
+            const itemEndDate = moment(item?.EndTime, 'DD-MM-YYYY');
+            const selectedStartDate = startDate ? moment(startDate, 'DD-MM-YYYY') : null;
+            const selectedEndDate = endDate ? moment(endDate, 'DD-MM-YYYY') : null;
+            const isStartDateMatched = !selectedStartDate || itemStartDate.isSameOrAfter(selectedStartDate);
+            const isEndDateMatched = !selectedEndDate || itemEndDate.isSameOrBefore(selectedEndDate);
+            return isNameMatched && isStatusMatched && isOwnTask && isStartDateMatched && isEndDateMatched;
+        });
+
+        setFilteredData(filtered);
+    }, [showAllTasks, selectedStatus, assignedName, startDate, endDate, data]);
+
+
     return (
         <>
             {isLoading && (
@@ -608,65 +536,34 @@ const AllTaskScreen = () => {
                         </View>
                     </Modal>
 
-                    {/* Fixed Color in Status */}
-                    {/* <View style={[styles.containerColor, { width: "90%", alignSelf: "center" }]}>
-                        <View style={styles.statusContainer}>
-                            
-                            <TouchableOpacity style={styles.item}>
-                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
-                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Open</Text>
-                            </TouchableOpacity>
-                            
-                            <TouchableOpacity style={styles.item}>
-                                <View style={[styles.statusBoxColor, { backgroundColor: '#FFD700' }]} />
-                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Waiting</Text>
-                            </TouchableOpacity>
-                           
-                            <TouchableOpacity style={styles.item}>
-                                <View style={[styles.statusBoxColor, { backgroundColor: '#FF0000' }]} />
-                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Close</Text>
-                            </TouchableOpacity>
-                            
-                            <TouchableOpacity style={styles.item}>
-                                <View style={[styles.statusBoxColor, { backgroundColor: '#008000' }]} />
-                                <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View> */}
 
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", borderBottomWidth:0.5, borderBottomColor:"gray" }}>
                         {statuses.map((status) => (
                             <TouchableOpacity
                                 key={status.id}
-                                style={{
-                                    alignItems: "center",
-                                    padding: 10,
-                                }}
-                                onPress={() => {
-                                    handleStatusSelection("open"); // Tick show/hide ke liye
-                                    handleOpenStatusClick("open"); // API call ke liye
-                                }}
+                                style={{ alignItems: "center", padding: 10 }}
+                                onPress={() => handleStatusSelection(status.id)}
                             >
                                 <View
                                     style={{
-                                        width: 20,
-                                        height: 20,
+                                        width: 25,
+                                        height: 25,
                                         backgroundColor: status.color,
                                         justifyContent: "center",
                                         alignItems: "center",
-                                        borderRadius: 5,
+                                        borderRadius: 20,
                                     }}
                                 >
                                     {selectedStatuses.includes(status.id) && (
-                                        <FontAwesome name="check" size={18} color="white" />
+                                        // <FontAwesome name="check" size={18} color="white" />
+                                        <Octicons name="dot-fill" size={25} color="white" style={{alignSelf:"center"}} />
                                     )}
                                 </View>
-                                <Text style={{ color: "black", marginTop: 5 }}>
-                                    {status.label}
-                                </Text>
+                                <Text style={{ color: "black", marginTop: 5,fontSize:12, }}>{status.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
+
 
 
 

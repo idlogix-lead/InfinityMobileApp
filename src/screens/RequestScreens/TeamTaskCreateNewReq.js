@@ -78,45 +78,6 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
   } 
 
 
-//   const getAPIData = async (protocol, host, port, userId) => {
-//     try {
-//         const token = await AsyncStorage.getItem('token');
-//         const value = await AsyncStorage.getItem('userName');
-//         const setClientId= (await AsyncStorage.getItem('clientId'));
-//        const  setOrganizationId =(await AsyncStorage.getItem('organizationId'));
-
-//         // Make the API call using axios
-//         const response = await axios.get(
-//             `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`,
-//             {
-//                 headers: {
-//                     'Content-Type': 'application/json',
-//                     Authorization: `Bearer ${token}`,
-//                 },
-//             }
-//         );
-
-
-//         // Process the response data
-//         const array1 = [
-//             { Name: 'Select SubOrdinate', id: 'select' }, // Fixed duplicate key issue
-//             { Name: value, id: userId },
-//         ];
-//         const records = response.data.records; // Access data using response.data
-//         // console.log(records, 'askdvbcksbadv');
-
-//         const newArray = array1.concat(records);
-//         // const newArray = records;
-//         setSubData(newArray);
-//         setIsLoading(false);
-//     } catch (error) {
-//         console.error('Error fetching data:', error);
-//         setIsLoading(false); // Ensure loading is set to false even if there's an error
-//     }
-// };
-
-
-
   const navigateBack = () => {
     // setIsLoading(true);
     const unsubscribe = navigation.addListener('focus', async () => {
@@ -148,9 +109,6 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
     setEndDate(date);
     setShowCalendarEnd(false);
   };
-
- 
-    
 
   const ValueNameGet = async () => {
     try {

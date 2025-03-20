@@ -1,19 +1,19 @@
 import { StyleSheet, Text, View, BackHandler, TextInput, Image, ActivityIndicator, FlatList, Modal, TouchableOpacity, Pressable, ScrollView } from 'react-native'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChartCards from '../../components/RequestScreenComponents/ChartCards';
 import moment from 'moment';
 import CustomHeader from '../../components/CustomHeader';
 import ItemList from '../../components/RequestScreenComponents/ItemList';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import FontAwesome5 from 'react-native-vector-icons/dist/FontAwesome5';
+import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import ToggleSwitch from 'toggle-switch-react-native'
 import RBSheet from "react-native-raw-bottom-sheet";
 import CalendarPicker from 'react-native-calendar-picker';
 import { Picker } from '@react-native-picker/picker';
 import MultiSelect from 'react-native-multiple-select';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import TeamTaskCreateNewReq from '../RequestScreens/TeamTaskCreateNewReq';
 
 
@@ -49,11 +49,20 @@ const ShowTeamTask = () => {
     const [endDate, setEndDate] = useState(null)
     const [showRBSheet, setShowRBSheet] = useState(false);
     const [filteredData, setFilteredData] = useState(data);
+    const [selectedStatuses, setSelectedStatuses] = useState([]);
     // console.log(filteredData,'AllDataInTaskTrick')
 
     const [pickerData, setPickerData] = useState([]);
 
-// Status Color set
+    // 
+    const statuses = [
+        { id: "open", label: "Open", color: "#FFA500" },
+        { id: "waiting", label: "Waiting", color: "#FFD700" },
+        { id: "close", label: "Close", color: "#FF0000" },
+        { id: "complete", label: "Complete", color: "#008000" },
+    ];
+
+    // Status Color set
     const statusColors = {
         "Open": "#FFA500",
         "Waiting on Customers/Others": "#FFD700",
@@ -61,6 +70,69 @@ const ShowTeamTask = () => {
         "Final Close": "#008000"
     };
 
+    // filter Status API Calling
+    const updateFilteredData = async (selectedStatuses) => {
+        if (selectedStatuses.length === 0) {
+            // If no status is selected, show all data
+            getAPIData();
+            return;
+        }
+
+        setIsLoading(true);
+
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const Id = await AsyncStorage.getItem("userId");
+
+        // API URL Mapping for each status
+        const statusAPIs = {
+            open: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= Supervisor_ID eq ${Id} and R_Status_ID eq 1000000`,
+            waiting: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= Supervisor_ID eq ${Id} and R_Status_ID eq 1000001`,
+            close: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= Supervisor_ID eq ${Id} and R_Status_ID eq 1000002`,
+            complete: `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= Supervisor_ID eq ${Id} and R_Status_ID eq 1000003`
+        };
+
+        let allData = [];
+
+        try {
+            // Fetch data for selected statuses
+            for (const status of selectedStatuses) {
+                if (statusAPIs[status]) {
+                    const response = await fetch(statusAPIs[status], {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const data = await response.json();
+                    allData = [...allData, ...data.records]; // Merge data from different status APIs
+                }
+            }
+
+            // Sorting data by Created date
+            const sortedData = allData.sort((a, b) => new Date(b.Created) - new Date(a.Created));
+            setFilteredData(sortedData);
+        } catch (error) {
+            alert(error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // new code for ALL API calling
+    const handleStatusSelection = (id) => {
+        setSelectedStatuses((prevSelected) => {
+            const newSelection = prevSelected.includes(id)
+                ? prevSelected.filter((status) => status !== id) // Remove if already selected
+                : [...prevSelected, id]; // Add if not selected
+
+            updateFilteredData(newSelection); // Call API accordingly
+            return newSelection;
+        });
+    };
 
 
     const getAPIData = async () => {
@@ -376,8 +448,6 @@ const ShowTeamTask = () => {
     },
     ];
 
-
-
     const onSelectedItemsChange = (selectedStatusIds) => {
         const updatedStatuses = items.filter(item => selectedStatusIds.includes(item.id));
         setSelectedStatus(prevStatuses => {
@@ -397,8 +467,13 @@ const ShowTeamTask = () => {
         });
     };
 
-
-
+    useFocusEffect(
+            useCallback(() => {
+                // Jab bhi screen wapas aaye, selectedStatuses ko empty kar do
+                setSelectedStatuses([]);
+                updateFilteredData([]); // API se saara data show karwana
+            }, [])
+        );
 
     return (
         <>
@@ -410,7 +485,7 @@ const ShowTeamTask = () => {
             {!isLoading && (
                 <View style={{ flex: 1, backgroundColor: 'white' }}>
                     {/* Fixed Color show */}
-                    <View style={[styles.containerColor, { width: "90%", alignSelf: "center", marginTop:"3%" }]}>
+                    {/* <View style={[styles.containerColor, { width: "90%", alignSelf: "center", marginTop:"3%" }]}>
                         <View style={styles.statusContainer}>
                             <TouchableOpacity style={styles.item}>
                                 <View style={[styles.statusBoxColor, { backgroundColor: '#FFA500' }]} />
@@ -429,6 +504,33 @@ const ShowTeamTask = () => {
                                 <Text style={[styles.statusTextColor, { color: 'black' }]}>Complete</Text>
                             </TouchableOpacity>
                         </View>
+                    </View> */}
+
+
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                        {statuses.map((status) => (
+                            <TouchableOpacity
+                                key={status.id}
+                                style={{ alignItems: "center", padding: 10 }}
+                                onPress={() => handleStatusSelection(status.id)}
+                            >
+                                <View
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        backgroundColor: status.color,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        borderRadius: 5,
+                                    }}
+                                >
+                                    {selectedStatuses.includes(status.id) && (
+                                        <FontAwesome name="check" size={18} color="white" />
+                                    )}
+                                </View>
+                                <Text style={{ color: "black", marginTop: 5 }}>{status.label}</Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
                     {/* Status Modal  */}

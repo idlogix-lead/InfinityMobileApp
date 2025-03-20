@@ -57,7 +57,7 @@ const ItemList = ({
             </View>
 
             {/*  start Date show  */}
-            <View style={{ flexDirection: "row", width: "90%", alignSelf: "center", }}>
+            <View style={{ flexDirection: "row", width: "93.5%", alignSelf: "center", }}>
 
                 <View style={styles.dateContainer}>
                     <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -79,8 +79,8 @@ const ItemList = ({
 
             {/* All data Display in screen */}
 
-            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", marginTop: "2%" }} showsHorizontalScrollIndicator={false}>
-                {Name && (
+            <ScrollView horizontal style={{ width: "95%", alignSelf: "center", marginTop: "2%", }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: "105%" }} >
+                {/* {Name && (
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Product", value: Name })}>
                         <View>
                             <View style={{ flexDirection: "row", alignItems: "center", }}>
@@ -90,23 +90,51 @@ const ItemList = ({
                             <Text style={styles.textStyle}>{Name}</Text>
                         </View>
                     </TouchableOpacity>
+                )} */}
+                {Name && (
+                    <TouchableOpacity
+                        style={styles.NameContainer}
+                        onPress={() => handlePress({ title: "Product", value: Name })}
+                    >
+                        <View>
+                            <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                <SimpleLineIcons name="social-dropbox" size={14} color="#FFF" />
+                                <Text style={[styles.lableStyle, { paddingLeft: "2%" }]}>
+                                    Product:
+                                </Text>
+                            </View>
+                            <Text
+                                style={[styles.textStyle, { flexShrink: 1 }]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                            >
+                                {Name}
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
                 )}
+
 
                 {ProjectName && (
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Project", value: ProjectName })}>
                         <View style={{ flexDirection: "row", alignItems: "center" }}>
                             <Octicons name="project" size={14} color="#FFF" />
-                            <Text style={styles.lableStyle}>Project:</Text>
+                            <Text
+                                style={[styles.lableStyle, { flexShrink: 1 }]}>Project:</Text>
                         </View>
-                        <Text style={styles.textStyle}>{ProjectName}</Text>
+                        <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{ProjectName}</Text>
                     </TouchableOpacity>
+
+                    
                 )}
 
                 {BusinessName && (
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Business Name", value: BusinessName })}>
                         <View>
                             <Text style={styles.lableStyle}>Business Name:</Text>
-                            <Text style={styles.textStyle}>{BusinessName}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail"style={styles.textStyle}>{BusinessName}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -115,7 +143,8 @@ const ItemList = ({
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "User Contact", value: User_Contact })}>
                         <View>
                             <Text style={styles.lableStyle}>User Contact:</Text>
-                            <Text style={styles.textStyle}>{User_Contact}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{User_Contact}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -127,7 +156,8 @@ const ItemList = ({
                                 <Entypo name="megaphone" size={14} color="#FFF" />
                                 <Text style={styles.lableStyle}>Campaign:</Text>
                             </View>
-                            <Text style={styles.textStyle}>{campaignName}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{campaignName}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -136,7 +166,8 @@ const ItemList = ({
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Assets", value: Assets })}>
                         <View>
                             <Text style={styles.lableStyle}>Assets:</Text>
-                            <Text style={styles.textStyle}>{Assets}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{Assets}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -148,7 +179,8 @@ const ItemList = ({
                                 <FontAwesome5 name="file-invoice" size={14} color="#FFF" />
                                 <Text style={styles.lableStyle}>Invoice:</Text>
                             </View>
-                            <Text style={styles.textStyle}>{Invoice}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{Invoice}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -157,7 +189,8 @@ const ItemList = ({
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Order", value: order })}>
                         <View>
                             <Text style={styles.lableStyle}>Order:</Text>
-                            <Text style={styles.textStyle}>{order}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{order}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -169,7 +202,8 @@ const ItemList = ({
                                 <MaterialIcons name="payments" size={14} color="#FFF" />
                                 <Text style={styles.lableStyle}>Payment:</Text>
                             </View>
-                            <Text style={styles.textStyle}>{payment}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{payment}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -181,7 +215,8 @@ const ItemList = ({
                                 <FontAwesome5 name="shipping-fast" size={14} color="#FFF" />
                                 <Text style={styles.lableStyle}>Shipment:</Text>
                             </View>
-                            <Text style={styles.textStyle}>{shipment}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{shipment}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -190,7 +225,8 @@ const ItemList = ({
                     <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Sale Return", value: RMA })}>
                         <View>
                             <Text style={styles.lableStyle}>Sale Return:</Text>
-                            <Text style={styles.textStyle}>{RMA}</Text>
+                            <Text numberOfLines={1}
+                                ellipsizeMode="tail" style={styles.textStyle}>{RMA}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -239,19 +275,19 @@ const styles = StyleSheet.create({
     itemCon: {
         borderRadius: 7,
     },
-    idStyle:{
+    idStyle: {
         paddingLeft: "1%",
         color: "#000",
         fontSize: 15,
         fontWeight: 600
     },
-    verticalLineStyle:{
+    verticalLineStyle: {
         marginHorizontal: width * 0.01,
         height: 20,
         width: width * 0.004,
         backgroundColor: '#D3D3D3',
     },
-    cardNameStyle:{
+    cardNameStyle: {
         color: "#000",
         fontSize: 15,
         alignSelf: "center", paddingLeft: 3, fontWeight: 600
@@ -296,12 +332,20 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         padding: 4,
         justifyContent: "center",
-        // alignItems: "center",
-        marginTop: '0.2%'
+        marginTop: '0.2%',
+        width: "13%",
+        overflow:"hidden",
 
     },
     lableStyle: { color: "#fff", fontSize: 12, },
-    textStyle: { color: "#fff", fontSize: 10, alignSelf: "center" },
+    // textStyle: { color: "#fff", fontSize: 10, alignSelf: "center" },
+    textStyle: {
+        color: "#fff",
+        fontSize: 10,
+        alignSelf: "center",
+        flexShrink: 1, // Text shrink karne ke liye
+        width: "100%"  // Ensure karega ke text properly fit ho
+    },
     modalContainer: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -381,6 +425,6 @@ const styles = StyleSheet.create({
         padding: width * 0.01,
         borderRadius: 10,
         alignItems: "center",
-        minHeight: height * 0.05, 
+        minHeight: height * 0.05,
     },
 })
