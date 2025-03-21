@@ -560,6 +560,10 @@ const ShowTeamTask = () => {
                             </View>
                         </View>
                     </Modal>
+
+
+
+
                     <FlatList
                         data={filteredData}
                         renderItem={(item) => {
@@ -761,10 +765,14 @@ export default ShowTeamTask
 
 const styles = StyleSheet.create({
     modalContainer: {
-        backgroundColor: 'rgba(38, 70, 83, 0.5)',
-        flex: 1,
+        // backgroundColor: 'rgba(38, 70, 83, 0.5)',
+        // flex: 1,
+        // alignItems: 'center',
+        // justifyContent: "center"
         alignItems: 'center',
-        justifyContent: "center"
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        flex: 1
     },
     modalView: {
         backgroundColor: '#00B0F0',

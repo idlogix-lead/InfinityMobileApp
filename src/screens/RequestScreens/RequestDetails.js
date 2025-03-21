@@ -806,39 +806,45 @@ const RequestDetails = ({ navigation, route }) => {
             </View>
 
             <ScrollView style={{ flex: 1, }} showsHorizontalScrollIndicator={false}>
-              
-               <Modal visible={show} animationType="slide" transparent={true}>
-                 <TouchableWithoutFeedback onPress={() => setShow(!show)}>
-                   <View style={styles.modalContainer}>
-                     <View style={styles.modalView}>
 
-                     <TouchableOpacity style={{ color: "black" }} onPress={() => setShow(!show)}>
+              <Modal visible={show} animationType="slide" transparent={true}>
+                <TouchableWithoutFeedback onPress={() => setShow(!show)}>
+                  <View style={[styles.modalContainer,]}>
+                    <View style={styles.modalView}>
+
+                      <TouchableOpacity style={{ color: "black" }} onPress={() => setShow(!show)}>
                         <Entypo name='cross' size={24} color="#888" style={{ alignSelf: "flex-end", }} />
                       </TouchableOpacity>
-                    <View style={{justifyContent:"center", alignItems:"center"}}>
-                       <Text style={styles.txt}>Set Status</Text>
-                       <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
-                         <Text style={styles.txt}>Open</Text>
-                       </TouchableOpacity>
+                      <View style={{ justifyContent: "center", alignItems: "center", }}>
+                        <Text style={{
+                          color: '#000',
+                          fontSize: 18,
+                          fontFamily: 'K2D-Regular',
+                          fontWeight: "700",
+                          marginBottom:"5%"
+                        }}>Set Status</Text>
+                        <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Open</Text>
+                        </TouchableOpacity>
 
-                       <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
-                         <Text style={styles.txt}>Waiting</Text>
-                       </TouchableOpacity>
+                        <TouchableOpacity onPress={() => modalCloseStatus('Waiting', 1000001)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Waiting</Text>
+                        </TouchableOpacity>
 
-                       <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
-                         <Text style={styles.txt}>Close</Text>
-                       </TouchableOpacity>
+                        <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Close</Text>
+                        </TouchableOpacity>
 
-                       <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
-                         <Text style={styles.txt}>Final Close</Text>
-                       </TouchableOpacity>
+                        <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
+                          <Text style={styles.txt}>Final Close</Text>
+                        </TouchableOpacity>
 
-                       </View>
+                      </View>
 
-                     </View>
-                   </View>
-                 </TouchableWithoutFeedback>
-               </Modal>
+                    </View>
+                  </View>
+                </TouchableWithoutFeedback>
+              </Modal>
 
 
               {/* <Modal visible={show} animationType="slide" transparent={true}>
@@ -1491,7 +1497,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
 
     backgroundColor: '#D3D3D3',
-    height: '55%',
+    height: '35%',
     // borderRadius: 10,
     padding: "2%",
     width: "60%"
@@ -1524,16 +1530,19 @@ const styles = StyleSheet.create({
     borderRadius: 15
   },
   txtContainer: {
-    height: '12%',
+    height: '15%',
     width: '80%',
-    marginBottom: 10,
+    marginBottom: 5,
     alignItems: 'center',
     justifyContent: 'center'
   },
   txt: {
-    color: 'white',
-    fontSize: 20,
-    fontFamily: 'K2D-Regular',
+    // color: 'white',
+    // fontSize: 20,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "gray",
+    // fontFamily: 'K2D-Regular',
     // alignSelf:"center"
   },
   btn: {
