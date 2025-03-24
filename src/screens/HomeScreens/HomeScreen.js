@@ -432,43 +432,51 @@ const HomeScreen = ({ navigation, route }) => {
   //   }
   // };
 
+  // Miss Noor n bola tha phir ye Function Comment kiya hai"ye Function BY_Default Location pick kr rh hai
+  // useEffect(() => {
 
-  const getCurrentLocation = () => {
-    Geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setLocation({ latitude, longitude });
-        console.log("Location:", latitude, longitude); // You can remove this or replace it with any other logic
-      },
-      (error) => {
-        console.log(error.code, error.message);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-    );
-  };
-  const requestLocationPermission = async (Status) => {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: "Location Permission",
-          message: "This app needs access to your location",
-          buttonNeutral: "Ask Me Later",
-          buttonNegative: "Cancel",
-          buttonPositive: "OK"
-        }
-      );
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        setStatus(Status)
-        getCurrentLocation();
-      } else {
-        console.log("Location permission denied");
-        Alert.alert('Location permission denied', 'Go on App settings and turn on Location');
-      }
-    } else {
-      getCurrentLocation();
-    }
-  };
+  //   FindBusinessPrtId();
+  //   // getCurrentLocation();
+  //   getYearId();
+
+  // }, []);
+
+  // const getCurrentLocation = () => {
+  //   Geolocation.getCurrentPosition(
+  //     (position) => {
+  //       const { latitude, longitude } = position.coords;
+  //       setLocation({ latitude, longitude });
+  //       console.log("Location:", latitude, longitude); // You can remove this or replace it with any other logic
+  //     },
+  //     (error) => {
+  //       console.log(error.code, error.message);
+  //     },
+  //     { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  //   );
+  // };
+  // const requestLocationPermission = async (Status) => {
+  //   if (Platform.OS === 'android') {
+  //     const granted = await PermissionsAndroid.request(
+  //       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  //       {
+  //         title: "Location Permission",
+  //         message: "This app needs access to your location",
+  //         buttonNeutral: "Ask Me Later",
+  //         buttonNegative: "Cancel",
+  //         buttonPositive: "OK"
+  //       }
+  //     );
+  //     if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+  //       setStatus(Status)
+  //       getCurrentLocation();
+  //     } else {
+  //       console.log("Location permission denied");
+  //       Alert.alert('Location permission denied', 'Go on App settings and turn on Location');
+  //     }
+  //   } else {
+  //     getCurrentLocation();
+  //   }
+  // };
 
   const extractCurrentYearData = (data, currentYear) => {
     const currentYearLabel = `${currentYear - 1}/${currentYear.toString().slice(-2)}`;
@@ -505,13 +513,8 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
 
-  useEffect(() => {
+ 
 
-    FindBusinessPrtId();
-    // getCurrentLocation();
-    getYearId();
-
-  }, []);
   useEffect(() => {
     if (partnerId) {
       handleGetAttendance();
