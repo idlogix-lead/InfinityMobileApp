@@ -44,6 +44,7 @@ const RequestDetails = ({ navigation, route }) => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [status, setStatus] = useState('')
+  // console.log(status,'StatusCheckkrnahai')
   const [dueType, setDueType] = useState('')
   const [attachmentName, setAttachmentName] = useState('')
   const [priority, setPriority] = useState('')
@@ -809,7 +810,7 @@ const RequestDetails = ({ navigation, route }) => {
 
               <Modal visible={show} animationType="slide" transparent={true}>
                 <TouchableWithoutFeedback onPress={() => setShow(!show)}>
-                  <View style={[styles.modalContainer,]}>
+                  <View style={[styles.modalContainer]}>
                     <View style={styles.modalView}>
 
                       <TouchableOpacity style={{ color: "black" }} onPress={() => setShow(!show)}>
@@ -821,7 +822,7 @@ const RequestDetails = ({ navigation, route }) => {
                           fontSize: 18,
                           fontFamily: 'K2D-Regular',
                           fontWeight: "700",
-                          marginBottom:"5%"
+                          marginBottom:"5%",
                         }}>Set Status</Text>
                         <TouchableOpacity onPress={() => modalCloseStatus('Open', 1000000)} style={styles.txtContainer}>
                           <Text style={styles.txt}>Open</Text>
@@ -831,12 +832,16 @@ const RequestDetails = ({ navigation, route }) => {
                           <Text style={styles.txt}>Waiting</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
+                        {/* <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={styles.txtContainer}>
                           <Text style={styles.txt}>Close</Text>
+                        </TouchableOpacity> */}
+                        <TouchableOpacity onPress={() => modalCloseStatus('Close', 1000002)} style={[styles.txtContainer]}>
+                          <Text style={styles.txt}>Complete</Text>
                         </TouchableOpacity>
+                        
 
                         <TouchableOpacity onPress={() => modalCloseStatus('Final Close', 1000003)} style={styles.txtContainer}>
-                          <Text style={styles.txt}>Final Close</Text>
+                          <Text style={styles.txt}>Close</Text>
                         </TouchableOpacity>
 
                       </View>

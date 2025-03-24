@@ -21,12 +21,16 @@ const StaffAttendance = () => {
     const [processed, setProcessed] = useState([]);
     const [Unprocessed, setUnProcessed] = useState([]);
 
+    // console.log(Unprocessed,'ALLUnprocessedData')
+
+
     const [dateFilterOpen, setDateFilterOpen] = useState(false);
     const [employeeFilterOpen, setEmployeeFilterOpen] = useState(false);
     const [departmentFilterOpen, setDepartmentFilterOpen] = useState(false);
     const [subDepartmentFilterOpen, setSubDepartmentFilterOpen] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
+
     const [employeeSuggestions, setEmployeeSuggestions] = useState([]);
 
     const [selectedStartDate, setSelectedStartDate] = useState('');
@@ -196,6 +200,7 @@ const StaffAttendance = () => {
                     }
                 );
                 setEmployeeSuggestions(response.data.records);
+                console.log(response.data.records,'ListShowInFilterData')
                 applyFilters();
             } catch (error) {
                 console.log('Error', error);
@@ -347,7 +352,7 @@ const StaffAttendance = () => {
                             {employeeFilterOpen && (
                                 <View>
                                     <Searchbar
-                                        style={styles.searchBar}
+                                        style={[styles.searchBar]}
                                         placeholder="Search Employee Name"
                                         onChangeText={onChangeSearch}
                                         value={searchQuery}
@@ -399,6 +404,7 @@ const StaffAttendance = () => {
 
                                 </View>
                             )}
+                            
                             <TouchableOpacity onPress={() => setDepartmentFilterOpen(!departmentFilterOpen)}>
                                 <Text style={styles.FilteredTxt}>Department</Text>
                             </TouchableOpacity>
@@ -460,6 +466,7 @@ const StaffAttendance = () => {
                     </ScrollView>
                 </View>
             </RBSheet>
+
 
             <View>
                 <TotalAttendance />

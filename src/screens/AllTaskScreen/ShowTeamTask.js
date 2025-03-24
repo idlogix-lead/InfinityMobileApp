@@ -6,7 +6,7 @@ import moment from 'moment';
 import CustomHeader from '../../components/CustomHeader';
 import ItemList from '../../components/RequestScreenComponents/ItemList';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
+import Octicons from 'react-native-vector-icons/dist/Octicons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import ToggleSwitch from 'toggle-switch-react-native'
 import RBSheet from "react-native-raw-bottom-sheet";
@@ -468,12 +468,12 @@ const ShowTeamTask = () => {
     };
 
     useFocusEffect(
-            useCallback(() => {
-                // Jab bhi screen wapas aaye, selectedStatuses ko empty kar do
-                setSelectedStatuses([]);
-                updateFilteredData([]); // API se saara data show karwana
-            }, [])
-        );
+        useCallback(() => {
+            // Jab bhi screen wapas aaye, selectedStatuses ko empty kar do
+            setSelectedStatuses([]);
+            updateFilteredData([]); // API se saara data show karwana
+        }, [])
+    );
 
     return (
         <>
@@ -516,16 +516,23 @@ const ShowTeamTask = () => {
                             >
                                 <View
                                     style={{
-                                        width: 20,
-                                        height: 20,
+                                        // width: 20,
+                                        // height: 20,
+                                        // backgroundColor: status.color,
+                                        // justifyContent: "center",
+                                        // alignItems: "center",
+                                        // borderRadius: 5,
+                                        width: 25,
+                                        height: 25,
                                         backgroundColor: status.color,
                                         justifyContent: "center",
                                         alignItems: "center",
-                                        borderRadius: 5,
+                                        borderRadius: 20,
                                     }}
                                 >
                                     {selectedStatuses.includes(status.id) && (
-                                        <FontAwesome name="check" size={18} color="white" />
+                                        // <FontAwesome name="check" size={18} color="white" />
+                                        <Octicons name="dot-fill" size={25} color="white" style={{ alignSelf: "center" }} />
                                     )}
                                 </View>
                                 <Text style={{ color: "black", marginTop: 5 }}>{status.label}</Text>

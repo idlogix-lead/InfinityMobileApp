@@ -511,9 +511,7 @@ const HomeScreen = ({ navigation, route }) => {
       setIsLoading(false);
     }
   };
-
-
- 
+  
 
   useEffect(() => {
     if (partnerId) {
