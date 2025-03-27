@@ -4,37 +4,41 @@ import {
 } from 'react-native'
 import React, { useEffect, useState, useRef } from 'react'
 import TopHeader from '../../components/RequestScreenComponents/TopHeader'
-import CalendarPicker from 'react-native-calendar-picker';
-import { Picker } from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import moment from 'moment';
-import DocumentPicker from 'react-native-document-picker';
-import RNFS from 'react-native-fs';
-import { decode as atob, encode as btoa } from 'base-64';
-import CustomHeader from '../../components/CustomHeader';
-import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import base64 from 'base-64';
-import Loader from '../../components/Loader';
-import RBSheet from 'react-native-raw-bottom-sheet';
-import axios from 'axios';
+import CalendarPicker from 'react-native-calendar-picker'
+import { Picker } from '@react-native-picker/picker'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import moment from 'moment'
+import DocumentPicker from 'react-native-document-picker'
+import RNFS from 'react-native-fs'
+import { decode as atob, encode as btoa } from 'base-64'
+import CustomHeader from '../../components/CustomHeader'
+import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons'
+import base64 from 'base-64'
+import Loader from '../../components/Loader'
+import RBSheet from 'react-native-raw-bottom-sheet'
+import axios from 'axios'
 
 const TeamTaskCreateNewReq = ({ navigation }) => {
-  const rbSheetRef = useRef();
+
+  const rbSheetRef = useRef()
+  const rbSheetRefAssignee = useRef()
+  const rbSheetRefCollaborator = useRef()
   const [startDate, setStartDate] = useState(new Date())
   const [name, setName] = useState('')
   const [endDate, setEndDate] = useState(null)
-  const [showCalendarStart, setShowCalendarStart] = useState(false);
-  const [showCalendarEnd, setShowCalendarEnd] = useState(false);
+  const [showCalendarStart, setShowCalendarStart] = useState(false)
+  const [showCalendarEnd, setShowCalendarEnd] = useState(false)
   const [priority, setPriority] = useState('medium')
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false)
   const [subdata, setSubData] = useState([])
-  console.log(subdata,'subdataWithGetInID')
+  // console.log(subdata, 'subdataWithGetInID')
+  // console.log("Subdata: ", subdata);
   const [assigned, setAssigned] = useState()
-  const [summary, setSummary] = useState('');
+  const [summary, setSummary] = useState('')
   const [clientId, setClientId] = useState()
   const [organizationId, seOrganizationId] = useState()
-  const currentDate = new Date();
-  const formattedDate = currentDate.toISOString();
+  const currentDate = new Date()
+  const formattedDate = currentDate.toISOString()
   const priorityData = [
     { label: 'Select Priority', value: 'Select Priority', id: 0 },
     { label: 'High', value: 'High', id: 3 },
@@ -46,9 +50,65 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
   const [pickerKey, setPickerKey] = useState()
   const [subOrdinateKey, setSubOrdinateKey] = useState()
   const [attachmentData, setAttachmentData] = useState('')
-  const [attachment, setAttachment] = useState({ name: '', data: '' })
+  const [attachment, setAttachment] = useState({ name: '', data: '' });
+  // Multiple Select Assignee 
+  const [selectedAssignees, setSelectedAssignees] = useState([])
+  const [selectedAssignee, setSelectedAssignee] = useState(null)
+  // console.log(selectedAssignees, 'MultipleAssigneeSelected')
+  const [selectedIds, setSelectedIds] = useState([])
+
+  const [remainingUsers, setRemainingUsers] = useState(subdata)
+  // console.log("Remaining Users: ", remainingUsers);
+
+  const [selectedCollaborators, setSelectedCollaborators] = useState([]);
 
   let AD_Org_ID, AD_Role_ID
+
+  const toggleAssigneeSelection = (id, name) => {
+    setSelectedAssignee({ id, name });
+    // Remove selected assignee from remaining users
+    setRemainingUsers(prevUsers => prevUsers.filter(user => user.id !== id));
+  };
+
+  // const toggleColflaboratorSelection = (id, name) => {
+  //   setSelectedAssignees(prev => {
+  //     const alreadySelected = prev.some(assignee => assignee.id === id);
+  //     console.log(alreadySelected,'AlreadySelectedIDss')
+  //     if (alreadySelected) {
+  //       return prev.filter(assignee => assignee.id !== id);
+  //     } else {
+  //       return [...prev, { id, name }];
+  //     }
+  //   });
+  // };
+
+  // const toggleColflaboratorSelection = (id, name) => {
+  //   setSelectedAssignees(prevSelected => {
+  //     const isAlreadySelected = prevSelected.some(assignee => assignee.id === id);
+
+  //     let updatedSelection;
+  //     if (isAlreadySelected) {
+  //       updatedSelection = prevSelected.filter(assignee => assignee.id !== id);
+  //     } else {
+  //       updatedSelection = [...prevSelected, { id, name }];
+  //     }      
+  //     return updatedSelection;
+  //   });
+  // };
+
+  const toggleCollaboratorSelection = (id, name) => {
+    setSelectedCollaborators(prev => {
+      const isSelected = prev.some(collab => collab.id === id);
+      if (isSelected) {
+        return prev.filter(collab => collab.id !== id);
+      } else {
+        return [...prev, { id, name }];
+      }
+    });
+  };
+
+
+
 
   const getAPIData = async (protocol, host, port, userId) => {
     const token = await AsyncStorage.getItem('token')
@@ -65,17 +125,17 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
       .then(response => response.json())
       // console.log(response?.data,'kuygsdvcksdjb chjqdv')
       .then(data => {
-        const array1 = 
-        [{ Name: 'Select SubOrdinate', Name: 'Select SubOrdinate' }, { Name: value, Name: value, id: userId }]
+        const array1 =
+          [{ Name: 'Select SubOrdinate', Name: 'Select SubOrdinate' }, { Name: value, Name: value, id: userId }]
         let records = data.records
-        console.log(records,'askdvbcksbadv')
+        // console.log(records, 'ASSIGNEESHOW')
         // const newArray = array1.concat(records)
         const newArray = records;
         setSubData(newArray)
         setIsLoading(false)
       })
       .catch(error => console.error(error));
-  } 
+  }
 
 
   const navigateBack = () => {
@@ -89,6 +149,7 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
       setEndDate(null)
       // setPriority()
       setAssigned()
+      // setSelectedAssignees()
       setSummary('')
       getAPIData(protocol, host, port, userId)
     });
@@ -118,17 +179,21 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
       console.error("Error fetching username:", error);
     }
   };
-  
+
   useEffect(() => {
     ValueNameGet();
   }, []);
-  
+
+
+
+
 
   const saveData = async () => {
+
     try {
       const clientName = await AsyncStorage.getItem('clientName');
       const value = await AsyncStorage.getItem('userName');
-      
+
       const userId = await AsyncStorage.getItem('userId');
       const protocol = await AsyncStorage.getItem('protocol');
       const host = await AsyncStorage.getItem('host');
@@ -169,7 +234,7 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         "Created": formattedDate,
         // Select Sub-Ordinate is Selected
         "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-        
+
         "DateLastAction": "",
         "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
         "IsActive": true,
@@ -183,11 +248,31 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         "QtyInvoiced": 0,
         "QtyPlan": 0,
         "QtySpent": 0,
-        "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
+        "R_RequestType_ID": { "id": 1000000, "identifier": "Team Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
         "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
         "RequestAmt": 0,
-          // is PayLoad ko change krna hai
-        "SalesRep_ID": { "id": subOrdinateKey, "identifier": value, "model-name": "ad_user" },
+
+        // is PayLoad ko change krna hai
+
+        // "SalesRep_ID": { "id": selectedIds, "identifier": value, "model-name": "ad_user" },
+        "SalesRep_ID": {
+          "id": selectedAssignee?.id || parseInt(userId),  // Use selected assignee or fallback to current user
+          "identifier": selectedAssignee?.name || value,
+          "model-name": "ad_user"
+        },
+        // Select Collaborator Add this field Adding
+        // "Collaborators":{"id":selectedIds, "identifier": value, "model-name": "ad_user"},
+        // "Collaborators": selectedCollaborators.map(collab => ({
+        //   "id": collab.id,
+        //   "identifier": collab.name,
+        //   "model-name": "ad_user"
+        // })),
+
+        "Collaborators": selectedCollaborators.map(collab => ({
+          "id": collab.id,
+          "identifier": collab.name,
+          "model-name": "ad_user"
+        })),
 
         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
         "Summary": summary,
@@ -201,7 +286,8 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
       };
 
-      console.log(payload,"POSTCallPayLoad")
+      console.log(payload, "POSTCallPayLoad")
+
 
 
       const requestResponse = await fetch(`${protocol}://${host}:${port}/api/v1/models/R_Request`, {
@@ -211,44 +297,6 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
           'Accept': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        // body: JSON.stringify({
-        //   "AD_Client_ID": { "id": parseInt(clientId), "identifier": clientName },
-        //   "AD_Org_ID": { "id": AD_Org_ID.id, "identifier": AD_Org_ID.name },
-        //   "AD_Role_ID": { "id": AD_Role_ID.id, "identifier": AD_Role_ID.name },
-        //   "CloseDate": "",
-        //   "ConfidentialType": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-        //   "ConfidentialTypeEntry": { "id": "I", "identifier": "internal", "model-name": "ad_ref_list" },
-        //   "Created": formattedDate,
-        //   "CreatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user" },
-        //   "DateLastAction": "",
-        //   "DueType": { "id": "5", "identifier": "Due", "model-name": "ad_ref_list" },
-        //   "IsActive": true,
-        //   "IsEscalated": false,
-        //   "IsInvoiced": false,
-        //   "IsSelfService": false,
-        //   "NextAction": { "id": "F", "identifier": "Follow up", "model-name": "ad_ref_list", "propertyLabel": "Next action" },
-        //   "PriorityUser": { "id": '5', "identifier": 'medium', "model-name": "ad_ref_list" },
-        //   // "PriorityUser": { "id": pickerKey.toString(), "identifier": priority, "model-name": "ad_ref_list" },
-        //   "Processed": false,
-        //   "QtyInvoiced": 0,
-        //   "QtyPlan": 0,
-        //   "QtySpent": 0,
-        //   "R_RequestType_ID": { "id": 1000000, "identifier": "Personal Tasks", "model-name": "r_requesttype", "propertyLabel": "Request Type" },
-        //   "R_Status_ID": { "id": 1000000, "identifier": "9_open", "model-name": "r_status" },
-        //   "RequestAmt": 0,
-        //   "SalesRep_ID": { "id": subOrdinateKey, "identifier": assigned, "model-name": "ad_user" },
-        //   "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-        //   "Summary": summary,
-        //   "Updated": "",
-        //   "UpdatedBy": { "id": parseInt(userId), "identifier": value, "model-name": "ad_user", "propertyLabel": "Updated By" },
-        //   "id": parseInt(userId),
-        //   "model-name": "r_request",
-        //   "uid": "8e38b9fa-1ec2-4783-a661-475f4ea8d458",
-        //   "EndTime": moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
-        //   "Name": name,
-        //   "StartTime": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]')
-        // }),
-
         body: JSON.stringify(payload)
       });
       // console.log(body,'ece')
@@ -259,6 +307,7 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
       setSummary('');
       // setPriority(priorityData[0]);
       setAssigned(requestData[0]);
+      // setSelectedAssignees(requestData[0]);
       setName('');
       let newDocId = requestData.id;
       // console.log('newDocId', newDocId);
@@ -295,7 +344,7 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
   const Save = async () => {
     if (endDate === null) {
       alert('End Date cannot be empty')
-    } else if (!assigned) {
+    } else if (!selectedAssignees) {
       alert('Please select the SubOrdinate')
     } else if (summary.trim() === '') {
       alert('Please Enter the Summary')
@@ -322,19 +371,9 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
     }
   }
 
-  // const getID = async (selectedId, itemName) => {
-  //   setAssigned(itemName); // This sets the selected item's name to your state
-  //   if (selectedId !== undefined && selectedId !== null) {
-  //     setSubOrdinateKey(selectedId); // This sets the selected item's id to your state
-  //   } else {
-  //     // Handle the case when no ID is provided, such as for "Select SubOrdinate"
-  //     setSubOrdinateKey(null); // Or any other default/fallback value you consider appropriate
-  //   }
-  // };
-
-
   const getID = async (selectedId, itemName) => {
     setAssigned(itemName)
+    // setSelectedAssignees(itemName)
     const protocol = await AsyncStorage.getItem('protocol')
     const host = await AsyncStorage.getItem('host')
     const port = await AsyncStorage.getItem('port')
@@ -385,57 +424,6 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
     }
   }
 
-
-  // const getID = async (itemIndex, itemValue) => {
-  //   setAssigned(itemValue)
-  //   const protocol = await AsyncStorage.getItem('protocol')
-  //   const host = await AsyncStorage.getItem('host')
-  //   const port = await AsyncStorage.getItem('port')
-  //   const userId = await AsyncStorage.getItem('userId')
-  //   const token = await AsyncStorage.getItem('token')
-  //   fetch(`${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=Supervisor_ID eq ${userId}`, {
-  //     method: 'GET',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': `Bearer ${token}`
-  //     }
-  //   })
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       if (itemIndex === 0) {
-  //         setSubOrdinateKey(0)
-  //       } else (
-  //         setSubOrdinateKey(subdata[itemIndex].id)
-  //       )
-  //     })
-  //     .catch(error => console.error(error));
-  // }
-
-  // async function pickDocument() {
-  //   try {
-  //     const result = await DocumentPicker.pick({
-  //       type: [DocumentPicker.types.allFiles],
-  //     });
-  //     const fileUri = result[0].uri
-  //     console.log(result)
-  //     RNFS.readFile(fileUri, 'base64')
-  //       .then((dataResponce) => {
-  //         const base64Data = btoa(dataResponce);
-  //         setAttachment({ name: result[0].name, data: base64Data })
-  //         setAttachmentData(result[0].name)
-  //       })
-  //       .catch((error) => {
-  //         console.log(error);
-  //       });
-  //   } catch (err) {
-  //     if (DocumentPicker.isCancel(err)) {
-
-  //     } else {
-  //       // Error!
-  //     }
-  //   }
-  // }
-
   return (
     <View style={{ flex: 1 }}>
       <CustomHeader title="Team Create New Task" />
@@ -485,7 +473,6 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         {/* Textinput */}
         <ScrollView style={{ flex: 1 }}>
           <View style={styles.inputContainer}>
-            {/* <Text style={styles.PrivateTxt}>Private To you</Text> */}
             <View style={styles.name}>
               <TextInput
                 style={{ color: '#000', fontSize: 20, fontFamily: 'K2D-Regular', }}
@@ -496,175 +483,137 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
               />
             </View>
 
-            <View style={{ flexDirection: 'row',justifyContent:'space-between',marginTop:10 }}>
-              {/* <View style={{ width: '50%', }}>
-                <Text style={styles.topTxt}>Assigned To</Text>
-                <Picker
-                  selectedValue={assigned}
-                  onValueChange={(itemValue, itemIndex) => (
-                    getID(itemIndex, itemValue)
-                  )}
-                  dropdownIconColor={'gray'}
-                  style={styles.pickerItem}
-                >
-                  {subdata.map(option => (
-                    <Picker.Item
-                      label={option.Name}
-                      value={option.Name}
-                    />
-                  ))}
-                </Picker>
-              </View> */}
-              <TouchableOpacity onPress={() => rbSheetRef.current.open()}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+              {/* Select Assignee */}
+
+              {/* <TouchableOpacity onPress={() => rbSheetRefAssignee.current.open()}
                 style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
                   <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
                 </View>
                 <View style={{ paddingLeft: 10 }}>
-                  <Text style={styles.topTxt}>{assigned || "Select Assignee"}</Text>
+                  <Text style={styles.topTxt}>
+                    {selectedAssignee ? selectedAssignee.name : "Select Assignee"}
+                  </Text>
                 </View>
               </TouchableOpacity>
-              
-              <RBSheet
-                ref={rbSheetRef}
-                closeOnDragDown={true}
-                closeOnPressMask={true}
-                customStyles={{
-                  wrapper: {
-                    backgroundColor: "transparent"
-                  },
-                  draggableIcon: {
-                    backgroundColor: "#000"
-                  }
-                }}
-              >
-                <FlatList
-                  data={subdata}
-                  keyExtractor={(item, index) => index.toString()}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.sheetButton}
-                      onPress={() => {
-                        const itemId = item.id || null; // Pass null if 'id' is not available
-                        {console.log(itemId,'createButtonClick')}
-                        getID(itemId, item.Name);
-                        // getID(item.id, item.Name);
-                        rbSheetRef.current.close();
-                      }}>
-                      <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
-                    </TouchableOpacity>
-                  )}
+
+              <RBSheet ref={rbSheetRefAssignee} closeOnDragDown={true} closeOnPressMask={true}
+                customStyles={{ wrapper: { backgroundColor: "transparent" }, draggableIcon: { backgroundColor: "#000" } }}>
+
+                <FlatList data={subdata} keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedAssignee?.id === item.id;
+                    return (
+                      <TouchableOpacity style={[styles.sheetButton, { backgroundColor: isSelected ? '#ddd' : '#fff' }]}
+                        onPress={() => [toggleAssigneeSelection(item.id, item.Name), rbSheetRefAssignee.current.close()]}>
+                        <Text style={[styles.topTxt, { alignSelf: 'center' }]}>{item.Name}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </RBSheet> */}
+
+              {/* New Code For Select Assignee */}
+              <TouchableOpacity onPress={() => rbSheetRefAssignee.current.open()}
+                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
+                  <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
+                </View>
+                <View style={{ paddingLeft: 10 }}>
+                  <Text style={styles.topTxt}>
+                    {selectedAssignee ? selectedAssignee.name : "Select Assignee"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <RBSheet ref={rbSheetRefAssignee} closeOnDragDown={true} closeOnPressMask={true}
+                customStyles={{ wrapper: { backgroundColor: "transparent" }, draggableIcon: { backgroundColor: "#000" } }}>
+                <FlatList data={subdata} keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedAssignee?.id === item.id;
+                    return (
+                      <TouchableOpacity style={[styles.sheetButton, { backgroundColor: isSelected ? '#ddd' : '#fff' }]}
+                        onPress={() => [toggleAssigneeSelection(item.id, item.Name), rbSheetRefAssignee.current.close()]}>
+                        <Text style={[styles.topTxt, { alignSelf: 'center' }]}>{item.Name}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
                 />
               </RBSheet>
 
-              <TouchableOpacity onPress={() => setShowCalendarEnd(true)} style={{ width: '45%', flexDirection: 'row', alignItems: 'center' }}>
+
+              {/* Select Collaborator */}
+
+              {/* <TouchableOpacity
+                onPress={() => rbSheetRefCollaborator.current.open()}
+                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}
+              >
                 <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
-                  <MaterialCommunityIcons name='calendar-month-outline' size={20} color='gray' />
+                  <MaterialCommunityIcons
+                    name='account-multiple-plus-outline'
+                    size={20}
+                    color='gray'
+                  />
                 </View>
-                <View>
-                  {endDate && (
-                    <Text style={[styles.topTxt, { paddingLeft: 10 }]}>
-                      {moment(endDate).format('YYYY-MM-DD')}
-                    </Text>
-                  )}
-                  {!endDate && (
-                    <View style={{ flexDirection: 'row' }}>
-                      <View style={{ width: '88%' }}>
-                        <Text style={[styles.topTxt, { paddingLeft: 10 }]}>Due Date</Text>
-                      </View>
-                    </View>
-                  )}
+                <View style={{ paddingLeft: 10 }}>
+                  <Text style={styles.topTxt}>
+                    {selectedCollaborators.length > 0
+                      ? selectedCollaborators.map(c => c.name).join(', ')
+                      : "Select Collaborator"}
+                  </Text>
                 </View>
               </TouchableOpacity>
+
+              <RBSheet ref={rbSheetRefCollaborator} closeOnDragDown={true} closeOnPressMask={true}
+                customStyles={{ wrapper: { backgroundColor: "transparent" }, draggableIcon: { backgroundColor: "#000" } }}>
+
+                <FlatList
+                  data={subdata.filter(item => item.id !== selectedAssignee?.id)}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedCollaborators.some(collab => collab.id === item.id);
+                    return (
+                      <TouchableOpacity
+                        style={[styles.sheetButton, { backgroundColor: isSelected ? '#ddd' : '#fff' }]}
+                        onPress={() => toggleCollaboratorSelection(item.id, item.Name)}
+                      >
+                        <Text style={[styles.topTxt, { alignSelf: 'center' }]}>{item.Name}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </RBSheet> */}
+
+
+               {/* Date */}
+            <TouchableOpacity onPress={() => setShowCalendarEnd(true)} style={{ width: '45%', flexDirection: 'row', alignItems: 'center', }}>
+              <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
+                <MaterialCommunityIcons name='calendar-month-outline' size={20} color='gray' />
+              </View>
+              <View>
+                {endDate && (
+                  <Text style={[styles.topTxt, { paddingLeft: 10 }]}>
+                    {moment(endDate).format('YYYY-MM-DD')}
+                  </Text>
+                )}
+                {!endDate && (
+                  <View style={{ flexDirection: 'row' }}>
+                    <View style={{ width: '88%' }}>
+                      <Text style={[styles.topTxt, { paddingLeft: 10 }]}>Due Date</Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+
+
+
+
+
             </View>
 
-            {/* Select Assignee and select collaborator  */}
-            {/* <View style={{flexDirection:"row",marginTop:"5%"}}>
-
-            <TouchableOpacity onPress={() => rbSheetRef.current.open()}
-                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
-                  <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
-                </View>
-                <View style={{ paddingLeft: 10 }}>
-                  <Text style={styles.topTxt}>{assigned || "Select Assignee"}</Text>
-                </View>
-              </TouchableOpacity>
-              
-              <RBSheet
-                ref={rbSheetRef}
-                closeOnDragDown={true}
-                closeOnPressMask={true}
-                customStyles={{
-                  wrapper: {
-                    backgroundColor: "transparent"
-                  },
-                  draggableIcon: {
-                    backgroundColor: "#000"
-                  }
-                }}
-              >
-                <FlatList
-                  data={subdata}
-                  keyExtractor={(item, index) => index.toString()}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.sheetButton}
-                      onPress={() => {
-                        const itemId = item.id || null; // Pass null if 'id' is not available
-                        getID(itemId, item.Name);
-                        // getID(item.id, item.Name);
-                        rbSheetRef.current.close();
-                      }}>
-                      <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </RBSheet>
-
-              <TouchableOpacity onPress={() => rbSheetRef.current.open()}
-                style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ borderWidth: 1, padding: 5, borderRadius: 30, height: 32, width: 32, borderColor: 'gray', borderStyle: 'dashed' }}>
-                  <MaterialCommunityIcons name='account-plus-outline' size={20} color='gray' />
-                </View>
-                <View style={{ paddingLeft: 10 }}>
-                  <Text style={styles.topTxt}>{assigned || "Collaborator"}</Text>
-                </View>
-              </TouchableOpacity>
-              
-              <RBSheet
-                ref={rbSheetRef}
-                closeOnDragDown={true}
-                closeOnPressMask={true}
-                customStyles={{
-                  wrapper: {
-                    backgroundColor: "transparent"
-                  },
-                  draggableIcon: {
-                    backgroundColor: "#000"
-                  }
-                }}
-              >
-                <FlatList
-                  data={subdata}
-                  keyExtractor={(item, index) => index.toString()}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.sheetButton}
-                      onPress={() => {
-                        const itemId = item.id || null; // Pass null if 'id' is not available
-                        getID(itemId, item.Name);
-                        // getID(item.id, item.Name);
-                        rbSheetRef.current.close();
-                      }}>
-                      <Text style={[styles.topTxt,{alignSelf:'center'}]}>{item.Name}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </RBSheet>
-
-
-            </View> */}
+           
 
             <View>
               <TextInput
@@ -677,123 +626,21 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
               />
             </View>
           </View>
-
-
-
-
-
-          {/* 
-          <Text style={styles.topTxt}>Select Start Date</Text>
-          <TouchableOpacity onPress={() => setShowCalendarStart(true)} style={styles.startDate}>
-            {startDate && (
-              <Text style={styles.inside}>
-                {startDate.toString()}
-              </Text>
-            )}
-            {!startDate && (
-              <View style={{ flexDirection: 'row' }}>
-                <View style={{ width: '88%' }}>
-                  <Text style={styles.inside}>
-                    Selected Start Date
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name='calendar-month-outline' size={26} color='#00B0F0' style={styles.calender} />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.topTxt}>Select End Date</Text>
-          <TouchableOpacity onPress={() => setShowCalendarEnd(true)} style={styles.startDate}>
-            {endDate && (
-              <Text style={styles.inside}>
-                {endDate.toString()}
-              </Text>
-            )}
-            {!endDate && (
-              <View style={{ flexDirection: 'row' }}>
-                <View style={{ width: '88%' }}>
-                  <Text style={styles.inside}>
-                    Selected End Date
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name='calendar-month-outline' size={26} color='#00B0F0' style={styles.calender} />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <Text style={styles.topTxt}>Priority</Text>
-          <View style={styles.startDate}>
-            <Picker
-              selectedValue={priority}
-              onValueChange={(itemValue, itemIndex) => {
-                const selectedOption = priorityData[itemIndex];
-                setPriority(itemValue);
-                setPickerKey(selectedOption.id);
-              }}
-              dropdownIconColor={'#00B0F0'}
-              style={styles.pickerItem}
-            >
-              {priorityData.map(option => (
-                <Picker.Item
-                  key={option.value}
-                  label={option.label}
-                  value={option.value}
-                />
-              ))}
-            </Picker>
-          </View>
-
-          <Text style={styles.topTxt}>Assigned To</Text>
-          <View style={styles.startDate}>
-            <Picker
-              selectedValue={assigned}
-              onValueChange={(itemValue, itemIndex) => (
-                getID(itemIndex, itemValue)
-              )}
-              dropdownIconColor={'#00B0F0'}
-              style={styles.pickerItem}
-
-            >
-              {subdata.map(option => (
-                <Picker.Item
-                  // key={option.value}
-                  label={option.Name}
-                  value={option.Name}
-                />
-              ))}
-            </Picker>
-          </View>
-
-          <Text style={styles.topTxt}>Attachments</Text>
-          <TouchableOpacity style={styles.attachmentStyle} onPress={() => pickDocument()} >
-            <View style={{ width: '85%', marginLeft: 10 }}>
-              <Text style={styles.attachmentTxt}>{attachmentData}</Text>
-            </View>
-            <Image source={require('../../asserts/taskDetailAssets/attach.png')} style={styles.imageAttach} />
-          </TouchableOpacity>
-
-          <Text style={styles.topTxt}>Summary</Text>
-          <View style={styles.summary}>
-            <TextInput
-              style={{ color: 'gray' }}
-              onChangeText={text => setSummary(text)}
-              value={summary}
-            />
-          </View> */}
-
-          {/* <TouchableOpacity style={styles.btnSave} onPress={() => Save()}>
-            <Text style={[styles.topTxt, { color: 'white' }]}>Save</Text>
-          </TouchableOpacity> */}
         </ScrollView>
+
+
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#fff', zIndex: 2, padding: 10, paddingBottom: 20 }}>
 
           <TouchableOpacity style={styles.attachmentStyle} onPress={() => pickDocument()} >
 
             <Image source={require('../../asserts/taskDetailAssets/attach.png')} style={styles.imageAttach} />
           </TouchableOpacity>
+
+
           <View style={{ width: '65%', }}>
             <Text style={styles.attachmentTxt}>{attachmentData}</Text>
           </View>
+
 
           <TouchableOpacity style={styles.btnSave} onPress={() => Save()}>
             <MaterialCommunityIcons name='account-multiple-plus-outline' size={25} color='gray' />
@@ -891,7 +738,7 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Regular',
     paddingLeft: 10,
     color: '#000',
-    marginTop:10,
+    marginTop: 10,
     // borderWidth: 1,
     // borderColor: '#00B0F0',
     // height: '12%',

@@ -156,7 +156,8 @@ const HomeScreen = ({ navigation, route }) => {
   }
 
   const getAtsNum = async (protocol, host, port, userId) => {
-    fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId} OR SalesRep_ID eq ${userId}`,
+    // fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId} OR SalesRep_ID eq ${userId}`,
+    fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`,
       {
         method: 'GET',
         headers: {
@@ -643,7 +644,7 @@ const HomeScreen = ({ navigation, route }) => {
                 iconColor="#b05546"
                 iconBackgroundColor="#eddbd8"
                 num={approvalNum}
-              // clickHandler={() => Approval()}
+               clickHandler={() => Approval()}
               />
             </View>
             <View style={{ flexDirection: 'row', width: '85%', justifyContent: 'space-between', marginTop: 30 }}>

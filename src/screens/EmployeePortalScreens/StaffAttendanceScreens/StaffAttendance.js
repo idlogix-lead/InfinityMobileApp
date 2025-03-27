@@ -56,6 +56,8 @@ const StaffAttendance = () => {
 
     const page_size = 100;
 
+    console.log(applyFilters,'applyFiltersAllFilter')
+
     {/* For Processed data*/ }
     const getProcessedAttandance = async () => {
         if (!hasMorePages || isLoadingMore) return;
@@ -231,6 +233,7 @@ const StaffAttendance = () => {
                         }
                     })
                 setDepartmentSuggestions(response.data.records);
+                console.log(response.data.records,'DepartmentSearchQuery')
                 applyFilters();
             } catch (error) {
                 console.log('Error', error)
@@ -266,6 +269,7 @@ const StaffAttendance = () => {
                 },
             });
             setSubDepartmentSuggestions(response.data.records);
+            console.log(response.data.records,'SubDepartmentSearchQuery')
             applyFilters();
         } catch (error) {
             console.log('Error fetching subdepartments:', error);
@@ -398,6 +402,7 @@ const StaffAttendance = () => {
                                     <TouchableOpacity
                                         style={styles.FindButton}
                                         onPress={() => applyFilters(searchQuery, searchDepartment, searchSubDepartment, selectedStartDate, selectedEndDate)}
+                                        // onPress={() => applyFilters( selectedStartDate, selectedEndDate)}
                                     >
                                         <Text style={styles.FindButtonText}>Find</Text>
                                     </TouchableOpacity>

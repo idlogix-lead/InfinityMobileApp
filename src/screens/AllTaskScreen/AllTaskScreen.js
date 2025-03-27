@@ -93,7 +93,6 @@ const AllTaskScreen = () => {
             getAPIData();
             return;
         }
-
         setIsLoading(true);
 
         const token = await AsyncStorage.getItem('token');
