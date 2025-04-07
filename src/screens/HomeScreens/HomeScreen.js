@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, Dimensions, BackHandler, ActivityIndicator, PermissionsAndroid, TouchableOpacity, Alert, StatusBar, Image, ImageBackground } from 'react-native'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import TopHeader from '../../components/HomeScreenComponents/TopHeader'
 import NameContainer from '../../components/HomeScreenComponents/NameContainer'
 import HomeCard from '../../components/HomeScreenComponents/HomeCard'
@@ -10,17 +10,22 @@ import Geolocation from 'react-native-geolocation-service';
 import axios from 'axios'
 import moment from 'moment'
 import TopNavigationATS from '../../navigation/TopNavigation/TopNavigationATS'
-
-
+import NotificationSrn from '../NotificationSrn/NotificationSrn'
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native'
 
 
 const currentDate = new Date();
+
+  
+
+
 const options = { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' };
 const formattedDate = currentDate.toLocaleDateString('en-US', options);
 
 
 const HomeScreen = ({ navigation, route }) => {
-  const { tokenOk, token, roleId } = route.params
+  
+ const { tokenOk, token, roleId } = route.params
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false);
   const [approvalNum, setApprovalNum] = useState()
@@ -34,6 +39,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [partnerId, setPartnerId] = useState(null);
   const [years, setYears] = useState([]);
   const [Status, setStatus] = useState(null)
+  const [notificationCount, setNotificationCount] = useState()
 
 
 
@@ -92,6 +98,55 @@ const HomeScreen = ({ navigation, route }) => {
   //   }, [])
 
 
+
+
+
+// Notification Un-Read API Calling
+
+
+const notificationAllDataGet = async () => {  
+  const token = await AsyncStorage.getItem('token');
+  const protocol = await AsyncStorage.getItem('protocol');
+  const host = await AsyncStorage.getItem('host');
+  const port = await AsyncStorage.getItem('port');
+  const userId = await AsyncStorage.getItem("userId");
+  const organizationId = await AsyncStorage.getItem('organizationId');
+  console.log(organizationId,'organizationId')
+
+  try {
+      setIsLoading(true);
+      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${userId}`;
+      // const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${userId} and AD_Org_ID eq ${organizationId}`;
+      // console.log(URL, 'URLForNotification');
+
+      const response = await axios.get(URL, {
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token.trim()}` : '',
+          },
+      });
+
+      const sortedData = response?.data?.records?.sort((a, b) => new Date(b.Created) - new Date(a.Created));
+      // console.log(sortedData, 'NotificationHomeSrn');
+      
+
+      // Count unprocessed notifications (Processed: false)
+      const unprocessedCount = sortedData?.filter(item => item.Processed === false).length;
+      setNotificationCount(unprocessedCount)
+      console.log(unprocessedCount, 'Unprocessed Notification Count');
+ 
+      // setNotificationData(sortedData);
+      // setUnprocessedNotificationCount(unprocessedCount); // Uncomment if using state
+  } catch (error) {
+      console.log(error, 'NotificationAPIGETAllData');
+  } finally {
+      setIsLoading(false);
+  }
+};
+
+
+
+
   const getName = async () => {
     const value = await AsyncStorage.getItem('userName');
     const protocol = await AsyncStorage.getItem('protocol')
@@ -99,7 +154,7 @@ const HomeScreen = ({ navigation, route }) => {
     const host = await AsyncStorage.getItem('host')
     const port = await AsyncStorage.getItem('port')
     const userId = await AsyncStorage.getItem('userId')
-    console.log(userId,'userIDForo1289ey8723t6r8')
+    console.log(userId, 'userIDForo1289ey8723t6r8')
     setProtocol(protocol)
     setHost(host)
     setPort(port)
@@ -512,7 +567,7 @@ const HomeScreen = ({ navigation, route }) => {
       setIsLoading(false);
     }
   };
-  
+
 
   useEffect(() => {
     if (partnerId) {
@@ -546,6 +601,20 @@ const HomeScreen = ({ navigation, route }) => {
     };
   }, [navigation])
 
+  // Notification ALI Calling UseEffect
+  useEffect(()=>{
+    notificationAllDataGet()
+  },[])  
+  
+  const isFocused = useIsFocused();
+
+  useEffect(() => {
+    if (isFocused) {
+      console.log('pressedMe')
+      notificationAllDataGet(); // Call the function when the screen is focused
+    }
+  }, [isFocused]);
+
   return (
     <>
       {isLoading && (
@@ -558,59 +627,59 @@ const HomeScreen = ({ navigation, route }) => {
           <StatusBar translucent={true} backgroundColor="transparent" />
 
           <View style={styles.headerView}>
-            <ImageBackground 
-            source={require('../../asserts/HomeScreenAssets/HeaderImage/Group474.png')}  
-              style={{width:"100%", height:"110%" }}>
-            
-            <View style={{ width: '100%', marginTop: 30 }}>
-              <View style={{ flexDirection: 'row', width: '100%' }}>
-                <View style={{ width: '20%' }}></View>
-                <View style={{ width: '70%', marginTop:"4%",}}>
-                  {/* <Text style={{ textAlign: 'center', fontSize: 36, color: 'white', fontFamily: 'K2D-BoldItalic' }}>Infinity</Text> */}
+            <ImageBackground
+              source={require('../../asserts/HomeScreenAssets/HeaderImage/Group474.png')}
+              style={{ width: "100%", height: "110%" }}>
 
-                  <Image
-                  source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
-                  style={{width:76, height:70, alignSelf:"center"}}b         
-                  />
-                </View>
-                <View style={{ width: '20%', flexDirection: 'row', alignItems: "center", justifyContent: 'center' }}>
-                </View>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row' }} >
-              <View style={styles.titleContainer}>
+              <View style={{ width: '100%', marginTop: 30 }}>
                 <View style={{ flexDirection: 'row', width: '100%' }}>
-                  <Text style={styles.title}>Hello, {name}</Text>
+                  <View style={{ width: '20%' }}></View>
+                  <View style={{ width: '70%', marginTop: "4%", }}>
+                    {/* <Text style={{ textAlign: 'center', fontSize: 36, color: 'white', fontFamily: 'K2D-BoldItalic' }}>Infinity</Text> */}
 
-                </View>
-                <View style={{ flexDirection: 'row', width: '100%' }}>
-                  <Text style={styles.dateTitle}>{formattedDate}</Text>
-                  <View style={styles.markBtn}>
-                    {checkinout ? (
-                      <TouchableOpacity onPress={() => { requestLocationPermission("IN") }} style={[{backgroundColor: '#00B0F0'}, styles.markBtn2]}>
-                        <Entypo name="login" size={15} color="#fff" />
-                        <Text style={{ color: '#fff', fontSize: 12 }}>Check In</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <TouchableOpacity onPress={() => { requestLocationPermission("OUT") }} style={[{ backgroundColor:"#DCDADA", }, styles.markBtn2]}>
-                        <Entypo name="log-out" size={15}
-                         color="black" 
-                        //  color="#fff" 
-                         />
-                        <Text style={{ color: 'black', fontSize: 12 }}>Check Out</Text>
-                      </TouchableOpacity>
-                    )}
+                    <Image
+                      source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
+                      style={{ width: 76, height: 70, alignSelf: "center" }} b
+                    />
+                  </View>
+                  <View style={{ width: '20%', flexDirection: 'row', alignItems: "center", justifyContent: 'center' }}>
                   </View>
                 </View>
-
               </View>
-            </View>
+              <View style={{ flexDirection: 'row' }} >
+                <View style={styles.titleContainer}>
+                  <View style={{ flexDirection: 'row', width: '100%' }}>
+                    <Text style={styles.title}>Hello, {name}</Text>
+
+                  </View>
+                  <View style={{ flexDirection: 'row', width: '100%' }}>
+                    <Text style={styles.dateTitle}>{formattedDate}</Text>
+                    <View style={styles.markBtn}>
+                      {checkinout ? (
+                        <TouchableOpacity onPress={() => { requestLocationPermission("IN") }} style={[{ backgroundColor: '#00B0F0' }, styles.markBtn2]}>
+                          <Entypo name="login" size={15} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12 }}>Check In</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity onPress={() => { requestLocationPermission("OUT") }} style={[{ backgroundColor: "#DCDADA", }, styles.markBtn2]}>
+                          <Entypo name="log-out" size={15}
+                            color="black"
+                          //  color="#fff" 
+                          />
+                          <Text style={{ color: 'black', fontSize: 12 }}>Check Out</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+
+                </View>
+              </View>
 
             </ImageBackground>
           </View>
 
-          
-          
+
+
           <View style={styles.CardContainer}>
             <View style={styles.Card}>
               <HomeCard
@@ -644,7 +713,7 @@ const HomeScreen = ({ navigation, route }) => {
                 iconColor="#b05546"
                 iconBackgroundColor="#eddbd8"
                 num={approvalNum}
-               clickHandler={() => Approval()}
+                clickHandler={() => Approval()}
               />
             </View>
             <View style={{ flexDirection: 'row', width: '85%', justifyContent: 'space-between', marginTop: 30 }}>
@@ -658,11 +727,25 @@ const HomeScreen = ({ navigation, route }) => {
                 clickHandler={() => navigation.navigate('TopNavigationATS', { token })}
               />
 
-              <HomeCard
+              {/* <HomeCard
                 iconName="bell-circle-outline"
+                // txt="ATS"
                 txt="Notification"
                 iconColor="#ded731"
-                iconBackgroundColor="#f5f4da"
+                 iconBackgroundColor="#f5f4da"
+                 num={notificationCount}
+                // num={reqNum}
+                // clickHandler={() => navigation.navigate('TopNavigationATS', { token })}
+                onPress={()=>navigation.navigate('NotificationSrn')}
+              /> */}
+              <HomeNotifyCard
+                iconName="bell-circle-outline"
+                // txt="ATS"
+                txt="Notification"
+                iconColor="#ded731"
+                 iconBackgroundColor="#f5f4da"
+                 num={notificationCount}
+                clickHandler={()=>navigation.navigate('NotificationSrn')}
               />
             </View>
             {/* <TouchableOpacity>
@@ -674,7 +757,7 @@ const HomeScreen = ({ navigation, route }) => {
             </TouchableOpacity> */}
           </View>
 
-          
+
 
 
         </View>

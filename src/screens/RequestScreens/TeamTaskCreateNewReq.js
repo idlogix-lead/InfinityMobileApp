@@ -268,11 +268,11 @@ const TeamTaskCreateNewReq = ({ navigation }) => {
         //   "model-name": "ad_user"
         // })),
 
-        "Collaborators": selectedCollaborators.map(collab => ({
-          "id": collab.id,
-          "identifier": collab.name,
-          "model-name": "ad_user"
-        })),
+        // "Collaborators": selectedCollaborators.map(collab => ({
+        //   "id": collab.id,
+        //   "identifier": collab.name,
+        //   "model-name": "ad_user"
+        // })),
 
         "StartDate": moment(startDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
         "Summary": summary,

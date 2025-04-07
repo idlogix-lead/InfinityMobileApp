@@ -55,13 +55,6 @@ const AllTaskScreen = () => {
 
     const [filteredDataAPI, setFilteredDataAPI] = useState([]);
 
-    // const statuses = [
-    //     { id: "open", label: "Open", color: "#FFA500" },
-    //     { id: "waiting", label: "Waiting", color: "#FFD700" },
-    //     { id: "close", label: "Close", color: "#FF0000" },
-    //     { id: "complete", label: "Complete", color: "#008000" },
-    // ];
-
     const statuses = [
         { id: "open", label: "Open", color: "#3498db" },      // Blue
         { id: "waiting", label: "Waiting", color: "#f39c12" }, // Orange
@@ -74,16 +67,6 @@ const AllTaskScreen = () => {
         "Closed": "#e74c3c", // Red
         "Final Close": "#2ecc71" // Green
     };
-    
-
-    // status color change throught data API GET
-    // const statusColors = {
-    //     "Open": "#FFA500",
-    //     "Waiting on Customers/Others": "#FFD700",
-    //     "Closed": "#FF0000",
-    //     "Final Close": "#008000"
-    // };
-
     
 
     // ALL APIs Calling  one Call

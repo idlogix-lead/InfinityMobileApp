@@ -46,6 +46,7 @@ import TopNavigationATS from './TopNavigation/TopNavigationATS';
 import ShowMyTask from '../screens/AllTaskScreen/ShowMyTask';
 import ShowTeamTask from '../screens/AllTaskScreen/ShowTeamTask';
 import TeamTaskCreateNewReq from '../screens/RequestScreens/TeamTaskCreateNewReq';
+import NotificationSrn from '../screens/NotificationSrn/NotificationSrn';
 
 const Stack = createNativeStackNavigator();
 const Navigation = () => {
@@ -95,6 +96,7 @@ const Navigation = () => {
                     <Stack.Screen name="TopNavigationATS" component={TopNavigationATS} /> 
                     <Stack.Screen name="ShowMyTask" component={ShowMyTask} />
                     <Stack.Screen name="showMyTeamTask" component={ShowTeamTask} />
+                    <Stack.Screen name="NotificationSrn" component={NotificationSrn} />
                 </Stack.Navigator>
             </NavigationContainer>
     )

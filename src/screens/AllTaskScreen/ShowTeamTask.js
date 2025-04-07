@@ -31,6 +31,7 @@ const ShowTeamTask = () => {
     const [showAllTasks, setShowAllTasks] = useState(false);
     const [userId, setUserId] = useState(null);
     const [data, setData] = useState([])
+    // console.log(data,'AllTeamTaskSHOW')
     const [recordLengths, setRecordLengths] = useState([]);
     const [currMonth, setCurrMonth] = useState([])
     const [prevMonth, setPrevMonth] = useState([])
@@ -142,6 +143,8 @@ const ShowTeamTask = () => {
         const host = await AsyncStorage.getItem('host')
         const port = await AsyncStorage.getItem('port')
         const Id = await AsyncStorage.getItem("userId")
+        console.log(Id,'TeamTaskScreeen')
+
         setUserId(Id);
         let idArray = []
         const teamTaskURL = `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${Id}`;
@@ -163,7 +166,6 @@ const ShowTeamTask = () => {
                     new Date(b.Created) - new Date(a.Created)
                 );
                 setData(sortedData);
-                // console.log('Parsed Data:', JSON.stringify(data));
                 const uniqueNames = [...new Set(sortedData.map(item => item.user_name))];
                 setPickerData(uniqueNames);
 

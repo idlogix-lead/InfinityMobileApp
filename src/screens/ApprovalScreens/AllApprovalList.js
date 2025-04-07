@@ -22,6 +22,7 @@ const AllApprovalList = ({ navigation }) => {
     const bottomSheetRef = useRef();
 
     const [approvalItems, setApprovalItems] = useState([]);
+    // console.log(approvalItems,'123ApprovalItems')
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [documentFilter, setDocumentFilter] = useState('');
     const [noItemsMatch, setNoItemsMatch] = useState(false);
@@ -59,6 +60,7 @@ const AllApprovalList = ({ navigation }) => {
 
         });
     }
+
     const fetchApprovalItems = async () => {
         try {
             const protocol = await AsyncStorage.getItem('protocol');
@@ -68,6 +70,7 @@ const AllApprovalList = ({ navigation }) => {
             const token = await AsyncStorage.getItem('token');
 
             const response = await fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter=AD_Role_ID eq ${roleId}`, {
+            // const response = await fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter=AD_Role_ID eq ${'1000009'}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -77,8 +80,9 @@ const AllApprovalList = ({ navigation }) => {
             });
             if (response.ok) {
                 const data = await response.json();
-                // console.log(JSON.stringify(data), 'data')
-                // console.log(JSON.stringify(data.records.map(item => item.AD_Table_ID)), "CheckDAta")
+                // console.log(data?.records,'MainData')
+                // console.log(JSON.stringify(data), 'FectchFilterDATA')
+                // console.log(JSON.stringify(data.records.map(item => item.AD_Table_ID)), "FetchDatajidrSyAARhaHai")
                 setApprovalItems(data);
                 // console.log(approvalItems, "APPPROVAL ITMESS")
 
@@ -244,9 +248,11 @@ const AllApprovalList = ({ navigation }) => {
     }, [filteredItems, dumyArray]);
 
     const originalData = dumyArray;
+
+
     const applyDateFilter = () => {
-        console.log("Filtering with - selectedStartDate:", selectedStartDate);
-        console.log("Filtering with - selectedEndDate:", selectedEndDate);
+        console.log("Filtering with - selectedStartDateMM:", selectedStartDate);
+        console.log("Filtering with - selectedEndDateMM:", selectedEndDate);
 
         let dataToFilter = originalData;
 

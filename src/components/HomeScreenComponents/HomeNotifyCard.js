@@ -20,6 +20,10 @@ const HomeNotifyCard = ({ iconName, txt, num, clickHandler,iconColor, iconBackgr
                 <Text style={styles.text}>{txt}</Text>
             </View>
 
+
+
+
+
         </TouchableOpacity>
     )
 }

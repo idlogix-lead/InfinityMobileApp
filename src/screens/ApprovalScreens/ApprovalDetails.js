@@ -39,7 +39,7 @@ const ApprovalDetails = ({ route }) => {
             setModelName(mobelname);
 
             const URL = `${protocol}://${host}:${port}/api/v1/models/${mobelname}?$filter=${mobelname}_ID eq ${recordId}`
-            console.log(URL)
+            console.log(URL,'ApprovalDetailURL')
 
             const response = await axios.get(URL, {
                 headers: {
