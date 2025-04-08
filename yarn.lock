@@ -7073,6 +7073,11 @@ lru-cache@^6.0.0:
   dependencies:
     yallist "^4.0.0"
 
+lucide-react-native@>=0.475.0:
+  version "0.487.0"
+  resolved "https://registry.npmjs.org/lucide-react-native/-/lucide-react-native-0.487.0.tgz"
+  integrity sha512-A1GSuAZpIqludjUVcdsWJbrsFtxevZea432rMx2N1wnAh5ZY07MA4osrem/Wjc3gfJjK2oF8yvhMRlbq85VcQQ==
+
 make-dir@^2.0.0, make-dir@^2.1.0:
   version "2.1.0"
   resolved "https://registry.npmjs.org/make-dir/-/make-dir-2.1.0.tgz"
@@ -8710,6 +8715,13 @@ react-native-popup-menu@^0.16.1:
   resolved "https://registry.npmjs.org/react-native-popup-menu/-/react-native-popup-menu-0.16.1.tgz"
   integrity sha512-xRS7mRh0exwu7Iw8PPVHdM11d13A/KzYjy0/fZx3zVtxISxPkNaDGayau6oa7HqO3Nj0oS9ulFCYjcQfG6vahA==
 
+react-native-progress-steps@^2.0.3:
+  version "2.0.3"
+  resolved "https://registry.npmjs.org/react-native-progress-steps/-/react-native-progress-steps-2.0.3.tgz"
+  integrity sha512-N3JT9sQ/irEzS7RrYVNC86jHTgAXrQPDk2kHAHaz1JYv3wTCMLfbyQfDykp5y3cYqpbD3D1Ivc+1XOXhXwwvog==
+  dependencies:
+    lodash "^4.17.21"
+
 react-native-ratings@8.0.4:
   version "8.0.4"
   resolved "https://registry.npmjs.org/react-native-ratings/-/react-native-ratings-8.0.4.tgz"
@@ -8740,7 +8752,12 @@ react-native-size-matters@^0.3.1:
   resolved "https://registry.npmjs.org/react-native-size-matters/-/react-native-size-matters-0.3.1.tgz"
   integrity sha512-mKOfBLIBFBcs9br1rlZDvxD5+mAl8Gfr5CounwJtxI6Z82rGrMO+Kgl9EIg3RMVf3G855a85YVqHJL2f5EDRlw==
 
-react-native-svg@^13.9.0:
+react-native-step-indicator@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.npmjs.org/react-native-step-indicator/-/react-native-step-indicator-1.0.3.tgz"
+  integrity sha512-WwTb6lpJl0T7MV59sus1utoEQuqbuWHq6V0R0iDWmlPRFjM0qirhTNTS5on1+V9Qmc9dsUCT380/mRgDF+U6zw==
+
+"react-native-svg@^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0", react-native-svg@^13.9.0:
   version "13.9.0"
   resolved "https://registry.npmjs.org/react-native-svg/-/react-native-svg-13.9.0.tgz"
   integrity sha512-Ey18POH0dA0ob/QiwCBVrxIiwflhYuw0P0hBlOHeY4J5cdbs8ngdKHeWC/Kt9+ryP6fNoEQ1PUgPYw2Bs/rp5Q==
@@ -8814,7 +8831,7 @@ react-native-windows@*:
     whatwg-fetch "^3.0.0"
     ws "^6.2.2"
 
-react-native@*, "react-native@^0.0.0-0 || 0.60 - 0.71 || 1000.0.0", react-native@^0.71.0, "react-native@>= 0.30.0", "react-native@>= 0.64.3", react-native@>=0.42.0, react-native@>=0.47.1, react-native@>=0.57, react-native@>=0.60.0, react-native@>0.57.0, react-native@0.71.4:
+react-native@*, "react-native@^0.0.0-0 || 0.60 - 0.71 || 1000.0.0", react-native@^0.71.0, "react-native@>= 0.30.0", "react-native@>= 0.64.3", react-native@>=0.42.0, react-native@>=0.47.1, react-native@>=0.57, react-native@>=0.59.0, react-native@>=0.60.0, react-native@>0.57.0, react-native@0.71.4:
   version "0.71.4"
   resolved "https://registry.npmjs.org/react-native/-/react-native-0.71.4.tgz"
   integrity sha512-3hSYqvWrOdKhpV3HpEKp1/CkWx8Sr/N/miCrmUIAsVTSJUR7JW0VvIsrV9urDhUj/s6v2WF4n7qIEEJsmTCrPw==
@@ -8886,7 +8903,7 @@ react-test-renderer@18.2.0:
     react-shallow-renderer "^16.15.0"
     scheduler "^0.23.0"
 
-react@*, "react@^16.0.0 || ^17.0.0 || ^18.0.0", "react@^16.8.0 || ^17.0.0 || ^18.0.0", react@^18.2.0, "react@>= 15.2.1", "react@>= 17.0.1", react@>=16, react@>=16.3.0, react@>=17.0.0, react@>16.6.0, react@18.2.0:
+react@*, "react@^16.0.0 || ^17.0.0 || ^18.0.0", "react@^16.5.1 || ^17.0.0 || ^18.0.0", "react@^16.8.0 || ^17.0.0 || ^18.0.0", react@^18.2.0, "react@>= 15.2.1", "react@>= 17.0.1", react@>=16, react@>=16.3.0, react@>=16.8.0, react@>=17.0.0, react@>16.6.0, react@18.2.0:
   version "18.2.0"
   resolved "https://registry.npmjs.org/react/-/react-18.2.0.tgz"
   integrity sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==

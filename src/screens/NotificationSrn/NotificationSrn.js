@@ -572,7 +572,7 @@ const NotificationSrn = () => {
             setUnprocessedData(prevData => 
                 prevData.filter(item => item.id !== notificationId)
             );
-
+                        
         } catch (error) {
             console.log(error, 'Error updating single notification');
         }

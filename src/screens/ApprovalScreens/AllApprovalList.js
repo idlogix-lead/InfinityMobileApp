@@ -4,11 +4,12 @@ import {
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import MaterialIcons from 'react-native-vector-icons/dist/MaterialIcons';
+import AntDesign from 'react-native-vector-icons/dist/AntDesign';
 import RBSheet from "react-native-raw-bottom-sheet";
 import CalendarPicker from 'react-native-calendar-picker';
 import Toast from 'react-native-toast-message';
 import CustomHeader from '../../components/CustomHeader';
+import StepIndicator from 'react-native-step-indicator';
 
 
 const { width, height } = Dimensions.get('window')
@@ -41,6 +42,9 @@ const AllApprovalList = ({ navigation }) => {
     const [filteredItems, setFilteredItems] = useState([]);
     const [isRBVisible, setIsRBVisible] = useState(false);
 
+    const labels = ["Manager", "Director", "CEO"];
+    const currentPosition = 0;
+
     const openBottomSheet = () => {
         if (bottomSheetRef.current) {
             bottomSheetRef.current.open();
@@ -70,7 +74,7 @@ const AllApprovalList = ({ navigation }) => {
             const token = await AsyncStorage.getItem('token');
 
             const response = await fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter=AD_Role_ID eq ${roleId}`, {
-            // const response = await fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter=AD_Role_ID eq ${'1000009'}`, {
+                // const response = await fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter=AD_Role_ID eq ${'1000009'}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -323,7 +327,7 @@ const AllApprovalList = ({ navigation }) => {
                 </View>}
             {!isLoading &&
                 <View style={styles.mainContainer}>
-                    <CustomHeader title="All Approvals" />
+                    <CustomHeader title="All Approvals" RightIcon={'filter-variant'} />
                     <View style={{ flexDirection: 'row', marginTop: 10, backgroundColor: "white", width: '95%', alignSelf: 'center', borderRadius: 5, padding: 10 }}>
                         <View style={{ flexDirection: 'row' }}>
                             <Text style={{ color: 'black', fontWeight: 'bold', fontFamily: 'K2D-Regular' }}>Date:{" "}</Text>
@@ -335,46 +339,112 @@ const AllApprovalList = ({ navigation }) => {
                         </View>
                     </View>
                     {
-                        noItemsMatch ? <Text style={{ color: 'black', textAlign: 'center', marginTop: 20, fontSize: 22 }}>No Approval </Text> : <FlatList
-                            data={filteredItems.length > 0 ? filteredItems : dumyArray}
-                            // data={filteredItems}
-                            contentContainerStyle={{ paddingBottom: 100 }}
-                            keyExtractor={(item) => item.AD_WF_Activity_ID.id.toString()}
-                            renderItem={({ item }) => {
-                                // console.log("Item:", item); 
-                                return (
-                                <View style={styles.container}>
-                                    <View style={styles.item}>
-                                        <View style={styles.cardContent}>
-                                            <View style={styles.partyCon}>
-                                                <Text style={{ ...styles.headingTxt, color: 'black' }}>Party</Text>
-                                                <Text style={[styles.headingTxt, { marginTop: 5, paddingLeft: 5 }]}>{item.party_name ? item.party_name : 'None'}</Text>
-                                            </View>
-                                            <View style={styles.dateCon}>
-                                                <Text style={{ ...styles.headingTxt, color: 'black' }}>Amount</Text>
-                                                <Text style={[styles.headingTxt, { marginTop: 5 }]}>{item.TotalLines ? item.TotalLines : 'None'}</Text>
-                                                {/* <Text style={[styles.headingTxt,{marginTop:5}]}>{item?.record_id ? item?.record_id : 'None'}</Text> */}
-                                            </View>
-                                        </View>
-                                        <View >
-                                            <View style={styles.btnCon}>
-                                                <TouchableOpacity style={styles.authorized} onPress={() => auth(item, protocol, host, port, token)}>
-                                                    <Text style={styles.authorizedTxt}>Authorized</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity style={styles.reject} onPress={() => reject(item, protocol, host, port, token)}>
-                                                    <Text style={styles.rejectTxt}>Reject</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity style={styles.details} onPress={() => { navigation.navigate('ApprovalDetails',{tableId: item.AD_Table_ID.id,recordId:item.Record_ID}) }}>
-                                                    <Text style={[styles.headingTxt, { fontFamily: 'K2D-Bold' }]}>Details</Text>
+                        noItemsMatch ? <Text style={{ color: 'black', textAlign: 'center', marginTop: 20, fontSize: 22 }}>No Approval </Text>
+                            :
+                            <FlatList
+                                data={filteredItems.length > 0 ? filteredItems : dumyArray}
+                                // data={filteredItems}
+                                contentContainerStyle={{ paddingBottom: 100 }}
+                                keyExtractor={(item) => item.AD_WF_Activity_ID.id.toString()}
+                                renderItem={({ item }) => {
+                                    // console.log("Item:", item); 
+                                    return (
+                                        // <View style={styles.container}>
+                                        //     <View style={styles.item}>
+                                        //         <View style={styles.cardContent}>
+                                        //             <View style={styles.partyCon}>
+                                        //                 <Text style={{ ...styles.headingTxt, color: 'black' }}>Party</Text>
+                                        //                 <Text style={[styles.headingTxt, { marginTop: 5, paddingLeft: 5 }]}>{item.party_name ? item.party_name : 'None'}</Text>
+                                        //             </View>
+                                        //             <View style={styles.dateCon}>
+                                        //                 <Text style={{ ...styles.headingTxt, color: 'black' }}>Amount</Text>
+                                        //                 <Text style={[styles.headingTxt, { marginTop: 5 }]}>{item.TotalLines ? item.TotalLines : 'None'}</Text>
+                                        //                 {/* <Text style={[styles.headingTxt,{marginTop:5}]}>{item?.record_id ? item?.record_id : 'None'}</Text> */}
+                                        //             </View>
+                                        //         </View>
+                                        //         <View >
+                                        //             <View style={styles.btnCon}>
+                                        //                 <TouchableOpacity style={styles.authorized} onPress={() => auth(item, protocol, host, port, token)}>
+                                        //                     <Text style={styles.authorizedTxt}>Authorized</Text>
+                                        //                 </TouchableOpacity>
+                                        //                 <TouchableOpacity style={styles.reject} onPress={() => reject(item, protocol, host, port, token)}>
+                                        //                     <Text style={styles.rejectTxt}>Reject</Text>
+                                        //                 </TouchableOpacity>
+                                        //                 <TouchableOpacity style={styles.details} onPress={() => { navigation.navigate('ApprovalDetails', { tableId: item.AD_Table_ID.id, recordId: item.Record_ID }) }}>
+                                        //                     <Text style={[styles.headingTxt, { fontFamily: 'K2D-Bold' }]}>Details</Text>
 
-                                                    <MaterialIcons name='keyboard-arrow-right' size={24} color='#fff' />
-                                                </TouchableOpacity>
+                                        //                     <MaterialIcons name='keyboard-arrow-right' size={24} color='#fff' />
+                                        //                 </TouchableOpacity>
+                                        //             </View>
+                                        //         </View>
+                                        //     </View>
+                                        // </View>
+
+                                        // new Card for designing
+                                        <View style={styles.card}>
+                                            {/* Header Row */}
+                                            <View style={styles.headerRow}>
+                                                <Text style={styles.label}>Document Type:</Text>
+                                                <Text style={styles.value}>Purchase</Text>
                                             </View>
+
+                                            <View style={{backgroundColor:"red", padding:"3%"}}>
+                                            {/* Date & Amount */}
+                                            <View style={styles.row}>
+                                                <View style={styles.leftColumn}>
+                                                    <AntDesign name="calendar" size={16} color="#555" />
+                                                    <Text style={styles.dateText}> 24-06-2024</Text>
+                                                </View>
+                                                <Text style={styles.amount}>Amount: <Text style={styles.amountValue}>$4768666</Text></Text>
+                                            </View>
+
+                                            {/* Party & Created By */}
+                                            <View style={styles.row}>
+                                                <Text style={styles.value}>Party: Rizwan Anwer</Text>
+                                                <Text style={styles.value}>Created By: Zubair</Text>
+                                            </View>
+
+                                            {/* Approval Section */}
+                                            <Text style={styles.label}>Approval :</Text>
+
+                                            <View style={styles.containerProgress}>
+                                                <StepIndicator
+                                                    stepCount={3}
+                                                    labels={labels}
+                                                    currentPosition={currentPosition}
+                                                    customStyles={{
+                                                        stepIndicatorSize: 14, // Match your small size
+                                                        currentStepIndicatorSize: 16, // Slightly larger for current step
+                                                        separatorStrokeWidth: 2, // Thinner progress bar
+                                                        stepStrokeWidth: 0, // Remove circle borders
+                                                        stepStrokeCurrentColor: '#007AFF',
+                                                        stepStrokeFinishedColor: '#007AFF',
+                                                        stepStrokeUnFinishedColor: '#e0e0e0',
+                                                        separatorFinishedColor: '#007AFF',
+                                                        separatorUnFinishedColor: '#e0e0e0',
+                                                        stepIndicatorFinishedColor: '#007AFF',
+                                                        stepIndicatorUnFinishedColor: '#e0e0e0',
+                                                        stepIndicatorCurrentColor: '#007AFF',
+                                                        stepIndicatorLabelFontSize: 0, // Hide numbers
+                                                        labelSize: 10, // Match your small labels
+                                                        labelColor: '#999',
+                                                        currentStepLabelColor: '#007AFF'
+                                                    }}
+                                                />
+                                            </View>
+                                            </View>
+
+
+                                            {/* Description */}
+                                            <Text style={styles.label}>Description:</Text>
+                                            <Text style={styles.description}>
+                                                It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout.
+                                            </Text>
                                         </View>
-                                    </View>
-                                </View>
-                            )}}
-                        />
+
+                                    )
+                                }}
+                            />
                     }
 
 
@@ -440,6 +510,7 @@ const AllApprovalList = ({ navigation }) => {
 
                     </RBSheet>
                     <Toast />
+
                 </View>
             }
         </>
@@ -624,13 +695,83 @@ const styles = StyleSheet.create({
         marginTop: 16,
         alignSelf: 'center',
         marginBottom: 20
-
-
     },
     buttonText: {
         color: 'white',
         fontWeight: 'bold',
     },
+
+
+    // New Card for Designing 
+
+    card: {
+        backgroundColor: '#f6f6f6',
+        padding: 16,
+        // margin: 16,
+        // borderRadius: 10,
+        elevation: 3,
+        marginBottom: "2%",
+        marginTop: "2%"
+    },
+    headerRow: {
+        flexDirection: 'row',
+        marginBottom: 8,
+    },
+    row: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginVertical: 6,
+    },
+    leftColumn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    label: {
+        fontWeight: 'bold',
+        color: '#888',
+    },
+    value: {
+        marginLeft: 6,
+        color: '#333',
+    },
+    dateText: {
+        color: '#333',
+    },
+    amount: {
+        color: '#333',
+    },
+    amountValue: {
+        color: '#007AFF',
+        fontWeight: 'bold',
+    },
+    approvalContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginVertical: 12,
+    },
+    approvalItem: {
+        alignItems: 'center',
+    },
+    approvalText: {
+        fontSize: 12,
+        color: '#333',
+        marginTop: 4,
+    },
+    circle: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+    },
+    description: {
+        marginTop: 6,
+        color: '#555',
+        fontSize: 13,
+    },
+    containerProgress: {
+        paddingVertical: 8,
+        paddingHorizontal: 16 // Add horizontal padding for better alignment
+      }
 });
 
 export default AllApprovalList;
