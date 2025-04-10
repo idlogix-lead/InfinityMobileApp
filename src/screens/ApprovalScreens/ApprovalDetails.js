@@ -39,7 +39,7 @@ const ApprovalDetails = ({ route }) => {
             setModelName(mobelname);
 
             const URL = `${protocol}://${host}:${port}/api/v1/models/${mobelname}?$filter=${mobelname}_ID eq ${recordId}`
-            console.log(URL,'ApprovalDetailURL')
+            console.log(URL, 'ApprovalDetailURL')
 
             const response = await axios.get(URL, {
                 headers: {
@@ -84,20 +84,15 @@ const ApprovalDetails = ({ route }) => {
 
             {modelName === 'C_payment' && (
                 <View style={styles.TopBorderStyle}>
+
                     <Text style={styles.TitleTxt}>{paymentDetails[0]?.C_DocType_ID?.identifier}</Text>
-                    <View style={styles.InsideView}>
+                    {/* <View style={[styles.InsideView,{<borderColor:"black",}]}> */}
+                    <View style={{borderColor:"black", borderWidth:0.5, borderRadius:10, padding:3, backgroundColor:"#fff" }}>
+                    <View style={[styles.InsideView,{}]}>
                         <Text style={styles.HeadTxt}>Business Partner: </Text>
-                        <Text style={[styles.TopTxt, { fontFamily: 'K2D-Bold' }]}>{paymentDetails[0]?.C_BPartner_ID.identifier}</Text>
+                        <Text style={[styles.TopTxt, { fontFamily: 'K2D-Bold',  }]}>{paymentDetails[0]?.C_BPartner_ID.identifier}</Text>
                     </View>
-                    {/* <View style={styles.InsideView}>
-                        <Text style={styles.HeadTxt}>Client Name: </Text>
-                        <Text style={styles.TopTxt}>{paymentDetails[0]?.AD_Client_ID?.identifier}</Text>
-                    </View>
-                    <View style={styles.InsideView}>
-                        <Text style={styles.HeadTxt}>Organization Name: </Text>
-                        <Text style={styles.TopTxt}>{paymentDetails[0]?.AD_Org_ID?.identifier}</Text>
-                    </View> */}
-                    <View style={{ flexDirection: 'row'}}>
+                    <View style={{ flexDirection: 'row' }}>
                         <View style={styles.TopLeftBorder}>
                             <View style={styles.InsideView}>
                                 <Text style={styles.HeadTxt}>DocNo#: </Text>
@@ -105,28 +100,31 @@ const ApprovalDetails = ({ route }) => {
                             </View>
                         </View>
                         <View style={styles.TopLeftBorder}>
-                            <View style={styles.InsideView}>
+                            <View style={[styles.InsideView,{justifyContent:"flex-end"}]}>
                                 <Text style={styles.HeadTxt}>Date: </Text>
-                                <Text style={styles.TopTxt}>{paymentDetails[0]?.DateTrx}</Text>
+                                <Text style={[styles.TopTxt,{color:"#2F4FE3"}]}>{paymentDetails[0]?.DateTrx}</Text>
                             </View>
                         </View>
                     </View>
+                 </View>
+                    {/* </View> */}
+
                 </View>
             )}
             {modelName === 'GL_Journal' && (
                 <View style={styles.TopBorderStyle}>
                     <Text style={styles.TitleTxt}>{paymentDetails[0]?.C_DocType_ID?.identifier}</Text>
                     <View style={{ flexDirection: 'row' }}>
-                    <View style={[styles.InsideView,{width:'48%'}]}>
-                        <Text style={styles.HeadTxt}>Control Amt: </Text>
-                        <Text style={styles.TopTxt}>{paymentDetails[0]?.ControlAmt}</Text>
-                    </View>
-                        <View style={[styles.InsideView,{width:'48%'}]}>
+                        <View style={[styles.InsideView, { width: '48%' }]}>
+                            <Text style={styles.HeadTxt}>Control Amt: </Text>
+                            <Text style={styles.TopTxt}>{paymentDetails[0]?.ControlAmt}</Text>
+                        </View>
+                        <View style={[styles.InsideView, { width: '48%' }]}>
                             <Text style={styles.HeadTxt}>Date: </Text>
                             <Text style={styles.TopTxt}>{paymentDetails[0]?.DateAcct}</Text>
                         </View>
                     </View>
-                    
+
                     <View style={styles.InsideView}>
                         <Text style={styles.HeadTxt}>Category: </Text>
                         <Text style={styles.TopTxt}>{paymentDetails[0]?.GL_Category_ID?.identifier}</Text>
@@ -192,14 +190,14 @@ const ApprovalDetails = ({ route }) => {
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={({ item }) => {
                         return (
-                            <View style={styles.CardView}>
+                            <View style={[styles.CardView,{borderColor:"black", borderRadius:10, borderWidth:0.5}]}>
                                 <View style={styles.InsideView}>
                                     <Text style={styles.HeadTxt}>Payment Amount: </Text>
                                     <Text style={styles.TopTxt}>{item?.PayAmt}</Text>
                                 </View>
                                 <View style={styles.InsideView}>
                                     <Text style={styles.HeadTxt}>BankAccount: </Text>
-                                    <Text style={styles.TopTxt}>{item?.C_BankAccount_ID?.identifier}</Text>
+                                    <Text style={[styles.TopTxt,{width:"77%"}]}>{item?.C_BankAccount_ID?.identifier}</Text>
                                 </View>
                                 <View style={styles.InsideView}>
                                     <Text style={styles.HeadTxt}>Description: </Text>
@@ -257,11 +255,11 @@ const ApprovalDetails = ({ route }) => {
                             <View style={styles.CardView}>
                                 <Text style={styles.ItemName}>{item.M_Product_ID?.identifier || item.C_Charge_ID?.identifier || ''}</Text>
                                 <View style={{ flexDirection: 'row', marginLeft: 10, width: '97%' }}>
-                                    <Text style={[styles.HeadTxt,{width:'30%'}]}>Business Partner: </Text>
+                                    <Text style={[styles.HeadTxt, { width: '30%' }]}>Business Partner: </Text>
                                     <Text style={[styles.TopTxt, { width: '62%' }]}>{item.C_BPartner_ID?.identifier}</Text>
                                 </View>
                                 <View style={{ flexDirection: 'row', marginLeft: 10, width: '97%' }}>
-                                    <Text style={[styles.HeadTxt,{width:'30%'}]}>Account Name: </Text>
+                                    <Text style={[styles.HeadTxt, { width: '30%' }]}>Account Name: </Text>
                                     <Text style={[styles.TopTxt, { width: '62%' }]}>{item.Account_ID?.identifier}</Text>
                                 </View>
                                 <View style={styles.BottomView}>
@@ -343,8 +341,9 @@ const styles = StyleSheet.create({
     },
     HeadTxt: {
         fontFamily: 'K2D-Regular',
-        color: '#0050C0',
-        fontSize: 16,
+        // color: '#0050C0',
+        color: '#403F3F',
+        fontSize: 14,
     },
     CardView: {
         marginTop: 15,
@@ -360,11 +359,15 @@ const styles = StyleSheet.create({
     TopTxt: {
         color: '#000',
         fontFamily: 'K2D-Regular',
-        fontSize: 16
+        fontSize: 12,
+        paddingLeft:5,
+        fontWeight:"700"
+
     },
     InsideView: {
         flexDirection: 'row',
-        alignItems: 'center'
+        alignItems: 'center',
+
     },
     ItemName: {
         color: '#000',
@@ -381,6 +384,6 @@ const styles = StyleSheet.create({
         color: '#000',
         fontFamily: 'K2D-Bold',
         fontSize: 22,
-        textAlign: 'center',
+        // textAlign: 'center',
     },
 })

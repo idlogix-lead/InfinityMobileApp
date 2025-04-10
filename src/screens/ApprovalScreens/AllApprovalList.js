@@ -34,6 +34,7 @@ const AllApprovalList = ({ navigation }) => {
     const [filterButtonPressed, setFilterButtonPressed] = useState(false);
 
     const [dumyArray, setDumyArray] = useState([]);
+    console.log(dumyArray, 'dumyArray')
     const [isLoading, setIsLoading] = useState(false);
     const [protocol, setProtocol] = useState()
     const [host, setHost] = useState()
@@ -358,7 +359,7 @@ const AllApprovalList = ({ navigation }) => {
                                         //             </View>
                                         //             <View style={styles.dateCon}>
                                         //                 <Text style={{ ...styles.headingTxt, color: 'black' }}>Amount</Text>
-                                        //                 <Text style={[styles.headingTxt, { marginTop: 5 }]}>{item.TotalLines ? item.TotalLines : 'None'}</Text>
+                                        //                 <Text style={[styles.headingTxt, { marginTop: 5 }]}>c</Text>
                                         //                 {/* <Text style={[styles.headingTxt,{marginTop:5}]}>{item?.record_id ? item?.record_id : 'None'}</Text> */}
                                         //             </View>
                                         //         </View>
@@ -388,50 +389,58 @@ const AllApprovalList = ({ navigation }) => {
                                                 <Text style={styles.value}>Purchase</Text>
                                             </View>
 
-                                            <View style={{backgroundColor:"red", padding:"3%"}}>
-                                            {/* Date & Amount */}
-                                            <View style={styles.row}>
-                                                <View style={styles.leftColumn}>
-                                                    <AntDesign name="calendar" size={16} color="#555" />
-                                                    <Text style={styles.dateText}> 24-06-2024</Text>
+                                            <View style={{ backgroundColor: "#F7F7F7", paddingHorizontal: "3%", }}>
+                                                {/* Date & Amount */}
+                                                <View style={styles.row}>
+                                                    <View style={styles.leftColumn}>
+                                                        <AntDesign name="calendar" size={16} color="#002E62" />
+                                                        {/* <Text style={styles.dateText}> {  item.docdate ? item.docdate : 'None'}</Text> */}
+                                                        <Text style={[styles.dateText,{paddingLeft:"2%"}]}>
+                                                            {item.docdate ? new Date(item.docdate).toISOString().split('T')[0] : 'None'}
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={styles.amount}>Amount: <Text style={styles.amountValue}>${item.TotalLines ? item.TotalLines : 'None'}</Text></Text>
                                                 </View>
-                                                <Text style={styles.amount}>Amount: <Text style={styles.amountValue}>$4768666</Text></Text>
-                                            </View>
 
-                                            {/* Party & Created By */}
-                                            <View style={styles.row}>
-                                                <Text style={styles.value}>Party: Rizwan Anwer</Text>
-                                                <Text style={styles.value}>Created By: Zubair</Text>
-                                            </View>
+                                                {/* Party & Created By */}
+                                                <View style={styles.row}>
+                                                    {/* <Text style={styles.value}>Party: Rizwan Anwer</Text> */}
+                                                    <View style={{ width: "60%" }}>
+                                                        <Text style={styles.amount}>Party: <Text style={[styles.value]}>{item.party_name ? item.party_name : 'None'}</Text></Text>
+                                                    </View>
+                                                    {/* <Text style={styles.value}>Created By: Zubair</Text> */}
 
-                                            {/* Approval Section */}
-                                            <Text style={styles.label}>Approval :</Text>
+                                                    <Text style={styles.amount}>Created By: <Text style={styles.value}>Zubair </Text></Text>
+                                                </View>
 
-                                            <View style={styles.containerProgress}>
-                                                <StepIndicator
-                                                    stepCount={3}
-                                                    labels={labels}
-                                                    currentPosition={currentPosition}
-                                                    customStyles={{
-                                                        stepIndicatorSize: 14, // Match your small size
-                                                        currentStepIndicatorSize: 16, // Slightly larger for current step
-                                                        separatorStrokeWidth: 2, // Thinner progress bar
-                                                        stepStrokeWidth: 0, // Remove circle borders
-                                                        stepStrokeCurrentColor: '#007AFF',
-                                                        stepStrokeFinishedColor: '#007AFF',
-                                                        stepStrokeUnFinishedColor: '#e0e0e0',
-                                                        separatorFinishedColor: '#007AFF',
-                                                        separatorUnFinishedColor: '#e0e0e0',
-                                                        stepIndicatorFinishedColor: '#007AFF',
-                                                        stepIndicatorUnFinishedColor: '#e0e0e0',
-                                                        stepIndicatorCurrentColor: '#007AFF',
-                                                        stepIndicatorLabelFontSize: 0, // Hide numbers
-                                                        labelSize: 10, // Match your small labels
-                                                        labelColor: '#999',
-                                                        currentStepLabelColor: '#007AFF'
-                                                    }}
-                                                />
-                                            </View>
+                                                {/* Approval Section */}
+                                                <Text style={styles.amountValue}>Approval :</Text>
+
+                                                <View style={styles.containerProgress}>
+                                                    <StepIndicator
+                                                        stepCount={3}
+                                                        labels={labels}
+                                                        currentPosition={currentPosition}
+                                                        customStyles={{
+                                                            stepIndicatorSize: 14, // Match your small size
+                                                            currentStepIndicatorSize: 16, // Slightly larger for current step
+                                                            separatorStrokeWidth: 2, // Thinner progress bar
+                                                            stepStrokeWidth: 0, // Remove circle borders
+                                                            stepStrokeCurrentColor: '#007AFF',
+                                                            stepStrokeFinishedColor: '#007AFF',
+                                                            stepStrokeUnFinishedColor: '#e0e0e0',
+                                                            separatorFinishedColor: '#007AFF',
+                                                            separatorUnFinishedColor: '#e0e0e0',
+                                                            stepIndicatorFinishedColor: '#007AFF',
+                                                            stepIndicatorUnFinishedColor: '#e0e0e0',
+                                                            stepIndicatorCurrentColor: '#007AFF',
+                                                            stepIndicatorLabelFontSize: 0, // Hide numbers
+                                                            labelSize: 10, // Match your small labels
+                                                            labelColor: '#999',
+                                                            currentStepLabelColor: '#007AFF'
+                                                        }}
+                                                    />
+                                                </View>
                                             </View>
 
 
@@ -440,6 +449,17 @@ const AllApprovalList = ({ navigation }) => {
                                             <Text style={styles.description}>
                                                 It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout.
                                             </Text>
+                                            <View style={{ justifyContent: "flex-end", alignItems: "flex-end", flexDirection: "row" }} >
+                                                {/* Action Button */}
+                                                <TouchableOpacity style={styles.actionButton}>
+                                                    <Text style={styles.actionText}>Action</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity style={styles.circleButton} onPress={() => { navigation.navigate('ApprovalDetails', { tableId: item.AD_Table_ID.id, recordId: item.Record_ID }) }}>
+                                                    <AntDesign name="arrowright" size={20} color="#fff" />
+                                                </TouchableOpacity>
+
+                                            </View>
+
                                         </View>
 
                                     )
@@ -705,12 +725,13 @@ const styles = StyleSheet.create({
     // New Card for Designing 
 
     card: {
-        backgroundColor: '#f6f6f6',
-        padding: 16,
+        // backgroundColor: '#f6f6f6', 
+        backgroundColor: '#FEFFFF',
+        padding: 10,
         // margin: 16,
         // borderRadius: 10,
         elevation: 3,
-        marginBottom: "2%",
+        marginBottom: "1%",
         marginTop: "2%"
     },
     headerRow: {
@@ -729,21 +750,31 @@ const styles = StyleSheet.create({
     },
     label: {
         fontWeight: 'bold',
-        color: '#888',
+        // color: '#888',
+        color: "#002E62"
+
     },
     value: {
         marginLeft: 6,
         color: '#333',
     },
     dateText: {
-        color: '#333',
+        // color: '#333',
+        color: '#002E62',
+        fontWeight: "500",
+
     },
     amount: {
-        color: '#333',
+        // color: '#333',
+        fontWeight: '400',
+        color: '#888',
+
     },
     amountValue: {
-        color: '#007AFF',
-        fontWeight: 'bold',
+        // color: '#007AFF',
+        color: '#002E62',
+        fontWeight: "500",
+
     },
     approvalContainer: {
         flexDirection: 'row',
@@ -771,7 +802,26 @@ const styles = StyleSheet.create({
     containerProgress: {
         paddingVertical: 8,
         paddingHorizontal: 16 // Add horizontal padding for better alignment
-      }
+    },
+    actionButton: {
+        backgroundColor: '#f2f2f2',
+        paddingVertical: 4,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        marginRight: 10,
+    },
+    actionText: {
+        fontSize: 16,
+        color: '#000',
+    },
+    circleButton: {
+        backgroundColor: '#3f51b5', // blue
+        width: 30,
+        height: 30,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 });
 
 export default AllApprovalList;
