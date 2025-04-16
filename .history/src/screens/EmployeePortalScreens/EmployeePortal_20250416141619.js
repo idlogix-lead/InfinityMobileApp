@@ -16,21 +16,19 @@ const EmployeePortal = ({navigation}) => {
           onPress={() => navigation.navigate('SalarySlip')}
           text="Salary Slip"
           image={require('../../asserts/EmployePortal/saleryslip.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={<Ionicons name="receipt-outline" size={25} color="#0050C0" />}
         />
         <PortalCards
           onPress={() => navigation.navigate('AttendenceStatus')}
           text="Attendence Status"
-          image={require('../../asserts/EmployePortal/attendenceStatus.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={<FontAwesome6 name="users" size={25} color="#0050C0" />}
         />
         <PortalCards
           onPress={() => navigation.navigate('StaffAttendance')}
           text="Staff Attendence"
-          image={require('../../asserts/EmployePortal/staffAttendence.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="list-status"
@@ -42,8 +40,7 @@ const EmployeePortal = ({navigation}) => {
         <PortalCards
           onPress={() => navigation.navigate('LeaveStatus')}
           text="Leave Status"
-          image={require('../../asserts/EmployePortal/leaveStatus.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="calendar-alert"
@@ -54,8 +51,7 @@ const EmployeePortal = ({navigation}) => {
         />
         <PortalCards
           text="Score Card"
-          image={require('../../asserts/EmployePortal/scoreCard.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="card-bulleted"
@@ -67,8 +63,7 @@ const EmployeePortal = ({navigation}) => {
         <PortalCards
           onPress={() => navigation.navigate('EmployeeProfileTopNavigation')}
           text="Profile"
-          image={require('../../asserts/EmployePortal/profile.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#000" />}
           // icon={<Ionicons name="person-sharp" size={25} color="#0050C0" />}
         />
       </View>

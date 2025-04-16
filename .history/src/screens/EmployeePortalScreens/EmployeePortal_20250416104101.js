@@ -1,4 +1,4 @@
-import {StyleSheet, Text, View, Image} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import React from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import PortalCards from '../../components/EmployeePortalComponents/PortalCards';
@@ -15,22 +15,19 @@ const EmployeePortal = ({navigation}) => {
         <PortalCards
           onPress={() => navigation.navigate('SalarySlip')}
           text="Salary Slip"
-          image={require('../../asserts/EmployePortal/saleryslip.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#0050C0" />}
           // icon={<Ionicons name="receipt-outline" size={25} color="#0050C0" />}
         />
         <PortalCards
           onPress={() => navigation.navigate('AttendenceStatus')}
           text="Attendence Status"
-          image={require('../../asserts/EmployePortal/attendenceStatus.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#0050C0" />}
           // icon={<FontAwesome6 name="users" size={25} color="#0050C0" />}
         />
         <PortalCards
           onPress={() => navigation.navigate('StaffAttendance')}
           text="Staff Attendence"
-          image={require('../../asserts/EmployePortal/staffAttendence.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#0050C0" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="list-status"
@@ -42,8 +39,7 @@ const EmployeePortal = ({navigation}) => {
         <PortalCards
           onPress={() => navigation.navigate('LeaveStatus')}
           text="Leave Status"
-          image={require('../../asserts/EmployePortal/leaveStatus.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#0050C0" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="calendar-alert"
@@ -54,8 +50,7 @@ const EmployeePortal = ({navigation}) => {
         />
         <PortalCards
           text="Score Card"
-          image={require('../../asserts/EmployePortal/scoreCard.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          icon={<AntDesign name="right" size={25} color="#0050C0" />}
           // icon={
           //   <MaterialCommunityIcons
           //     name="card-bulleted"
@@ -66,9 +61,8 @@ const EmployeePortal = ({navigation}) => {
         />
         <PortalCards
           onPress={() => navigation.navigate('EmployeeProfileTopNavigation')}
-          text="Profile"
-          image={require('../../asserts/EmployePortal/profile.png')}
-          icon={<AntDesign name="right" size={20} color="#000" />}
+          text="right"
+          icon={<AntDesign name="person-sharp" size={25} color="#0050C0" />}
           // icon={<Ionicons name="person-sharp" size={25} color="#0050C0" />}
         />
       </View>

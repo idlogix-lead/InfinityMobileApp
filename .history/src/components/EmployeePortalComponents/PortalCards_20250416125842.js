@@ -1,7 +1,7 @@
 import {StyleSheet, Text, View, TouchableOpacity, Image} from 'react-native';
 import React from 'react';
 
-const PortalCards = ({text, onPress, icon, image}) => {
+const PortalCards = ({text, onPress, icon, Image}) => {
   return (
     <TouchableOpacity onPress={onPress} style={styles.Container}>
       <View style={{flexDirection: 'row'}}>
@@ -9,7 +9,7 @@ const PortalCards = ({text, onPress, icon, image}) => {
           style={{
             height: 40,
             width: 40,
-            backgroundColor: '#fff',
+            // backgroundColor: '#d9d9d9',
             borderRadius: 20,
             marginLeft: 10,
             marginTop: 6,
@@ -17,10 +17,8 @@ const PortalCards = ({text, onPress, icon, image}) => {
             // shadowOpacity: 0.8,
             elevation: 11,
             shadowRadius: 2,
-            justifyContent: 'center',
           }}>
-          <Image source={image} style={{alignSelf: 'center'}} />
-          {/* <Image source={image} style /> */}
+          <Image source={Image} style={{height: 20, width: 20}} />
         </View>
         <Text style={styles.TextBox}>{text}</Text>
       </View>

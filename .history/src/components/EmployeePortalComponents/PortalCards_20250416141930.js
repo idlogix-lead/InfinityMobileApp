@@ -17,7 +17,6 @@ const PortalCards = ({text, onPress, icon, image}) => {
             // shadowOpacity: 0.8,
             elevation: 11,
             shadowRadius: 2,
-            justifyContent: 'center',
           }}>
           <Image source={image} style={{alignSelf: 'center'}} />
           {/* <Image source={image} style /> */}
