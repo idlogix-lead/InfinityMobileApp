@@ -101,14 +101,15 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 12,
-    color: '#A6A6A6',
+    color: '#777',
     fontWeight: '500',
     alignSelf: 'flex-end',
   },
   reference: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'red',
+    // color: '#333',
   },
   separator: {
     height: 1,
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: '#5b5a5a',
+    color: '#444',
     lineHeight: 22,
     fontWeight: '500',
   },

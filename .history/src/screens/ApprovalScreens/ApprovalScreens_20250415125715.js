@@ -12,10 +12,18 @@ import HomeNotifyCard from '../../components/HomeScreenComponents/HomeNotifyCard
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ApprovalScreens = ({route, navigation}) => {
-  const {filteredArrayAccount, filteredArraySupply, token, tokenOk, roleId} =
-    route.params;
+  const {
+    filteredArrayAccount = [],
+    filteredArraySupply = [],
+    token = '',
+    tokenOk = '',
+    roleId = '',
+  } = route.params || {};
   //   let financial = filteredArrayAccount.length;
   //   let supply = filteredArraySupply.length;
+  let financial = filteredArrayAccount.length;
+  let supply = filteredArraySupply.length;
+
   const [isLoading, setIsLoading] = useState(false);
   const [financialNum, setFinancialNum] = useState(0);
   const [supplyNum, setSupplyNum] = useState(0);
@@ -103,16 +111,38 @@ const ApprovalScreens = ({route, navigation}) => {
     return unsubscribe;
   };
 
+  //   useEffect(() => {
+  //     navigateBack();
+  //     const backAction = () => {
+  //       navigation.goBack();
+  //       return true;
+  //     };
+  //     const backHandler = BackHandler.addEventListener(
+  //       'hardwareBackPress',
+  //       backAction,
+  //     );
+  //     return () => backHandler.remove();
+  //   }, [navigation]);
+
   useEffect(() => {
+    if (!route?.params) {
+      console.warn('Route params missing!');
+      navigation.goBack();
+      return;
+    }
+
     navigateBack();
+
     const backAction = () => {
       navigation.goBack();
       return true;
     };
+
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       backAction,
     );
+
     return () => backHandler.remove();
   }, [navigation]);
 
@@ -156,7 +186,7 @@ const ApprovalScreens = ({route, navigation}) => {
                 txt="Financial"
                 num={financialNum}
                 clickHandler={() => {
-                  if (financial === 0) {
+                  if (financialNum === 0) {
                     alert('No data exist');
                   } else {
                     financialFun();

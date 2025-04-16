@@ -524,21 +524,10 @@ const NotificationSrn = () => {
         await Promise.all(updatePromises);
 
         // Update local state instead of refetching
-
-        setNotificationData(prevData =>
-          prevData.map(item =>
-            item.id === notificationId ? {...item, Processed: true} : item,
-          ),
+        setNotificationData(
+          prevData => prevData.map(item => ({...item, Processed: true})),
+          setUnprocessedData([]),
         );
-
-        setUnprocessedData(prevData =>
-          prevData.filter(item => item.id !== notificationId),
-        );
-
-        // setNotificationData(
-        //   prevData => prevData.map(item => ({...item, Processed: true})),
-        //   setUnprocessedData([]),
-        // );
       }
     } catch (error) {
       console.log(error, 'Error updating notifications');

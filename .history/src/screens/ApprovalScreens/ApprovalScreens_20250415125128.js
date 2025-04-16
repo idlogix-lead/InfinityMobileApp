@@ -103,12 +103,20 @@ const ApprovalScreens = ({route, navigation}) => {
     return unsubscribe;
   };
 
-  useEffect(() => {
-    navigateBack();
-    const backAction = () => {
-      navigation.goBack();
-      return true;
-    };
+//   useEffect(() => {
+//     navigateBack();
+//     const backAction = () => {
+//       navigation.goBack();
+//       return true;
+//     };
+
+useEffect(() => {
+    if (!route?.params) {
+      console.warn('Route params missing');
+      navigation.goBack(); // or show error UI
+    }
+  }, []);
+  
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       backAction,
@@ -156,7 +164,7 @@ const ApprovalScreens = ({route, navigation}) => {
                 txt="Financial"
                 num={financialNum}
                 clickHandler={() => {
-                  if (financial === 0) {
+                  if (financialNum === 0) {
                     alert('No data exist');
                   } else {
                     financialFun();

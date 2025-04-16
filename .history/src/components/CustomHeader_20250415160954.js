@@ -7,7 +7,6 @@ import {
 } from 'react-native';
 import React, {useEffect} from 'react';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import {useNavigation} from '@react-navigation/native';
 
@@ -42,9 +41,9 @@ const CustomHeader = ({
   return (
     <View style={[styles.container, style]}>
       <View style={styles.header}>
-        <Ionicons
-          name="arrow-back"
-          size={30}
+        <MaterialCommunityIcons
+          name="keyboard-backspace"
+          size={34}
           color="#fff"
           onPress={handleBackPress}
         />

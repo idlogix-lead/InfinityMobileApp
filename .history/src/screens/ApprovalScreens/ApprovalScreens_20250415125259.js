@@ -12,8 +12,13 @@ import HomeNotifyCard from '../../components/HomeScreenComponents/HomeNotifyCard
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ApprovalScreens = ({route, navigation}) => {
-  const {filteredArrayAccount, filteredArraySupply, token, tokenOk, roleId} =
-    route.params;
+  const {
+    filteredArrayAccount = [],
+    filteredArraySupply = [],
+    token = '',
+    tokenOk = '',
+    roleId = '',
+  } = route.params;
   //   let financial = filteredArrayAccount.length;
   //   let supply = filteredArraySupply.length;
   const [isLoading, setIsLoading] = useState(false);
@@ -156,7 +161,7 @@ const ApprovalScreens = ({route, navigation}) => {
                 txt="Financial"
                 num={financialNum}
                 clickHandler={() => {
-                  if (financial === 0) {
+                  if (financialNum === 0) {
                     alert('No data exist');
                   } else {
                     financialFun();

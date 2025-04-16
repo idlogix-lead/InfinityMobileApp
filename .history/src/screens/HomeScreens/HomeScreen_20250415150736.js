@@ -938,6 +938,7 @@ const HomeScreen = ({route}) => {
       color: '#fff',
       backgroundcolor: '#FFC774',
       // onPress: Approval, // ✅ function directly pass karo
+      // onPress: () => navigation.navigate('AllApprovalList', getApprovalNum()),
       onPress: async () => {
         const approvalData = await getApprovalNum(); // Wait for the result
         navigation.navigate('AllApprovalList', {data: approvalData}); // Make sure to pass as an object

@@ -938,10 +938,7 @@ const HomeScreen = ({route}) => {
       color: '#fff',
       backgroundcolor: '#FFC774',
       // onPress: Approval, // ✅ function directly pass karo
-      onPress: async () => {
-        const approvalData = await getApprovalNum(); // Wait for the result
-        navigation.navigate('AllApprovalList', {data: approvalData}); // Make sure to pass as an object
-      },
+      onPress: () => navigation.navigate('ApprovalScreens', getApprovalNum()),
     },
     {
       title: 'Employee Portal',
@@ -1021,7 +1018,7 @@ const HomeScreen = ({route}) => {
     const port = await AsyncStorage.getItem('port');
     const userId = await AsyncStorage.getItem('userId');
     const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log(token, 'token.............');
+    console.log(organizationId, 'organizationId');
 
     try {
       setIsLoading(true);

@@ -524,21 +524,10 @@ const NotificationSrn = () => {
         await Promise.all(updatePromises);
 
         // Update local state instead of refetching
-
-        setNotificationData(prevData =>
-          prevData.map(item =>
-            item.id === notificationId ? {...item, Processed: true} : item,
-          ),
+        setNotificationData(
+          prevData => prevData.map(item => ({...item, Processed: true})),
+          setUnprocessedData([]),
         );
-
-        setUnprocessedData(prevData =>
-          prevData.filter(item => item.id !== notificationId),
-        );
-
-        // setNotificationData(
-        //   prevData => prevData.map(item => ({...item, Processed: true})),
-        //   setUnprocessedData([]),
-        // );
       }
     } catch (error) {
       console.log(error, 'Error updating notifications');
@@ -718,7 +707,7 @@ const styles = StyleSheet.create({
   unreadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#2F4FE3',
     padding: 5,
     // borderRadius: 40,
     margin: 5,
@@ -732,7 +721,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#2F4FE3',
+    backgroundColor: '#00B0F0',
     justifyContent: 'center',
     alignItems: 'center',
   },

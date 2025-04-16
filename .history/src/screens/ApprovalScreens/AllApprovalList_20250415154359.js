@@ -453,10 +453,10 @@ const AllApprovalList = ({navigation}) => {
                       {/* Party & Created By */}
                       <View style={styles.row}>
                         {/* <Text style={styles.value}>Party: Rizwan Anwer</Text> */}
-                        <View style={{width: '60%', marginTop: 10}}>
+                        <View style={{width: '60%', marginTop: 5}}>
                           <Text style={styles.amount}>
                             Party:{' '}
-                            <Text style={[styles.value, {fontSize: 13}]}>
+                            <Text style={[styles.value, {fontSize: 12}]}>
                               {item.party_name ? item.party_name : 'None'}
                             </Text>
                           </Text>

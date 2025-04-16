@@ -456,7 +456,7 @@ const AllApprovalList = ({navigation}) => {
                         <View style={{width: '60%', marginTop: 10}}>
                           <Text style={styles.amount}>
                             Party:{' '}
-                            <Text style={[styles.value, {fontSize: 13}]}>
+                            <Text style={[styles.value, {fontSize: 12}]}>
                               {item.party_name ? item.party_name : 'None'}
                             </Text>
                           </Text>

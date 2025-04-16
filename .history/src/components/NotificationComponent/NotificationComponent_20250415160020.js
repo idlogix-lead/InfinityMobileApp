@@ -89,6 +89,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 5,
     elevation: 4,
+    backgroundColor: 'red',
     // borderLeftWidth: 5,
     borderLeftColor: '#002E62',
     marginTop: '1%',
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 12,
-    color: '#A6A6A6',
+    color: '#777',
     fontWeight: '500',
     alignSelf: 'flex-end',
   },
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: '#5b5a5a',
+    color: '#444',
     lineHeight: 22,
     fontWeight: '500',
   },

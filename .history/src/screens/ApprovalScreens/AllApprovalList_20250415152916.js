@@ -453,10 +453,10 @@ const AllApprovalList = ({navigation}) => {
                       {/* Party & Created By */}
                       <View style={styles.row}>
                         {/* <Text style={styles.value}>Party: Rizwan Anwer</Text> */}
-                        <View style={{width: '60%', marginTop: 10}}>
+                        <View style={{width: '60%'}}>
                           <Text style={styles.amount}>
                             Party:{' '}
-                            <Text style={[styles.value, {fontSize: 13}]}>
+                            <Text style={[styles.value]}>
                               {item.party_name ? item.party_name : 'None'}
                             </Text>
                           </Text>
@@ -812,8 +812,6 @@ const styles = StyleSheet.create({
   value: {
     marginLeft: 6,
     color: '#333',
-    // color: 'red',
-    fontWeight: '400',
   },
   dateText: {
     // color: '#333',
@@ -851,8 +849,7 @@ const styles = StyleSheet.create({
   description: {
     marginTop: 6,
     color: '#555',
-    fontSize: 13,
-    fontFamily: 'inter',
+    fontSize: 20,
   },
   containerProgress: {
     paddingVertical: 8,
@@ -864,7 +861,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     marginRight: 10,
-    marginTop: 4,
+    fontStyle: 'inter',
   },
   actionText: {
     fontSize: 16,

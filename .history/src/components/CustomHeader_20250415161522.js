@@ -44,7 +44,7 @@ const CustomHeader = ({
       <View style={styles.header}>
         <Ionicons
           name="arrow-back"
-          size={30}
+          size={34}
           color="#fff"
           onPress={handleBackPress}
         />

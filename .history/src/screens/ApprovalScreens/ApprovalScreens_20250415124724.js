@@ -156,7 +156,7 @@ const ApprovalScreens = ({route, navigation}) => {
                 txt="Financial"
                 num={financialNum}
                 clickHandler={() => {
-                  if (financial === 0) {
+                  if (financialNum === 0) {
                     alert('No data exist');
                   } else {
                     financialFun();

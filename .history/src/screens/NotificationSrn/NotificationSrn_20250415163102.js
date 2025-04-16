@@ -524,21 +524,10 @@ const NotificationSrn = () => {
         await Promise.all(updatePromises);
 
         // Update local state instead of refetching
-
-        setNotificationData(prevData =>
-          prevData.map(item =>
-            item.id === notificationId ? {...item, Processed: true} : item,
-          ),
+        setNotificationData(
+          prevData => prevData.map(item => ({...item, Processed: true})),
+          setUnprocessedData([]),
         );
-
-        setUnprocessedData(prevData =>
-          prevData.filter(item => item.id !== notificationId),
-        );
-
-        // setNotificationData(
-        //   prevData => prevData.map(item => ({...item, Processed: true})),
-        //   setUnprocessedData([]),
-        // );
       }
     } catch (error) {
       console.log(error, 'Error updating notifications');
@@ -612,7 +601,7 @@ const NotificationSrn = () => {
             onPress={() => setShowUnprocessed(false)}>
             <Text style={[styles.buttonText, {color: '#fff'}]}>View all</Text>
             <View style={[styles.unreadIndicator, {backgroundColor: '#fff'}]}>
-              <Text style={[styles.indicatorText, {color: '#000'}]}>
+              <Text style={styles.indicatorText}>
                 {notificationData.length}
               </Text>
             </View>
@@ -624,7 +613,7 @@ const NotificationSrn = () => {
               {
                 borderWidth: showUnprocessed ? 1.1 : 0,
                 borderColor: showUnprocessed ? 'black' : 'transparent',
-                borderRadius: 20,
+                borderRadius: 10,
               },
             ]}
             onPress={() => setShowUnprocessed(true)}>
@@ -732,7 +721,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#2F4FE3',
+    backgroundColor: '#00B0F0',
     justifyContent: 'center',
     alignItems: 'center',
   },

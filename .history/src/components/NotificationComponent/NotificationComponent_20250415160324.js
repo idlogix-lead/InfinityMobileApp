@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: '#5b5a5a',
+    color: '#444',
     lineHeight: 22,
     fontWeight: '500',
   },

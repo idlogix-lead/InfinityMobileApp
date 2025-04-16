@@ -1,3 +1,4 @@
+
 // import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from 'react-native';
 // import React, { useEffect, useRef, useState } from 'react';
 // import CustomHeader from '../../components/CustomHeader';
@@ -16,6 +17,7 @@
 //     const [currentPage, setCurrentPage] = useState(0)
 
 //     const flatListRef = useRef(null);
+
 
 //     // const notificationAllDataGet = async () => {
 //     //     const token = await AsyncStorage.getItem('token');
@@ -52,6 +54,8 @@
 //     //     }
 //     // };
 
+
+
 //     // const notificationAllDataGet = async () => {
 //     //     const token = await AsyncStorage.getItem('token');
 //     //     const protocol = await AsyncStorage.getItem('protocol');
@@ -87,7 +91,7 @@
 
 //     //         // Set the filtered and sorted data to state
 //     //         setIsLoading(false)
-//     //         // setNotificationData([...sortedData, ...sortedData]);
+//     //         // setNotificationData([...sortedData, ...sortedData]); 
 //     //         setNotificationData(prevData => [...prevData, ...sortedData]);
 //     //         setCurrentPage(nextPage)
 
@@ -102,6 +106,7 @@
 //     //         setIsLoading(false);
 //     //     }
 //     // };
+
 
 //     const notificationAllDataGet = async () => {
 //         if (isLoading) return;
@@ -150,6 +155,9 @@
 //         }
 //     }
 
+
+
+
 //     const markNotificationsAsRead = async () => {
 //         // const token = await AsyncStorage.getItem('token');
 //         const protocol = await AsyncStorage.getItem('protocol');
@@ -192,6 +200,7 @@
 //         }
 //     };
 
+
 //     // Singla notification click un_read
 //     const markSingleNotificationAsRead = async (notificationId) => {
 //         const protocol = await AsyncStorage.getItem('protocol');
@@ -228,11 +237,13 @@
 //         }
 //     };
 
+
 //     useEffect(() => {
 //         notificationAllDataGet();
 //     }, []);
 
 //     return (
+
 
 //         <View style={styles.container}>
 //             <CustomHeader
@@ -242,6 +253,7 @@
 //             />
 
 //             <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", width: "98%" }}>
+
 
 //                 <View style={{ flexDirection: "row" }}>
 //                     {/* View All Button */}
@@ -280,6 +292,7 @@
 //                         </View>
 //                     </TouchableOpacity>
 //                 </View>
+
 
 //                 {/* Mark all as read */}
 //                 <TouchableOpacity
@@ -365,9 +378,14 @@
 //                         extraData={notificationData}
 //                     />
 
+
 //                 )
 //             }
 //         </View >
+
+
+
+
 
 //     );
 // };
@@ -405,355 +423,331 @@
 //     },
 // });
 
-import {
-  StyleSheet,
-  Text,
-  View,
-  ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import React, {useEffect, useRef, useState} from 'react';
+import { StyleSheet, Text, View, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationComponent from '../../components/NotificationComponent/NotificationComponent';
-import {FlatList} from 'react-native';
+import { FlatList } from 'react-native';
 
 const NotificationSrn = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [notificationData, setNotificationData] = useState([]);
-  const [unprocessedData, setUnprocessedData] = useState([]);
-  const [showUnprocessed, setShowUnprocessed] = useState(false);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasMoreData, setHasMoreData] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [notificationData, setNotificationData] = useState([]);
+    const [unprocessedData, setUnprocessedData] = useState([]);
+    const [showUnprocessed, setShowUnprocessed] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [hasMoreData, setHasMoreData] = useState(true);
 
-  const flatListRef = useRef(null);
+    const flatListRef = useRef(null);
 
-  const notificationAllDataGet = async () => {
-    if (isLoading || !hasMoreData) return;
+    const notificationAllDataGet = async () => {
+        if (isLoading || !hasMoreData) return;
 
-    const token = await AsyncStorage.getItem('token');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const userId = await AsyncStorage.getItem('userId');
+        const token = await AsyncStorage.getItem('token');
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const userId = await AsyncStorage.getItem("userId");
 
-    try {
-      setIsLoading(true);
+        try {
+            setIsLoading(true);
 
-      const pageSize = 100;
-      const skip = currentPage * pageSize;
+            const pageSize = 100;
+            const skip = currentPage * pageSize;
 
-      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$top=${pageSize}&$skip=${skip}&$filter=AD_User_ID eq ${userId}`;
+            const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$top=${pageSize}&$skip=${skip}&$filter=AD_User_ID eq ${userId}`;
 
-      const response = await axios.get(URL, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token.trim()}` : '',
-        },
-      });
+            const response = await axios.get(URL, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token.trim()}` : '',
+                },
+            });
 
-      const records = response?.data?.records ?? [];
+            const records = response?.data?.records ?? [];
 
-      // If no records returned, we've reached the end
-      if (records.length === 0) {
-        setHasMoreData(false);
-        return;
-      }
+            // If no records returned, we've reached the end
+            if (records.length === 0) {
+                setHasMoreData(false);
+                return;
+            }
 
-      const sortedData = records.sort(
-        (a, b) => new Date(b.Created) - new Date(a.Created),
-      );
-      const unprocessedDataChunk = sortedData.filter(
-        notification => notification.Processed === false,
-      );
+            const sortedData = records.sort((a, b) => new Date(b.Created) - new Date(a.Created));
+            const unprocessedDataChunk = sortedData.filter(notification => notification.Processed === false);
 
-      // Use functional updates to avoid dependency on current state
-      setNotificationData(prevData => {
-        // Combine and deduplicate data
-        const combined = [...prevData, ...sortedData];
-        const uniqueIds = new Set();
-        return combined.filter(item => {
-          if (!uniqueIds.has(item.id)) {
-            uniqueIds.add(item.id);
-            return true;
-          }
-          return false;
-        });
-      });
+            // Use functional updates to avoid dependency on current state
+            setNotificationData(prevData => {
+                // Combine and deduplicate data
+                const combined = [...prevData, ...sortedData];
+                const uniqueIds = new Set();
+                return combined.filter(item => {
+                    if (!uniqueIds.has(item.id)) {
+                        uniqueIds.add(item.id);
+                        return true;
+                    }
+                    return false;
+                });
+            });
 
-      setUnprocessedData(prevData => [...prevData, ...unprocessedDataChunk]);
-      setCurrentPage(prevPage => prevPage + 1);
-    } catch (error) {
-      console.log(error, 'NotificationAPIGETAllData');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+            setUnprocessedData(prevData => [...prevData, ...unprocessedDataChunk]);
+            setCurrentPage(prevPage => prevPage + 1);
 
-  const markNotificationsAsRead = async () => {
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const token = await AsyncStorage.getItem('token');
-    if (!token) {
-      console.log('No token found!');
-      return;
-    }
+        } catch (error) {
+            console.log(error, 'NotificationAPIGETAllData');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    try {
-      const unreadNotifications = notificationData.filter(
-        item => !item.Processed,
-      );
+    const markNotificationsAsRead = async () => {
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+            console.log("No token found!");
+            return;
+        }
 
-      if (unreadNotifications.length > 0) {
-        const updatePromises = unreadNotifications.map(notification => {
-          const updateURL = `${protocol}://${host}:${port}/api/v1/models/AD_Note/${notification.id}`;
-          return axios.put(
-            updateURL,
-            {Processed: true},
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: token ? `Bearer ${token.trim()}` : '',
-              },
-            },
-          );
-        });
+        try {
+            const unreadNotifications = notificationData.filter((item) => !item.Processed);
 
-        await Promise.all(updatePromises);
+            if (unreadNotifications.length > 0) {
+                const updatePromises = unreadNotifications.map((notification) => {
+                    const updateURL = `${protocol}://${host}:${port}/api/v1/models/AD_Note/${notification.id}`;
+                    return axios.put(updateURL,
+                        { "Processed": true },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': token ? `Bearer ${token.trim()}` : '',
+                            },
+                        }
+                    );
+                });
 
-        // Update local state instead of refetching
+                await Promise.all(updatePromises);
+                
+                // Update local state instead of refetching
+                setNotificationData(prevData => 
+                prevData.map(item => ({...item, Processed: true})),
+                setUnprocessedData([]) 
+            )
+            }
+        } catch (error) {
+            console.log(error, 'Error updating notifications');
+        }
+    };
 
-        setNotificationData(prevData =>
-          prevData.map(item =>
-            item.id === notificationId ? {...item, Processed: true} : item,
-          ),
-        );
+    const markSingleNotificationAsRead = async (notificationId) => {
+        const protocol = await AsyncStorage.getItem('protocol');
+        const host = await AsyncStorage.getItem('host');
+        const port = await AsyncStorage.getItem('port');
+        const token = await AsyncStorage.getItem('token');
 
-        setUnprocessedData(prevData =>
-          prevData.filter(item => item.id !== notificationId),
-        );
+        if (!token) {
+            console.log("No token found!");
+            return;
+        }
 
-        // setNotificationData(
-        //   prevData => prevData.map(item => ({...item, Processed: true})),
-        //   setUnprocessedData([]),
-        // );
-      }
-    } catch (error) {
-      console.log(error, 'Error updating notifications');
-    }
-  };
+        try {
+            const updateURL = `${protocol}://${host}:${port}/api/v1/models/AD_Note/${notificationId}`;
+            await axios.put(updateURL,
+                { "Processed": true },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token.trim()}` : '',
+                    },
+                }
+            );
 
-  const markSingleNotificationAsRead = async notificationId => {
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const token = await AsyncStorage.getItem('token');
+            // Update local state instead of refetching
+            setNotificationData(prevData => 
+                prevData.map(item => 
+                    item.id === notificationId ? {...item, Processed: true} : item
+                )
+            );
+            setUnprocessedData(prevData => 
+                prevData.filter(item => item.id !== notificationId)
+            );
+                        
+        } catch (error) {
+            console.log(error, 'Error updating single notification');
+        }
+    };
 
-    if (!token) {
-      console.log('No token found!');
-      return;
-    }
+    useEffect(() => {
+        notificationAllDataGet();
+    }, []);
 
-    try {
-      const updateURL = `${protocol}://${host}:${port}/api/v1/models/AD_Note/${notificationId}`;
-      await axios.put(
-        updateURL,
-        {Processed: true},
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token.trim()}` : '',
-          },
-        },
-      );
+    const displayedData = showUnprocessed ? unprocessedData : notificationData;
 
-      // Update local state instead of refetching
-      setNotificationData(prevData =>
-        prevData.map(item =>
-          item.id === notificationId ? {...item, Processed: true} : item,
-        ),
-      );
-      setUnprocessedData(prevData =>
-        prevData.filter(item => item.id !== notificationId),
-      );
-    } catch (error) {
-      console.log(error, 'Error updating single notification');
-    }
-  };
-
-  useEffect(() => {
-    notificationAllDataGet();
-  }, []);
-
-  const displayedData = showUnprocessed ? unprocessedData : notificationData;
-
-  return (
-    <View style={styles.container}>
-      <CustomHeader
-        title="Notification"
-        RightIcon={'bell-outline'}
-        RightPress={markNotificationsAsRead}
-      />
-
-      <View style={styles.headerControls}>
-        <View style={styles.filterButtons}>
-          <TouchableOpacity
-            style={[
-              styles.unreadButton,
-              {
-                borderWidth: showUnprocessed ? 0 : 1.1,
-                borderColor: showUnprocessed ? 'transparent' : 'black',
-                borderRadius: 20,
-                backgroundColor: '#2F4FE3',
-              },
-            ]}
-            onPress={() => setShowUnprocessed(false)}>
-            <Text style={[styles.buttonText, {color: '#fff'}]}>View all</Text>
-            <View style={[styles.unreadIndicator, {backgroundColor: '#fff'}]}>
-              <Text style={[styles.indicatorText, {color: '#000'}]}>
-                {notificationData.length}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.unreadButton,
-              {
-                borderWidth: showUnprocessed ? 1.1 : 0,
-                borderColor: showUnprocessed ? 'black' : 'transparent',
-                borderRadius: 20,
-              },
-            ]}
-            onPress={() => setShowUnprocessed(true)}>
-            <Text style={styles.buttonText}>Unread</Text>
-            <View style={styles.unreadIndicator}>
-              <Text style={styles.indicatorText}>{unprocessedData.length}</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={markNotificationsAsRead}>
-          <Text style={styles.markAllRead}>Mark all as read</Text>
-        </TouchableOpacity>
-      </View>
-
-      {isLoading && displayedData.length === 0 ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#007bff" />
-          <Text>Loading Notifications...</Text>
-        </View>
-      ) : displayedData.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {showUnprocessed ? 'No unread notifications' : 'No notifications'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={displayedData}
-          keyExtractor={item => item.id.toString()}
-          renderItem={({item}) => (
-            <NotificationComponent
-              created={item.Created}
-              reference={item.Reference}
-              textMsg={item.TextMsg}
-              backgroundColor={item.Processed ? 'white' : '#D3D3D3'}
-              NotificationOnPress={() => markSingleNotificationAsRead(item.id)}
+    return (
+        <View style={styles.container}>
+            <CustomHeader
+                title='Notification'
+                RightIcon={'bell'}
+                RightPress={markNotificationsAsRead}
             />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          onEndReached={() => notificationAllDataGet()}
-          onEndReachedThreshold={1}
-          ListFooterComponent={
-            isLoading && displayedData.length > 0 ? (
-              <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" />
-              </View>
-            ) : null
-          }
-          initialNumToRender={20}
-          maxToRenderPerBatch={20}
-          windowSize={21}
-          updateCellsBatchingPeriod={50}
-          removeClippedSubviews={false}
-        />
-      )}
-    </View>
-  );
+
+            <View style={styles.headerControls}>
+                <View style={styles.filterButtons}>
+                    <TouchableOpacity
+                        style={[
+                            styles.unreadButton,
+                            {
+                                borderWidth: showUnprocessed ? 0 : 1.1,
+                                borderColor: showUnprocessed ? 'transparent' : 'black',
+                                borderRadius: 10,
+                            },
+                        ]}
+                        onPress={() => setShowUnprocessed(false)}
+                    >
+                        <Text style={styles.buttonText}>View all</Text>
+                        <View style={styles.unreadIndicator}>
+                            <Text style={styles.indicatorText}>{notificationData.length}</Text>
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.unreadButton,
+                            {
+                                borderWidth: showUnprocessed ? 1.1 : 0,
+                                borderColor: showUnprocessed ? 'black' : 'transparent',
+                                borderRadius: 10,
+                            },
+                        ]}
+                        onPress={() => setShowUnprocessed(true)}
+                    >
+                        <Text style={styles.buttonText}>Unread</Text>
+                        <View style={styles.unreadIndicator}>
+                            <Text style={styles.indicatorText}>{unprocessedData.length}</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity onPress={markNotificationsAsRead}>
+                    <Text style={styles.markAllRead}>Mark all as read</Text>
+                </TouchableOpacity>
+            </View>
+
+            {isLoading && displayedData.length === 0 ? (
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color="#007bff" />
+                    <Text>Loading Notifications...</Text>
+                </View>
+            ) : displayedData.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>
+                        {showUnprocessed ? 'No unread notifications' : 'No notifications'}
+                    </Text>
+                </View>
+            ) : (
+                <FlatList
+                    ref={flatListRef}
+                    data={displayedData}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                        <NotificationComponent
+                            created={item.Created}
+                            reference={item.Reference}
+                            textMsg={item.TextMsg}
+                            backgroundColor={item.Processed ? 'white' : '#D3D3D3'}
+                            NotificationOnPress={() => markSingleNotificationAsRead(item.id)}
+                        />
+                    )}
+                    ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    onEndReached={() => notificationAllDataGet()}
+                    onEndReachedThreshold={1}
+                    ListFooterComponent={
+                        isLoading && displayedData.length > 0 ? (
+                            <View style={styles.footerLoader}>
+                                <ActivityIndicator size="small" />
+                            </View>
+                        ) : null
+                    }
+                    initialNumToRender={20}
+                    maxToRenderPerBatch={20}
+                    windowSize={21}
+                    updateCellsBatchingPeriod={50}
+                    removeClippedSubviews={false}
+                />
+            )}
+        </View>
+    );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  headerControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '98%',
-    paddingHorizontal: 10,
-    marginVertical: 10,
-  },
-  filterButtons: {
-    flexDirection: 'row',
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: 'gray',
-  },
-  unreadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    padding: 5,
-    // borderRadius: 40,
-    margin: 5,
-    width: '33%',
-  },
-  buttonText: {
-    color: '#333',
-    marginRight: 4,
-  },
-  unreadIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#2F4FE3',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  indicatorText: {
-    fontSize: 8,
-    color: 'white',
-  },
-  markAllRead: {
-    color: '#00B0F0',
-    fontWeight: '500',
-    fontSize: 16,
-  },
-  separator: {
-    height: 5,
-  },
-  footerLoader: {
-    width: '90%',
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    headerControls: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        width: "98%",
+        paddingHorizontal: 10,
+        marginVertical: 10,
+    },
+    filterButtons: {
+        flexDirection: "row",
+    },
+    loaderContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    emptyText: {
+        fontSize: 16,
+        color: 'gray',
+    },
+    unreadButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
+        padding: 5,
+        borderRadius: 20,
+        margin: 5,
+        width: "32%"
+    },
+    buttonText: {
+        color: '#333',
+        marginRight: 8,
+    },
+    unreadIndicator: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: '#00B0F0',
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    indicatorText: {
+        fontSize: 8,
+        color: "white"
+    },
+    markAllRead: {
+        color: '#00B0F0',
+        fontWeight: "500",
+        fontSize: 16
+    },
+    separator: {
+        height: 5
+    },
+    footerLoader: {
+        width: "90%",
+        height: 60,
+        justifyContent: "center",
+        alignItems: "center"
+    },
 });
 
 export default NotificationSrn;

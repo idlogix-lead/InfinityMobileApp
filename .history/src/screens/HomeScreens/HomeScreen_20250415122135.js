@@ -937,11 +937,7 @@ const HomeScreen = ({route}) => {
       icon: 'check-decagram',
       color: '#fff',
       backgroundcolor: '#FFC774',
-      // onPress: Approval, // ✅ function directly pass karo
-      onPress: async () => {
-        const approvalData = await getApprovalNum(); // Wait for the result
-        navigation.navigate('AllApprovalList', {data: approvalData}); // Make sure to pass as an object
-      },
+      onPress: Approval, // ✅ function directly pass karo
     },
     {
       title: 'Employee Portal',
@@ -1021,7 +1017,7 @@ const HomeScreen = ({route}) => {
     const port = await AsyncStorage.getItem('port');
     const userId = await AsyncStorage.getItem('userId');
     const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log(token, 'token.............');
+    console.log(organizationId, 'organizationId');
 
     try {
       setIsLoading(true);
@@ -1659,7 +1655,7 @@ const HomeScreen = ({route}) => {
 
       {/* Category List View */}
       <View>
-        <Text style={styles.wordCategoriesStyle}> Categories </Text>
+        <Text style={styles.wordCategoriesStyle}> Categories New </Text>
       </View>
       <View style={styles.categories}>{categories.map(renderCategory)}</View>
 

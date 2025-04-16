@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const ApprovalScreens = ({route, navigation}) => {
   const {filteredArrayAccount, filteredArraySupply, token, tokenOk, roleId} =
     route.params;
-  //   let financial = filteredArrayAccount.length;
+  //   let financial = filteredArrayAccount.length
   //   let supply = filteredArraySupply.length;
   const [isLoading, setIsLoading] = useState(false);
   const [financialNum, setFinancialNum] = useState(0);
