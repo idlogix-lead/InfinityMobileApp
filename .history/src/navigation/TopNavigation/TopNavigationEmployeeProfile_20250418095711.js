@@ -13,10 +13,10 @@ const TopNavigationEmployeeProfile = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#fff',
-        tabBarInactiveTintColor: '#fff',
+        tabBarActiveTintColor: '#000',
+        tabBarInactiveTintColor: '#000',
         tabBarIndicatorStyle: {backgroundColor: '#fff'},
-        tabBarStyle: {backgroundColor: '#0050c0', elevation: 5},
+        tabBarStyle: {backgroundColor: '#000', elevation: 5, margin: 10},
       }}>
       <Tab.Screen
         name="Basic Information"

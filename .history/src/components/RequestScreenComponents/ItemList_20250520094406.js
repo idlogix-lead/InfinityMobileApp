@@ -101,6 +101,17 @@ const ItemList = ({
         style={{width: '95%', alignSelf: 'center', marginTop: '2%'}}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{paddingRight: '105%'}}>
+        {/* {Name && (
+                    <TouchableOpacity style={styles.NameContainer} onPress={() => handlePress({ title: "Product", value: Name })}>
+                        <View>
+                            <View style={{ flexDirection: "row", alignItems: "center", }}>
+                                <SimpleLineIcons name="social-dropbox" size={14} color="#FFF" />
+                                <Text style={[styles.lableStyle, { paddingLeft: "2%" }]}>Product:</Text>
+                            </View>
+                            <Text style={styles.textStyle}>{Name}</Text>
+                        </View>
+                    </TouchableOpacity>
+                )} */}
         {Name && (
           <TouchableOpacity
             style={styles.NameContainer}
@@ -387,7 +398,10 @@ const styles = StyleSheet.create({
     fontWeight: 600,
   },
   dateContainer: {
+    // width: "90%",
+    // alignSelf: "center",
     marginTop: '2%',
+    // flexDirection: "row"
   },
   btnSty: {
     backgroundColor: '#f5f5f5',
@@ -398,29 +412,36 @@ const styles = StyleSheet.create({
   },
   btnContainer: {
     alignSelf: 'center',
+    // justifyContent:"center",
+    // alignItems:"center",
     width: '90%',
     marginTop: '3%',
     flexDirection: 'row',
+    // justifyContent: "space-between",
     justifyContent: 'flex-end',
     marginBottom: '1%',
   },
   lineStyle: {
     borderBottomColor: 'gray',
     borderBottomWidth: 1,
+    // marginVertical: 10,
+    // marginVertical: 2,
     width: '100%',
   },
   NameContainer: {
+    // backgroundColor: "gray",
     backgroundColor: '#002E62',
     marginRight: 2,
     borderRadius: 10,
     padding: 4,
     justifyContent: 'center',
     marginTop: '0.2%',
-    width: '25%',
+    width: '35%',
     height: '60%',
     overflow: 'hidden',
   },
   lableStyle: {color: '#fff', fontSize: 12},
+  // textStyle: { color: "#fff", fontSize: 10, alignSelf: "center" },
   textStyle: {
     color: '#fff',
     fontSize: 10,
@@ -435,12 +456,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalView: {
+    // backgroundColor: '#002E62',
+    // backgroundColor: 'gray',
+
     width: '90%',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   txt: {
+    // color: 'white',
     color: '#000',
     fontSize: 16,
     fontFamily: 'K2D-Regular',
@@ -474,7 +499,14 @@ const styles = StyleSheet.create({
   separator: {
     height: '100%',
     width: width * 0.003, // Responsive width
+    // backgroundColor: '#909090',
+    // backgroundColor: 'red',
     marginLeft: width * 0.03, // Responsive margin
+
+    // height: '100%',
+    // width: 1.5,
+    // backgroundColor: '#909090',
+    // marginLeft: "3%"
   },
   nameText: {
     color: '#000',

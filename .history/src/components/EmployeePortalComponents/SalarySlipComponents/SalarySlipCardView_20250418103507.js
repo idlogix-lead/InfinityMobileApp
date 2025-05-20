@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     width: 40,
     backgroundColor: '#fff',
     borderRadius: 20,
-    // marginLeft: 10,
+    marginLeft: 10,
     marginTop: 6,
     marginRight: 8,
     shadowColor: '#000',
@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
     elevation: 11,
     shadowRadius: 2,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   TextTop: {
     color: '#000',

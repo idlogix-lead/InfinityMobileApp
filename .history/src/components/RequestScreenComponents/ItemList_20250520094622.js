@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     padding: 4,
     justifyContent: 'center',
     marginTop: '0.2%',
-    width: '25%',
+    width: '35%',
     height: '60%',
     overflow: 'hidden',
   },

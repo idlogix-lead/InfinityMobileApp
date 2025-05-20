@@ -574,13 +574,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    // backgroundColor: '#3E63DD',
     backgroundColor: '#2F4FE3',
+    // flexDirection: 'row',
+    // alignItems: 'center',
+    // justifyContent: 'space-between',
     padding: 16,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     height: '36%',
   },
   bellIconViewStyle: {
+    // backgroundColor: "green",
     flexDirection: 'row',
     marginTop: '5%',
     justifyContent: 'space-between',
@@ -612,6 +617,7 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     alignItems: 'center',
+    // backgroundColor:"red"
   },
   name: {
     color: '#fff',
@@ -635,6 +641,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-around',
+    // marginVertical: 16,
   },
   categoryBox: {
     width: '40%',
@@ -651,6 +658,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
     paddingLeft: '1%',
+    // backgroundColor:"pink",
     width: '73%',
   },
   transactionHeader: {
@@ -673,8 +681,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dateTransaction: {
+    // alignSelf: 'flex-end',
+    // marginTop: 8,
     marginRight: 16,
     fontSize: 12,
+    // color: '#374151',
     color: '#939393',
   },
   transactionBox: {
@@ -697,6 +708,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   dateNewScreen: {
+    // color: '#6B7280',
     fontSize: 16,
     color: '#fff',
   },

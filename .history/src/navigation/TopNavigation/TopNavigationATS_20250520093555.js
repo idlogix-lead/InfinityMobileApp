@@ -59,6 +59,10 @@ const TopNavigationATS = () => {
     }
   };
 
+  // useEffect(() => {
+  //     getAPIData();
+  // }, []);
+
   useFocusEffect(
     useCallback(() => {
       getAPIData();

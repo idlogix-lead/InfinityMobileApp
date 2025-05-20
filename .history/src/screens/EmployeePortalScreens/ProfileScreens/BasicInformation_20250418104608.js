@@ -52,11 +52,13 @@ const BasicInformation = () => {
         <Text style={styles.TextHeading}>Personal Information</Text>
 
         <SalarySlipCardView
+          // Icon={<MaterialIcons name='person' size={size} color={color} />}
           image={require('../../../asserts/EmployeProfile/gardianName.png')}
           TitleText={'Gaurdian Name'}
           Txt={employeeData.Father_Name ? employeeData.Father_Name : 'null'}
         />
         <SalarySlipCardView
+          // Icon={<MaterialIcons name="transgender" size={size} color={color} />}
           image={require('../../../asserts/EmployeProfile/gender.png')}
           TitleText={'Gender'}
           Txt={
@@ -66,11 +68,19 @@ const BasicInformation = () => {
           }
         />
         <SalarySlipCardView
+          // Icon={
+          //   <MaterialCommunityIcons
+          //     name="calendar-account"
+          //     size={size}
+          //     color={color}
+          //   />
+          // }
           image={require('../../../asserts/EmployeProfile/DOB.png')}
           TitleText={'Date of Birth'}
           Txt={employeeData.Date_Birth ? employeeData.Date_Birth : 'null'}
         />
         <SalarySlipCardView
+          // Icon={<MaterialIcons name="bloodtype" size={size} color={color} />}
           image={require('../../../asserts/EmployeProfile/BLOODGROUP.png')}
           TitleText={'Blood_Group'}
           Txt={
@@ -80,6 +90,7 @@ const BasicInformation = () => {
           }
         />
         <SalarySlipCardView
+          // Icon={<FontAwesome5 name="praying-hands" size={size} color={color} />}
           image={require('../../../asserts/EmployeProfile/RELIGION.png')}
           TitleText={'Religion'}
           Txt={
@@ -92,11 +103,14 @@ const BasicInformation = () => {
         <Text style={styles.TextHeading}>Company Information</Text>
 
         <SalarySlipCardView
-          image={require('../../../asserts/EmployeProfile/nationCode.png')}
+          Icon={<MaterialIcons name="fingerprint" size={size} color={color} />}
           TitleText={'NationalCode'}
           Txt={employeeData.NationalCode ? employeeData.NationalCode : 'null'}
         />
         <SalarySlipCardView
+          // Icon={
+          //   <MaterialCommunityIcons name="calendar" size={size} color={color} />
+          // }
           image={require('../../../asserts/EmployeProfile/dateCinicissue.png')}
           TitleText={'Date_Cnicissue'}
           Txt={
@@ -104,6 +118,7 @@ const BasicInformation = () => {
           }
         />
         <SalarySlipCardView
+          // Icon={<MaterialIcons name="event" size={size} color={color} />}
           image={require('../../../asserts/EmployeProfile/dateCinicexpire.png')}
           TitleText={'Date_Cnicexpire'}
           Txt={
@@ -111,7 +126,9 @@ const BasicInformation = () => {
           }
         />
         <SalarySlipCardView
-          image={require('../../../asserts/EmployeProfile/meritalStatus.png')}
+          Icon={
+            <MaterialCommunityIcons name="heart" size={size} color={color} />
+          }
           TitleText={'MaritalStatus'}
           Txt={
             employeeData?.MaritalStatus?.identifier
@@ -120,7 +137,7 @@ const BasicInformation = () => {
           }
         />
         <SalarySlipCardView
-          image={require('../../../asserts/EmployeProfile/LICcode.png')}
+          Icon={<MaterialIcons name="assignment" size={size} color={color} />}
           TitleText={'LICCode'}
           Txt={employeeData.liccode ? employeeData.liccode : 'null'}
         />

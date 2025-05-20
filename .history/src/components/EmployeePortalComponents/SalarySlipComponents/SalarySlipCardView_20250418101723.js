@@ -4,7 +4,7 @@ import React from 'react';
 const SalarySlipCardView = ({Icon, TitleText, Txt, image}) => {
   return (
     <View style={styles.ContainerView}>
-      {/* <View style={styles.IconView}>{Icon}</View>
+      <View style={styles.IconView}>{Icon}</View>
       <View
         style={{
           height: 40,
@@ -20,15 +20,7 @@ const SalarySlipCardView = ({Icon, TitleText, Txt, image}) => {
           justifyContent: 'center',
         }}>
         <Image source={image} style={{alignSelf: 'center'}} />
-      </View> */}
-      <View style={styles.IconView}>
-        {Icon ? (
-          Icon
-        ) : image ? (
-          <Image source={image} style={{alignSelf: 'center'}} />
-        ) : null}
       </View>
-
       <View>
         <Text style={styles.TextTop}>{TitleText}</Text>
         <Text style={styles.TextBottom}>{Txt}</Text>
@@ -53,22 +45,9 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   IconView: {
-    // width: '15%',
-    // justifyContent: 'center',
-    // alignItems:'center',
-    height: 40,
-    width: 40,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    // marginLeft: 10,
-    marginTop: 6,
-    marginRight: 8,
-    shadowColor: '#000',
-    // shadowOpacity: 0.8,
-    elevation: 11,
-    shadowRadius: 2,
+    width: '15%',
     justifyContent: 'center',
-    alignItems: 'center',
+    // alignItems:'center',
   },
   TextTop: {
     color: '#000',

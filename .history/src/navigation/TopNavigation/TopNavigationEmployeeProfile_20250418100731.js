@@ -13,17 +13,23 @@ const TopNavigationEmployeeProfile = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#fff',
-        tabBarInactiveTintColor: '#fff',
+        tabBarActiveTintColor: '#000',
+        tabBarInactiveTintColor: '#000',
         tabBarIndicatorStyle: {backgroundColor: '#fff'},
-        tabBarStyle: {backgroundColor: '#0050c0', elevation: 5},
+        tabBarStyle: {
+          backgroundColor: '#f4f4f4',
+          elevation: 5,
+          marginHorizontal: 10,
+          borderRadius: 10,
+          marginTop: 10,
+        },
       }}>
       <Tab.Screen
         name="Basic Information"
         component={BasicInformation}
         options={{
           tabBarIcon: () => (
-            <Feather name="alert-octagon" color={'#fff'} size={24} />
+            <Feather name="alert-octagon" color={'blue'} size={24} />
           ),
         }}
       />
@@ -32,7 +38,7 @@ const TopNavigationEmployeeProfile = () => {
         component={Education}
         options={{
           tabBarIcon: () => (
-            <MaterialIcons name="school" color={'#fff'} size={25} />
+            <MaterialIcons name="school" color={'lightgreen'} size={25} />
           ),
         }}
       />
@@ -41,7 +47,7 @@ const TopNavigationEmployeeProfile = () => {
         component={Experience}
         options={{
           tabBarIcon: () => (
-            <MaterialIcons name="work" color={'#fff'} size={25} />
+            <MaterialIcons name="work" color={'pink'} size={25} />
           ),
         }}
       />

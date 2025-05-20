@@ -110,6 +110,61 @@ const HomeScreen = ({route}) => {
     },
   ];
 
+  // const C_BPartnerID = async () => {
+  //   const protocol = await AsyncStorage.getItem('protocol');
+  //   const host = await AsyncStorage.getItem('host');
+  //   const port = await AsyncStorage.getItem('port');
+  //   const token = await AsyncStorage.getItem('token');
+  //   const userId = await AsyncStorage.getItem('userId');
+
+  //   console.log(userId, 'userIdForC_BPartnerID');
+
+  //   try {
+  //       setIsLoading(true);
+  //       const URL = `${protocol}://${host}:${port}/api/v1/models/ad_user?$filter=ad_user_id eq ${userId}`;
+  //       // console.log(URL, "URLForC_BPartnerID");
+  //       const response = await axios.get(URL, {
+  //           headers: {
+  //               'Content-Type': 'application/json',
+  //               'Authorization': token ? `Bearer ${token.trim()}` : '', // Ensure token is properly formatted
+  //           },
+  //       });
+
+  //       // console.log(response.data?.records, 'C_BpartnerIDForResponse');
+
+  //       // Check if response has records
+  //       if (response.data?.records?.length > 0) {
+  //           const userData = response.data.records[0]; // First record
+
+  //           // Extracting required values
+  //           const partnerId = userData?.C_BPartner_ID?.id?.toString() || '';
+  //           const email = userData?.EMail || '';
+  //           const emailUser = userData?.EMailUser || '';
+
+  //           // Storing in AsyncStorage
+  //           await AsyncStorage.setItem('C_BPartner_ID', partnerId);
+  //           await AsyncStorage.setItem('EMail', email);
+  //           await AsyncStorage.setItem('EMailUser', emailUser);
+  //           console.log(partnerId,'HomeSrnCBPartnerID')
+
+  //           console.log('User data saved successfully in AsyncStorage!');
+  //       } else {
+  //           console.warn('No user data found in API response.');
+  //       }
+
+  //   } catch (error) {
+  //       console.error(error.response ? error.response.data : error.message, 'ErrorForC_BParnterID');
+  //   } finally {
+  //       setIsLoading(false);
+  //   }
+  // };
+
+  //   useEffect(() => {
+  //     C_BPartnerID();
+  //   }, [])
+
+  // // Notification Un-Read API Calling
+
   const notificationAllDataGet = async () => {
     const token = await AsyncStorage.getItem('token');
     const protocol = await AsyncStorage.getItem('protocol');
@@ -306,6 +361,101 @@ const HomeScreen = ({route}) => {
       console.error('Error efe:', error);
     }
   };
+  // const handleAttendance = async (Status) => {
+  // setCheckinout(!checkinout);
+  // console.log(location);
+  // setIsLoading(true);
+  // setLocation(null)
+
+  //     const date = new Date();
+  //     const token = await AsyncStorage.getItem('token')
+  //     const protocol = await AsyncStorage.getItem('protocol')
+  //     const host = await AsyncStorage.getItem('host')
+  //     const port = await AsyncStorage.getItem('port')
+  //     const Id = await AsyncStorage.getItem("userId")
+  //     const clientid = await AsyncStorage.getItem('clientId');
+  //     const org_id = await AsyncStorage.getItem('organizationId');
+  //     // Format current date as YYYY-MM-DD
+
+  //     // Format current time as HH:mm:ss in 24-hour format
+  //     // const formattedTime = date.toTimeString().split(' ')[0];
+
+  //     // console.log(date,'date')
+  //     // console.log('tkn', token)
+  //     // const formattedTime = date.toLocaleString('en-US', {
+  //     //   hour: 'numeric',
+  //     //   minute: 'numeric',
+  //     //   second: 'numeric',
+  //     //   hour12: true
+  //     // });
+  //     const formattedDate = date.toISOString().split('T')[0];
+  //     const formattedTime = date.toISOString().split('T')[1].slice(0, 8) + 'Z';
+
+  //     const formattedDateTime = date.toISOString().split('T')[0].replace(/-/g, '/')
+  //     // const formattedDateTime = date.toLocaleString('en-US', {
+  //     //   year: 'numeric',
+  //     //   month: '2-digit',
+  //     //   day: '2-digit',
+  //     //   // hour: '2-digit',
+  //     //   // minute: '2-digit',
+  //     //   hour12: false
+  //     // });
+  //     const formattedDateTime2 = date.toLocaleString('en-US', {
+  //       // year: 'numeric',
+  //       // month: '2-digit',
+  //       // day: '2-digit',
+  //       hour: '2-digit',
+  //       minute: '2-digit',
+  //       hour12: false
+  //     });
+  //     try {
+
+  //       const payload = {
+  //         "AD_Client_ID": parseInt(clientid),
+  //         "AD_Org_ID": parseInt(org_id),
+  //         "C_BPartner_ID": parseInt(partnerId),
+  //         'C_Year_ID': { 'id': "1000014", 'identifier': "2024" },
+  //         // 'C_Year_ID': { 'id': `${years.value}`, 'identifier': `${years.label}` },
+  //         "MyConDate": `${formattedDateTime} ${formattedDateTime2}`,
+  //         "AttDate": formattedDate,
+  //         "AttTime": formattedTime,
+  //         "AttStatus": Status,
+  //         "AttActivity": "000",
+  //         "latitude": location?.latitude,
+  //         "longitude": location?.longitude
+  //       }
+  //       console.log(payload, "payload");
+
+  //       const response = await axios.post(`${protocol}://${host}:${port}/api/v1/models/HR_Daily_Attend`, payload,
+  //         {
+  //           method: 'POST',
+  //           headers: {
+  //             'Content-Type': 'application/json',
+  //             'Authorization': `Bearer ${token}`
+  //           },
+
+  //         })
+  //       // console.log(token,'too')
+  //       console.log(response.data, 'res')
+  //       // setAttendanceRecords(response.data.records);
+  //       if (response.data) {
+  //         setLocation(null)
+  //         if (Status === "IN") {
+  //           Alert.alert('Check-In Successful', 'Your check-in has been successfully recorded.');
+  //         } else {
+  //           Alert.alert('Check-Out Successful', 'Your check-Out has been successfully recorded.');
+  //         }
+
+  //       }
+  //     } catch (error) {
+  //       console.log('Error', error)
+  //     } finally {
+  //       setLocation(null)
+  //       await handleGetAttendance();
+  //       setIsLoading(false);
+  //     }
+
+  //   }
 
   const handleGetAttendance = async () => {
     const date = new Date();
@@ -364,6 +514,103 @@ const HomeScreen = ({route}) => {
       setIsLoading(false);
     }
   };
+
+  //   // const handleGetAttendance = async () => {
+  //   //   const date = new Date();
+  //   //   const token = await AsyncStorage.getItem('token');
+  //   //   const protocol = await AsyncStorage.getItem('protocol');
+  //   //   const host = await AsyncStorage.getItem('host');
+  //   //   const port = await AsyncStorage.getItem('port');
+  //   //   const Id = await AsyncStorage.getItem("userId");
+  //   //   const clientid = await AsyncStorage.getItem('clientId');
+  //   //   const org_id = await AsyncStorage.getItem('organizationId');
+
+  //   //   try {
+  //   //     // $top=1 ensures only the latest record is fetched
+  //   //     const filterQuery = `$filter=AD_Client_ID eq ${clientid} and AD_Org_ID eq ${org_id} and C_BPartner_ID eq ${partnerId}`;
+  //   //     // console.log(filterQuery,'dd')
+  //   //     setIsLoading(true);
+  //   //     const response = await axios.get(`${protocol}://${host}:${port}/api/v1/models/HR_Daily_Attend?$orderby=Created desc&$top=1&${filterQuery}`,
+  //   //       {
+  //   //         method: 'GET',
+  //   //         headers: {
+  //   //           'Content-Type': 'application/json',
+  //   //           'Authorization': `Bearer ${token}`
+  //   //         },
+  //   //       });
+
+  //   //     // console.log(response?.data.record, 'records');
+  //   //     // console.log(response?.data?.records[0], "response?.data?.records[0]")
+  //   //     const attendanceRecord = response?.data?.records[0];
+
+  //   //     if (attendanceRecord) {
+  //   //       const lastAttDate = new Date(attendanceRecord.AttDate);
+  //   //       const lastAttTime = attendanceRecord.AttTime.split(':');
+  //   //       lastAttDate.setHours(lastAttTime[0], lastAttTime[1], lastAttTime[2]);
+
+  //   //       const hoursPassed = (date - lastAttDate) / 1000 / 60 / 60;
+
+  //   //       if (attendanceRecord.AttStatus?.identifier === 'IN' && hoursPassed > 1) {
+  //   //         requestLocationPermission("OUT");
+  //   //         setCheckinout(false);
+  //   //       } else {
+  //   //         setCheckinout(false);
+  //   //       }
+  //   //     } else {
+  //   //       setCheckinout(true);
+  //   //     }
+  //   //   } catch (error) {
+  //   //     console.log('Error in get', error);
+  //   //   } finally {
+  //   //     setIsLoading(false);
+  //   //   }
+  //   // };
+
+  //   // Miss Noor n bola tha phir ye Function Comment kiya hai"ye Function BY_Default Location pick kr rh hai
+  //   // useEffect(() => {
+
+  //   //   FindBusinessPrtId();
+  //   //   // getCurrentLocation();
+  //   //   getYearId();
+
+  //   // }, []);
+
+  //   // const getCurrentLocation = () => {
+  //   //   Geolocation.getCurrentPosition(
+  //   //     (position) => {
+  //   //       const { latitude, longitude } = position.coords;
+  //   //       setLocation({ latitude, longitude });
+  //   //       console.log("Location:", latitude, longitude); // You can remove this or replace it with any other logic
+  //   //     },
+  //   //     (error) => {
+  //   //       console.log(error.code, error.message);
+  //   //     },
+  //   //     { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  //   //   );
+  //   // };
+  //   // const requestLocationPermission = async (Status) => {
+  //   //   if (Platform.OS === 'android') {
+  //   //     const granted = await PermissionsAndroid.request(
+  //   //       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  //   //       {
+  //   //         title: "Location Permission",
+  //   //         message: "This app needs access to your location",
+  //   //         buttonNeutral: "Ask Me Later",
+  //   //         buttonNegative: "Cancel",
+  //   //         buttonPositive: "OK"
+  //   //       }
+  //   //     );
+  //   //     if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+  //   //       setStatus(Status)
+  //   //       getCurrentLocation();
+  //   //     } else {
+  //   //       console.log("Location permission denied");
+  //   //       Alert.alert('Location permission denied', 'Go on App settings and turn on Location');
+  //   //     }
+  //   //   } else {
+  //   //     getCurrentLocation();
+  //   //   }
+  //   // };
 
   const extractCurrentYearData = (data, currentYear) => {
     const currentYearLabel = `${currentYear - 1}/${currentYear
@@ -457,6 +704,12 @@ const HomeScreen = ({route}) => {
     return today.toLocaleDateString(undefined, options);
   };
 
+  // const renderCategory = ({ title, icon, color, backgroundcolor, onPress }) => (
+  //   <TouchableOpacity style={styles.categoryBox} key={title} onPress={onPress}>
+  //     <MaterialCommunityIcons name={icon} size={30} color={color} style={{ backgroundColor: backgroundcolor, padding: "5%", paddingHorizontal: "4%", borderRadius: 10 }} />
+  //     <Text style={styles.categoryText}>{title}</Text>
+  //   </TouchableOpacity>
+  // );
   const renderCategory = ({title, icon, color, backgroundcolor, onPress}) => (
     <TouchableOpacity style={styles.categoryBox} onPress={onPress} key={title}>
       <MaterialCommunityIcons
@@ -501,6 +754,17 @@ const HomeScreen = ({route}) => {
             <Icon name="menu" size={40} color="#fff" />
           </TouchableOpacity>
 
+          {/* <TouchableOpacity
+            style={styles.notificationBellViewStyle}
+            onPress={() => navigation.navigate('NotificationSrn')}
+          >
+            <Icon
+              name="notifications-outline"
+              size={24}
+              color="#000"
+              style={{ alignSelf: "center" }}
+            />
+          </TouchableOpacity> */}
           <View style={{position: 'relative'}}>
             <TouchableOpacity
               style={styles.notificationBellViewStyle}
@@ -574,13 +838,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    // backgroundColor: '#3E63DD',
     backgroundColor: '#2F4FE3',
+    // flexDirection: 'row',
+    // alignItems: 'center',
+    // justifyContent: 'space-between',
     padding: 16,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     height: '36%',
   },
   bellIconViewStyle: {
+    // backgroundColor: "green",
     flexDirection: 'row',
     marginTop: '5%',
     justifyContent: 'space-between',
@@ -612,6 +881,7 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     alignItems: 'center',
+    // backgroundColor:"red"
   },
   name: {
     color: '#fff',
@@ -635,6 +905,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-around',
+    // marginVertical: 16,
   },
   categoryBox: {
     width: '40%',
@@ -651,6 +922,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
     paddingLeft: '1%',
+    // backgroundColor:"pink",
     width: '73%',
   },
   transactionHeader: {
@@ -673,8 +945,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   dateTransaction: {
+    // alignSelf: 'flex-end',
+    // marginTop: 8,
     marginRight: 16,
     fontSize: 12,
+    // color: '#374151',
     color: '#939393',
   },
   transactionBox: {
@@ -697,6 +972,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   dateNewScreen: {
+    // color: '#6B7280',
     fontSize: 16,
     color: '#fff',
   },

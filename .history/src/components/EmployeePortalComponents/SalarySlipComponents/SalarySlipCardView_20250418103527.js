@@ -68,7 +68,6 @@ const styles = StyleSheet.create({
     elevation: 11,
     shadowRadius: 2,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   TextTop: {
     color: '#000',

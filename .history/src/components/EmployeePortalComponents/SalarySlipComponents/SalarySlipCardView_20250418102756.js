@@ -1,33 +1,10 @@
-import {StyleSheet, Text, View, Image} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import React from 'react';
 
-const SalarySlipCardView = ({Icon, TitleText, Txt, image}) => {
+const SalarySlipCardView = ({Icon, TitleText, Txt}) => {
   return (
     <View style={styles.ContainerView}>
-      {/* <View style={styles.IconView}>{Icon}</View>
-      <View
-        style={{
-          height: 40,
-          width: 40,
-          backgroundColor: '#fff',
-          borderRadius: 20,
-          marginLeft: 10,
-          marginTop: 6,
-          shadowColor: '#000',
-          // shadowOpacity: 0.8,
-          elevation: 11,
-          shadowRadius: 2,
-          justifyContent: 'center',
-        }}>
-        <Image source={image} style={{alignSelf: 'center'}} />
-      </View> */}
-      <View style={styles.IconView}>
-        {Icon ? (
-          Icon
-        ) : image ? (
-          <Image source={image} style={{alignSelf: 'center'}} />
-        ) : null}
-      </View>
+      <View style={styles.IconView}>{Icon}</View>
 
       <View>
         <Text style={styles.TextTop}>{TitleText}</Text>
@@ -60,15 +37,13 @@ const styles = StyleSheet.create({
     width: 40,
     backgroundColor: '#fff',
     borderRadius: 20,
-    // marginLeft: 10,
+    marginLeft: 10,
     marginTop: 6,
-    marginRight: 8,
     shadowColor: '#000',
     // shadowOpacity: 0.8,
     elevation: 11,
     shadowRadius: 2,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   TextTop: {
     color: '#000',
