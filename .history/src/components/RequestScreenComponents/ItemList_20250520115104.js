@@ -444,11 +444,10 @@ const styles = StyleSheet.create({
     width: '90%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
   },
 
   txt: {
-    color: '#000',
+    color: 'red',
     fontSize: 16,
     fontFamily: 'K2D-Regular',
     fontWeight: '700',

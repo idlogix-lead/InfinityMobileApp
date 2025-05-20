@@ -335,13 +335,7 @@ const ItemList = ({
               {/* <Text style={styles.txt}>Set Status</Text> */}
               <View style={[styles.modalView, {paddingHorizontal: '10%'}]}>
                 <Text style={styles.txt}>{selectedItem?.title}</Text>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '300',
-                    color: '#000',
-                    marginBottom: 10,
-                  }}>
+                <Text style={{fontSize: 12, fontWeight: '300', color: '#000'}}>
                   {selectedItem?.value}
                 </Text>
               </View>
@@ -444,7 +438,6 @@ const styles = StyleSheet.create({
     width: '90%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
   },
 
   txt: {

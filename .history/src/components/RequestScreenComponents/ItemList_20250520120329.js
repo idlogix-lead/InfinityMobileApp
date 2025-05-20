@@ -442,9 +442,9 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: '90%',
+    height: '20%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
   },
 
   txt: {

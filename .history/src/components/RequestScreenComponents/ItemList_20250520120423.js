@@ -444,7 +444,7 @@ const styles = StyleSheet.create({
     width: '90%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
 
   txt: {
