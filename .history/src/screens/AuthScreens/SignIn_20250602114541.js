@@ -101,7 +101,6 @@ const SignIn = ({navigation}) => {
           host,
           port,
           checkedRem,
-          formProfile: false,
         });
         setIsLoading(false);
         return;
@@ -461,7 +460,7 @@ const styles = StyleSheet.create({
     // alignItems: 'center',
     // marginTop: height / 12
     alignItems: 'center',
-    marginTop: height / 10,
+    marginTop: height / 5,
   },
   btnTxt: {
     // color: 'white',
@@ -478,7 +477,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: height / 16,
     borderRadius: 10,
-    marginBottom: '6%',
+    marginBottom: '20%',
     marginTop: '-5%',
   },
   WelcomeScreenButton: {
@@ -495,6 +494,5 @@ const styles = StyleSheet.create({
     borderShadowOpacity: 0.25,
     borderShadowRadius: 3.84,
     elevation: 5,
-    marginBottom: 20,
   },
 });

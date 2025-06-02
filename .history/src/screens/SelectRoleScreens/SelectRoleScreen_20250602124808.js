@@ -51,7 +51,82 @@ const SelectRoleScreen = ({navigation, route}) => {
     {label: 'Select Client', value: 'Select Client'},
     {label: clientName, value: clientName},
   ];
-  // Menual fetch roles
+
+  // const fetchRoles = async () => {
+  //   setIsLoading(true);
+  //   await fetch(
+  //     `${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`,
+  //     {
+  //       method: 'GET',
+  //       headers: {
+  //         Authorization: `Bearer ${token}`,
+  //         'Content-Type': 'application/json',
+  //       },
+  //     },
+  //   )
+  //     .then(response => response.json())
+  //     .then(data => {
+  //       const fetchRole = data.roles;
+  //       setOptionsRoles([...optionsRoles, ...fetchRole]);
+  //       setIsLoading(false);
+  //     })
+  //     .catch(error => {
+  //       console.error(error);
+  //       setIsLoading(false);
+  //     });
+  // };
+
+  // const fetchOrganization = async itemValue => {
+  //   setOptionsOrgan([
+  //     {label: 'Select Organization', value: 'Select Organization'},
+  //   ]);
+  //   await fetch(
+  //     `${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${itemValue}`,
+  //     {
+  //       method: 'GET',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //     },
+  //   )
+  //     .then(response => response.json())
+  //     .then(data => {
+  //       const array1 = [
+  //         {label: 'Select Organization', value: 'Select Organization'},
+  //       ];
+  //       const fetchOran = data.organizations;
+  //       setOptionsOrgan(array1.concat(fetchOran));
+  //       setIsLoading(false);
+  //     })
+  //     .catch(error => {
+  //       console.error(error);
+  //     });
+  // };
+
+  // const fetchWareHouse = async itemValue => {
+  //   await fetch(
+  //     `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${roleId}&organization=${itemValue}`,
+  //     {
+  //       method: 'GET',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //     },
+  //   )
+  //     .then(response => response.json())
+  //     .then(data => {
+  //       const array1 = [{label: 'Select WareHouse', value: 'Select WareHouse'}];
+  //       const fetchWareHouse = data.warehouses;
+  //       setOptionsWareHouse(array1.concat(fetchWareHouse));
+  //       setIsLoading(false);
+  //     })
+  //     .catch(error => {
+  //       console.error(error);
+  //     });
+  // };
+
   const fetchRoles = async () => {
     try {
       setIsLoading(true);
@@ -192,7 +267,7 @@ const SelectRoleScreen = ({navigation, route}) => {
       setIsLoading(false);
     }
   };
-  //  Login Function
+
   const Login = async (roleIdVal, orgIdVal, whIdVal, fromProfile = false) => {
     setIsLoading(true);
     const userName = await AsyncStorage.getItem('userName');
@@ -206,6 +281,7 @@ const SelectRoleScreen = ({navigation, route}) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              // Authorization: `Bearer ${token}`,
             },
 
             body: JSON.stringify({
@@ -253,30 +329,27 @@ const SelectRoleScreen = ({navigation, route}) => {
       console.log(tokenOk);
       const tokenOk = userId;
 
-      await AsyncStorage.multiSet(itemsToSave);
-
-      const itemsToSave = [
+      await AsyncStorage.multiSet([
         ['token', updatedToken],
         ['tokenOk', tokenOk],
         ['userId', userId],
         ['clientName', clientName],
+        ['roleId', roleId.toString()],
         ['clientId', clientId.toString()],
-        ['roleId', roleIdVal.toString()],
-        ['organizationId', orgIdVal.toString()],
-        ['warehouseId', whIdVal.toString()],
-      ];
+        ['organizationId', organizationId.toString()],
+        ['warehouseId', warehouseId.toString()],
+      ]);
 
-      if (fromProfile) {
-        itemsToSave.push(['username', userName]);
-        itemsToSave.push(['password', password]);
+      if (updatedToken && tokenOk && roleId) {
+        navigation.navigate('FingerPrintScreen', {
+          token: updatedToken,
+          tokenOk,
+          roleId: roleIdVal,
+          userId,
+        });
+      } else {
+        throw new Error('Missing parameters after session update');
       }
-
-      navigation.navigate('FingerPrintScreen', {
-        token: updatedToken,
-        tokenOk,
-        roleId: roleIdVal,
-        userId,
-      });
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert(
@@ -287,7 +360,7 @@ const SelectRoleScreen = ({navigation, route}) => {
       setIsLoading(false);
     }
   };
-  //  Login Function End
+
   const clickOk = () => {
     if (!selectedClient) {
       alert('please select client');

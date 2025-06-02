@@ -197,25 +197,6 @@ const ProfileScreen = ({navigation}) => {
       });
   };
 
-  const navigateToSelectRole = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const clientId = await AsyncStorage.getItem('clientId');
-    const clientName = await AsyncStorage.getItem('clientName');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-
-    navigation.navigate('SelectRoleScreen', {
-      token,
-      clientId,
-      clientName,
-      protocol,
-      host,
-      port,
-      fromProfile: true,
-    });
-  };
-
   const handlePressLogout = async () => {
     Alert.alert('Confirmation Action', 'Do you want to LogOut?', [
       {text: 'Cancel', style: 'cancel'},
@@ -283,8 +264,7 @@ const ProfileScreen = ({navigation}) => {
         <Card
           Icon={<FontAwesome name="wpforms" size={25} color="#877e7e" />}
           txt="Company Information"
-          handlePress={() => navigateToSelectRole()}
-          // handlePress={() => navigation.navigate('CompanyInformationScreen')}
+          handlePress={() => navigation.navigate('CompanyInformationScreen')}
         />
         <Card
           Icon={<MaterialIcons name="co-present" size={25} color="#877e7e" />}

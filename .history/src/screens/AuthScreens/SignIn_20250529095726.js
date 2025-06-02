@@ -17,7 +17,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/dist/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/dist/Ionicons';
-import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
 
 const {height, width} = Dimensions.get('window');
 
@@ -101,7 +100,6 @@ const SignIn = ({navigation}) => {
           host,
           port,
           checkedRem,
-          formProfile: false,
         });
         setIsLoading(false);
         return;
@@ -357,11 +355,6 @@ const SignIn = ({navigation}) => {
                 <Text style={styles.btnTxt}>Login</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('WelcomeScreen')}
-              style={styles.WelcomeScreenButton}>
-              <FontAwesome name="gear" size={30} color="#000" />
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -461,7 +454,7 @@ const styles = StyleSheet.create({
     // alignItems: 'center',
     // marginTop: height / 12
     alignItems: 'center',
-    marginTop: height / 10,
+    marginTop: height / 8,
   },
   btnTxt: {
     // color: 'white',
@@ -478,23 +471,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: height / 16,
     borderRadius: 10,
-    marginBottom: '6%',
+    marginBottom: '20%',
     marginTop: '-5%',
-  },
-  WelcomeScreenButton: {
-    // marginTop: 100,
-    alignSelf: 'flex-end',
-    marginRight: 20,
-    backgroundColor: '#fff',
-    height: 60,
-    width: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderShadowColor: '#000',
-    borderShadowOpacity: 0.25,
-    borderShadowRadius: 3.84,
-    elevation: 5,
-    marginBottom: 20,
   },
 });

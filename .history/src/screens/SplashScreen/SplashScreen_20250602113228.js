@@ -19,6 +19,7 @@ const SplashScreen = ({navigation}) => {
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   const getTokens = async () => {
+    const isFirstLaunch = await AsyncStorage.getItem('isFirstLaunch');
     const token = await AsyncStorage.getItem('token');
     const tokenOk = await AsyncStorage.getItem('tokenOk');
     const userId = await AsyncStorage.getItem('userId');
@@ -82,8 +83,9 @@ const SplashScreen = ({navigation}) => {
     //     }
     // }
 
-    if (!protocol || !host || !port) {
+    if (!protocol || !host || !port || !isFirstLaunch) {
       // First time or config deleted manually
+      await AsyncStorage.setItem('isFirstLaunch', 'false');
       setTimeout(() => {
         navigation.replace('WelcomeScreen');
       }, 2000);

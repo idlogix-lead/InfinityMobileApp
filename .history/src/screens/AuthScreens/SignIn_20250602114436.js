@@ -101,7 +101,6 @@ const SignIn = ({navigation}) => {
           host,
           port,
           checkedRem,
-          formProfile: false,
         });
         setIsLoading(false);
         return;
@@ -352,16 +351,16 @@ const SignIn = ({navigation}) => {
             </View>
 
             {/* Button */}
-            <View style={styles.btnCotainer}>
-              <TouchableOpacity style={styles.btn} onPress={() => login()}>
-                <Text style={styles.btnTxt}>Login</Text>
-              </TouchableOpacity>
-            </View>
             <TouchableOpacity
               onPress={() => navigation.navigate('WelcomeScreen')}
               style={styles.WelcomeScreenButton}>
               <FontAwesome name="gear" size={30} color="#000" />
             </TouchableOpacity>
+            <View style={styles.btnCotainer}>
+              <TouchableOpacity style={styles.btn} onPress={() => login()}>
+                <Text style={styles.btnTxt}>Login</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       )}
@@ -461,7 +460,7 @@ const styles = StyleSheet.create({
     // alignItems: 'center',
     // marginTop: height / 12
     alignItems: 'center',
-    marginTop: height / 10,
+    marginTop: height / 8,
   },
   btnTxt: {
     // color: 'white',
@@ -478,11 +477,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: height / 16,
     borderRadius: 10,
-    marginBottom: '6%',
+    marginBottom: '20%',
     marginTop: '-5%',
   },
   WelcomeScreenButton: {
-    // marginTop: 100,
+    marginTop: 100,
     alignSelf: 'flex-end',
     marginRight: 20,
     backgroundColor: '#fff',
@@ -495,6 +494,5 @@ const styles = StyleSheet.create({
     borderShadowOpacity: 0.25,
     borderShadowRadius: 3.84,
     elevation: 5,
-    marginBottom: 20,
   },
 });

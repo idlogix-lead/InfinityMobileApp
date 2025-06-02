@@ -101,7 +101,6 @@ const SignIn = ({navigation}) => {
           host,
           port,
           checkedRem,
-          formProfile: false,
         });
         setIsLoading(false);
         return;

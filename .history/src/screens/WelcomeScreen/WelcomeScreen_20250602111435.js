@@ -42,7 +42,7 @@ const WelcomeScreen = ({navigation}) => {
       alert('Please select host');
     } else if (IpAddress.trim() === '') {
       alert('Please enter your IP address');
-    } else if (portNum.trim() === '') {
+    } else if (portNum.trim === '') {
       alert('Please enter your Port Number');
     } else {
       await AsyncStorage.setItem('protocol', selectedValue).then(async () => {
@@ -72,7 +72,6 @@ const WelcomeScreen = ({navigation}) => {
     return () =>
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
   }, []);
-
   return (
     <View
       style={{

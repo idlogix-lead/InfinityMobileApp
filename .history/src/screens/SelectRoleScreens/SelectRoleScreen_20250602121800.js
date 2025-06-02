@@ -17,16 +17,8 @@ import axios from 'axios';
 const {height, width} = Dimensions.get('window');
 
 const SelectRoleScreen = ({navigation, route}) => {
-  const {
-    token,
-    clientId,
-    clientName,
-    protocol,
-    host,
-    port,
-    checkedRem = false,
-  } = route.params;
-  const fromProfile = route?.params?.fromProfile || false;
+  const {token, clientId, clientName, protocol, host, port, checkedRem} =
+    route.params;
   console.log(`Token: ${token}`);
   console.log(clientId, 'clientId');
   const [selectedClient, setSelectedClient] = useState('');
@@ -51,60 +43,80 @@ const SelectRoleScreen = ({navigation, route}) => {
     {label: 'Select Client', value: 'Select Client'},
     {label: clientName, value: clientName},
   ];
-  // Menual fetch roles
+
   const fetchRoles = async () => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('roles'));
-
-      console.log(data, '/////////');
-      const roles = data.filter(role => !role.name.includes('*'));
-      setOptionsRoles([
-        {label: 'Select Role', value: ''},
-        ...roles.map(r => ({name: r.name, value: r.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Roles Error:', error);
-      Alert.alert('Error', 'Failed to load roles');
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(true);
+    await fetch(
+      `${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+      .then(response => response.json())
+      .then(data => {
+        const fetchRole = data.roles;
+        setOptionsRoles([...optionsRoles, ...fetchRole]);
+        setIsLoading(false);
+      })
+      .catch(error => {
+        console.error(error);
+        setIsLoading(false);
+      });
   };
 
-  const fetchOrganization = async roleId => {
-    try {
-      setIsLoading(true);
-
-      const data = JSON.parse(await AsyncStorage.getItem('orgs'));
-      const orgs = data.filter(org => !org.name.includes('*'));
-      setOptionsOrgan([
-        {name: 'Select Organization', value: ''},
-        ...orgs.map(o => ({name: o.name, value: o.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Organizations Error:', error);
-      Alert.alert('Error', 'Failed to load organizations');
-    } finally {
-      setIsLoading(false);
-    }
+  const fetchOrganization = async itemValue => {
+    setOptionsOrgan([
+      {label: 'Select Organization', value: 'Select Organization'},
+    ]);
+    await fetch(
+      `${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${itemValue}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    )
+      .then(response => response.json())
+      .then(data => {
+        const array1 = [
+          {label: 'Select Organization', value: 'Select Organization'},
+        ];
+        const fetchOran = data.organizations;
+        setOptionsOrgan(array1.concat(fetchOran));
+        setIsLoading(false);
+      })
+      .catch(error => {
+        console.error(error);
+      });
   };
 
-  // Fetch warehouses by role + organization
-  const fetchWareHouse = async orgId => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('warehouses'));
-      const whs = data.filter(wh => !wh.name.includes('*'));
-      setOptionsWareHouse([
-        {label: 'Select WareHouse', value: ''},
-        ...whs.map(w => ({label: w.name, value: w.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Warehouses Error:', error);
-      Alert.alert('Error', 'Failed to load warehouses');
-    } finally {
-      setIsLoading(false);
-    }
+  const fetchWareHouse = async itemValue => {
+    await fetch(
+      `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${roleId}&organization=${itemValue}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    )
+      .then(response => response.json())
+      .then(data => {
+        const array1 = [{label: 'Select WareHouse', value: 'Select WareHouse'}];
+        const fetchWareHouse = data.warehouses;
+        setOptionsWareHouse(array1.concat(fetchWareHouse));
+        setIsLoading(false);
+      })
+      .catch(error => {
+        console.error(error);
+      });
   };
 
   // Auto select flow for initial login
@@ -192,54 +204,28 @@ const SelectRoleScreen = ({navigation, route}) => {
       setIsLoading(false);
     }
   };
-  //  Login Function
-  const Login = async (roleIdVal, orgIdVal, whIdVal, fromProfile = false) => {
-    setIsLoading(true);
-    const userName = await AsyncStorage.getItem('userName');
-    const password = await AsyncStorage.getItem('password');
-    try {
-      let sessionResponse;
-      if (fromProfile === true) {
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
 
-            body: JSON.stringify({
-              userName: userName,
-              password: password,
-              parameters: {
-                clientId: clientId,
-                roleId: roleIdVal,
-                organizationId: orgIdVal,
-                warehouseId: whIdVal,
-                language: 'en_US',
-              },
-            }),
+  const Login = async () => {
+    setIsLoading(true);
+    try {
+      const sessionResponse = await fetch(
+        `${protocol}://${host}:${port}/api/v1/auth/tokens`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
-        );
-      } else {
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              clientId: clientId,
-              roleId: roleIdVal,
-              organizationId: orgIdVal,
-              warehouseId: whIdVal,
-              language: 'en_US',
-            }),
-          },
-        );
-      }
+
+          body: JSON.stringify({
+            clientId,
+            roleId,
+            organizationId,
+            warehouseId,
+            language: 'en_US',
+          }),
+        },
+      );
 
       if (!sessionResponse.ok) {
         throw new Error(
@@ -248,35 +234,33 @@ const SelectRoleScreen = ({navigation, route}) => {
       }
 
       const sessionData = await sessionResponse.json();
+      // console.log(sessionData,'dataForInfinityERP')
       const updatedToken = sessionData.token;
+      const tokenOk = sessionData.userId.toString();
       const userId = sessionData.userId.toString();
       console.log(tokenOk);
-      const tokenOk = userId;
 
-      await AsyncStorage.multiSet(itemsToSave);
-
-      const itemsToSave = [
+      await AsyncStorage.multiSet([
         ['token', updatedToken],
         ['tokenOk', tokenOk],
         ['userId', userId],
         ['clientName', clientName],
+        ['roleId', roleId.toString()],
         ['clientId', clientId.toString()],
-        ['roleId', roleIdVal.toString()],
-        ['organizationId', orgIdVal.toString()],
-        ['warehouseId', whIdVal.toString()],
-      ];
+        ['organizationId', organizationId.toString()],
+        ['warehouseId', warehouseId.toString()],
+      ]);
 
-      if (fromProfile) {
-        itemsToSave.push(['username', userName]);
-        itemsToSave.push(['password', password]);
+      if (updatedToken && tokenOk && roleId) {
+        navigation.navigate('FingerPrintScreen', {
+          token: updatedToken,
+          tokenOk,
+          roleId,
+          userId,
+        });
+      } else {
+        throw new Error('Missing parameters after session update');
       }
-
-      navigation.navigate('FingerPrintScreen', {
-        token: updatedToken,
-        tokenOk,
-        roleId: roleIdVal,
-        userId,
-      });
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert(
@@ -287,7 +271,7 @@ const SelectRoleScreen = ({navigation, route}) => {
       setIsLoading(false);
     }
   };
-  //  Login Function End
+
   const clickOk = () => {
     if (!selectedClient) {
       alert('please select client');
@@ -298,17 +282,12 @@ const SelectRoleScreen = ({navigation, route}) => {
     } else if (!selectedWareHouse) {
       alert('select an wareHouse');
     } else {
-      Login(selectedRole, selectedOrgan, selectedWareHouse, true);
+      Login();
     }
   };
 
   useEffect(() => {
-    if (!fromProfile) {
-      autoSelectFlow();
-    } else {
-      fetchRoles();
-    }
-
+    fetchRoles();
     const backAction = () => {
       navigation.goBack();
       return true;
