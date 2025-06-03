@@ -193,7 +193,6 @@ const ProfileScreen = ({navigation}) => {
           host,
           port,
           checkedRem,
-          fromProfile: true,
         });
       });
   };
@@ -284,8 +283,8 @@ const ProfileScreen = ({navigation}) => {
         <Card
           Icon={<FontAwesome name="wpforms" size={25} color="#877e7e" />}
           txt="Company Information"
-          // handlePress={() => navigateToSelectRole()}
-          handlePress={() => navigation.navigate('CompanyInformationScreen')}
+          handlePress={() => navigateToSelectRole()}
+          // handlePress={() => navigation.navigate('CompanyInformationScreen')}
         />
         <Card
           Icon={<MaterialIcons name="co-present" size={25} color="#877e7e" />}

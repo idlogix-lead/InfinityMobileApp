@@ -264,8 +264,10 @@ const SelectRoleScreen = ({navigation, route}) => {
       const sessionData = await sessionResponse.json();
       const updatedToken = sessionData.token;
       const userId = sessionData.userId.toString();
-      console.log(tokenOk, 'TokenOk////////');
+      console.log(userId, 'TokenOk////////');
       const tokenOk = userId;
+
+      await AsyncStorage.multiSet(itemsToSave);
 
       const itemsToSave = [
         ['token', updatedToken],
@@ -282,7 +284,6 @@ const SelectRoleScreen = ({navigation, route}) => {
         itemsToSave.push(['userName', userName]);
         itemsToSave.push(['password', password]);
       }
-      await AsyncStorage.multiSet(itemsToSave);
 
       navigation.navigate('FingerPrintScreen', {
         token: updatedToken,
