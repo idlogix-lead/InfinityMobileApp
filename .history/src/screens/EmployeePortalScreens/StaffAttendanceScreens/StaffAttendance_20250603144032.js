@@ -118,7 +118,7 @@ const StaffAttendance = () => {
       console.log('Error fetching processed attendance:', error);
     } finally {
       setIsLoadingMore(false);
-      //   if (currentPage === 1) setIsLoading(false);
+      if (currentPage === 1) setIsLoading(false);
     }
   };
 
