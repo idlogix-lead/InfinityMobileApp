@@ -158,6 +158,10 @@ const SelectRoleScreen = ({navigation, route}) => {
       ]);
       setSelectedOrgan(validOrg.id);
 
+      console.log('clientId', clientId);
+      console.log('clientRole', validRole);
+      console.log('client Organization', validOrg);
+
       // Warehouses
       const whResponse = await fetch(
         `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
@@ -182,6 +186,48 @@ const SelectRoleScreen = ({navigation, route}) => {
         ...warehouses.map(w => ({label: w.name, value: w.id})),
       ]);
       setSelectedWareHouse(validWH.id);
+
+      // Warehouses
+      // const whResponse = await fetch(
+      //   `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
+      //   {
+      //     method: 'GET',
+      //     headers: {
+      //       Authorization: `Bearer ${token}`,
+      //       'Content-Type': 'application/json',
+      //     },
+      //   },
+      // );
+
+      // const whData = await whResponse.json();
+      // const warehouses = whData.warehouses;
+
+      // Save raw response
+      // await AsyncStorage.setItem('warehouses', JSON.stringify(warehouses));
+      // console.log('warehose response', warehouses);
+
+      // ✅ STATIC WAREHOUSE (Temporary fix)
+      // let validWH;
+
+      // if (!warehouses || warehouses.length === 0) {
+      //   console.warn('API returned no warehouses, using STATIC warehouse ID');
+      //   validWH = {id: '1000001', name: 'Static Warehouse'};
+      // } else {
+      //   validWH =
+      //     warehouses.find(wh => !wh.name.includes('*')) || warehouses[0];
+      // }
+
+      // Dropdown options
+      // setOptionsWareHouse([
+      //   {label: 'Select WareHouse', value: ''},
+      //   ...(warehouses && warehouses.length > 0
+      //     ? warehouses.map(w => ({label: w.name, value: w.id}))
+      //     : [{label: validWH.name, value: validWH.id}]),
+      // ]);
+
+      // Selected warehouse
+      // setSelectedWareHouse(validWH.id);
+      // console.log('Selected warehouse ID:', validWH.id);
 
       // Login
       await Login(validRole.id, validOrg.id, validWH.id);
@@ -480,6 +526,11 @@ const SelectRoleScreen = ({navigation, route}) => {
                     'warehouseNameSelected',
                     optionsOrgan[itemIndex].name,
                   );
+                  // await AsyncStorage.setItem(
+                  //   'warehouseNameSelected',
+                  //   optionsWareHouse[itemIndex].label,
+                  // );
+
                   if (itemValue === 'Select WareHouse') {
                     alert('Please select an Warehouse');
                   } else {

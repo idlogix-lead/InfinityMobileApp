@@ -4,26 +4,26 @@ import React from 'react';
 const PortalCards = ({text, onPress, icon, image}) => {
   return (
     <TouchableOpacity onPress={onPress} style={styles.Container}>
-      <View style={{flexDirection: 'row'}}>
+     
         <View
           style={{
             height: 40,
-            width: 40,
+            // width: 40,
             backgroundColor: '#fff',
             borderRadius: 20,
-            marginLeft: 10,
+            // marginLeft: 10,
             marginTop: 6,
             shadowColor: '#000',
             // shadowOpacity: 0.8,
             elevation: 11,
             shadowRadius: 2,
             justifyContent: 'center',
+            gap: 10,
           }}>
           <Image source={image} style={{alignSelf: 'center'}} />
           {/* <Image source={image} style /> */}
         </View>
         <Text style={styles.TextBox}>{text}</Text>
-      </View>
       <View style={styles.IconBox}>{icon}</View>
     </TouchableOpacity>
   );
@@ -33,10 +33,10 @@ export default PortalCards;
 
 const styles = StyleSheet.create({
   Container: {
-    height: 70,
-    width: '90%',
+    height: '90%',
+    width: '28%',
     backgroundColor: '#fff',
-    alignSelf: 'center',
+    // alignSelf: 'center',
     borderRadius: 5,
     marginTop: 10,
     // borderBottomWidth:3,
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     padding: 10,
     color: '#000',
     fontFamily: 'K2D-BoldItalic',
-    fontSize: 16,
+    fontSize: 13,
   },
   IconBox: {
     // width: '20%',

@@ -120,6 +120,7 @@ const SignIn = ({navigation}) => {
             roleId: await AsyncStorage.getItem('roleId'),
             organizationId: await AsyncStorage.getItem('organizationId'),
             warehouseId: await AsyncStorage.getItem('warehouseId'),
+            // warehouseId: JSON.stringify(1000001),
             language: 'en_US',
           }),
         },
@@ -147,6 +148,7 @@ const SignIn = ({navigation}) => {
       );
     } catch (error) {
       alert(error.message);
+      console.log('error in login', error);
     } finally {
       setIsLoading(false); // End loading
     }

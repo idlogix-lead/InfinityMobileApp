@@ -10,6 +10,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommu
 import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 import Entypo from 'react-native-vector-icons/dist/Entypo';
 import {useNavigation} from '@react-navigation/native';
+import Filter from './Filter';
 
 const CustomHeader = ({
   title,
@@ -49,6 +50,7 @@ const CustomHeader = ({
           onPress={handleBackPress}
         />
         <Text style={styles.title}>{title}</Text>
+       
         {RightIcon ? (
           <TouchableOpacity>
             <MaterialCommunityIcons

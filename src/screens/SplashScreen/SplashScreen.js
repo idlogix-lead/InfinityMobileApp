@@ -32,56 +32,6 @@ const SplashScreen = ({navigation}) => {
     const organizationId = await AsyncStorage.getItem('organizationId');
     const warehouseId = await AsyncStorage.getItem('warehouseId');
 
-    //     if (token) {
-    //         await fetch(`${protocol}:${host}:${port}/api/v1/auth/tokens`, {
-    //             method: 'POST',
-    //             headers: {
-    //                 'Content-Type': 'application/json',
-    //             },
-    //             body: JSON.stringify({
-    //                 userName: userName,
-    //                 password: password
-    //             }),
-    //         })
-    //             .then(response => response.text())
-    //             .then(async (responseText) => {
-    //                 const responseJSON = JSON.parse(responseText);
-    //                 const token = responseJSON.token;
-    //                 const URL = `${protocol}://${host}:${port}/api/v1/auth/tokens`
-    //                 const sessionResponse = await fetch(URL, {
-    //                     method: 'PUT',
-    //                     headers: {
-    //                         'Content-Type': 'application/json',
-    //                         'Authorization': `Bearer ${token}`
-    //                     },
-    //                     body: JSON.stringify({
-    //                         clientId,
-    //                         roleId,
-    //                         organizationId,
-    //                         warehouseId,
-    //                         language: 'en_US'
-    //                     })
-    //                 })
-    //                 if (!sessionResponse.ok) {
-    //                     console.error(`PUT request failed with status ${sessionResponse.status}`);
-    //                     alert(`some problem with server ${sessionResponse.status}`)
-    //                     navigation.navigate('WelcomeScreen')
-    //                 } else {
-    //                     const sessionData = await sessionResponse.json();
-    //                     const token = sessionData.token
-    //                     await AsyncStorage.setItem('token', token)
-    //                     setTimeout(() => {
-    //                         navigation.navigate('FingerPrintScreen', { token, userId,tokenOk, roleId });
-    //                     }, 2600);
-    //                 }
-    //             })
-    //     } else {
-    //         setTimeout(() => {
-    //              navigation.navigate('WelcomeScreen')
-    //         }, 3000)
-    //     }
-    // }
-
     if (!protocol || !host || !port) {
       // First time or config deleted manually
       setTimeout(() => {
@@ -183,26 +133,27 @@ const SplashScreen = ({navigation}) => {
       <StatusBar translucent={true} backgroundColor="transparent" />
       <Animated.View
         style={{
-          // width: 220, height: 1000,
+          width: 200,
+          height: 900,
           flexDirection: 'row',
           alignItems: 'center',
           // backgroundColor:"red",
-          marginRight: '20%',
+          marginRight: '0%',
 
           transform: [{rotate: rotateInterpolate}],
         }}>
         <Image
           source={require('../../asserts/splashScreenAsserts/Frame393(3).png')}
           // source={require('../../asserts/splashScreenAsserts/87.png')}
-          style={{width: 220, height: 200}}
+          style={{width: 100, height: 120}}
         />
         <View>
           <Animated.Image
             source={require('../../asserts/splashScreenAsserts/dot(1).png')}
             style={{
               transform: [{translateY: moveAnim}], // Move dot UP first
-              width: 50,
-              height: 50,
+              width: 30,
+              height: 30,
             }}
           />
         </View>
@@ -215,7 +166,7 @@ export default SplashScreen;
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#002E62',
+    backgroundColor: '#2F4FE2',
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',

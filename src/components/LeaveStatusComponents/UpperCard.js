@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     zIndex: 1,
-    justifyContent:'center'
+    justifyContent:'center',
   },
   Txt: {
     color: '#000',

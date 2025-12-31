@@ -66,8 +66,12 @@
       "sha1": "780218277c4c3c5a49ce76a2fa59c6dd91f981e2"
     },
     {
+      "path": "assets/fonts/KaushanScript-Regular.ttf",
+      "sha1": "8b203c70f9c8f5d437eb5a87a6c7df39fb2996b7"
+    },
+    {
       "path": "assets/fonts/OFL.txt",
-      "sha1": "f6f776a2954539d751e947087ae6a2db72df8a0d"
+      "sha1": "3e9eb22b52b32a2b76d77baed04970b814233447"
     }
   ]
 }

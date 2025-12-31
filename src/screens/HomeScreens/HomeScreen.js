@@ -1,5 +1,6 @@
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import {
   FlatList,
@@ -15,6 +16,7 @@ import {
   StatusBar,
   Image,
   ImageBackground,
+  ScrollView,
 } from 'react-native';
 import React, {useCallback, useEffect, useState} from 'react';
 import TopHeader from '../../components/HomeScreenComponents/TopHeader';
@@ -77,18 +79,19 @@ const HomeScreen = ({route}) => {
 
   const categories = [
     {
-      title: 'Reports',
-      icon: 'file-document-outline',
-      color: '#fff',
-      backgroundcolor: '#7FD7C7',
+      title: 'CRM',
+      icon: 'all-inclusive',
+      color: 'rgba(43, 135, 234, 1)',
+      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
       // onPress: () => navigation.navigate('ReportMain'),
-      onPress: () => navigation.navigate('QRScannerScreen'),
+      // onPress: () => navigation.navigate('QRScannerScreen'),
+      onPress: () => navigation.navigate('CrmScreen'),
     },
     {
       title: 'Approval',
       icon: 'check-decagram',
-      color: '#fff',
-      backgroundcolor: '#FFC774',
+      color: 'rgba(43, 135, 234, 1)',
+      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
       // onPress: Approval, // ✅ function directly pass karo
       onPress: async () => {
         const approvalData = await getApprovalNum(); // Wait for the result
@@ -98,15 +101,15 @@ const HomeScreen = ({route}) => {
     {
       title: 'Employee Portal',
       icon: 'account-group',
-      color: '#fff',
-      backgroundcolor: '#3A3E59',
+      color: 'rgba(43, 135, 234, 1)',
+      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
       onPress: () => navigation.navigate('EmployeePortal'),
     },
     {
       title: 'Request',
       icon: 'file-send',
-      color: '#fff',
-      backgroundcolor: '#ED6B5B',
+      color: 'rgba(43, 135, 234, 1)',
+      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
       onPress: () => navigation.navigate('TopNavigationATS', {token}),
     },
   ];
@@ -452,10 +455,36 @@ const HomeScreen = ({route}) => {
   }, [isFocused]);
 
   // Header Currnet Date
-  const newDate = () => {
-    const today = new Date();
-    const options = {year: 'numeric', month: 'long', day: 'numeric'};
-    return today.toLocaleDateString(undefined, options);
+  // const newDate = () => {
+  //   const today = new Date();
+  //   const day = newDate.getDate();
+  //   const options = {year: 'numeric', month: 'long', day: 'numeric'};
+  //   return today.toLocaleDateString(undefined, options);
+  // };
+  const currentDate = new Date();
+  const day = currentDate.getDate();
+  // const weekday = currentDate.toLocaleDateString('en-US', {weekday: 'long'});
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentDate);
+
+  const monthDayYear = currentDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  // Helper function to get ordinal suffix dynamically
+  const getOrdinalSuffix = day => {
+    if (day > 3 && day < 21) return 'th';
+    switch (day % 10) {
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
+    }
   };
 
   const renderCategory = ({title, icon, color, backgroundcolor, onPress}) => (
@@ -495,77 +524,262 @@ const HomeScreen = ({route}) => {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.bellIconViewStyle}>
-          <TouchableOpacity>
-            <Icon name="menu" size={40} color="#fff" />
-          </TouchableOpacity>
-
-          <View style={{position: 'relative'}}>
-            <TouchableOpacity
-              style={styles.notificationBellViewStyle}
-              onPress={() => navigation.navigate('NotificationSrn')}>
-              <Icon
-                name="notifications-outline"
-                size={24}
-                color="#000"
-                style={{alignSelf: 'center'}}
-              />
+    <ScrollView>
+      <View style={styles.container}>
+        <StatusBar translucent={true} backgroundColor="transparent" />
+        <View style={styles.header}>
+          <View style={styles.bellIconViewStyle}>
+            <TouchableOpacity>
+              <Icon name="menu" size={30} color="#000" />
             </TouchableOpacity>
 
-            {notificationCount > 0 && <View style={styles.redDot} />}
+            <View style={{position: 'relative'}}>
+              <TouchableOpacity
+                style={styles.notificationBellViewStyle}
+                onPress={() => navigation.navigate('NotificationSrn')}>
+                <Icon
+                  name="notifications-outline"
+                  size={24}
+                  color="#000"
+                  style={{alignSelf: 'center'}}
+                />
+              </TouchableOpacity>
+
+              {notificationCount > 0 && <View style={styles.redDot} />}
+            </View>
           </View>
-        </View>
 
-        {/* Umar.Maqbool and ICON */}
-        <View style={styles.profileInfo}>
-          <Image
-            source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
-            style={{width: 76, height: 70, alignSelf: 'center'}}
-          />
-          <Text
-            style={[
-              styles.name,
-              {fontSize: 20, marginTop: '4%', color: '#fff'},
-            ]}>
-            {name}
-          </Text>
-          <Text style={styles.subtitle}>United Actros Developers</Text>
-        </View>
+          {/* Umar.Maqbool and ICON */}
+          <View style={styles.profileInfo}>
+            <Image
+              source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
+              style={{width: 76, height: 70, alignSelf: 'center'}}
+            />
+            <Text
+              style={[
+                styles.name,
+                {
+                  fontSize: 15,
+                  color: '#000',
+                  marginTop: '-20%',
+                  fontWeight: 900,
+                },
+              ]}>
+              {name}
+            </Text>
+            <Text style={styles.subtitle}>United Actros Developers</Text>
+          </View>
 
-        {/* Date in Home Screen */}
-        <View
+          {/* Date in Home Screen */}
+          {/* <View
           style={{
             justifyContent: 'flex-end',
             alignItems: 'flex-end',
             marginTop: '10%',
           }}>
           <Text style={styles.dateNewScreen}>{newDate()}</Text>
+        </View> */}
+
+          {/* Date Row */}
+          <View style={styles.dateRow}>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Text style={styles.dateNum}>{day}</Text>
+              <Text style={styles.dateSuffix}>{getOrdinalSuffix(day)}</Text>
+              <Text style={styles.dateDay}>{weekday}</Text>
+            </View>
+            <Text style={styles.dateRight}>{monthDayYear}</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Category List View */}
-      <View>
-        <Text style={styles.wordCategoriesStyle}> Categories </Text>
-      </View>
-      <View style={styles.categories}>{categories.map(renderCategory)}</View>
+        {/* blue card */}
+        <View style={styles.blueCard}>
+          <Image
+            source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
+            style={{position: 'absolute'}}
+          />
+          <Text style={styles.cardTitle}>
+            <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
+              Sales{' '}
+            </Text>
+            <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
+              Performance
+            </Text>
+          </Text>
+          <Text style={styles.cardTitle2}>
+            <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
+              Command{' '}
+            </Text>
+            <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
+              Center
+            </Text>
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 13,
+            }}>
+            <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
+            <TouchableOpacity style={styles.analyticsBtn}>
+              <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      {/* Transaction Header AND "View ALL" */}
-      <View style={styles.transactionHeader}>
-        <Text style={styles.transactionTitle}>Transaction</Text>
-        <TouchableOpacity>
-          <Text style={styles.viewAll}>View All</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.topRow}>
+          <View style={styles.iconBox}>
+            <View style={styles.iconWrapper}>
+              <MaterialIcons
+                name="sync"
+                size={18}
+                color="rgba(59, 99, 125, 1)"
+              />
+            </View>
 
-      <FlatList
-        data={transactions}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={renderTransaction}
-        contentContainerStyle={{paddingBottom: 40}}
-      />
-    </View>
+            <Text style={styles.iconLabel}>Analytics</Text>
+          </View>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {backgroundColor: 'rgba(248, 233, 229, 1)'},
+              ]}>
+              <MaterialIcons
+                name="assignment"
+                size={18}
+                color="rgba(183, 113, 85, 1)"
+              />
+            </View>
+            <Text style={styles.iconLabel}>Sales</Text>
+          </View>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {backgroundColor: 'rgba(252, 238, 255, 1)'},
+              ]}>
+              <MaterialIcons
+                name="gpp-maybe"
+                size={22}
+                color="rgba(185, 139, 184, 1)"
+              />
+            </View>
+            <Text style={styles.iconLabel}>Reports</Text>
+          </View>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {backgroundColor: 'rgba(239, 254, 233, 1)'},
+              ]}>
+              <View
+                style={[
+                  styles.circle,
+                  {
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    borderColor: 'rgba(91, 159, 70, 1)',
+                  },
+                ]}>
+                <Icon name="pencil" size={12} color="rgba(91, 159, 70, 1)" />
+              </View>
+            </View>
+            <Text style={styles.iconLabel}>Accounts</Text>
+          </View>
+        </View>
+        {/* Category List View */}
+        <View>
+          <Text style={styles.wordCategoriesStyle}> Categories </Text>
+        </View>
+
+        <View style={styles.bottomGrid}>
+          <TouchableOpacity
+            style={styles.gridBox}
+            onPress={() => navigation.navigate('CrmScreen')}>
+            <View style={styles.gridIconWrapper}>
+              <MaterialIcons
+                name="all-inclusive"
+                size={33}
+                color=" rgba(43, 135, 234, 1)"
+              />
+            </View>
+            <Text style={styles.gridLabel}>CRM</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.gridBox}
+            onPress={async () => {
+              const approvalData = await getApprovalNum(); // Wait for the result
+              navigation.navigate('AllApprovalList', {data: approvalData}); // Pass as object
+            }}>
+            <View style={styles.gridIconWrapper}>
+              <MaterialIcons
+                name="task-alt"
+                size={33}
+                color="rgba(43, 135, 234, 1)"
+              />
+            </View>
+            <Text style={styles.gridLabel}>Approval</Text>
+          </TouchableOpacity>
+          {/* <TouchableOpacity
+            style={styles.gridBox}
+            onPress={() => navigation.navigate('TopNavigationATS', {token})}>
+            <View style={styles.gridIconWrapper}>
+              <Icon
+                name="git-pull-request-outline"
+                size={28}
+                color="rgba(43, 135, 234, 1)"
+              />
+            </View>
+            <Text style={styles.gridLabel}>Requests</Text>
+          </TouchableOpacity> */}
+
+           <TouchableOpacity
+            style={styles.gridBox}
+            onPress={() => navigation.navigate('Requests')}>
+            <View style={styles.gridIconWrapper}>
+              <Icon
+                name="git-pull-request-outline"
+                size={28}
+                color="rgba(43, 135, 234, 1)"
+              />
+            </View>
+            <Text style={styles.gridLabel}>Requests</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.gridBox}
+            onPress={() => navigation.navigate('EmployeePortal')}>
+            <View style={styles.gridIconWrapper}>
+              <MaterialIcons
+                name="polyline"
+                size={28}
+                color="rgba(43, 135, 234, 1)"
+              />
+            </View>
+            <Text style={styles.gridLabel}>Employee Portal</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* <View style={styles.categories}>{categories.map(renderCategory)}</View> */}
+
+        {/* Transaction Header AND "View ALL" */}
+        {/* <View style={styles.transactionHeader}>
+          <Text style={styles.transactionTitle}>Transaction</Text>
+          <TouchableOpacity>
+            <Text style={styles.viewAll}>View All</Text>
+          </TouchableOpacity>
+        </View> */}
+
+        {/* <FlatList
+          data={transactions}
+          keyExtractor={(_, index) => index.toString()}
+          renderItem={renderTransaction}
+          contentContainerStyle={{paddingBottom: 40}}
+        /> */}
+      </View>
+    </ScrollView>
   );
 };
 
@@ -575,11 +789,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: '#2F4FE3',
+    // backgroundColor: '#2F4FE3',
     padding: 16,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     height: '36%',
+    // flexDirection: 'row',
+    // justifyContent: 'flex-end',
   },
   bellIconViewStyle: {
     flexDirection: 'row',
@@ -612,17 +828,140 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   profileInfo: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
   name: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    // fontFamily: 'K2D-Bold',
   },
   subtitle: {
-    color: '#D1D5DB',
-    fontSize: 16,
-    fontWeight: '500',
+    color: 'rgba(151, 151, 151, 1)',
+    fontSize: 13,
+    // fontWeight: '500',
+    fontFamily: 'K2D-Medium',
+  },
+  // date
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: '3%',
+  },
+  dateLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  dateNum: {
+    fontSize: 25,
+    fontFamily: 'K2D-Bold',
+    letterSpacing: 1,
+    color: 'rgba(47, 79, 226, 1)',
+  },
+
+  dateSuffix: {
+    fontSize: 10,
+    color: '#000',
+    fontFamily: 'K2D-Regular',
+    lineHeight: 20,
+    bottom: '5%',
+    letterSpacing: 1,
+  },
+
+  dateDay: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
+    letterSpacing: 1,
+    color: '#000',
+    paddingHorizontal:'1%'
+  },
+
+  dateRight: {
+    fontSize: 13,
+    color: 'rgba(48, 48, 48, 1)',
+    fontFamily: 'K2D-Medium',
+  },
+  //card
+  blueCard: {
+    backgroundColor: 'rgba(43, 135, 234, 1)',
+    borderRadius: 6,
+    marginTop: '-40%',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    height: 145,
+    position: 'relative',
+    overflow: 'hidden',
+    marginBottom: '2%',
+    width: '90%',
+    marginLeft: '4%',
+  },
+  cardTitle: {fontSize: 16, lineHeight: 30, letterSpacing: 0.1},
+  cardTitle2: {fontSize: 16, lineHeight: 20, letterSpacing: 0.1},
+  cardSubtitle: {
+    fontSize: 12,
+    color: 'rgba(234, 234, 234, 1)',
+    letterSpacing: 0.1,
+    marginTop: 10,
+    fontFamily: 'KaushanScript-Regular',
+  },
+  analyticsBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    marginTop: 12,
+    paddingHorizontal: '3%',
+    paddingVertical: 6,
+    elevation: 6,
+  },
+  analyticsBtnTxt: {
+    color: 'rgba(0, 0, 0, 1)',
+    fontFamily: 'K2D-Medium',
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
+  topRow: {
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingVertical: '6%',
+    elevation: 3,
+    marginBottom: '2%',
+    width: '90%',
+    marginLeft: '4%',
+  },
+  iconWrapper: {
+    backgroundColor: 'rgba(236, 247, 253, 1)',
+    height: 40,
+    width: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circle: {
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBox: {alignItems: 'center'},
+  iconLabel: {
+    marginTop: '10%',
+    fontSize: 13,
+    color: 'rgba(106, 106, 106, 1)',
+    lineHeight: 40,
+    letterSpacing: 1,
+    fontFamily: 'K2D-Medium',
+  },
+  footer: {
+    height: 30,
+    backgroundColor: '#fff',
+    width: '100%',
   },
   wordCategoriesStyle: {
     color: 'black',
@@ -630,29 +969,33 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: '4%',
     fontSize: 18,
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
+    fontFamily: 'K2D-Bold',
   },
   categories: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-around',
+    paddingHorizontal: 10,
+    marginBottom: '30%',
   },
   categoryBox: {
-    width: '40%',
+    width: '45%',
     backgroundColor: '#F9FAFB',
-    borderRadius: 12,
+    borderRadius: 6,
     padding: 16,
     marginVertical: 8,
     alignItems: 'center',
     elevation: 2,
-    flexDirection: 'row',
+    // flexDirection: '',
   },
   categoryText: {
     marginTop: 8,
-    fontWeight: '600',
+    // fontWeight: '600',
     color: '#000',
-    paddingLeft: '1%',
-    width: '73%',
+    fontFamily: 'K2D-Medium',
+    // paddingLeft: '1%',
+    // width: '73%',
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -662,16 +1005,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#DBE6FF',
     padding: '3%',
-    borderRadius: 5,
+    borderRadius: 6,
   },
   transactionTitle: {
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
+    fontFamily: 'K2D-Bold',
     fontSize: 16,
     color: '#2F4FE3',
   },
   viewAll: {
     color: '#2F4FE3',
-    fontWeight: '600',
+    // fontWeight: '600',
+    fontFamily: 'K2D-Bold',
   },
   dateTransaction: {
     marginRight: 16,
@@ -688,7 +1033,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   amount: {
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
+    fontFamily: 'K2D-SemiBold',
     fontSize: 18,
     marginRight: 16,
     color: '#000',
@@ -699,7 +1045,7 @@ const styles = StyleSheet.create({
   },
   dateNewScreen: {
     fontSize: 16,
-    color: '#fff',
+    color: '#000',
   },
   status: {
     paddingHorizontal: 12,
@@ -714,8 +1060,45 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#fff',
-    fontWeight: 'bold',
+    // fontWeight: 'bold',
+    fontFamily: 'K2D-Bold',
     fontSize: 12,
+  },
+  bottomGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: '40%',
+    // width: '90%',
+    gap: 20,
+    justifyContent:'center',
+    paddingHorizontal:'3%'
+  },
+  gridBox: {
+    width: '45%',
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 150,
+    marginBottom: '2%',
+    elevation: 5,
+  },
+  gridIconWrapper: {
+    backgroundColor: 'rgba(90, 141, 238, 0.1)',
+    height: 70,
+    width: 70,
+    borderRadius: 35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  gridLabel: {
+    marginTop: 6,
+    fontSize: 15,
+    fontFamily: 'K2D-Medium',
+    color: '#333',
   },
 });
 
