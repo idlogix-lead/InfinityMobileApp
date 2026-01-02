@@ -6,497 +6,533 @@ import {
   Dimensions,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   BackHandler,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
-import {Picker} from '@react-native-picker/picker';
-import {CheckBox} from 'react-native-elements';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import MaterialIcons from 'react-native-vector-icons/dist/MaterialIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-import Ionicons from 'react-native-vector-icons/dist/Ionicons';
+import React, { useEffect, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
+import { CheckBox } from 'react-native-elements';
 import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
+import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 
-const {height, width} = Dimensions.get('window');
+// Custom hooks and stores
+import { useAuthStore } from '../../store/authStore';
+import { useBasicLogin } from '../../hooks/useAuth';
+import colors from '../../constants/Colors';
 
-const SignIn = ({navigation}) => {
+const { height, width } = Dimensions.get('window');
+
+const SignIn = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
-  const [selectedValue, setSelectedValue] = useState('');
-  const options = [
-    // { label: 'Select Language', value: 'Select Language' },
-    {label: 'English', value: 'English'},
-    // { label: 'Urdu', value: 'Urdu' },
+  const [selectedValue, setSelectedValue] = useState('English');
+  const [checkedRem, setCheckedRem] = useState(false); // ✅ Removed checked state
+  
+  // ✅ Define options array inside component
+  const languageOptions = [
+    { label: 'English', value: 'English' },
   ];
-  const [checked, setChecked] = useState(false);
-  const [checkedRem, setCheckedRem] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  let protocol, host, port;
 
-  const handleCheckedChange = () => {
-    setChecked(!checked);
-  };
-
-  const handleCheckedRem = () => {
-    setCheckedRem(!checkedRem);
-  };
-
-  const login = async () => {
-    setIsLoading(true); // Begin loading
-
-    // Validation
+  // Use basic login hook (NOT complete login)
+  const basicLoginMutation = useBasicLogin();
+  const isLoading = useAuthStore(state => state.isLoading);
+  const error = useAuthStore(state => state.error);
+  const setAuthData = useAuthStore(state => state.setAuthData);
+  const clearError = useAuthStore(state => state.clearError);
+  
+  const handleLogin = async () => {
     if (!userName.trim()) {
       alert('Please enter userName');
-      setIsLoading(false);
       return;
-    } else if (!password.trim()) {
+    }
+    if (!password.trim()) {
       alert('Please enter password');
-      setIsLoading(false);
       return;
     }
 
-    // Prepare for API call
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
+    // Store remember me preference
+    if (checkedRem) {
+      setAuthData({ userName, password });
+    }
 
     try {
-      // Attempt to login
-      const loginResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-        {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({userName, password}),
-        },
-      );
-
-      if (!loginResponse.ok) {
-        throw new Error(
-          'Authentication failed. Please check your credentials.',
-        );
-      }
-
-      const {token, clients} = await loginResponse.json();
-      const clientId = clients[0].id;
-      const clientName = clients[0].name;
-
-      // Store relevant data in AsyncStorage
-      await AsyncStorage.multiSet([
-        ['tokenLogin', token],
-        ['userName', userName],
-        ['password', password],
-        ['clientId', clientId.toString()],
-        ['clientName', clientName],
-      ]);
-
-      if (checked) {
-        navigation.navigate('SelectRoleScreen', {
-          token,
-          clientId,
-          clientName,
-          protocol,
-          host,
-          port,
-          checkedRem,
-          formProfile: false,
+      // Step 1: Only basic login
+      const loginData = await basicLoginMutation.mutateAsync({ userName, password });
+      
+      console.log('Basic login successful:', loginData);
+      
+      // Check if user has multiple clients
+      const hasMultipleClients = loginData.clients && loginData.clients.length > 1;
+      
+      if (hasMultipleClients) {
+        // Navigate to client selection screen
+        navigation.navigate('SelectClientScreen', {
+          clients: loginData.clients,
+          token: loginData.token,
         });
-        setIsLoading(false);
-        return;
+      } else if (loginData.clients?.[0]) {
+        // Single client - go directly to parameter selection
+        navigation.navigate('SelectRoleScreen', {
+          clientId: loginData.clients[0].id,
+          clientName: loginData.clients[0].name,
+          token: loginData.token,
+        });
+      } else {
+        alert('No clients available for this user');
       }
-
-      const sessionResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            clientId,
-            roleId: await AsyncStorage.getItem('roleId'),
-            organizationId: await AsyncStorage.getItem('organizationId'),
-            warehouseId: await AsyncStorage.getItem('warehouseId'),
-            // warehouseId: JSON.stringify(1000001),
-            language: 'en_US',
-          }),
-        },
-      );
-
-      if (!sessionResponse.ok) {
-        throw new Error('Session creation failed. Please try again.');
-      }
-
-      const sessionData = await sessionResponse.json();
-      await AsyncStorage.multiSet([
-        ['token', sessionData.token],
-        ['tokenOk', sessionData.userId.toString()],
-      ]);
-
-      navigation.navigate(
-        userName.trim() === getPreUser
-          ? 'FingerPrintScreen'
-          : 'SelectRoleScreen',
-        {
-          token: sessionData.token,
-          tokenOk: sessionData.userId,
-          roleId: await AsyncStorage.getItem('roleId'),
-        },
-      );
+      
     } catch (error) {
-      alert(error.message);
-      console.log('error in login', error);
-    } finally {
-      setIsLoading(false); // End loading
+      console.log('Login error:', error);
     }
-  };
-
-  const navigateBack = () => {
-    const unsubscribe = navigation.addListener('focus', async () => {
-      protocol = await AsyncStorage.getItem('protocol');
-      host = await AsyncStorage.getItem('host');
-      port = await AsyncStorage.getItem('port');
-      setUserName('');
-      setPassword('');
-      setChecked(false);
-      setCheckedRem(false);
-      setIsLoading(false);
-    });
-
-    return unsubscribe;
   };
 
   useEffect(() => {
-    navigateBack();
+    // Clear form on focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      setUserName('');
+      setPassword('');
+      clearError(); // ✅ Removed setChecked(false)
+    });
 
     const backAction = () => {
       navigation.navigate('WelcomeScreen');
       return true;
     };
+
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
-      backAction,
+      backAction
     );
-    return () => backHandler.remove();
+
+    return () => {
+      unsubscribe();
+      backHandler.remove();
+    };
   }, [navigation]);
 
+  // Show error alert if exists
+  useEffect(() => {
+    if (error) {
+      alert(error);
+      clearError();
+    }
+  }, [error]);
+
   return (
-    <>
-      {isLoading && (
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-          <ActivityIndicator size="large" color="#0050C0" />
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor={colors.primary}
+        translucent={false}
+      />
+      
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section with Settings Icon */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              style={styles.settingsIconButton}
+              onPress={() => navigation.navigate('WelcomeScreen')}
+              disabled={isLoading}>
+              <Ionicons name="settings-outline" size={26} color={colors.textInverse} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.logoContainer}>
+            <View style={styles.logoBackground}>
+              <Image
+                source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+          
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Sign in to continue to Infinity ERP</Text>
+          </View>
         </View>
-      )}
-      {!isLoading && (
-        <View
-          style={{
-            flex: 1,
-            //  backgroundColor: '#0050C0'
-            backgroundColor: '#fff',
-          }}>
-          {/* First image */}
-          <View style={styles.imageCon}>
-            <Image
-              // source={require('../../asserts/splashScreenAsserts/infinityLoginIcon.png')}
-              source={require('../../asserts/WelcomeSrn/icon-erp167.png')}
-              style={{
-                height: height / 5.8,
-                width: width / 1.8,
-                marginTop: '40%',
-              }}
-            />
+
+        {/* Login Card */}
+        <View style={styles.card}>
+          {/* Card Header with Primary Color Background */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderContent}>
+              <Text style={styles.cardTitle}>Login</Text>
+            </View>
           </View>
 
-          <View style={styles.inpucontainer}>
-            <View>
-              <Text
-                style={{
-                  marginTop: '5%',
-                  fontSize: 20,
-                  fontWeight: '800',
-                  color: 'black',
-                  paddingLeft: '3%',
-                }}>
-                Welcome
-              </Text>
-              <Text style={{color: 'gray', paddingLeft: '3%', fontSize: 16}}>
-                Login to access your account
-              </Text>
-            </View>
-            {/* First input */}
-            <View
-              style={{
-                marginTop: 12,
-                flexDirection: 'row',
-                alignSelf: 'center',
-              }}>
+          {/* Card Body */}
+          <View style={styles.cardBody}>
+      
+            {/* Username Input */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.labelIcon}>👤</Text>
+                <Text style={styles.label}>Username</Text>
+              </View>
               <TextInput
-                onChangeText={text => setUserName(text)}
+                onChangeText={setUserName}
                 value={userName}
-                placeholder="Enter your Name"
-                placeholderTextColor="black"
-                style={styles.input}
+                placeholder="Enter your username"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.textInput}
+                editable={!isLoading}
+                autoCapitalize="none"
+                autoCorrect={false}
               />
-              {/* <View style={styles.imageContainer}>
-
-                                <MaterialCommunityIcons name='account-circle-outline' size={24} color='white' />
-                            </View> */}
             </View>
 
-            {/* Second input */}
-            <View
-              style={{
-                marginTop: 20,
-                flexDirection: 'row',
-                alignSelf: 'center',
-              }}>
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.labelIcon}>🔒</Text>
+                <Text style={styles.label}>Password</Text>
+              </View>
               <TextInput
-                onChangeText={text => setPassword(text)}
+                onChangeText={setPassword}
                 value={password}
-                placeholder="Enter your Password"
-                placeholderTextColor="black"
-                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.textInput}
                 secureTextEntry
+                editable={!isLoading}
               />
-              {/* <View style={styles.imageContainer}>
-
-                                <MaterialIcons name='lock-outline' size={24} color='white' />
-                            </View> */}
             </View>
 
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedValue}
-                onValueChange={(itemValue, itemIndex) =>
-                  setSelectedValue(itemValue)
-                }
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {options.map(option => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* Check box */}
-            <View style={{alignItems: 'center', marginTop: 40}}>
-              <View style={styles.checkBoxCon}>
-                <View style={{flexDirection: 'row'}}>
-                  <View style={{width: width / 1.6}}>
-                    <Text style={styles.checkBoxTxt}>Select role</Text>
-                  </View>
-                  <CheckBox
-                    checked={checked}
-                    onPress={handleCheckedChange}
-                    containerStyle={{
-                      borderColor: 'black',
-                      width: width / 15.5,
-                      height: height / 30,
-                      borderWidth: 0.5,
-                      borderRadius: 5,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#fff',
-                    }}
-                    checkedIcon={
-                      <View style={{height: 30, width: 30}}>
-                        <Ionicons
-                          name="checkmark-sharp"
-                          color="black"
-                          size={30}
-                        />
-                      </View>
-                    }
-                    uncheckedIcon={
-                      <View style={{backgroundColor: 'white'}}></View>
-                    }
-                  />
-                </View>
-                <View style={{flexDirection: 'row'}}>
-                  <View style={{width: width / 1.6}}>
-                    <Text style={styles.checkBoxTxt}>Remember me</Text>
-                  </View>
-                  <CheckBox
-                    checked={checkedRem}
-                    onPress={handleCheckedRem}
-                    containerStyle={{
-                      borderColor: 'black',
-                      width: width / 15.5,
-                      height: height / 30,
-                      borderRadius: 5,
-                      borderWidth: 0.5,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: 'white',
-                    }}
-                    checkedIcon={
-                      <View style={{height: 30, width: 30}}>
-                        <Ionicons
-                          name="checkmark-sharp"
-                          color="black"
-                          size={30}
-                        />
-                      </View>
-                    }
-                    uncheckedIcon={
-                      <View style={{backgroundColor: 'white'}}></View>
-                    }
-                  />
-                </View>
+            {/* Language Picker */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.labelIcon}>🌐</Text>
+                <Text style={styles.label}>Language</Text>
+              </View>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedValue}
+                  onValueChange={setSelectedValue}
+                  style={styles.picker}
+                  dropdownIconColor={colors.primary}
+                  enabled={!isLoading}
+                >
+                  {languageOptions.map(option => (
+                    <Picker.Item
+                      key={option.value}
+                      label={option.label}
+                      value={option.value}
+                      color={colors.textPrimary}
+                    />
+                  ))}
+                </Picker>
               </View>
             </View>
 
-            {/* Button */}
-            <View style={styles.btnCotainer}>
-              <TouchableOpacity style={styles.btn} onPress={() => login()}>
-                <Text style={styles.btnTxt}>Login</Text>
+            {/* Options Section - Only Remember me checkbox */}
+            <View style={styles.optionsContainer}>
+              <View style={styles.optionsRow}>
+                {/* ✅ Removed Select role checkbox */}
+                <View style={styles.optionItem}>
+                  <CheckBox
+                    checked={checkedRem}
+                    onPress={() => !isLoading && setCheckedRem(!checkedRem)}
+                    containerStyle={styles.checkbox}
+                    checkedIcon={
+                      <Text style={styles.checkIcon}>✓</Text>
+                    }
+                    uncheckedIcon={<View style={styles.uncheckedIcon} />}
+                  />
+                  <Text style={styles.optionText}>Remember me</Text>
+                </View>
+                
+                {/* ✅ Empty View to maintain layout */}
+                <View style={styles.optionItem} />
+              </View>
+            </View>
+
+            {/* Login Button */}
+            <View style={styles.buttonGroup}>
+              <TouchableOpacity
+                style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                disabled={isLoading}>
+                <View style={styles.buttonContent}>
+                  <Text style={styles.primaryButtonText}>
+                    {isLoading ? 'Logging in...' : 'Sign In'}
+                  </Text>
+                  {!isLoading && <Text style={styles.buttonArrow}>→</Text>}
+                </View>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('WelcomeScreen')}
-              style={styles.WelcomeScreenButton}>
-              <FontAwesome name="gear" size={30} color="#000" />
-            </TouchableOpacity>
           </View>
         </View>
-      )}
-    </>
+
+        {/* Footer Info */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Secure • Reliable • Enterprise Ready
+          </Text>
+          <Text style={styles.footerVersion}>Version 1.0.0</Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 export default SignIn;
 
 const styles = StyleSheet.create({
-  imageCon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: height / 7,
-    width: width,
-
-    // alignItems: 'center',
-    // justifyContent: 'center',
-    // height: height / 4.2,
-    // width: width,
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  middleContainer: {
-    alignItems: 'center',
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
-  txt: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#800000',
-    textShadowColor: 'black',
-    textShadowOffset: {width: 2, height: 2},
-    textShadowRadius: 3,
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 5,
   },
-  txt2: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#330000',
-    textShadowColor: 'black',
-    textShadowOffset: {width: 2, height: 2},
-    textShadowRadius: 3,
-  },
-  topMiddleText: {
+  headerTop: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 5,
   },
-  input: {
-    width: width / 1.5,
-    // borderBottomColor: 'white',
-    // borderBottomWidth: 1,
-    color: 'black',
-    fontFamily: 'K2D-Regular',
-    backgroundColor: '#DCDADA',
-    width: '90%',
-    borderRadius: 10,
+  settingsIconButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  inpucontainer: {
-    // marginTop: height / 7,
-    // alignItems: 'center'
-
-    marginTop: height / 8,
-    // backgroundColor:"gray"
-    backgroundColor: '#f1f1f1',
-    width: '95%',
-    alignSelf: 'center',
-    borderRadius: 10,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 5,
   },
-  imageInput: {
-    height: height / 20,
-    width: width / 10,
+  logoBackground: {
+    width: width * 0.25,
+    height: width * 0.25,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  imageContainer: {
-    // borderBottomColor: 'white',
-    // borderBottomWidth: 1,
-    backgroundColor: '#DCDADA',
+  logo: {
+    width: '70%',
+    height: '70%',
   },
-  pickerStyle: {
-    width: width / 1.3,
-    // borderBottomColor: 'white',
-    // borderBottomWidth: 1,
-    marginTop: 20,
-    backgroundColor: '#DCDADA',
-    width: '90%',
-    alignSelf: 'center',
-    borderRadius: 10,
+  titleContainer: {
+    alignItems: 'center',
   },
-  pickerItem: {
-    color: 'black',
-    fontFamily: 'K2D-Regular',
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.primary,
+    marginBottom: 4,
+    fontFamily: 'K2D-Bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  checkBoxCon: {
-    width: width / 1.3,
-  },
-  checkBoxTxt: {
+  subtitle: {
     fontSize: 16,
+    color: colors.textSecondary,
+    fontFamily: 'K2D-Regular',
+    opacity: 0.9,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 10,
+    elevation: 10,
+    shadowColor: colors.shadowDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  cardHeader: {
+    backgroundColor: colors.primary,
+    paddingVertical: 5,
+    paddingHorizontal: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    minHeight: 60,
+    justifyContent: 'center',
+  },
+  cardHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: colors.textInverse,
+    fontFamily: 'K2D-Bold',
+  },
+  cardBody: {
+    padding: 15,
+  },
+  inputGroup: {
+    marginBottom: 10,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  labelIcon: {
+    fontSize: 18,
+    marginRight: 10,
+    color: colors.primary,
+  },
+  label: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
     fontFamily: 'K2D-SemiBold',
-    color: 'black',
   },
-  btnCotainer: {
-    // alignItems: 'center',
-    // marginTop: height / 12
-    alignItems: 'center',
-    marginTop: height / 10,
-  },
-  btnTxt: {
-    // color: 'white',
-    // fontSize: 16,
-    // fontFamily: 'K2D'
-    color: 'white',
+  textInput: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.borderLight,
+    height: 56,
+    paddingHorizontal: 18,
     fontSize: 16,
-    fontFamily: 'K2D',
+    color: colors.textPrimary,
+    fontFamily: 'K2D-Regular',
+    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  btn: {
-    backgroundColor: '#002E62',
-    width: width / 1.5,
+  pickerContainer: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.borderLight,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  picker: {
+    height: 56,
+    color: colors.primary,
+    fontFamily: 'K2D-Regular',
+    fontSize: 16,
+  },
+  optionsContainer: {
+    marginBottom: 24,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  optionItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    height: height / 16,
-    borderRadius: 10,
-    marginBottom: '6%',
-    marginTop: '-5%',
+    flex: 1,
   },
-  WelcomeScreenButton: {
-    // marginTop: 100,
-    alignSelf: 'flex-end',
-    marginRight: 20,
-    backgroundColor: '#fff',
+  checkbox: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+    margin: 0,
+    marginRight: 8,
+  },
+  checkIcon: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.primaryDark,
+  },
+  uncheckedIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.inputBackground,
+  },
+  optionText: {
+    fontSize: 15,
+    color: colors.primary,
+    fontFamily: 'K2D-Regular',
+  },
+  buttonGroup: {
+    marginTop: 5,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
     height: 60,
-    width: 60,
-    borderRadius: 30,
+    borderRadius: 14,
+    elevation: 6,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonContent: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderShadowColor: '#000',
-    borderShadowOpacity: 0.25,
-    borderShadowRadius: 3.84,
-    elevation: 5,
-    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  primaryButtonText: {
+    color: colors.textInverse,
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'K2D-Bold',
+  },
+  buttonArrow: {
+    color: colors.textInverse,
+    fontSize: 24,
+    marginLeft: 12,
+    fontWeight: 'bold',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  footerText: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 2,
+    fontFamily: 'K2D-Regular',
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: colors.textPrimary,
+    fontFamily: 'K2D-Regular',
   },
 });

@@ -1,641 +1,450 @@
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  Dimensions,
-  Image,
+  TextInput,
   TouchableOpacity,
-  ActivityIndicator,
-  BackHandler,
+  ScrollView,
   Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
-import {Picker} from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { useAuthStore } from '../../store/authStore';
+import { useCompleteLogin } from '../../hooks/useAuth';
+import colors from '../../constants/Colors';
+import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 
-const {height, width} = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-const SelectRoleScreen = ({navigation, route}) => {
-  const {
-    token,
-    clientId,
-    clientName,
-    protocol,
-    host,
-    port,
-    checkedRem = false,
-  } = route.params;
-  const fromProfile = route?.params?.fromProfile || false;
-  console.log(`Token: ${token}`);
-  console.log(clientId, 'clientId');
-  const [selectedClient, setSelectedClient] = useState('');
-  const [selectedRole, setSelectedRole] = useState('');
-  const [selectedOrgan, setSelectedOrgan] = useState('');
-  const [selectedWareHouse, setSelectedWareHouse] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [optionsRoles, setOptionsRoles] = useState([
-    {label: 'Select Role', value: 'Select Role'},
-  ]);
-  const [optionsOrgan, setOptionsOrgan] = useState([
-    {label: 'Select Organization', value: 'Select Organization'},
-  ]);
-  const [optionsWareHouse, setOptionsWareHouse] = useState([
-    {label: 'Select WareHouse', value: 'Select WareHouse'},
-  ]);
+const SelectRoleScreen = ({ navigation, route }) => {
+  const { clientId, clientName, token } = route.params;
+  
   const [roleId, setRoleId] = useState('');
-  const [organizationId, setOrganizationId] = useState();
-  const [warehouseId, setWareHouseId] = useState('');
-
-  const optionClient = [
-    {label: 'Select Client', value: 'Select Client'},
-    {label: clientName, value: clientName},
-  ];
-  // Menual fetch roles
-  const fetchRoles = async () => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('roles'));
-
-      console.log(data, '/////////');
-      const roles = data.filter(role => !role.name.includes('*'));
-      setOptionsRoles([
-        {label: 'Select Role', value: ''},
-        ...roles.map(r => ({name: r.name, value: r.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Roles Error:', error);
-      Alert.alert('Error', 'Failed to load roles');
-    } finally {
-      setIsLoading(false);
+  const [organizationId, setOrganizationId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  
+  const completeLoginMutation = useCompleteLogin();
+  const isLoading = useAuthStore(state => state.isLoading);
+  const error = useAuthStore(state => state.error);
+  const clearError = useAuthStore(state => state.clearError);
+  
+  const handleSubmit = async () => {
+    if (!roleId.trim()) {
+      Alert.alert('Required Field', 'Please enter Role ID');
+      return;
     }
-  };
-
-  const fetchOrganization = async roleId => {
-    try {
-      setIsLoading(true);
-
-      const data = JSON.parse(await AsyncStorage.getItem('orgs'));
-      const orgs = data.filter(org => !org.name.includes('*'));
-      setOptionsOrgan([
-        {name: 'Select Organization', value: ''},
-        ...orgs.map(o => ({name: o.name, value: o.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Organizations Error:', error);
-      Alert.alert('Error', 'Failed to load organizations');
-    } finally {
-      setIsLoading(false);
+    if (!organizationId.trim()) {
+      Alert.alert('Required Field', 'Please enter Organization ID');
+      return;
     }
-  };
-
-  // Fetch warehouses by role + organization
-  const fetchWareHouse = async orgId => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('warehouses'));
-      const whs = data.filter(wh => !wh.name.includes('*'));
-      setOptionsWareHouse([
-        {label: 'Select WareHouse', value: ''},
-        ...whs.map(w => ({label: w.name, value: w.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Warehouses Error:', error);
-      Alert.alert('Error', 'Failed to load warehouses');
-    } finally {
-      setIsLoading(false);
+    if (!warehouseId.trim()) {
+      Alert.alert('Required Field', 'Please enter Warehouse ID');
+      return;
     }
-  };
 
-  // Auto select flow for initial login
-  const autoSelectFlow = async () => {
     try {
-      setIsLoading(true);
-
-      // Roles
-      const rolesResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const rolesData = await rolesResponse.json();
-
-      const roles = rolesData.roles;
-      console.log(roles, '??????????');
-      await AsyncStorage.setItem('roles', JSON.stringify(rolesData.roles));
-      const validRole = roles.find(role => !role.name.includes('*'));
-      if (!validRole) throw new Error('No valid role found');
-      setOptionsRoles([
-        {label: 'Select Role', value: ''},
-        ...roles.map(r => ({name: r.name, value: r.id})),
-      ]);
-      setSelectedRole(validRole.id);
-
-      // Organizations
-      const orgResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${validRole.id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const orgData = await orgResponse.json();
-      const orgs = orgData.organizations;
-      await AsyncStorage.setItem('orgs', JSON.stringify(orgData.organizations));
-      const validOrg = orgs.find(org => !org.name.includes('*'));
-      if (!validOrg) throw new Error('No valid organization found');
-      setOptionsOrgan([
-        {name: 'Select Organization', value: ''},
-        ...orgs.map(o => ({label: o.name, value: o.id})),
-      ]);
-      setSelectedOrgan(validOrg.id);
-
-      console.log('clientId', clientId);
-      console.log('clientRole', validRole);
-      console.log('client Organization', validOrg);
-
-      // Warehouses
-      const whResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const whData = await whResponse.json();
-      const warehouses = whData.warehouses;
-      await AsyncStorage.setItem(
-        'warehouses',
-        JSON.stringify(whData.warehouses),
-      );
-      const validWH = warehouses.find(wh => !wh.name.includes('*'));
-      if (!validWH) throw new Error('No valid warehouse found');
-      setOptionsWareHouse([
-        {label: 'Select WareHouse', value: ''},
-        ...warehouses.map(w => ({label: w.name, value: w.id})),
-      ]);
-      setSelectedWareHouse(validWH.id);
-
-      // Warehouses
-      // const whResponse = await fetch(
-      //   `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
-      //   {
-      //     method: 'GET',
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //       'Content-Type': 'application/json',
-      //     },
-      //   },
-      // );
-
-      // const whData = await whResponse.json();
-      // const warehouses = whData.warehouses;
-
-      // Save raw response
-      // await AsyncStorage.setItem('warehouses', JSON.stringify(warehouses));
-      // console.log('warehose response', warehouses);
-
-      // ✅ STATIC WAREHOUSE (Temporary fix)
-      // let validWH;
-
-      // if (!warehouses || warehouses.length === 0) {
-      //   console.warn('API returned no warehouses, using STATIC warehouse ID');
-      //   validWH = {id: '1000001', name: 'Static Warehouse'};
-      // } else {
-      //   validWH =
-      //     warehouses.find(wh => !wh.name.includes('*')) || warehouses[0];
-      // }
-
-      // Dropdown options
-      // setOptionsWareHouse([
-      //   {label: 'Select WareHouse', value: ''},
-      //   ...(warehouses && warehouses.length > 0
-      //     ? warehouses.map(w => ({label: w.name, value: w.id}))
-      //     : [{label: validWH.name, value: validWH.id}]),
-      // ]);
-
-      // Selected warehouse
-      // setSelectedWareHouse(validWH.id);
-      // console.log('Selected warehouse ID:', validWH.id);
-
-      // Login
-      await Login(validRole.id, validOrg.id, validWH.id);
-    } catch (error) {
-      console.error('Auto-select error:', error);
-      Alert.alert('Auto Login Failed', error.message || 'An error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  //  Login Function
-  const Login = async (roleIdVal, orgIdVal, whIdVal, fromProfile = false) => {
-    setIsLoading(true);
-    const userName = await AsyncStorage.getItem('userName');
-    const password = await AsyncStorage.getItem('password');
-    try {
-      let sessionResponse;
-      if (fromProfile === true) {
-        console.log(
-          JSON.stringify({
-            userName: userName,
-            password: password,
-            parameters: {
-              clientId: clientId,
-              roleId: roleIdVal,
-              organizationId: orgIdVal,
-              warehouseId: whIdVal,
-              language: 'en_US',
-            },
-          }),
-          'payload Data,,,,,,,',
-        );
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-
-            body: JSON.stringify({
-              userName: userName,
-              password: password,
-              parameters: {
-                clientId: clientId,
-                roleId: roleIdVal,
-                organizationId: orgIdVal,
-                warehouseId: whIdVal,
-                language: 'en_US',
-              },
-            }),
-          },
-        );
-      } else {
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              clientId: clientId,
-              roleId: roleIdVal,
-              organizationId: orgIdVal,
-              warehouseId: whIdVal,
-              language: 'en_US',
-            }),
-          },
-        );
-      }
-
-      if (!sessionResponse.ok) {
-        throw new Error(
-          `Session update failed with status: ${sessionResponse.status}`,
-        );
-      }
-
-      const sessionData = await sessionResponse.json();
-      const updatedToken = sessionData.token;
-      const userId = sessionData.userId.toString();
-      console.log(tokenOk, 'TokenOk////////');
-      const tokenOk = userId;
-
-      const itemsToSave = [
-        ['token', updatedToken],
-        ['tokenOk', tokenOk],
-        ['userId', userId],
-        ['clientName', clientName],
-        ['clientId', clientId.toString()],
-        ['roleId', roleIdVal.toString()],
-        ['organizationId', orgIdVal.toString()],
-        ['warehouseId', whIdVal.toString()],
-      ];
-
-      if (fromProfile) {
-        itemsToSave.push(['userName', userName]);
-        itemsToSave.push(['password', password]);
-      }
-      await AsyncStorage.multiSet(itemsToSave);
-
+      const parameters = {
+        clientId,
+        roleId,
+        organizationId,
+        warehouseId,
+      };
+      
+      const result = await completeLoginMutation.mutateAsync(parameters);
+      
+      // Navigate to main app screen
       navigation.navigate('FingerPrintScreen', {
-        token: updatedToken,
-        tokenOk,
-        roleId: roleIdVal,
-        userId,
+        token: result.token,
+        tokenOk: result.userId?.toString(),
+        roleId: roleId,
       });
+      
     } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert(
-        'Login Error',
-        error.message || 'An error occurred during login.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  //  Login Function End
-  const clickOk = () => {
-    if (!selectedClient) {
-      alert('please select client');
-    } else if (!selectedRole) {
-      alert('please select the role');
-    } else if (!selectedOrgan) {
-      alert('select an organization');
-    } else if (!selectedWareHouse) {
-      alert('select an wareHouse');
-    } else {
-      Login(selectedRole, selectedOrgan, selectedWareHouse, true);
+      console.log('Complete login error:', error);
     }
   };
 
   useEffect(() => {
-    if (!fromProfile) {
-      autoSelectFlow();
-    } else {
-      fetchRoles();
+    if (error) {
+      Alert.alert('Error', error);
+      clearError();
     }
-
-    const backAction = () => {
-      navigation.goBack();
-      return true;
-    };
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction,
-    );
-    return () => backHandler.remove();
-  }, []);
+  }, [error]);
 
   return (
-    <>
-      {isLoading && (
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-          <ActivityIndicator size="large" color="#0050C0" />
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <StatusBar 
+        barStyle="light-content" 
+        backgroundColor={colors.primary}
+        translucent={false}
+      />
+      
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section with Client Info */}
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              disabled={isLoading}>
+              <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.logoContainer}>
+            <View style={styles.logoBackground}>
+              <Ionicons name="shield-checkmark" size={50} color={colors.primary} />
+            </View>
+          </View>
+          
+          <View style={styles.titleContainer}>
+            {/* Client Name as Main Title */}
+            <Text style={styles.title}>{clientName}</Text>
+            
+            {/* Client ID below the title */}
+            <View style={styles.clientIdContainer}>
+              <Text style={styles.clientId}>Client ID: {clientId}</Text>
+            </View>
+        
+          </View>
         </View>
-      )}
-      {!isLoading && (
-        <View
-          style={{
-            flex: 1,
-            // backgroundColor: '#0050C0',
-            backgroundColor: '#fff',
-            alignItems: 'center',
-          }}>
-          {/* First image */}
-          <View style={styles.imageCon}>
-            <Image
-              // source={require('../../asserts/splashScreenAsserts/infinityLoginIcon.png')}
-              source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
-              style={{height: height / 3, width: width / 3}}
-              // style={{ height: height , width: width / 1,  }}
-              resizeMode="contain"
-            />
+
+        {/* Form Card */}
+        <View style={styles.card}>
+          {/* Card Header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderContent}>
+              <Ionicons name="key" size={24} color={colors.textInverse} />
+              <Text style={styles.cardTitle}>Access Parameters</Text>
+            </View>
           </View>
 
-          {/* Pickers */}
-          {/* Client picker */}
-          <View
-            style={{
-              backgroundColor: '#f1f1f1',
-              width: '95%',
-              alignSelf: 'center',
-              borderRadius: 10,
-            }}>
-            {/* Text  */}
-            <View>
-              <Text
-                style={{
-                  marginTop: '5%',
-                  fontSize: 20,
-                  fontWeight: '800',
-                  color: 'black',
-                  paddingLeft: '3%',
-                }}>
-                Set User Role
-              </Text>
+          {/* Card Body */}
+          <View style={styles.cardBody}>
+            {/* Role ID Input */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+              
+                <Text style={styles.label}>Role ID *</Text>
+              </View>
+              <TextInput
+                style={[styles.textInput, isLoading && styles.inputDisabled]}
+                value={roleId}
+                onChangeText={setRoleId}
+                placeholder="Enter your Role ID"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                editable={!isLoading}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+             
             </View>
-
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedClient}
-                onValueChange={async (itemValue, itemIndex) => (
-                  setSelectedClient(itemValue),
-                  await AsyncStorage.setItem(
-                    'clientNameSelected',
-                    optionClient[itemIndex].label,
-                  )
-                )}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionClient.map(option => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                    color="black"
-                    // color="#fff"
-                  />
-                ))}
-              </Picker>
+            
+            {/* Organization ID Input */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+               
+                <Text style={styles.label}>Organization ID *</Text>
+              </View>
+              <TextInput
+                style={[styles.textInput, isLoading && styles.inputDisabled]}
+                value={organizationId}
+                onChangeText={setOrganizationId}
+                placeholder="Enter your Organization ID"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                editable={!isLoading}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              
             </View>
-
-            {/* role picker */}
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedRole}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedRole(itemValue);
-                  await AsyncStorage.setItem(
-                    'roleNameSelected',
-                    optionsRoles[itemIndex].name,
-                  );
-                  if (itemValue === 'Select Role') {
-                    alert('Please select an role');
-                  } else {
-                    await setRoleId(itemValue);
-                    fetchOrganization(itemValue);
-                    setIsLoading(true);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsRoles.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
+            
+            {/* Warehouse ID Input */}
+            <View style={styles.inputGroup}>
+              <View style={styles.labelContainer}>
+              
+                <Text style={styles.label}>Warehouse ID *</Text>
+              </View>
+              <TextInput
+                style={[styles.textInput, isLoading && styles.inputDisabled]}
+                value={warehouseId}
+                onChangeText={setWarehouseId}
+                placeholder="Enter your Warehouse ID"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                editable={!isLoading}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            
             </View>
+          
 
-            {/* organization picker */}
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedOrgan}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedOrgan(itemValue);
-                  await AsyncStorage.setItem(
-                    'organizationNameSelected',
-                    optionsOrgan[itemIndex].name,
-                  );
-                  if (itemValue === 'Select Organization') {
-                    alert('Please select an organization');
-                  } else {
-                    setIsLoading(true);
-                    await setOrganizationId(itemValue);
-                    fetchWareHouse(itemValue);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsOrgan.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* warehouse picker */}
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedWareHouse}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedWareHouse(itemValue);
-                  await AsyncStorage.setItem(
-                    'warehouseNameSelected',
-                    optionsOrgan[itemIndex].name,
-                  );
-                  // await AsyncStorage.setItem(
-                  //   'warehouseNameSelected',
-                  //   optionsWareHouse[itemIndex].label,
-                  // );
-
-                  if (itemValue === 'Select WareHouse') {
-                    alert('Please select an Warehouse');
-                  } else {
-                    setIsLoading(true);
-                    await setWareHouseId(itemValue);
-                    setIsLoading(false);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsWareHouse.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* Buttoms */}
-            <View
-              style={{
-                marginTop: '10%',
-                flexDirection: 'row',
-                justifyContent: 'flex-end',
-                alignItems: 'flex-end',
-              }}>
+            {/* Submit Button */}
+            <View style={styles.buttonGroup}>
               <TouchableOpacity
-                style={[
-                  styles.btn,
-                  {backgroundColor: '#f1f1f1', borderWidth: 1},
-                ]}
-                onPress={() => navigation.goBack()}>
-                <Text style={[styles.btnTxt, {color: 'black'}]}>Cancel</Text>
+                style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
+                onPress={handleSubmit}
+                disabled={isLoading}>
+                <View style={styles.buttonContent}>
+                  {isLoading ? (
+                    <Ionicons name="sync" size={20} color={colors.textInverse} style={styles.buttonSpinner} />
+                  ) : (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.textInverse} />
+                  )}
+                  <Text style={styles.primaryButtonText}>
+                    {isLoading ? 'Verifying...' : 'Complete Login'}
+                  </Text>
+                </View>
               </TouchableOpacity>
+              
               <TouchableOpacity
-                style={[styles.btn, {marginRight: '5%'}]}
-                onPress={() => clickOk()}>
-                <Text style={styles.btnTxt}>Save</Text>
+                style={styles.secondaryButton}
+                onPress={() => navigation.goBack()}
+                disabled={isLoading}>
+                <Text style={styles.secondaryButtonText}>Go Back</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      )}
-    </>
+
+       
+       
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
-export default SelectRoleScreen;
-
 const styles = StyleSheet.create({
-  imageCon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: height / 3.5,
-    width: width,
-    // backgroundColor:"red"
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  middleContainer: {
-    alignItems: 'center',
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 30,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
   },
-  txt: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#800000',
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 5,
   },
-  txt2: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#330000',
-  },
-  topMiddleText: {
+  headerTop: {
     flexDirection: 'row',
+    marginBottom: 5,
   },
-  pickerStyle: {
-    width: width / 1.3,
-    // borderBottomColor: 'white',
-    // borderBottomWidth: 1,
-    marginTop: 14,
-    width: '90%',
-    alignSelf: 'center',
-    backgroundColor: '#DCDADA',
-    borderRadius: 10,
-  },
-  pickerItem: {
-    color: 'black',
-    fontFamily: 'K2D',
-  },
-  btn: {
-    // backgroundColor: '#00B0F0',
-    backgroundColor: '#002E62',
-    height: height / 20,
-    width: width / 3,
+  backButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: colors.background,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: '3%',
-    borderRadius: 10,
-    marginLeft: '4%',
-    marginBottom: '15%',
+    elevation: 4,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
   },
-  btnTxt: {
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  logoBackground: {
+    width: width * 0.2,
+    height: width * 0.2,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 8,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  titleContainer: {
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.primary,
+    marginBottom: 4,
+    fontFamily: 'K2D-Bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+    textAlign: 'center',
+  },
+  clientIdContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  clientId: {
     fontSize: 16,
-    color: 'white',
+    color: colors.textSecondary,
+    fontFamily: 'K2D-Regular',
+    marginLeft: 8,
   },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textTertiary,
+    fontFamily: 'K2D-Regular',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 20,
+    elevation: 10,
+    shadowColor: colors.shadowDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  cardHeader: {
+    backgroundColor: colors.primary,
+    paddingVertical: 5,
+    paddingHorizontal: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    minHeight: 50,
+    justifyContent: 'center',
+  },
+  cardHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.textInverse,
+    fontFamily: 'K2D-Bold',
+    marginLeft: 10,
+  },
+  cardBody: {
+    padding: 15,
+  },
+  inputGroup: {
+    marginBottom: 5,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  label: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    fontFamily: 'K2D-SemiBold',
+  },
+  textInput: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.borderLight,
+    height: 50,
+    paddingHorizontal: 18,
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontFamily: 'K2D-Regular',
+    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  inputDisabled: {
+    backgroundColor: colors.surfaceDisabled,
+    borderColor: colors.border,
+  },
+ 
+ 
+  buttonGroup: {
+    marginTop: 10,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    height: 60,
+    borderRadius: 14,
+    elevation: 6,
+    shadowColor: colors.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  buttonSpinner: {
+    animation: 'spin 1s linear infinite',
+  },
+  primaryButtonText: {
+    color: colors.textInverse,
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'K2D-Bold',
+    marginLeft: 12,
+  },
+  secondaryButton: {
+    backgroundColor: colors.background,
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'K2D-SemiBold',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 25,
+    paddingHorizontal: 20,
+  },
+ 
 });
+
+export default SelectRoleScreen;

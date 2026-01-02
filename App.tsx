@@ -1,13 +1,25 @@
 import React from 'react';
-import Navigation from './src/navigation/Navigation'
+import { QueryClient, QueryClientProvider } from 'react-query';
 import { MenuProvider } from 'react-native-popup-menu';
-import JsFIle from './src/JsFIle';
+import Navigation from './src/navigation/Navigation';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      cacheTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
+
 function App() {
   return (
-    <MenuProvider>
-      <Navigation />
-    </MenuProvider>
-    // <JsFIle />
+    <QueryClientProvider client={queryClient}>
+      <MenuProvider>
+        <Navigation />
+      </MenuProvider>
+    </QueryClientProvider>
   );
 }
 
