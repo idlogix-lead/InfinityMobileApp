@@ -26,13 +26,18 @@ export const useCRMStore = create((set, get) => ({
   newCollapsed: [],
   convertedCollapsed: [],
   
-  // Actions
+  // Actions - ADD THE MISSING ACTIONS HERE
   setActiveTab: (tab) => set({ 
     activeTab: tab,
     showCRMCard: tab === 'Leads',
     showSalesCard: tab === 'SalesOpportunity',
     showOverviewCard: tab === 'Overview'
   }),
+  
+  // Add these missing setter functions
+  setShowCRMCard: (show) => set({ showCRMCard: show }),
+  setShowSalesCard: (show) => set({ showSalesCard: show }),
+  setShowOverviewCard: (show) => set({ showOverviewCard: show }),
   
   setEditingId: (id) => set({ editingId: id }),
   setActiveItemId: (id) => set({ activeItemId: id }),
