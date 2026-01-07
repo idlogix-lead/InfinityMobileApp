@@ -36,6 +36,7 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 import ApprovalScreens from '../ApprovalScreens/ApprovalScreens';
+import { useAuthStore } from '../../store/authStore';
 
 const transactions = [
   {
@@ -61,7 +62,12 @@ const transactions = [
 const HomeScreen = ({route}) => {
   const navigation = useNavigation();
 
-  const {tokenOk, token, roleId} = route.params;
+  // Get auth data from Zustand store
+  const token = useAuthStore(state => state.token);
+  const tokenOk = useAuthStore(state => state.tokenOk);
+  const roleId = useAuthStore(state => state.roleId);
+  const userId = useAuthStore(state => state.userId);
+  
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [approvalNum, setApprovalNum] = useState();
@@ -77,14 +83,29 @@ const HomeScreen = ({route}) => {
   const [Status, setStatus] = useState(null);
   const [notificationCount, setNotificationCount] = useState();
 
+  // Get user info from Zustand store
+  const { 
+    userName: storeUserName, 
+    clientName: storeClientName,
+    clientId: storeClientId,
+    roleName: storeRoleName,
+    organizationName: storeOrgName,
+    warehouseName: storeWarehouseName
+  } = useAuthStore(state => ({
+    userName: state.userName,
+    clientName: state.clientName,
+    clientId: state.clientId,
+    roleName: state.roleName,
+    organizationName: state.organizationName,
+    warehouseName: state.warehouseName
+  }));
+
   const categories = [
     {
       title: 'CRM',
       icon: 'all-inclusive',
       color: 'rgba(43, 135, 234, 1)',
       backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      // onPress: () => navigation.navigate('ReportMain'),
-      // onPress: () => navigation.navigate('QRScannerScreen'),
       onPress: () => navigation.navigate('CrmScreen'),
     },
     {
@@ -92,10 +113,9 @@ const HomeScreen = ({route}) => {
       icon: 'check-decagram',
       color: 'rgba(43, 135, 234, 1)',
       backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      // onPress: Approval, // ✅ function directly pass karo
       onPress: async () => {
-        const approvalData = await getApprovalNum(); // Wait for the result
-        navigation.navigate('AllApprovalList', {data: approvalData}); // Make sure to pass as an object
+        const approvalData = await getApprovalNum();
+        navigation.navigate('AllApprovalList', {data: approvalData});
       },
     },
     {
@@ -115,41 +135,35 @@ const HomeScreen = ({route}) => {
   ];
 
   const notificationAllDataGet = async () => {
-    const token = await AsyncStorage.getItem('token');
+    const storedToken = token;
     const protocol = await AsyncStorage.getItem('protocol');
     const host = await AsyncStorage.getItem('host');
     const port = await AsyncStorage.getItem('port');
-    const userId = await AsyncStorage.getItem('userId');
+    const storedUserId = userId;
     const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log(token, 'token.............');
+    console.log('Token for notifications:', storedToken ? 'Present' : 'Missing');
 
     try {
       setIsLoading(true);
-      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${userId}`;
-      // const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${userId} and AD_Org_ID eq ${organizationId}`;
-      // console.log(URL, 'URLForNotification');
-
+      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${storedUserId}`;
+      
       const response = await axios.get(URL, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token ? `Bearer ${token.trim()}` : '',
+          Authorization: storedToken ? `Bearer ${storedToken.trim()}` : '',
         },
       });
 
       const sortedData = response?.data?.records?.sort(
         (a, b) => new Date(b.Created) - new Date(a.Created),
       );
-      // console.log(sortedData, 'NotificationHomeSrn');
 
-      // Count unprocessed notifications (Processed: false)
       const unprocessedCount = sortedData?.filter(
         item => item.Processed === false,
       ).length;
       setNotificationCount(unprocessedCount);
       console.log(unprocessedCount, 'Unprocessed Notification Count');
 
-      // setNotificationData(sortedData);
-      // setUnprocessedNotificationCount(unprocessedCount); // Uncomment if using state
     } catch (error) {
       console.log(error, 'NotificationAPIGETAllData');
     } finally {
@@ -160,18 +174,17 @@ const HomeScreen = ({route}) => {
   const getName = async () => {
     const value = await AsyncStorage.getItem('userName');
     const protocol = await AsyncStorage.getItem('protocol');
-    setClientName(await AsyncStorage.getItem('clientNameSelected'));
     const host = await AsyncStorage.getItem('host');
     const port = await AsyncStorage.getItem('port');
-    const userId = await AsyncStorage.getItem('userId');
-    console.log(userId, 'userIDForo1289ey8723t6r8');
+    const storedUserId = userId;
+    console.log('UserID for API calls:', storedUserId);
     setProtocol(protocol);
     setHost(host);
     setPort(port);
     setName(value);
     getApprovalNum(protocol, host, port);
-    getReqNum(protocol, host, port, userId);
-    getAtsNum(protocol, host, port, userId);
+    getReqNum(protocol, host, port, storedUserId);
+    getAtsNum(protocol, host, port, storedUserId);
   };
 
   const handleBackButton = () => {
@@ -180,6 +193,11 @@ const HomeScreen = ({route}) => {
   };
 
   const getApprovalNum = async (protocol, host, port) => {
+    if (!token || !roleId) {
+      console.error('Missing token or roleId for approval API');
+      return;
+    }
+    
     setIsLoading(true);
     await fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
@@ -193,7 +211,6 @@ const HomeScreen = ({route}) => {
     )
       .then(response => response.json())
       .then(data => {
-        // console.log("Data",JSON.stringify(data),"Data")
         setApprovalNum(data['array-count']);
         setIsLoading(false);
       })
@@ -204,6 +221,11 @@ const HomeScreen = ({route}) => {
   };
 
   const getReqNum = async (protocol, host, port, userId) => {
+    if (!token) {
+      console.error('Missing token for request API');
+      return;
+    }
+    
     fetch(
       `${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=CreatedBy eq ${userId}`,
       {
@@ -220,14 +242,16 @@ const HomeScreen = ({route}) => {
         const filteredData = record.filter(
           record => record.R_Status_ID.id !== 1000003,
         );
-        // const lengthOfFilteredData = filteredData.length;
-        // setReqNum(lengthOfFilteredData)
       })
       .catch(error => console.error(error));
   };
 
   const getAtsNum = async (protocol, host, port, userId) => {
-    // fetch(`${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter=Supervisor_ID eq ${userId} OR SalesRep_ID eq ${userId}`,
+    if (!token) {
+      console.error('Missing token for ATS API');
+      return;
+    }
+    
     fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`,
       {
@@ -253,6 +277,11 @@ const HomeScreen = ({route}) => {
   };
 
   const Approval = async () => {
+    if (!token || !roleId) {
+      console.error('Missing token or roleId for approval navigation');
+      return;
+    }
+    
     setIsLoading(true);
     await fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
@@ -276,7 +305,6 @@ const HomeScreen = ({route}) => {
         const filteredArrayAccount = dataArray.filter(obj =>
           tableIdsAccount.includes(obj.AD_Table_ID.id),
         );
-        // navigation.navigate('ApprovalScreens', { token, filteredArraySupply, filteredArrayAccount, tokenOk, roleId })
         navigation.navigate('AllApprovalList');
         setIsLoading(false);
       })
@@ -286,45 +314,42 @@ const HomeScreen = ({route}) => {
         setIsLoading(false);
       });
   };
+  
   const FindBusinessPrtId = async () => {
-    const token = await AsyncStorage.getItem('token');
+    const storedToken = token;
     const protocol = await AsyncStorage.getItem('protocol');
     const host = await AsyncStorage.getItem('host');
     const port = await AsyncStorage.getItem('port');
-    const Id = await AsyncStorage.getItem('userId');
-    console.log('token', token, 'token');
+    const storedUserId = userId;
 
     try {
       const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=AD_User_ID eq ${Id}`,
+        `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=AD_User_ID eq ${storedUserId}`,
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${storedToken}`,
           },
         },
       );
-      // console.log(response?.data?.records[0]?.C_BPartner_ID?.id,'ad')
       setPartnerId(response?.data?.records[0]?.C_BPartner_ID?.id);
     } catch (error) {
-      console.error('Error efe:', error);
+      console.error('Error fetching business partner ID:', error);
     }
   };
 
   const handleGetAttendance = async () => {
     const date = new Date();
-    const token = await AsyncStorage.getItem('token');
+    const storedToken = token;
     const protocol = await AsyncStorage.getItem('protocol');
     const host = await AsyncStorage.getItem('host');
     const port = await AsyncStorage.getItem('port');
-    const Id = await AsyncStorage.getItem('userId');
+    const storedUserId = userId;
     const clientid = await AsyncStorage.getItem('clientId');
     const org_id = await AsyncStorage.getItem('organizationId');
 
     try {
-      // $top=1 ensures only the latest record is fetched
       const filterQuery = `$filter=AD_Client_ID eq ${clientid} and AD_Org_ID eq ${org_id} and C_BPartner_ID eq ${partnerId}`;
-      // console.log(filterQuery,'dd')
       setIsLoading(true);
       const response = await axios.get(
         `${protocol}://${host}:${port}/api/v1/models/HR_Daily_Attend?$orderby=Created desc&$top=1&${filterQuery}`,
@@ -332,12 +357,11 @@ const HomeScreen = ({route}) => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${storedToken}`,
           },
         },
       );
       const attendanceRecord = response?.data?.records[0];
-      // console.log(response?.data?.records[0])
 
       const [year, month, day] =
         attendanceRecord?.AttDate.split('-').map(Number);
@@ -356,7 +380,6 @@ const HomeScreen = ({route}) => {
         if (hoursPassed >= 23) {
           await requestLocationPermission('OUT');
           return;
-          //ok
         }
         setCheckinout(false);
       } else {
@@ -375,9 +398,10 @@ const HomeScreen = ({route}) => {
       .slice(-2)}`;
     return data.find(item => item.label === currentYearLabel);
   };
+  
   const getYearId = async () => {
     setIsLoading(true);
-    const token = await AsyncStorage.getItem('token');
+    const storedToken = token;
     const protocol = await AsyncStorage.getItem('protocol');
     const host = await AsyncStorage.getItem('host');
     const port = await AsyncStorage.getItem('port');
@@ -387,11 +411,10 @@ const HomeScreen = ({route}) => {
         {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${storedToken}`,
           },
         },
       );
-      // console.log(response.data.records,'dd')
       const extractedData = response?.data?.records.map(item => ({
         label: item?.FiscalYear,
         value: item?.id,
@@ -403,7 +426,6 @@ const HomeScreen = ({route}) => {
         current_year,
       );
       setYears(currentYearData);
-      // console.log(currentYearData,"reversedData");
     } catch (error) {
       console.error('Error Year Id:', error);
     } finally {
@@ -432,38 +454,37 @@ const HomeScreen = ({route}) => {
   };
 
   useEffect(() => {
-    getName();
-    navigateBack();
+    if (token && userId) {
+      getName();
+      FindBusinessPrtId();
+      getYearId();
+    }
+    
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
     return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
     };
-  }, [navigation]);
+  }, [navigation, token, userId]);
 
   // Notification ALI Calling UseEffect
   useEffect(() => {
-    notificationAllDataGet();
-  }, []);
+    if (token && userId) {
+      notificationAllDataGet();
+    }
+  }, [token, userId]);
 
   const isFocused = useIsFocused();
 
   useEffect(() => {
-    if (isFocused) {
+    if (isFocused && token && userId) {
       console.log('pressedMe');
-      notificationAllDataGet(); // Call the function when the screen is focused
+      notificationAllDataGet();
     }
-  }, [isFocused]);
+  }, [isFocused, token, userId]);
 
-  // Header Currnet Date
-  // const newDate = () => {
-  //   const today = new Date();
-  //   const day = newDate.getDate();
-  //   const options = {year: 'numeric', month: 'long', day: 'numeric'};
-  //   return today.toLocaleDateString(undefined, options);
-  // };
+  // Header Current Date
   const currentDate = new Date();
   const day = currentDate.getDate();
-  // const weekday = currentDate.toLocaleDateString('en-US', {weekday: 'long'});
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentDate);
 
   const monthDayYear = currentDate.toLocaleDateString('en-US', {
@@ -524,283 +545,276 @@ const HomeScreen = ({route}) => {
   );
 
   return (
-    <ScrollView>
-      <View style={styles.container}>
-        <StatusBar translucent={true} backgroundColor="transparent" />
-        <View style={styles.header}>
-          <View style={styles.bellIconViewStyle}>
-            <TouchableOpacity>
-              <Icon name="menu" size={30} color="#000" />
+    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <StatusBar translucent={true} backgroundColor="transparent" />
+      
+      {/* Header Section with Menu and Notification */}
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity>
+            <Icon name="menu" size={30} color="#000" />
+          </TouchableOpacity>
+
+          <View style={{position: 'relative'}}>
+            <TouchableOpacity
+              style={styles.notificationBellViewStyle}
+              onPress={() => navigation.navigate('NotificationSrn')}>
+              <Icon
+                name="notifications-outline"
+                size={24}
+                color="#000"
+                style={{alignSelf: 'center'}}
+              />
             </TouchableOpacity>
 
-            <View style={{position: 'relative'}}>
-              <TouchableOpacity
-                style={styles.notificationBellViewStyle}
-                onPress={() => navigation.navigate('NotificationSrn')}>
-                <Icon
-                  name="notifications-outline"
-                  size={24}
-                  color="#000"
-                  style={{alignSelf: 'center'}}
-                />
-              </TouchableOpacity>
-
-              {notificationCount > 0 && <View style={styles.redDot} />}
-            </View>
-          </View>
-
-          {/* Umar.Maqbool and ICON */}
-          <View style={styles.profileInfo}>
-            <Image
-              source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
-              style={{width: 76, height: 70, alignSelf: 'center'}}
-            />
-            <Text
-              style={[
-                styles.name,
-                {
-                  fontSize: 15,
-                  color: '#000',
-                  marginTop: '-20%',
-                  fontWeight: 900,
-                },
-              ]}>
-              {name}
-            </Text>
-            <Text style={styles.subtitle}>United Actros Developers</Text>
-          </View>
-
-          {/* Date in Home Screen */}
-          {/* <View
-          style={{
-            justifyContent: 'flex-end',
-            alignItems: 'flex-end',
-            marginTop: '10%',
-          }}>
-          <Text style={styles.dateNewScreen}>{newDate()}</Text>
-        </View> */}
-
-          {/* Date Row */}
-          <View style={styles.dateRow}>
-            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <Text style={styles.dateNum}>{day}</Text>
-              <Text style={styles.dateSuffix}>{getOrdinalSuffix(day)}</Text>
-              <Text style={styles.dateDay}>{weekday}</Text>
-            </View>
-            <Text style={styles.dateRight}>{monthDayYear}</Text>
+            {notificationCount > 0 && <View style={styles.redDot} />}
           </View>
         </View>
 
-        {/* blue card */}
-        <View style={styles.blueCard}>
-          <Image
-            source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
-            style={{position: 'absolute'}}
-          />
-          <Text style={styles.cardTitle}>
-            <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
-              Sales{' '}
-            </Text>
-            <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
-              Performance
-            </Text>
-          </Text>
-          <Text style={styles.cardTitle2}>
-            <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
-              Command{' '}
-            </Text>
-            <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
-              Center
-            </Text>
-          </Text>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: 13,
-            }}>
-            <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
-            <TouchableOpacity style={styles.analyticsBtn}>
-              <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.topRow}>
-          <View style={styles.iconBox}>
-            <View style={styles.iconWrapper}>
-              <MaterialIcons
-                name="sync"
-                size={18}
-                color="rgba(59, 99, 125, 1)"
-              />
+        {/* User and Date Info - Side by Side without Card */}
+        <View style={styles.userDateContainer}>
+          {/* Left Side - User Info */}
+          <View style={styles.userInfoSection}>
+            {/* Username with Role */}
+            <View style={styles.usernameRow}>
+              <Text style={styles.username}>
+                {storeUserName || name || 'User'}
+              </Text>
+              {storeRoleName && (
+                <Text style={styles.roleInBrackets}>
+                  ({storeRoleName})
+                </Text>
+              )}
             </View>
 
-            <Text style={styles.iconLabel}>Analytics</Text>
+            {/* Organization Info */}
+            {storeOrgName && (
+              <View style={styles.infoRow}>
+                <Icon name="business" size={16} color="#2F4FE3" style={styles.rowIcon} />
+                <Text style={styles.infoText}>
+                  {storeOrgName}
+                </Text>
+              </View>
+            )}
+
+            {/* Warehouse Info */}
+            {storeWarehouseName && (
+              <View style={styles.infoRow}>
+                <Icon name="home" size={16} color="#2F4FE3" style={styles.rowIcon} />
+                <Text style={styles.infoText}>
+                  {storeWarehouseName}
+                </Text>
+              </View>
+            )}
           </View>
-          <View style={styles.iconBox}>
-            <View
-              style={[
-                styles.iconWrapper,
-                {backgroundColor: 'rgba(248, 233, 229, 1)'},
-              ]}>
-              <MaterialIcons
-                name="assignment"
-                size={18}
-                color="rgba(183, 113, 85, 1)"
-              />
-            </View>
-            <Text style={styles.iconLabel}>Sales</Text>
-          </View>
-          <View style={styles.iconBox}>
-            <View
-              style={[
-                styles.iconWrapper,
-                {backgroundColor: 'rgba(252, 238, 255, 1)'},
-              ]}>
-              <MaterialIcons
-                name="gpp-maybe"
-                size={22}
-                color="rgba(185, 139, 184, 1)"
-              />
-            </View>
-            <Text style={styles.iconLabel}>Reports</Text>
-          </View>
-          <View style={styles.iconBox}>
-            <View
-              style={[
-                styles.iconWrapper,
-                {backgroundColor: 'rgba(239, 254, 233, 1)'},
-              ]}>
-              <View
-                style={[
-                  styles.circle,
-                  {
-                    width: 20,
-                    height: 20,
-                    borderRadius: 10,
-                    borderColor: 'rgba(91, 159, 70, 1)',
-                  },
-                ]}>
-                <Icon name="pencil" size={12} color="rgba(91, 159, 70, 1)" />
+
+          {/* Right Side - Date Info */}
+          <View style={styles.dateInfoSection}>
+            <View style={styles.dateContainer}>
+              <View style={styles.dateLeft}>
+                <Text style={styles.dateNum}>{day}</Text>
+                <Text style={styles.dateSuffix}>{getOrdinalSuffix(day)}</Text>
+              </View>
+              <View style={styles.dateRightContainer}>
+                <Text style={styles.dateDay}>{weekday}</Text>
+                <Text style={styles.dateMonthYear}>{monthDayYear}</Text>
               </View>
             </View>
-            <Text style={styles.iconLabel}>Accounts</Text>
+            <View style={styles.dateDivider} />
+            <View style={styles.todayContainer}>
+              <Icon name="calendar-outline" size={18} color="#2F4FE3" />
+              <Text style={styles.todayText}>Today</Text>
+            </View>
           </View>
         </View>
-        {/* Category List View */}
-        <View>
-          <Text style={styles.wordCategoriesStyle}> Categories </Text>
-        </View>
+      </View>
 
-        <View style={styles.bottomGrid}>
-          <TouchableOpacity
-            style={styles.gridBox}
-            onPress={() => navigation.navigate('CrmScreen')}>
-            <View style={styles.gridIconWrapper}>
-              <MaterialIcons
-                name="all-inclusive"
-                size={33}
-                color=" rgba(43, 135, 234, 1)"
-              />
-            </View>
-            <Text style={styles.gridLabel}>CRM</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.gridBox}
-            onPress={async () => {
-              const approvalData = await getApprovalNum(); // Wait for the result
-              navigation.navigate('AllApprovalList', {data: approvalData}); // Pass as object
-            }}>
-            <View style={styles.gridIconWrapper}>
-              <MaterialIcons
-                name="task-alt"
-                size={33}
-                color="rgba(43, 135, 234, 1)"
-              />
-            </View>
-            <Text style={styles.gridLabel}>Approval</Text>
-          </TouchableOpacity>
-          {/* <TouchableOpacity
-            style={styles.gridBox}
-            onPress={() => navigation.navigate('TopNavigationATS', {token})}>
-            <View style={styles.gridIconWrapper}>
-              <Icon
-                name="git-pull-request-outline"
-                size={28}
-                color="rgba(43, 135, 234, 1)"
-              />
-            </View>
-            <Text style={styles.gridLabel}>Requests</Text>
-          </TouchableOpacity> */}
-
-           <TouchableOpacity
-            style={styles.gridBox}
-            onPress={() => navigation.navigate('Requests')}>
-            <View style={styles.gridIconWrapper}>
-              <Icon
-                name="git-pull-request-outline"
-                size={28}
-                color="rgba(43, 135, 234, 1)"
-              />
-            </View>
-            <Text style={styles.gridLabel}>Requests</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.gridBox}
-            onPress={() => navigation.navigate('EmployeePortal')}>
-            <View style={styles.gridIconWrapper}>
-              <MaterialIcons
-                name="polyline"
-                size={28}
-                color="rgba(43, 135, 234, 1)"
-              />
-            </View>
-            <Text style={styles.gridLabel}>Employee Portal</Text>
+      {/* Blue Card - Main Content Card */}
+      <View style={styles.blueCard}>
+        <Image
+          source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
+          style={{position: 'absolute'}}
+        />
+        <Text style={styles.cardTitle}>
+          <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
+            Sales{' '}
+          </Text>
+          <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
+            Performance
+          </Text>
+        </Text>
+        <Text style={styles.cardTitle2}>
+          <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
+            Command{' '}
+          </Text>
+          <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
+            Center
+          </Text>
+        </Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 13,
+          }}>
+          <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
+          <TouchableOpacity style={styles.analyticsBtn}>
+            <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* <View style={styles.categories}>{categories.map(renderCategory)}</View> */}
+      {/* Quick Stats Row */}
+      <View style={styles.topRow}>
+        <View style={styles.iconBox}>
+          <View style={styles.iconWrapper}>
+            <MaterialIcons
+              name="sync"
+              size={18}
+              color="rgba(59, 99, 125, 1)"
+            />
+          </View>
+          <Text style={styles.iconLabel}>Analytics</Text>
+        </View>
+        <View style={styles.iconBox}>
+          <View
+            style={[
+              styles.iconWrapper,
+              {backgroundColor: 'rgba(248, 233, 229, 1)'},
+            ]}>
+            <MaterialIcons
+              name="assignment"
+              size={18}
+              color="rgba(183, 113, 85, 1)"
+            />
+          </View>
+          <Text style={styles.iconLabel}>Sales</Text>
+        </View>
+        <View style={styles.iconBox}>
+          <View
+            style={[
+              styles.iconWrapper,
+              {backgroundColor: 'rgba(252, 238, 255, 1)'},
+            ]}>
+            <MaterialIcons
+              name="gpp-maybe"
+              size={22}
+              color="rgba(185, 139, 184, 1)"
+            />
+          </View>
+          <Text style={styles.iconLabel}>Reports</Text>
+        </View>
+        <View style={styles.iconBox}>
+          <View
+            style={[
+              styles.iconWrapper,
+              {backgroundColor: 'rgba(239, 254, 233, 1)'},
+            ]}>
+            <View
+              style={[
+                styles.circle,
+                {
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  borderColor: 'rgba(91, 159, 70, 1)',
+                },
+              ]}>
+              <Icon name="pencil" size={12} color="rgba(91, 159, 70, 1)" />
+            </View>
+          </View>
+          <Text style={styles.iconLabel}>Accounts</Text>
+        </View>
+      </View>
+      
+      {/* Categories Section */}
+      <View>
+        <Text style={styles.sectionTitle}>Categories</Text>
+      </View>
 
-        {/* Transaction Header AND "View ALL" */}
-        {/* <View style={styles.transactionHeader}>
-          <Text style={styles.transactionTitle}>Transaction</Text>
-          <TouchableOpacity>
-            <Text style={styles.viewAll}>View All</Text>
-          </TouchableOpacity>
-        </View> */}
+      {/* Grid Layout for Categories */}
+      <View style={styles.bottomGrid}>
+        <TouchableOpacity
+          style={styles.gridBox}
+          onPress={() => navigation.navigate('CrmScreen')}>
+          <View style={styles.gridIconWrapper}>
+            <MaterialIcons
+              name="all-inclusive"
+              size={33}
+              color="rgba(43, 135, 234, 1)"
+            />
+          </View>
+          <Text style={styles.gridLabel}>CRM</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.gridBox}
+          onPress={async () => {
+            const approvalData = await getApprovalNum();
+            navigation.navigate('AllApprovalList', {data: approvalData});
+          }}>
+          <View style={styles.gridIconWrapper}>
+            <MaterialIcons
+              name="task-alt"
+              size={33}
+              color="rgba(43, 135, 234, 1)"
+            />
+          </View>
+          <Text style={styles.gridLabel}>Approval</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.gridBox}
+          onPress={() => navigation.navigate('Requests')}>
+          <View style={styles.gridIconWrapper}>
+            <Icon
+              name="git-pull-request-outline"
+              size={28}
+              color="rgba(43, 135, 234, 1)"
+            />
+          </View>
+          <Text style={styles.gridLabel}>Requests</Text>
+        </TouchableOpacity>
 
-        {/* <FlatList
-          data={transactions}
-          keyExtractor={(_, index) => index.toString()}
-          renderItem={renderTransaction}
-          contentContainerStyle={{paddingBottom: 40}}
-        /> */}
+        <TouchableOpacity
+          style={styles.gridBox}
+          onPress={() => navigation.navigate('EmployeePortal')}>
+          <View style={styles.gridIconWrapper}>
+            <MaterialIcons
+              name="polyline"
+              size={28}
+              color="rgba(43, 135, 234, 1)"
+            />
+          </View>
+          <Text style={styles.gridLabel}>Employee Portal</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
+  scrollView: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
   header: {
-    // backgroundColor: '#2F4FE3',
-    padding: 16,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    height: '36%',
-    // flexDirection: 'row',
-    // justifyContent: 'flex-end',
+    padding: 20,
+    paddingTop: 60,
+    backgroundColor: '#f8f9ff',
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
-  bellIconViewStyle: {
+  headerTopRow: {
     flexDirection: 'row',
-    marginTop: '5%',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   notificationBellViewStyle: {
     width: 40,
@@ -824,86 +838,164 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: 'red',
     borderWidth: 1,
-    borderColor: '#fff', // white border for better visibility
+    borderColor: '#fff',
     zIndex: 10,
   },
-  profileInfo: {
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-  },
-  name: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    // fontFamily: 'K2D-Bold',
-  },
-  subtitle: {
-    color: 'rgba(151, 151, 151, 1)',
-    fontSize: 13,
-    // fontWeight: '500',
-    fontFamily: 'K2D-Medium',
-  },
-  // date
-  dateRow: {
+  // User and Date Container - Side by Side without Card
+  userDateContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: 5,
+  },
+  // Left Side - User Info
+  userInfoSection: {
+    flex: 1.6,
+    paddingRight: 15,
+  },
+  usernameRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: '3%',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  username: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#000',
+    fontFamily: 'K2D-Bold',
+    marginRight: 8,
+  },
+  roleInBrackets: {
+    fontSize: 14,
+    color: '#2F4FE3',
+    fontFamily: 'K2D-SemiBold',
+    backgroundColor: 'rgba(47, 79, 227, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(47, 79, 227, 0.2)',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 2,
+  },
+  rowIcon: {
+    marginRight: 8,
+    width: 20,
+    textAlign: 'center',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#444',
+    fontFamily: 'K2D-Medium',
+    flex: 1,
+  },
+  // Right Side - Date Info
+  dateInfoSection: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 242, 255, 1)',
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 5,
   },
   dateLeft: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    marginRight: 10,
   },
   dateNum: {
-    fontSize: 25,
+    fontSize: 36,
     fontFamily: 'K2D-Bold',
-    letterSpacing: 1,
     color: 'rgba(47, 79, 226, 1)',
+    lineHeight: 36,
   },
-
   dateSuffix: {
-    fontSize: 10,
-    color: '#000',
+    fontSize: 14,
+    color: '#666',
     fontFamily: 'K2D-Regular',
     lineHeight: 20,
-    bottom: '5%',
-    letterSpacing: 1,
+    bottom: 5,
+    marginLeft: 2,
   },
-
+  dateRightContainer: {
+    alignItems: 'flex-start',
+  },
   dateDay: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'K2D-SemiBold',
-    letterSpacing: 1,
     color: '#000',
-    paddingHorizontal:'1%'
+    marginBottom: 2,
   },
-
-  dateRight: {
+  dateMonthYear: {
     fontSize: 13,
     color: 'rgba(48, 48, 48, 1)',
     fontFamily: 'K2D-Medium',
   },
-  //card
+  dateDivider: {
+    height: 1,
+    backgroundColor: 'rgba(240, 242, 255, 1)',
+    width: '100%',
+    marginVertical: 5,
+  },
+  todayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(240, 242, 255, 1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  todayText: {
+    fontSize: 13,
+    color: '#2F4FE3',
+    fontFamily: 'K2D-SemiBold',
+    marginLeft: 6,
+  },
+  // Blue Card
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
-    borderRadius: 6,
-    marginTop: '-40%',
+    borderRadius: 15,
+    marginTop: 20,
     padding: 20,
     shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 10,
+    elevation: 5,
     height: 145,
     position: 'relative',
     overflow: 'hidden',
     marginBottom: '2%',
     width: '90%',
-    marginLeft: '4%',
+    marginLeft: '5%',
   },
-  cardTitle: {fontSize: 16, lineHeight: 30, letterSpacing: 0.1},
-  cardTitle2: {fontSize: 16, lineHeight: 20, letterSpacing: 0.1},
+  cardTitle: {
+    fontSize: 17,
+    lineHeight: 30,
+    letterSpacing: 0.1,
+  },
+  cardTitle2: {
+    fontSize: 17,
+    lineHeight: 20,
+    letterSpacing: 0.1,
+  },
   cardSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     color: 'rgba(234, 234, 234, 1)',
     letterSpacing: 0.1,
     marginTop: 10,
@@ -914,8 +1006,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 20,
     marginTop: 12,
-    paddingHorizontal: '3%',
-    paddingVertical: 6,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
     elevation: 6,
   },
   analyticsBtnTxt: {
@@ -926,21 +1018,23 @@ const styles = StyleSheet.create({
   },
   topRow: {
     backgroundColor: '#fff',
-    borderRadius: 6,
+    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 16,
-    paddingVertical: '6%',
+    marginTop: 20,
+    paddingVertical: 18,
     elevation: 3,
     marginBottom: '2%',
     width: '90%',
-    marginLeft: '4%',
+    marginLeft: '5%',
+    borderWidth: 1,
+    borderColor: 'rgba(240, 240, 240, 1)',
   },
   iconWrapper: {
     backgroundColor: 'rgba(236, 247, 253, 1)',
-    height: 40,
-    width: 40,
-    borderRadius: 20,
+    height: 48,
+    width: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -949,28 +1043,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconBox: {alignItems: 'center'},
+  iconBox: {
+    alignItems: 'center',
+  },
   iconLabel: {
-    marginTop: '10%',
+    marginTop: 10,
     fontSize: 13,
     color: 'rgba(106, 106, 106, 1)',
-    lineHeight: 40,
-    letterSpacing: 1,
     fontFamily: 'K2D-Medium',
   },
-  footer: {
-    height: 30,
-    backgroundColor: '#fff',
-    width: '100%',
-  },
-  wordCategoriesStyle: {
+  sectionTitle: {
     color: 'black',
     width: '90%',
     alignSelf: 'center',
-    marginTop: '4%',
-    fontSize: 18,
-    // fontWeight: 'bold',
+    marginTop: '6%',
+    fontSize: 22,
     fontFamily: 'K2D-Bold',
+    marginBottom: 15,
   },
   categories: {
     flexDirection: 'row',
@@ -987,15 +1076,11 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     alignItems: 'center',
     elevation: 2,
-    // flexDirection: '',
   },
   categoryText: {
     marginTop: 8,
-    // fontWeight: '600',
     color: '#000',
     fontFamily: 'K2D-Medium',
-    // paddingLeft: '1%',
-    // width: '73%',
   },
   transactionHeader: {
     flexDirection: 'row',
@@ -1008,14 +1093,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   transactionTitle: {
-    // fontWeight: 'bold',
     fontFamily: 'K2D-Bold',
     fontSize: 16,
     color: '#2F4FE3',
   },
   viewAll: {
     color: '#2F4FE3',
-    // fontWeight: '600',
     fontFamily: 'K2D-Bold',
   },
   dateTransaction: {
@@ -1033,7 +1116,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   amount: {
-    // fontWeight: 'bold',
     fontFamily: 'K2D-SemiBold',
     fontSize: 18,
     marginRight: 16,
@@ -1060,30 +1142,29 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#fff',
-    // fontWeight: 'bold',
     fontFamily: 'K2D-Bold',
     fontSize: 12,
   },
   bottomGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 16,
-    marginBottom: '40%',
-    // width: '90%',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 40,
     gap: 20,
-    justifyContent:'center',
-    paddingHorizontal:'3%'
+    paddingHorizontal: '3%',
   },
   gridBox: {
     width: '45%',
     backgroundColor: '#fff',
-    borderRadius: 6,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     height: 150,
     marginBottom: '2%',
     elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 240, 240, 1)',
   },
   gridIconWrapper: {
     backgroundColor: 'rgba(90, 141, 238, 0.1)',
@@ -1095,9 +1176,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   gridLabel: {
-    marginTop: 6,
-    fontSize: 15,
-    fontFamily: 'K2D-Medium',
+    marginTop: 8,
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
     color: '#333',
   },
 });

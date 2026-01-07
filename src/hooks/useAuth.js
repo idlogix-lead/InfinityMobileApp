@@ -4,7 +4,7 @@ import apiService from '../services/api';
 
 // Hook for Step 1: Basic login
 export const useBasicLogin = () => {
-  const setAuthData = useAuthStore(state => state.setAuthData);
+  const setBasicAuthData = useAuthStore(state => state.setBasicAuthData);
   const setLoading = useAuthStore(state => state.setLoading);
   const setError = useAuthStore(state => state.setError);
   
@@ -14,19 +14,29 @@ export const useBasicLogin = () => {
     onMutate: () => {
       setLoading(true);
       setError(null);
-      
     },
-   onSuccess: (data, variables) => {
-  // variables contains { userName, password } from mutation
-  setAuthData({
-    userName: variables.userName,
-    password: variables.password,
-    token: data.token,
-    availableClients: data.clients || [],
-  });
-},
+    onSuccess: (data, variables) => {
+      console.log('\n' + '='.repeat(60));
+      console.log('🚀 BASIC LOGIN SUCCESS');
+      console.log('='.repeat(60));
+      
+      // Store basic auth data (this should NOT mark user as fully authenticated)
+      setBasicAuthData({
+        userName: variables.userName,
+        password: variables.password,
+        token: data.token,
+        clients: data.clients || [],
+      });
+      
+      console.log('\n✅ Basic Login Complete');
+      console.log(`📝 User ID: ${useAuthStore.getState().userId}`);
+      console.log(`📋 Available Clients: ${data.clients?.length || 0}`);
+      console.log('💡 User must select role to complete authentication');
+      console.log('='.repeat(60) + '\n');
+    },
     onError: (error) => {
-      setError(error.message || 'Basic login failed');
+      console.error('❌ Basic login error:', error);
+      setError(error.message);
     },
     onSettled: () => {
       setLoading(false);
@@ -36,7 +46,7 @@ export const useBasicLogin = () => {
 
 // Hook for Step 2: Complete login with parameters
 export const useCompleteLogin = () => {
-  const setAuthData = useAuthStore(state => state.setAuthData);
+  const setCompleteAuthData = useAuthStore(state => state.setCompleteAuthData);
   const setLoading = useAuthStore(state => state.setLoading);
   const setError = useAuthStore(state => state.setError);
   const userName = useAuthStore(state => state.userName);
@@ -49,18 +59,44 @@ export const useCompleteLogin = () => {
       setLoading(true);
       setError(null);
     },
-    onSuccess: (data) => {
-      // Store complete auth data
-      setAuthData({
+    onSuccess: (data, variables) => {
+      console.log('\n' + '='.repeat(60));
+      console.log('🔐 COMPLETE LOGIN SUCCESS');
+      console.log('='.repeat(60));
+      
+      // Get REAL user ID from API response
+      const realUserId = data.extractedUserId;
+      
+      if (!realUserId) {
+        console.error('❌ No user ID extracted from complete login token');
+        throw new Error('Failed to extract user information');
+      }
+      
+      console.log(`✅ REAL User ID: ${realUserId}`);
+      
+      // Store complete auth data with REAL numeric ID
+      setCompleteAuthData({
         token: data.token,
-        // Extract IDs from token
-        clientId: data.clients?.[0]?.id?.toString(),
-        clientName: data.clients?.[0]?.name,
-        // Clear temporary data
-        availableClients: null,
+        extractedUserId: realUserId,
+        clientId: variables.clientId,
+        roleId: variables.roleId,
+        organizationId: variables.organizationId,
+        warehouseId: variables.warehouseId,
       });
+      
+      console.log('\n✅ AUTHENTICATION COMPLETE!');
+      const storeState = useAuthStore.getState();
+      console.log('📋 Final User Information:');
+      console.log(`  • User ID: ${storeState.userId}`);
+      console.log(`  • Username: ${storeState.userName}`);
+      console.log(`  • Role ID: ${storeState.roleId}`);
+      console.log(`  • Client ID: ${storeState.clientId}`);
+      console.log('='.repeat(60) + '\n');
+      
+      return data;
     },
     onError: (error) => {
+      console.error('\n❌ Complete login error:', error);
       setError(error.message || 'Complete login failed');
     },
     onSettled: () => {
@@ -69,6 +105,9 @@ export const useCompleteLogin = () => {
   });
 };
 
+// ============================================
+// OTHER HOOKS
+// ============================================
 export const useCreateSession = () => {
   const setAuthData = useAuthStore(state => state.setAuthData);
   const token = useAuthStore(state => state.token);
@@ -98,12 +137,53 @@ export const useCheckAuth = () => {
         throw new Error('Not authenticated');
       }
       
-      // ✅ Use basicLogin instead of login
       const loginData = await apiService.basicLogin(userName, password);
       return loginData;
     },
     retry: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
     enabled: hasServerConfig && !!userName && !!password,
+  });
+};
+
+export const useRoles = (clientId, enabled = true) => {
+  const token = useAuthStore(state => state.token);
+  
+  return useQuery({
+    queryKey: ['roles', clientId],
+    queryFn: () => apiService.getRoles(token, clientId),
+    enabled: enabled && !!token && !!clientId,
+    staleTime: 5 * 60 * 1000,
+    onError: (error) => {
+      console.error('Error fetching roles:', error);
+    },
+  });
+};
+
+export const useOrganizations = (clientId, roleId, enabled = true) => {
+  const token = useAuthStore(state => state.token);
+  
+  return useQuery({
+    queryKey: ['organizations', clientId, roleId],
+    queryFn: () => apiService.getOrganizations(token, clientId, roleId),
+    enabled: enabled && !!token && !!clientId && !!roleId,
+    staleTime: 5 * 60 * 1000,
+    onError: (error) => {
+      console.error('Error fetching organizations:', error);
+    },
+  });
+};
+
+export const useWarehouses = (clientId, roleId, organizationId, enabled = true) => {
+  const token = useAuthStore(state => state.token);
+  
+  return useQuery({
+    queryKey: ['warehouses', clientId, roleId, organizationId],
+    queryFn: () => apiService.getWarehouses(token, clientId, roleId, organizationId),
+    enabled: enabled && !!token && !!clientId && !!roleId && !!organizationId,
+    staleTime: 5 * 60 * 1000,
+    onError: (error) => {
+      console.error('Error fetching warehouses:', error);
+    },
   });
 };

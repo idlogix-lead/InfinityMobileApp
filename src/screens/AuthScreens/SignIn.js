@@ -11,11 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { Picker } from '@react-native-picker/picker';
 import { CheckBox } from 'react-native-elements';
-import FontAwesome from 'react-native-vector-icons/dist/FontAwesome';
 import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 
 // Custom hooks and stores
@@ -29,72 +29,89 @@ const SignIn = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [selectedValue, setSelectedValue] = useState('English');
-  const [checkedRem, setCheckedRem] = useState(false); // ✅ Removed checked state
+  const [checkedRem, setCheckedRem] = useState(true);
   
-  // ✅ Define options array inside component
   const languageOptions = [
     { label: 'English', value: 'English' },
   ];
 
-  // Use basic login hook (NOT complete login)
   const basicLoginMutation = useBasicLogin();
   const isLoading = useAuthStore(state => state.isLoading);
   const error = useAuthStore(state => state.error);
-  const setAuthData = useAuthStore(state => state.setAuthData);
+  
+  const setLoading = useAuthStore(state => state.setLoading);
   const clearError = useAuthStore(state => state.clearError);
   
-  const handleLogin = async () => {
-    if (!userName.trim()) {
-      alert('Please enter userName');
-      return;
+  // Load saved credentials on mount
+  useEffect(() => {
+    const { userName: savedUserName, password: savedPassword } = useAuthStore.getState();
+    
+    if (savedUserName) {
+      setUserName(savedUserName);
     }
-    if (!password.trim()) {
-      alert('Please enter password');
-      return;
+    if (savedPassword) {
+      setPassword(savedPassword);
+      // Auto-check remember me if password is saved
+      setCheckedRem(true);
     }
+  }, []);
 
-    // Store remember me preference
-    if (checkedRem) {
-      setAuthData({ userName, password });
+  const handleLogin = async () => {
+    if (!userName.trim() || !password.trim()) {
+      Alert.alert('Validation', 'Please enter username and password');
+      return;
     }
 
     try {
-      // Step 1: Only basic login
+      // Store credentials if "Remember Me" is checked
+      if (checkedRem) {
+        // Store credentials
+        useAuthStore.getState().setCredentials(userName, password);
+      } else {
+        // Clear stored credentials
+        useAuthStore.getState().setCredentials(null, null);
+      }
+
+      // Step 1: Basic login
       const loginData = await basicLoginMutation.mutateAsync({ userName, password });
       
-      console.log('Basic login successful:', loginData);
+      // Extract client information
+      const clients = loginData.clients || [];
       
-      // Check if user has multiple clients
-      const hasMultipleClients = loginData.clients && loginData.clients.length > 1;
+      if (clients.length === 0) {
+        Alert.alert('Login Failed', 'No clients available for this user');
+        return;
+      }
       
-      if (hasMultipleClients) {
-        // Navigate to client selection screen
-        navigation.navigate('SelectClientScreen', {
-          clients: loginData.clients,
-          token: loginData.token,
-        });
-      } else if (loginData.clients?.[0]) {
-        // Single client - go directly to parameter selection
-        navigation.navigate('SelectRoleScreen', {
-          clientId: loginData.clients[0].id,
-          clientName: loginData.clients[0].name,
-          token: loginData.token,
-        });
+      // Store login data without affecting credentials
+      useAuthStore.getState().setLoginData({
+        token: loginData.token,
+        userId: userName, // Temporary ID
+        clients: clients,
+        ...(clients.length === 1 ? {
+          clientId: clients[0].id,
+          clientName: clients[0].name,
+        } : {})
+      });
+      
+      // Navigate based on number of clients
+      if (clients.length === 1) {
+        navigation.navigate('SelectRoleScreen');
       } else {
-        alert('No clients available for this user');
+        navigation.navigate('SelectClientScreen', {
+          clients: clients,
+        });
       }
       
     } catch (error) {
-      console.log('Login error:', error);
+      Alert.alert('Login Failed', error.message || 'Please check your credentials');
     }
   };
 
   useEffect(() => {
-    // Clear form on focus
+    // Clear error on focus
     const unsubscribe = navigation.addListener('focus', () => {
-      setUserName('');
-      setPassword('');
-      clearError(); // ✅ Removed setChecked(false)
+      clearError();
     });
 
     const backAction = () => {
@@ -116,7 +133,7 @@ const SignIn = ({ navigation }) => {
   // Show error alert if exists
   useEffect(() => {
     if (error) {
-      alert(error);
+      Alert.alert('Login Error', error);
       clearError();
     }
   }, [error]);
@@ -136,7 +153,7 @@ const SignIn = ({ navigation }) => {
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section with Settings Icon */}
+        {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <TouchableOpacity
@@ -159,13 +176,15 @@ const SignIn = ({ navigation }) => {
           
           <View style={styles.titleContainer}>
             <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue to Infinity ERP</Text>
+            <Text style={styles.subtitle}>
+              Sign in to continue to Infinity ERP
+            </Text>
           </View>
         </View>
 
         {/* Login Card */}
         <View style={styles.card}>
-          {/* Card Header with Primary Color Background */}
+          {/* Card Header */}
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderContent}>
               <Text style={styles.cardTitle}>Login</Text>
@@ -236,10 +255,9 @@ const SignIn = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Options Section - Only Remember me checkbox */}
+            {/* Options Section */}
             <View style={styles.optionsContainer}>
               <View style={styles.optionsRow}>
-                {/* ✅ Removed Select role checkbox */}
                 <View style={styles.optionItem}>
                   <CheckBox
                     checked={checkedRem}
@@ -252,9 +270,6 @@ const SignIn = ({ navigation }) => {
                   />
                   <Text style={styles.optionText}>Remember me</Text>
                 </View>
-                
-                {/* ✅ Empty View to maintain layout */}
-                <View style={styles.optionItem} />
               </View>
             </View>
 
@@ -265,10 +280,14 @@ const SignIn = ({ navigation }) => {
                 onPress={handleLogin}
                 disabled={isLoading}>
                 <View style={styles.buttonContent}>
-                  <Text style={styles.primaryButtonText}>
-                    {isLoading ? 'Logging in...' : 'Sign In'}
-                  </Text>
-                  {!isLoading && <Text style={styles.buttonArrow}>→</Text>}
+                  {isLoading ? (
+                    <Text style={styles.primaryButtonText}>Logging in...</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.primaryButtonText}>Sign In</Text>
+                      <Text style={styles.buttonArrow}>→</Text>
+                    </>
+                  )}
                 </View>
               </TouchableOpacity>
             </View>
@@ -354,6 +373,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: 'K2D-Regular',
     opacity: 0.9,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: colors.surface,
@@ -370,7 +390,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   cardHeader: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.textDisabled,
     paddingVertical: 5,
     paddingHorizontal: 24,
     borderTopLeftRadius: 20,
@@ -386,7 +406,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 30,
     fontWeight: '700',
-    color: colors.textInverse,
+    color: colors.primary,
     fontFamily: 'K2D-Bold',
   },
   cardBody: {
@@ -408,7 +428,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 18,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.textSecondary,
     fontFamily: 'K2D-SemiBold',
   },
   textInput: {
@@ -450,12 +470,12 @@ const styles = StyleSheet.create({
   },
   optionsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
   },
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   checkbox: {
     backgroundColor: 'transparent',
@@ -495,6 +515,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     overflow: 'hidden',
+    marginHorizontal: 30,
   },
   buttonDisabled: {
     opacity: 0.6,
