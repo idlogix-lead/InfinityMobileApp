@@ -10,6 +10,7 @@ import {
   BackHandler,
   StatusBar,
   FlatList,
+  Modal,
 } from 'react-native';
 import React, {useEffect, useState, useRef} from 'react';
 import Card from '../../components/ProfileScreenComponents/Card';
@@ -21,7 +22,6 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Loader from '../../components/Loader';
 import RBSheet from 'react-native-raw-bottom-sheet';
 import { useAuthStore } from '../../store/authStore'; 
-import { useBasicLogin } from '../../hooks/useAuth'; 
 
 const {height, width} = Dimensions.get('window');
 
@@ -29,138 +29,188 @@ const ProfileScreen = ({navigation}) => {
   const bottomSheetRef = useRef();
   const [isLoading, setIsLoading] = useState(false);
   const [multiUsers, setMultiUsers] = useState([]);
-  const [selectedUserIdentifier, setSelectedUserIdentifier] = useState('');
+  const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState([]);
   
   // Get auth state and actions from store
   const {
     userName,
     userId,
     roleId,
-    token,
-    serverConfig,
-    logout,
-    setAuthData,
-    setServerConfig,
-    setRoleData,
-    checkAuthState
+    roleName,
+    clientName,
+    organizationName,
+    warehouseName,
+    logout
   } = useAuthStore();
   
-  const basicLoginMutation = useBasicLogin();
-
   const openBottomSheet = () => bottomSheetRef.current?.open();
 
-  const generateUserIdentifier = (user) => {
-    return `${user.userName}-${user.protocol}-${user.host}-${user.port}-${user.clientId}`;
-  };
-
-  const getLoginUsers = async () => {
-    try {
-      const usersString = await AsyncStorage.getItem('usersData');
-      const usersArray = usersString ? JSON.parse(usersString) : [];
-      setMultiUsers(usersArray);
-    } catch (error) {
-      console.error('Error getting login users:', error);
-    }
-  };
-
-  const switchAccount = async (identifier) => {
-    try {
-      const currentUserIdentifier = await AsyncStorage.getItem(
-        'currentUserIdentifier',
-      );
-      
-      if (identifier === currentUserIdentifier) {
-        bottomSheetRef.current?.close();
-        return;
-      }
-
-      const selectedUser = multiUsers.find(
-        user => generateUserIdentifier(user) === identifier,
-      );
-      
-      if (selectedUser) {
-        // Update server config in store
-        setServerConfig({
-          protocol: selectedUser.protocol,
-          host: selectedUser.host,
-          port: selectedUser.port,
-        });
-
-        // Update auth data in store
-        setAuthData({
-          userName: selectedUser.userName,
-          password: selectedUser.password,
-          token: selectedUser.token,
-          tokenOk: selectedUser.tokenOk || 'true',
-          userId: selectedUser.userId,
-          clientId: selectedUser.clientId,
-          clientName: selectedUser.clientName,
-          roleId: selectedUser.roleId,
-          roleName: selectedUser.roleName,
-          organizationId: selectedUser.organizationId,
-          organizationName: selectedUser.organizationName,
-          warehouseId: selectedUser.warehouseId,
-          warehouseName: selectedUser.warehouseName,
-        });
-
-        // Update AsyncStorage for multi-user support
-        await AsyncStorage.multiSet([
-          ['currentUserIdentifier', identifier],
-          ['userName', selectedUser.userName],
-          ['password', selectedUser.password],
-          ['protocol', selectedUser.protocol],
-          ['host', selectedUser.host],
-          ['port', selectedUser.port],
-          ['clientId', selectedUser.clientId],
-          ['clientName', selectedUser.clientName],
-          ['roleId', selectedUser.roleId],
-          ['organizationId', selectedUser.organizationId],
-          ['warehouseId', selectedUser.warehouseId],
-          ['token', selectedUser.token],
-          ['tokenOk', selectedUser.tokenOk || 'true'],
-        ]);
-
-        // Navigate to splash or refresh
-        navigation.navigate('SplashScreen');
-        bottomSheetRef.current?.close();
-      } else {
-        console.log('Selected user not found in the stored data.');
-      }
-    } catch (error) {
-      console.error('Error switching account:', error);
-    }
-  };
-
+  // Load saved accounts on component mount
   useEffect(() => {
-    const init = async () => {
-      try {
-        // Get current user data from AsyncStorage
-        const currentUser = {
-          userName: await AsyncStorage.getItem('userName'),
-          password: await AsyncStorage.getItem('password'),
-          protocol: await AsyncStorage.getItem('protocol'),
-          host: await AsyncStorage.getItem('host'),
-          port: await AsyncStorage.getItem('port'),
-          clientId: await AsyncStorage.getItem('clientId'),
-          clientName: await AsyncStorage.getItem('clientName'),
-          roleId: await AsyncStorage.getItem('roleId'),
-          organizationId: await AsyncStorage.getItem('organizationId'),
-          warehouseId: await AsyncStorage.getItem('warehouseId'),
-        };
-        
-        const currentUserIdentifier = generateUserIdentifier(currentUser);
-        await AsyncStorage.setItem(
-          'currentUserIdentifier',
-          currentUserIdentifier,
-        );
-        setSelectedUserIdentifier(currentUserIdentifier);
-        getLoginUsers();
-      } catch (error) {
-        console.error('Error initializing profile:', error);
-      }
-    };
-    init();
+    loadSavedAccounts();
   }, []);
+
+  // Load saved accounts from AsyncStorage
+  const loadSavedAccounts = async () => {
+    try {
+      const savedAccountsStr = await AsyncStorage.getItem('saved_accounts');
+      if (savedAccountsStr) {
+        const accounts = JSON.parse(savedAccountsStr);
+        setSavedAccounts(accounts);
+      }
+    } catch (error) {
+      console.error('Error loading saved accounts:', error);
+    }
+  };
+
+  // Save current account to saved accounts
+  const saveCurrentAccount = async () => {
+    try {
+      const state = useAuthStore.getState();
+      const { userName, clientName, roleName, organizationName, warehouseName } = state;
+      
+      if (!userName) return;
+      
+      const newAccount = {
+        id: Date.now().toString(),
+        userName,
+        clientName: clientName || 'Unknown Client',
+        roleName: roleName || 'Unknown Role',
+        organizationName: organizationName || 'Unknown Organization',
+        warehouseName: warehouseName || 'Unknown Warehouse',
+        timestamp: new Date().toISOString(),
+      };
+      
+      let updatedAccounts = [...savedAccounts];
+      
+      // Check if account already exists
+      const existingIndex = updatedAccounts.findIndex(acc => acc.userName === userName);
+      if (existingIndex !== -1) {
+        // Update existing account
+        updatedAccounts[existingIndex] = newAccount;
+      } else {
+        // Add new account
+        updatedAccounts.push(newAccount);
+      }
+      
+      // Limit to last 5 accounts
+      if (updatedAccounts.length > 5) {
+        updatedAccounts = updatedAccounts.slice(-5);
+      }
+      
+      await AsyncStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+      setSavedAccounts(updatedAccounts);
+      
+      Alert.alert('Success', 'Account saved successfully');
+    } catch (error) {
+      console.error('Error saving account:', error);
+      Alert.alert('Error', 'Failed to save account');
+    }
+  };
+
+  // Switch to a different account
+  const switchAccount = async (account) => {
+    Alert.alert(
+      'Switch Account',
+      `Switch to ${account.userName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Switch',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              
+              // For now, we'll just update the current user info
+              // In a real app, you would perform login with these credentials
+              Alert.alert(
+                'Switch Account',
+                'This feature requires re-login. Would you like to log out and login with this account?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Logout & Login',
+                    onPress: () => {
+                      // Save the account info for login screen
+                      AsyncStorage.setItem('switch_account_userName', account.userName);
+                      
+                      // Logout current user
+                      logout();
+                      
+                      // Navigate to WelcomeScreen
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'WelcomeScreen' }],
+                      });
+                    }
+                  }
+                ]
+              );
+              
+              setShowSwitchAccountModal(false);
+            } catch (error) {
+              console.error('Error switching account:', error);
+              Alert.alert('Error', 'Failed to switch account');
+            } finally {
+              setIsLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Remove a saved account
+  const removeAccount = async (accountId) => {
+    Alert.alert(
+      'Remove Account',
+      'Are you sure you want to remove this saved account?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updatedAccounts = savedAccounts.filter(acc => acc.id !== accountId);
+              await AsyncStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+              setSavedAccounts(updatedAccounts);
+              Alert.alert('Success', 'Account removed');
+            } catch (error) {
+              console.error('Error removing account:', error);
+              Alert.alert('Error', 'Failed to remove account');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Add New Account (navigate to login screen)
+  const addNewAccount = () => {
+    Alert.alert(
+      'Add New Account',
+      'This will log you out and take you to login screen. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            // Save current account before logging out
+            saveCurrentAccount();
+            
+            // Logout and navigate to WelcomeScreen
+            logout();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'WelcomeScreen' }],
+            });
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
     const backAction = () => {
@@ -179,9 +229,10 @@ const ProfileScreen = ({navigation}) => {
   const handlePressRole = async () => {
     try {
       // Get credentials from store
-      const { userName, password, serverConfig } = useAuthStore.getState();
+      const state = useAuthStore.getState();
+      const { userName, password, serverConfig } = state;
       
-      if (!userName || !password || !serverConfig.protocol) {
+      if (!userName || !password || !serverConfig?.protocol) {
         Alert.alert('Error', 'Missing login information');
         return;
       }
@@ -215,39 +266,22 @@ const ProfileScreen = ({navigation}) => {
         throw new Error('Invalid response from server');
       }
 
+      // Update auth store with new token
+      useAuthStore.getState().setLoginData({
+        token: token,
+        clientId: clientId,
+        clientName: clientName,
+        clients: responseJSON.clients || []
+      });
+
       // Navigate to SelectRoleScreen
       navigation.navigate('SelectRoleScreen', {
-        token,
-        clientId,
-        clientName,
-        protocol: serverConfig.protocol,
-        host: serverConfig.host,
-        port: serverConfig.port,
         fromProfile: true,
       });
     } catch (error) {
       console.error('Error in handlePressRole:', error);
       Alert.alert('Error', 'Failed to get roles. Please try again.');
     }
-  };
-
-  const navigateToSelectRole = async () => {
-    const { token, clientId, clientName, serverConfig } = useAuthStore.getState();
-    
-    if (!token || !clientId) {
-      Alert.alert('Error', 'No active session found');
-      return;
-    }
-
-    navigation.navigate('SelectRoleScreen', {
-      token,
-      clientId,
-      clientName,
-      protocol: serverConfig.protocol,
-      host: serverConfig.host,
-      port: serverConfig.port,
-      fromProfile: true,
-    });
   };
 
  const handlePressLogout = async () => {
@@ -258,37 +292,10 @@ const ProfileScreen = ({navigation}) => {
       style: 'destructive',
       onPress: async () => {
         try {
-          // Remove current user from multi-user storage
-          const usersDataString = await AsyncStorage.getItem('usersData');
-          if (usersDataString) {
-            let usersData = JSON.parse(usersDataString);
-            const currentUserIdentifier = await AsyncStorage.getItem(
-              'currentUserIdentifier',
-            );
-            usersData = usersData.filter(
-              user => generateUserIdentifier(user) !== currentUserIdentifier,
-            );
-            await AsyncStorage.setItem('usersData', JSON.stringify(usersData));
-          }
-
-          // IMPORTANT: DO NOT remove userName and password here!
-          // They should be preserved by Zustand's persist middleware
-          // Only remove session-specific data
-          const keysToRemove = [
-            'currentUserIdentifier',
-            // 'userName',        // REMOVE THIS LINE
-            // 'password',        // REMOVE THIS LINE
-            'clientId',
-            'clientName',
-            'roleId',
-            'organizationId',
-            'warehouseId',
-            'tokenOk',
-            'token',
-          ];
-          await AsyncStorage.multiRemove(keysToRemove);
-
-          // Clear Zustand store (logout function should preserve credentials)
+          // Save current account before logging out
+          await saveCurrentAccount();
+          
+          // Call Zustand's logout function
           logout();
 
           // Navigate to WelcomeScreen
@@ -306,13 +313,30 @@ const ProfileScreen = ({navigation}) => {
   ]);
 };
 
-  const handleAddAccount = () => {
-    bottomSheetRef.current?.close();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'WelcomeScreen' }],
-    });
-  };
+  // Render saved account item
+  const renderAccountItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.accountItem}
+      onPress={() => switchAccount(item)}
+      onLongPress={() => removeAccount(item.id)}
+    >
+      <View style={styles.accountAvatar}>
+        <Text style={styles.avatarText}>
+          {item.userName.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+      <View style={styles.accountInfo}>
+        <Text style={styles.accountName}>{item.userName}</Text>
+        <Text style={styles.accountDetails}>
+          {item.clientName} • {item.roleName}
+        </Text>
+        <Text style={styles.accountTimestamp}>
+          {new Date(item.timestamp).toLocaleDateString()}
+        </Text>
+      </View>
+      <MaterialIcons name="chevron-right" size={24} color="#666" />
+    </TouchableOpacity>
+  );
 
   return (
     <>
@@ -330,17 +354,45 @@ const ProfileScreen = ({navigation}) => {
           </TouchableOpacity>
           <View style={styles.name}>
             <Text style={styles.nameTxt}>{userName || 'User'}</Text>
-            {userId && userId !== userName && (
-              <Text style={styles.userIdTxt}>ID: {userId}</Text>
-            )}
-            {roleId && (
-              <Text style={styles.roleTxt}>Role ID: {roleId}</Text>
-            )}
           </View>
-          <TouchableOpacity style={styles.helpCon}>
-            <Text style={styles.help}>Help</Text>
-          </TouchableOpacity>
         </View>
+        
+        {/* Save Current Account Button */}
+        <TouchableOpacity
+          style={styles.saveAccountButton}
+          onPress={saveCurrentAccount}>
+          <MaterialIcons name="save-alt" size={22} color="#0050C0" />
+          <Text style={styles.saveAccountText}>Save Current Account</Text>
+        </TouchableOpacity>
+        
+        {/* Multi-Account Management Section */}
+        <View style={styles.accountCon}>
+          <Text style={styles.userAccountTxt}>Multi-Account</Text>
+        </View>
+        
+        <Card
+          Icon={<MaterialIcons name="add-circle-outline" size={25} color="#877e7e" />}
+          txt="Add New Account"
+          handlePress={addNewAccount}
+        />
+        
+        <Card
+          Icon={<MaterialIcons name="swap-horiz" size={25} color="#877e7e" />}
+          txt="Switch Account"
+          handlePress={() => setShowSwitchAccountModal(true)}
+        />
+        
+        {/* Saved Accounts Count */}
+        {savedAccounts.length > 0 && (
+          <TouchableOpacity
+            style={styles.savedAccountsCount}
+            onPress={() => setShowSwitchAccountModal(true)}>
+            <Text style={styles.savedAccountsText}>
+              {savedAccounts.length} saved account{savedAccounts.length !== 1 ? 's' : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.accountCon}>
           <Text style={styles.userAccountTxt}>Your Account</Text>
         </View>
@@ -391,79 +443,6 @@ const ProfileScreen = ({navigation}) => {
           handlePress={() => {/* Open language selector */}}
         />
 
-        <View style={styles.accountCon}>
-          <Text style={styles.userAccountTxt}>Login</Text>
-        </View>
-
-        <Card
-          handlePress={openBottomSheet}
-          Icon={
-            <MaterialCommunityIcons
-              name="plus-circle"
-              color="#877e7e"
-              size={23}
-            />
-          }
-          txt="Switch Account"
-        />
-
-        <RBSheet
-          ref={bottomSheetRef}
-          openDuration={250}
-          closeOnDragDown={true}
-          closeOnPressMask={false}
-          customStyles={{
-            container: {
-              height: Math.min(multiUsers.length * 65 + 150, height * 0.7),
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-            },
-          }}>
-          <View style={styles.bottomSheetContent}>
-            <Text style={styles.bottomSheetTitle}>Switch Account</Text>
-            <FlatList
-              data={multiUsers}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({item}) => {
-                const identifier = generateUserIdentifier(item);
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.accountItem,
-                      selectedUserIdentifier === identifier && styles.selectedAccountItem,
-                    ]}
-                    onPress={() => switchAccount(identifier)}>
-                    <View style={styles.accountInfo}>
-                      <Text style={styles.accountName}>{item.userName}</Text>
-                      <Text style={styles.accountClient}>{item.clientName || 'No Client'}</Text>
-                    </View>
-                    <View style={styles.radioButton}>
-                      {selectedUserIdentifier === identifier && (
-                        <View style={styles.radioButtonSelected} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyAccounts}>
-                  <Text style={styles.emptyText}>No other accounts</Text>
-                </View>
-              }
-            />
-            <TouchableOpacity
-              onPress={handleAddAccount}
-              style={styles.addAccountButton}>
-              <MaterialCommunityIcons
-                name="plus-circle"
-                color="#0050C0"
-                size={27}
-              />
-              <Text style={styles.addAccountText}>Add New Account</Text>
-            </TouchableOpacity>
-          </View>
-        </RBSheet>
-
         <View style={{width: '90%', marginTop: 15}}>
           <TouchableOpacity
             style={styles.logoutButton}
@@ -477,6 +456,69 @@ const ProfileScreen = ({navigation}) => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Switch Account Modal */}
+      <Modal
+        visible={showSwitchAccountModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSwitchAccountModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Switch Account</Text>
+              <TouchableOpacity
+                onPress={() => setShowSwitchAccountModal(false)}
+                style={styles.closeButton}>
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            
+            {savedAccounts.length > 0 ? (
+              <>
+                <FlatList
+                  data={savedAccounts}
+                  renderItem={renderAccountItem}
+                  keyExtractor={item => item.id}
+                  style={styles.accountsList}
+                  ListHeaderComponent={
+                    <Text style={styles.modalSubtitle}>
+                      Tap to switch, long press to remove
+                    </Text>
+                  }
+                />
+                
+                <TouchableOpacity
+                  style={styles.addNewInModal}
+                  onPress={() => {
+                    setShowSwitchAccountModal(false);
+                    addNewAccount();
+                  }}>
+                  <MaterialIcons name="add-circle-outline" size={22} color="#0050C0" />
+                  <Text style={styles.addNewText}>Add New Account</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.noAccountsContainer}>
+                <MaterialIcons name="account-circle" size={60} color="#ccc" />
+                <Text style={styles.noAccountsText}>No saved accounts</Text>
+                <Text style={styles.noAccountsSubtext}>
+                  Save your current account or add a new one
+                </Text>
+                <TouchableOpacity
+                  style={styles.saveCurrentButton}
+                  onPress={() => {
+                    saveCurrentAccount();
+                    setShowSwitchAccountModal(false);
+                  }}>
+                  <Text style={styles.saveCurrentText}>Save Current Account</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {isLoading && <Loader />}
     </>
   );
@@ -486,14 +528,15 @@ export default ProfileScreen;
 
 const styles = StyleSheet.create({
   header: {
-    height: height / 12,
+    height: height / 8,
     flexDirection: 'row',
     width: '95%',
-    marginTop: 25,
-    alignItems: 'center',
+    marginTop: 40,
+    alignItems: 'flex-start',
   },
   backBtn: {
     padding: 10,
+    marginTop: 5,
   },
   name: {
     justifyContent: 'center',
@@ -506,31 +549,44 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Regular',
     fontWeight: 'bold',
   },
-  userIdTxt: {
+  
+  // Save Account Button
+  saveAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    width: '90%',
+  },
+  saveAccountText: {
+    color: '#0050C0',
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    marginLeft: 10,
+  },
+  
+  // Saved Accounts Count
+  savedAccountsCount: {
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 20,
+    width: '90%',
+    alignItems: 'center',
+  },
+  savedAccountsText: {
     color: '#666',
     fontSize: 14,
     fontFamily: 'K2D-Regular',
-    marginTop: 2,
   },
-  roleTxt: {
-    color: '#666',
-    fontSize: 12,
-    fontFamily: 'K2D-Regular',
-    marginTop: 1,
-  },
-  helpCon: {
-    justifyContent: 'center',
-    padding: 10,
-  },
-  help: {
-    color: '#00B0F0',
-    fontFamily: 'K2D-Regular',
-    borderBottomColor: '#00B0F0',
-    borderBottomWidth: 1,
-  },
+  
   accountCon: {
     width: '90%',
-    marginTop: 20,
+    marginTop: 5,
     marginBottom: 10,
   },
   userAccountTxt: {
@@ -538,83 +594,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Bold',
     fontWeight: '600',
-  },
-  bottomSheetContent: {
-    padding: 20,
-  },
-  bottomSheetTitle: {
-    fontSize: 20,
-    fontFamily: 'K2D-Bold',
-    color: '#000',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  accountItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  selectedAccountItem: {
-    backgroundColor: '#f0f8ff',
-  },
-  accountInfo: {
-    flex: 1,
-  },
-  accountName: {
-    color: '#000',
-    fontSize: 18,
-    fontFamily: 'K2D-Regular',
-    fontWeight: '500',
-  },
-  accountClient: {
-    color: '#666',
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    marginTop: 2,
-  },
-  radioButton: {
-    height: 22,
-    width: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#0050C0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioButtonSelected: {
-    height: 12,
-    width: 12,
-    borderRadius: 6,
-    backgroundColor: '#0050C0',
-  },
-  emptyAccounts: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#999',
-    fontSize: 16,
-    fontFamily: 'K2D-Regular',
-  },
-  addAccountButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    marginTop: 10,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  addAccountText: {
-    color: '#0050C0',
-    fontSize: 18,
-    fontFamily: 'K2D-Bold',
-    marginLeft: 10,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -638,5 +617,131 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Regular',
     fontWeight: '500',
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'K2D-Bold',
+    color: '#000',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#F9F9F9',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  
+  // Account Item Styles
+  accountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  accountAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#0050C0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  avatarText: {
+    color: 'white',
+    fontSize: 20,
+    fontFamily: 'K2D-Bold',
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
+    color: '#000',
+    marginBottom: 4,
+  },
+  accountDetails: {
+    fontSize: 14,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginBottom: 2,
+  },
+  accountTimestamp: {
+    fontSize: 12,
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+  },
+  
+  // Add New in Modal
+  addNewInModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  addNewText: {
+    color: '#0050C0',
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    marginLeft: 10,
+  },
+  
+  // No Accounts State
+  noAccountsContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noAccountsText: {
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#666',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  noAccountsSubtext: {
+    fontSize: 14,
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  saveCurrentButton: {
+    backgroundColor: '#0050C0',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  saveCurrentText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
   },
 });

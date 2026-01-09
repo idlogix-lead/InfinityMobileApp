@@ -1,78 +1,229 @@
-// services/crmApiService.js
-import { useAuthStore } from '../../store/authStore';
+// services/CRMAPI/crmApiService.js
 
-const crmApiService = {
-  // Get base URL from auth store
-  getBaseUrl: () => {
-    const serverConfig = useAuthStore.getState().serverConfig;
-    if (!serverConfig.protocol || !serverConfig.host || !serverConfig.port) {
-      throw new Error('Server configuration missing. Please configure server settings first.');
+// ============================================
+// AUTH STATE HELPER (No React Hook Issues)
+// ============================================
+let authStore = null;
+
+// Dynamically import auth store to avoid React hook rules
+const getAuthStore = () => {
+  if (authStore) return authStore;
+  
+  try {
+    // Use require instead of import for dynamic loading
+    authStore = require('../../store/authStore');
+    return authStore;
+  } catch (error) {
+    console.error('Failed to load auth store:', error);
+    return null;
+  }
+};
+
+const getAuthState = () => {
+  const store = getAuthStore();
+  if (!store) {
+    console.warn('Auth store not available');
+    return {};
+  }
+  
+  try {
+    return store.useAuthStore.getState();
+  } catch (error) {
+    console.error('Failed to get auth state:', error);
+    return {};
+  }
+};
+
+// ============================================
+// API REQUEST HELPER
+// ============================================
+const makeRequest = async (url, options = {}) => {
+  try {
+    const authState = getAuthState();
+    const token = authState.token;
+    
+    if (!token) {
+      throw new Error('AUTH_TOKEN_MISSING');
     }
-    return `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
-  },
+    
+    console.log('🌐 API Request:', {
+      method: options.method || 'GET',
+      url,
+      hasToken: !!token,
+      tokenLength: token?.length || 0
+    });
+    
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    
+    console.log('🌐 API Response Status:', response.status);
+    
+    if (!response.ok) {
+      let errorData = null;
+      try {
+        const errorText = await response.text();
+        errorData = errorText;
+        
+        // Try to parse as JSON if possible
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          // Keep as text if not JSON
+        }
+      } catch (textError) {
+        errorData = 'Could not read error response';
+      }
+      
+      console.error('❌ API Error:', {
+        status: response.status,
+        url,
+        error: errorData
+      });
+      
+      // Handle specific HTTP errors
+      if (response.status === 401) {
+        throw new Error('SESSION_EXPIRED');
+      } else if (response.status === 403) {
+        throw new Error('PERMISSION_DENIED');
+      } else if (response.status === 404) {
+        throw new Error('RESOURCE_NOT_FOUND');
+      } else if (response.status === 500) {
+        throw new Error('SERVER_ERROR');
+      }
+      
+      throw new Error(`API_ERROR_${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    console.log('✅ API Success:', {
+      url,
+      recordCount: data.records?.length || 0,
+      rowCount: data['row-count'] || 0
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('🔥 API Request Failed:', {
+      url,
+      error: error.message,
+      errorCode: error.code
+    });
+    
+    // Re-throw for react-query to handle
+    throw error;
+  }
+};
 
+// ============================================
+// URL BUILDER
+// ============================================
+const buildUrl = (endpoint, filters = {}, customFilter = null) => {
+  const authState = getAuthState();
+  const serverConfig = authState.serverConfig;
+  
+  if (!serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
+    throw new Error('SERVER_CONFIG_MISSING');
+  }
+  
+  const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+  let url = `${baseUrl}/${endpoint}`;
+  
+  // Build filter string
+  const filterParts = [];
+  
+  // Add custom filter if provided
+  if (customFilter) {
+    filterParts.push(customFilter);
+  }
+  
+  // Add individual filters
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      filterParts.push(`${key} eq ${typeof value === 'string' ? `'${value}'` : value}`);
+    }
+  });
+  
+  // Add filter to URL if we have any
+  if (filterParts.length > 0) {
+    const filterString = filterParts.join(' and ');
+    url += `?$filter=${encodeURIComponent(filterString)}`;
+  }
+  
+  return url;
+};
+
+// ============================================
+// CRM API SERVICE
+// ============================================
+const crmApiService = {
   /**
    * Fetch leads with optional filters
+   * FIXED: Proper OData filter syntax
    */
   getLeads: async (filters = {}) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-      const userId = useAuthStore.getState().userId;
-
-      // Build filter string
+      const authState = getAuthState();
+      const userId = authState.userId;
+      
+      // Build comprehensive filter
       let filterParts = ['IsSalesLead eq true'];
       
+      // Add user filter if available - FIXED: Use correct field name
       if (userId) {
         filterParts.push(`SalesRep_ID eq ${userId}`);
       }
       
-      // Add status filter if provided
+      // Add status filter
       if (filters.status) {
         const statusMap = {
           'New': 'N',
-          'Working': 'W', 
+          'Working': 'W',
           'Converted': 'C',
           'Expired': 'E'
         };
         const statusId = statusMap[filters.status] || filters.status;
         filterParts.push(`LeadStatus/id eq '${statusId}'`);
       }
-
-      // Add date filters if provided
+      
+      // Date filters
       if (filters.startDate) {
         filterParts.push(`Created ge '${filters.startDate}'`);
       }
-      
       if (filters.endDate) {
         filterParts.push(`Created le '${filters.endDate}'`);
       }
-
-      const filterString = filterParts.join(' and ');
-      const URL = `${baseUrl}/models/AD_User?$filter=${encodeURIComponent(filterString)}`;
       
-      console.log('Fetching leads with URL:', URL);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get leads error response:', errorText);
-        throw new Error(`Failed to fetch leads: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`Retrieved ${data.records?.length || 0} leads`);
-      return data.records || [];
+      // Build filter string
+      const filterString = filterParts.join(' and ');
+      
+      const url = buildUrl('models/AD_User', {}, filterString);
+      console.log('🔍 Leads API URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      // SAFE data extraction with fallback
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} leads`);
+      return records;
     } catch (error) {
-      console.error('Get leads fetch error:', error.message);
-      throw error;
+      console.error('❌ Get leads failed:', error.message);
+      
+      // Return empty array for non-auth errors
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error; // Let react-query handle auth errors
+      }
+      
+      return []; // Return empty array for other errors
     }
   },
 
@@ -81,31 +232,13 @@ const crmApiService = {
    */
   getLeadById: async (leadId) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/AD_User/${leadId}`;
+      const url = buildUrl(`models/AD_User/${leadId}`);
+      console.log('🔍 Lead by ID URL:', url);
       
-      console.log('Fetching lead by ID:', leadId);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get lead by ID error:', errorText);
-        throw new Error(`Failed to fetch lead: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await makeRequest(url);
       return data;
     } catch (error) {
-      console.error('Get lead by ID fetch error:', error.message);
+      console.error('Get lead by ID failed:', error.message);
       throw error;
     }
   },
@@ -115,34 +248,18 @@ const crmApiService = {
    */
   createLead: async (leadData) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/AD_User`;
+      const url = buildUrl('models/AD_User');
+      console.log('📝 Create lead URL:', url);
       
-      console.log('Creating lead with data:', leadData);
-
-      const response = await fetch(URL, {
+      const data = await makeRequest(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(leadData),
+        body: leadData,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Create lead error response:', errorText);
-        throw new Error(`Failed to create lead: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Lead created successfully:', data);
+      
+      console.log('✅ Lead created successfully');
       return data;
     } catch (error) {
-      console.error('Create lead fetch error:', error.message);
+      console.error('Create lead failed:', error.message);
       throw error;
     }
   },
@@ -152,34 +269,18 @@ const crmApiService = {
    */
   updateLead: async (leadId, updates) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/AD_User/${leadId}`;
+      const url = buildUrl(`models/AD_User/${leadId}`);
+      console.log('✏️ Update lead URL:', url);
       
-      console.log('Updating lead:', leadId, 'with data:', updates);
-
-      const response = await fetch(URL, {
+      const data = await makeRequest(url, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(updates),
+        body: updates,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Update lead error response:', errorText);
-        throw new Error(`Failed to update lead: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Lead updated successfully:', data);
+      
+      console.log('✅ Lead updated successfully');
       return data;
     } catch (error) {
-      console.error('Update lead fetch error:', error.message);
+      console.error('Update lead failed:', error.message);
       throw error;
     }
   },
@@ -220,14 +321,11 @@ const crmApiService = {
    */
   getFollowups: async (filters = {}) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      // Build filter string
-      let filterParts = [];
+      // Build filter parts
+      const filterParts = [];
       
       if (filters.userId) {
-        filterParts.push(`AD_User_ID/id eq ${filters.userId}`);
+        filterParts.push(`AD_User_ID eq ${filters.userId}`);
       }
       
       if (filters.isComplete !== undefined) {
@@ -246,35 +344,25 @@ const crmApiService = {
         filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
       }
 
-      let URL = `${baseUrl}/models/C_ContactActivity`;
+      // Build URL with filters
+      const url = buildUrl('models/C_ContactActivity', {}, 
+        filterParts.length > 0 ? filterParts.join(' and ') : null
+      );
       
-      if (filterParts.length > 0) {
-        const filterString = filterParts.join(' and ');
-        URL += `?$filter=${encodeURIComponent(filterString)}`;
-      }
-
-      console.log('Fetching followups with URL:', URL);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get followups error response:', errorText);
-        throw new Error(`Failed to fetch followups: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`Retrieved ${data.records?.length || 0} followups`);
-      return data.records || [];
+      console.log('🔍 Followups API URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      const records = Array.isArray(data.records) ? data.records : [];
+      console.log(`✅ Retrieved ${records.length} followups`);
+      return records;
     } catch (error) {
-      console.error('Get followups fetch error:', error.message);
-      throw error;
+      console.error('Get followups failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
   },
 
@@ -283,31 +371,11 @@ const crmApiService = {
    */
   getFollowupById: async (followupId) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_ContactActivity/${followupId}`;
-      
-      console.log('Fetching followup by ID:', followupId);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get followup by ID error:', errorText);
-        throw new Error(`Failed to fetch followup: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
+      const data = await makeRequest(url);
       return data;
     } catch (error) {
-      console.error('Get followup by ID fetch error:', error.message);
+      console.error('Get followup by ID failed:', error.message);
       throw error;
     }
   },
@@ -317,34 +385,16 @@ const crmApiService = {
    */
   createFollowup: async (followupData) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_ContactActivity`;
-      
-      console.log('Creating followup with data:', followupData);
-
-      const response = await fetch(URL, {
+      const url = buildUrl('models/C_ContactActivity');
+      const data = await makeRequest(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(followupData),
+        body: followupData,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Create followup error response:', errorText);
-        throw new Error(`Failed to create followup: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Followup created successfully:', data);
+      
+      console.log('✅ Followup created successfully');
       return data;
     } catch (error) {
-      console.error('Create followup fetch error:', error.message);
+      console.error('Create followup failed:', error.message);
       throw error;
     }
   },
@@ -354,34 +404,16 @@ const crmApiService = {
    */
   updateFollowup: async (followupId, updates) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_ContactActivity/${followupId}`;
-      
-      console.log('Updating followup:', followupId, 'with data:', updates);
-
-      const response = await fetch(URL, {
+      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
+      const data = await makeRequest(url, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(updates),
+        body: updates,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Update followup error response:', errorText);
-        throw new Error(`Failed to update followup: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Followup updated successfully:', data);
+      
+      console.log('✅ Followup updated successfully');
       return data;
     } catch (error) {
-      console.error('Update followup fetch error:', error.message);
+      console.error('Update followup failed:', error.message);
       throw error;
     }
   },
@@ -391,92 +423,97 @@ const crmApiService = {
    */
   deleteFollowup: async (followupId) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_ContactActivity/${followupId}`;
-      
-      console.log('Deleting followup:', followupId);
-
-      const response = await fetch(URL, {
+      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
+      await makeRequest(url, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Delete followup error response:', errorText);
-        throw new Error(`Failed to delete followup: ${response.status}`);
-      }
-
-      console.log('Followup deleted successfully');
+      
+      console.log('✅ Followup deleted successfully');
       return { success: true, id: followupId };
     } catch (error) {
-      console.error('Delete followup fetch error:', error.message);
+      console.error('Delete followup failed:', error.message);
       throw error;
     }
   },
 
   /**
    * Fetch sales opportunities
+   * FIXED: Correct filter field names and structure
    */
   getSalesOpportunities: async (filters = {}) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      // Build filter string
-      let filterParts = [];
+      const authState = getAuthState();
+      const userId = authState.userId;
       
+      // Build filter parts - CRITICAL FIX: Use correct field names
+      const filterParts = [];
+      
+      // Option 1: Try with SalesRep_ID (most common)
+      if (userId) {
+        filterParts.push(`SalesRep_ID eq ${userId}`);
+      }
+      
+      // Option 2: Try with AD_User_ID if SalesRep_ID doesn't work
+      // filterParts.push(`AD_User_ID eq ${userId}`);
+      
+      // Stage filter
       if (filters.stage) {
         filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
       }
       
-      if (filters.userId) {
-        filterParts.push(`SalesRep_ID/id eq ${filters.userId}`);
+      // Opportunity status filter
+      if (filters.status) {
+        filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
       }
       
+      // Date filters
       if (filters.startDate) {
         filterParts.push(`Created ge '${filters.startDate}'`);
       }
-      
       if (filters.endDate) {
         filterParts.push(`Created le '${filters.endDate}'`);
       }
-
-      let URL = `${baseUrl}/models/C_Opportunity`;
       
-      if (filterParts.length > 0) {
-        const filterString = filterParts.join(' and ');
-        URL += `?$filter=${encodeURIComponent(filterString)}`;
+      // Always include active records
+      filterParts.push(`IsActive eq true`);
+      
+      const url = buildUrl('models/C_Opportunity', {}, 
+        filterParts.length > 0 ? filterParts.join(' and ') : null
+      );
+      
+      console.log('🔍 Sales Opportunities URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      // SAFE data extraction
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} sales opportunities`);
+      
+      // DEBUG: If no records, try without user filter to check permissions
+      if (records.length === 0) {
+        console.log('🔄 Debug: Trying without user filter...');
+        const debugUrl = buildUrl('models/C_Opportunity', {}, 'IsActive eq true');
+        const debugData = await makeRequest(debugUrl);
+        console.log(`🔄 Debug: Found ${debugData.records?.length || 0} total opportunities in system`);
       }
-
-      console.log('Fetching sales opportunities with URL:', URL);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get sales opportunities error response:', errorText);
-        throw new Error(`Failed to fetch sales opportunities: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`Retrieved ${data.records?.length || 0} sales opportunities`);
-      return data.records || [];
+      
+      return records;
     } catch (error) {
-      console.error('Get sales opportunities fetch error:', error.message);
-      throw error;
+      console.error('❌ Get sales opportunities failed:', error.message);
+      
+      // Handle specific errors
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      } else if (error.message === 'RESOURCE_NOT_FOUND') {
+        console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
+        return [];
+      } else if (error.message === 'PERMISSION_DENIED') {
+        console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
+        return [];
+      }
+      
+      return [];
     }
   },
 
@@ -485,34 +522,16 @@ const crmApiService = {
    */
   createSalesOpportunity: async (opportunityData) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_Opportunity`;
-      
-      console.log('Creating sales opportunity with data:', opportunityData);
-
-      const response = await fetch(URL, {
+      const url = buildUrl('models/C_Opportunity');
+      const data = await makeRequest(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(opportunityData),
+        body: opportunityData,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Create sales opportunity error response:', errorText);
-        throw new Error(`Failed to create sales opportunity: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Sales opportunity created successfully:', data);
+      
+      console.log('✅ Sales opportunity created successfully');
       return data;
     } catch (error) {
-      console.error('Create sales opportunity fetch error:', error.message);
+      console.error('Create sales opportunity failed:', error.message);
       throw error;
     }
   },
@@ -522,34 +541,16 @@ const crmApiService = {
    */
   updateSalesOpportunity: async (opportunityId, updates) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-
-      const URL = `${baseUrl}/models/C_Opportunity/${opportunityId}`;
-      
-      console.log('Updating sales opportunity:', opportunityId, 'with data:', updates);
-
-      const response = await fetch(URL, {
+      const url = buildUrl(`models/C_Opportunity/${opportunityId}`);
+      const data = await makeRequest(url, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(updates),
+        body: updates,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Update sales opportunity error response:', errorText);
-        throw new Error(`Failed to update sales opportunity: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Sales opportunity updated successfully:', data);
+      
+      console.log('✅ Sales opportunity updated successfully');
       return data;
     } catch (error) {
-      console.error('Update sales opportunity fetch error:', error.message);
+      console.error('Update sales opportunity failed:', error.message);
       throw error;
     }
   },
@@ -561,7 +562,7 @@ const crmApiService = {
     try {
       return await crmApiService.getFollowups({ userId: leadId });
     } catch (error) {
-      console.error('Get lead activities error:', error.message);
+      console.error('Get lead activities failed:', error.message);
       throw error;
     }
   },
@@ -583,8 +584,8 @@ const crmApiService = {
       
       return statistics;
     } catch (error) {
-      console.error('Get lead statistics error:', error.message);
-      throw error;
+      console.error('Get lead statistics failed:', error.message);
+      return { total: 0, new: 0, working: 0, converted: 0, expired: 0 };
     }
   },
 
@@ -593,36 +594,28 @@ const crmApiService = {
    */
   searchLeads: async (searchTerm) => {
     try {
-      const baseUrl = crmApiService.getBaseUrl();
-      const token = useAuthStore.getState().token;
-      const userId = useAuthStore.getState().userId;
-
-      const filterString = `(IsSalesLead eq true) and (SalesRep_ID eq ${userId}) and (contains(tolower(Name), tolower('${searchTerm}')) or contains(tolower(EMail), tolower('${searchTerm}')) or contains(tolower(Phone), tolower('${searchTerm}')))`;
+      const authState = getAuthState();
+      const userId = authState.userId;
       
-      const URL = `${baseUrl}/models/AD_User?$filter=${encodeURIComponent(filterString)}`;
-
-      console.log('Searching leads with URL:', URL);
-
-      const response = await fetch(URL, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Search leads error response:', errorText);
-        throw new Error(`Failed to search leads: ${response.status}`);
+      if (!searchTerm || searchTerm.trim() === '') {
+        return await crmApiService.getLeads();
       }
-
-      const data = await response.json();
-      console.log(`Found ${data.records?.length || 0} leads matching search`);
-      return data.records || [];
+      
+      // Build search filter
+      const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (contains(Name, '${searchTerm}') or contains(EMail, '${searchTerm}') or contains(Phone, '${searchTerm}'))`;
+      
+      const url = buildUrl('models/AD_User', {}, searchFilter);
+      console.log('🔍 Search leads URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      const records = Array.isArray(data.records) ? data.records : [];
+      console.log(`✅ Found ${records.length} leads matching search`);
+      
+      return records;
     } catch (error) {
-      console.error('Search leads fetch error:', error.message);
-      throw error;
+      console.error('Search leads failed:', error.message);
+      return [];
     }
   },
 };

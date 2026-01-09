@@ -508,42 +508,6 @@ const HomeScreen = ({route}) => {
     }
   };
 
-  const renderCategory = ({title, icon, color, backgroundcolor, onPress}) => (
-    <TouchableOpacity style={styles.categoryBox} onPress={onPress} key={title}>
-      <MaterialCommunityIcons
-        name={icon}
-        size={30}
-        color={color}
-        style={{
-          backgroundColor: backgroundcolor,
-          padding: '5%',
-          paddingHorizontal: '4%',
-          borderRadius: 10,
-        }}
-      />
-      <Text style={styles.categoryText}>{title}</Text>
-    </TouchableOpacity>
-  );
-
-  const renderTransaction = ({item}) => (
-    <View style={[styles.transactionBox, {backgroundColor: '#ECECEC'}]}>
-      <Text style={styles.amount}>{item.amount}</Text>
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.dateTransaction}>{item.date}</Text>
-      </View>
-      <View
-        style={[
-          styles.status,
-          item.status === 'Complete'
-            ? styles.statusComplete
-            : styles.statusPending,
-        ]}>
-        <Text style={styles.statusText}>{item.status}</Text>
-      </View>
-    </View>
-  );
-
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       <StatusBar translucent={true} backgroundColor="transparent" />
@@ -571,61 +535,24 @@ const HomeScreen = ({route}) => {
           </View>
         </View>
 
-        {/* User and Date Info - Side by Side without Card */}
-        <View style={styles.userDateContainer}>
-          {/* Left Side - User Info */}
-          <View style={styles.userInfoSection}>
-            {/* Username with Role */}
-            <View style={styles.usernameRow}>
-              <Text style={styles.username}>
-                {storeUserName || name || 'User'}
-              </Text>
-              {storeRoleName && (
-                <Text style={styles.roleInBrackets}>
-                  ({storeRoleName})
-                </Text>
-              )}
-            </View>
-
-            {/* Organization Info */}
-            {storeOrgName && (
-              <View style={styles.infoRow}>
-                <Icon name="business" size={16} color="#2F4FE3" style={styles.rowIcon} />
-                <Text style={styles.infoText}>
-                  {storeOrgName}
-                </Text>
-              </View>
-            )}
-
-            {/* Warehouse Info */}
-            {storeWarehouseName && (
-              <View style={styles.infoRow}>
-                <Icon name="home" size={16} color="#2F4FE3" style={styles.rowIcon} />
-                <Text style={styles.infoText}>
-                  {storeWarehouseName}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Right Side - Date Info */}
-          <View style={styles.dateInfoSection}>
-            <View style={styles.dateContainer}>
-              <View style={styles.dateLeft}>
-                <Text style={styles.dateNum}>{day}</Text>
-                <Text style={styles.dateSuffix}>{getOrdinalSuffix(day)}</Text>
-              </View>
-              <View style={styles.dateRightContainer}>
-                <Text style={styles.dateDay}>{weekday}</Text>
-                <Text style={styles.dateMonthYear}>{monthDayYear}</Text>
-              </View>
-            </View>
-            <View style={styles.dateDivider} />
-            <View style={styles.todayContainer}>
-              <Icon name="calendar-outline" size={18} color="#2F4FE3" />
-              <Text style={styles.todayText}>Today</Text>
-            </View>
-          </View>
+        {/* User Info with Clickable Username */}
+        <View style={styles.userInfoSection}>
+          {/* Clickable Username */}
+          <TouchableOpacity 
+            style={styles.usernameRow}
+            onPress={() => navigation.navigate('ProfileScreen')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.username}>
+              {storeUserName || name || 'User'}
+            </Text>
+            <Icon 
+              name="chevron-forward-outline" 
+              size={16} 
+              color="#666" 
+              style={styles.chevronIcon}
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -841,16 +768,9 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     zIndex: 10,
   },
-  // User and Date Container - Side by Side without Card
-  userDateContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 5,
-  },
-  // Left Side - User Info
+  // User Info Section
   userInfoSection: {
-    flex: 1.6,
+    flex: 1,
     paddingRight: 15,
   },
   usernameRow: {
@@ -866,106 +786,8 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     marginRight: 8,
   },
-  roleInBrackets: {
-    fontSize: 14,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
-    backgroundColor: 'rgba(47, 79, 227, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(47, 79, 227, 0.2)',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingVertical: 2,
-  },
-  rowIcon: {
-    marginRight: 8,
-    width: 20,
-    textAlign: 'center',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#444',
-    fontFamily: 'K2D-Medium',
-    flex: 1,
-  },
-  // Right Side - Date Info
-  dateInfoSection: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 5,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(240, 242, 255, 1)',
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: 5,
-  },
-  dateLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginRight: 10,
-  },
-  dateNum: {
-    fontSize: 36,
-    fontFamily: 'K2D-Bold',
-    color: 'rgba(47, 79, 226, 1)',
-    lineHeight: 36,
-  },
-  dateSuffix: {
-    fontSize: 14,
-    color: '#666',
-    fontFamily: 'K2D-Regular',
-    lineHeight: 20,
-    bottom: 5,
-    marginLeft: 2,
-  },
-  dateRightContainer: {
-    alignItems: 'flex-start',
-  },
-  dateDay: {
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
-    color: '#000',
-    marginBottom: 2,
-  },
-  dateMonthYear: {
-    fontSize: 13,
-    color: 'rgba(48, 48, 48, 1)',
-    fontFamily: 'K2D-Medium',
-  },
-  dateDivider: {
-    height: 1,
-    backgroundColor: 'rgba(240, 242, 255, 1)',
-    width: '100%',
-    marginVertical: 5,
-  },
-  todayContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(240, 242, 255, 1)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: 'center',
-  },
-  todayText: {
-    fontSize: 13,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
-    marginLeft: 6,
+  chevronIcon: {
+    marginLeft: 4,
   },
   // Blue Card
   blueCard: {
@@ -1060,90 +882,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: 'K2D-Bold',
     marginBottom: 15,
-  },
-  categories: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    paddingHorizontal: 10,
-    marginBottom: '30%',
-  },
-  categoryBox: {
-    width: '45%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 6,
-    padding: 16,
-    marginVertical: 8,
-    alignItems: 'center',
-    elevation: 2,
-  },
-  categoryText: {
-    marginTop: 8,
-    color: '#000',
-    fontFamily: 'K2D-Medium',
-  },
-  transactionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    alignItems: 'center',
-    backgroundColor: '#DBE6FF',
-    padding: '3%',
-    borderRadius: 6,
-  },
-  transactionTitle: {
-    fontFamily: 'K2D-Bold',
-    fontSize: 16,
-    color: '#2F4FE3',
-  },
-  viewAll: {
-    color: '#2F4FE3',
-    fontFamily: 'K2D-Bold',
-  },
-  dateTransaction: {
-    marginRight: 16,
-    fontSize: 12,
-    color: '#939393',
-  },
-  transactionBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  amount: {
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 18,
-    marginRight: 16,
-    color: '#000',
-  },
-  name: {
-    fontWeight: '600',
-    color: '#000',
-  },
-  dateNewScreen: {
-    fontSize: 16,
-    color: '#000',
-  },
-  status: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  statusPending: {
-    backgroundColor: '#F1C424',
-  },
-  statusComplete: {
-    backgroundColor: '#29DF8F',
-  },
-  statusText: {
-    color: '#fff',
-    fontFamily: 'K2D-Bold',
-    fontSize: 12,
   },
   bottomGrid: {
     flexDirection: 'row',

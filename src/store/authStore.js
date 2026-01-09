@@ -41,21 +41,17 @@ export const useAuthStore = create(
       userName: null,
       password: null,
 
-      // Role info
+      // Role info (ALWAYS saved after role selection)
       roleId: null,
       roleName: null,
+      organizationId: null,
+      organizationName: null,
+      warehouseId: null,
+      warehouseName: null,
 
       // Client info
       clientId: null,
       clientName: null,
-
-      // Organization info
-      organizationId: null,
-      organizationName: null,
-
-      // Warehouse info
-      warehouseId: null,
-      warehouseName: null,
 
       // Server configuration
       serverConfig: {
@@ -78,7 +74,7 @@ export const useAuthStore = create(
       checkAuthState: () => {
         const state = get();
         const isBasicAuth = !!(state.token && state.userName);
-        const isCompleteAuth = isBasicAuth && !!state.roleId && !!state.userId && state.userId !== state.userName;
+        const isCompleteAuth = isBasicAuth && !!state.roleId && !!state.organizationId && !!state.warehouseId;
 
         return { isBasicAuth, isCompleteAuth };
       },
@@ -103,14 +99,6 @@ export const useAuthStore = create(
           clientName: data.clientName || currentState.clientName,
           clients: data.clients || currentState.clients,
           availableClients: data.clients || currentState.availableClients,
-
-          // Clear role data for fresh login
-          roleId: null,
-          roleName: null,
-          organizationId: null,
-          organizationName: null,
-          warehouseId: null,
-          warehouseName: null,
         });
       },
 
@@ -157,13 +145,13 @@ export const useAuthStore = create(
           clients: finalClients || currentState.clients,
           availableClients: finalClients || currentState.availableClients,
 
-          // Clear previous selections
-          roleId: null,
-          roleName: null,
-          organizationId: null,
-          organizationName: null,
-          warehouseId: null,
-          warehouseName: null,
+          // PRESERVE existing role data (automatically remembered)
+          roleId: currentState.roleId,
+          roleName: currentState.roleName,
+          organizationId: currentState.organizationId,
+          organizationName: currentState.organizationName,
+          warehouseId: currentState.warehouseId,
+          warehouseName: currentState.warehouseName,
         });
       },
 
@@ -183,6 +171,7 @@ export const useAuthStore = create(
           tokenOk: 'true',
           userId: realUserId || get().userId,
 
+          // Save role data for future logins
           roleId: data.roleId || get().roleId,
           roleName: data.roleName || get().roleName,
 
@@ -209,33 +198,53 @@ export const useAuthStore = create(
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
 
-      logout: () => {
-        // Get current state to preserve credentials
-        const currentState = get();
-
-        set({
-          // Clear session data
-          token: null,
-          tokenOk: null,
-          userId: null,
-          roleId: null,
-          roleName: null,
-
-          // PRESERVE credentials for "Remember Me"
-          userName: currentState.userName,
-          password: currentState.password,
-
-          // Clear other session data
-          clientId: null,
-          clientName: null,
-          organizationId: null,
-          organizationName: null,
-          warehouseId: null,
-          warehouseName: null,
-          availableClients: null,
-          error: null,
-        });
+      // Check if user has complete role data saved
+      hasCompleteRoleData: () => {
+        const state = get();
+        return !!(
+          state.roleId &&
+          state.organizationId &&
+          state.warehouseId &&
+          state.roleName &&
+          state.organizationName &&
+          state.warehouseName
+        );
       },
+logout: () => {
+  // Get current state to preserve credentials and role data
+  const currentState = get();
+
+  set({
+    // Clear session data
+    token: null,
+    tokenOk: null,
+    userId: null,
+    
+    // Preserve credentials (for Remember Me)
+    userName: currentState.userName,
+    password: currentState.password,
+    
+    // Preserve role data (for Use Last Role)
+    roleId: currentState.roleId,
+    roleName: currentState.roleName,
+    organizationId: currentState.organizationId,
+    organizationName: currentState.organizationName,
+    warehouseId: currentState.warehouseId,
+    warehouseName: currentState.warehouseName,
+    
+    // Preserve client data
+    clientId: currentState.clientId,
+    clientName: currentState.clientName,
+    
+    // Preserve server config
+    serverConfig: currentState.serverConfig,
+    
+    // Clear temporary data
+    availableClients: null,
+    error: null,
+    isLoading: false,
+  });
+},
 
       clearError: () => set({ error: null }),
 
@@ -272,8 +281,14 @@ export const useAuthStore = create(
         // Check if we have role ID
         const hasRoleId = !!state.roleId;
 
-        // Complete auth requires all three
-        return hasBasicAuth && hasRealUserId && hasRoleId;
+        // Check if we have organization ID
+        const hasOrganizationId = !!state.organizationId;
+
+        // Check if we have warehouse ID
+        const hasWarehouseId = !!state.warehouseId;
+
+        // Complete auth requires all
+        return hasBasicAuth && hasRealUserId && hasRoleId && hasOrganizationId && hasWarehouseId;
       },
 
       get hasServerConfig() {
@@ -311,6 +326,19 @@ export const useAuthStore = create(
         };
       },
 
+      // Get saved role context for display
+    get savedRoleContext() {
+  const state = get();
+  if (state.hasCompleteRoleData() && state.roleName && state.organizationName && state.warehouseName) {
+    return {
+      role: state.roleName,
+      organization: state.organizationName,
+      warehouse: state.warehouseName,
+    };
+  }
+  return null;
+},
+
       get isTokenValidJWT() {
         const token = get().token;
         if (!token) return false;
@@ -335,6 +363,7 @@ export const useAuthStore = create(
         password: state.password,
         token: state.token,
         userId: state.userId,
+        // Always persist role data
         roleId: state.roleId,
         roleName: state.roleName,
         clientId: state.clientId,

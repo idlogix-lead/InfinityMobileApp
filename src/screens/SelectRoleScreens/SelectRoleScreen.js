@@ -10,6 +10,10 @@ import {
   BackHandler,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  TextInput,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '../../store/authStore';
@@ -20,6 +24,7 @@ import {
   useCompleteLogin 
 } from '../../hooks/useAuth';
 import colors from '../../constants/Colors';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
 const { height, width } = Dimensions.get('window');
 
@@ -31,7 +36,20 @@ const SelectRoleScreen = ({ navigation, route }) => {
   const userName = useAuthStore(state => state.userName);
   const isLoading = useAuthStore(state => state.isLoading);
   const error = useAuthStore(state => state.error);
-  const userId = useAuthStore(state => state.userId);
+  
+  // Get saved role data for pre-selection (always loaded from last login)
+  const savedRoleId = useAuthStore(state => state.roleId);
+  const savedOrgId = useAuthStore(state => state.organizationId);
+  const savedWarehouseId = useAuthStore(state => state.warehouseId);
+  const savedRoleName = useAuthStore(state => state.roleName);
+  const savedOrgName = useAuthStore(state => state.organizationName);
+  const savedWarehouseName = useAuthStore(state => state.warehouseName);
+  
+  // Responsive scaling
+  const scaleWidth = (size) => (width / 375) * size;
+  const scaleHeight = (size) => (height / 812) * size;
+  const isLandscape = width > height;
+  const isTablet = width >= 768;
   
   // Get store actions
   const setCompleteAuthData = useAuthStore(state => state.setCompleteAuthData);
@@ -43,6 +61,16 @@ const SelectRoleScreen = ({ navigation, route }) => {
   const [selectedOrganization, setSelectedOrganization] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [isLoadingLocal, setIsLoadingLocal] = useState(false);
+  
+  // Date state
+  const [currentDate] = useState(() => {
+    const now = new Date();
+    // Format: DD/MM/YYYY
+    const day = now.getDate().toString().padStart(2, '0');
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const year = now.getFullYear();
+    return `${day}/${month}/${year}`;
+  });
 
   // Queries
   const { 
@@ -69,6 +97,19 @@ const SelectRoleScreen = ({ navigation, route }) => {
   // Mutation
   const completeLoginMutation = useCompleteLogin();
 
+  // Initialize with saved values if available (pre-fill with last selection)
+  useEffect(() => {
+    if (savedRoleId) {
+      setSelectedRole(savedRoleId);
+    }
+    if (savedOrgId) {
+      setSelectedOrganization(savedOrgId);
+    }
+    if (savedWarehouseId) {
+      setSelectedWarehouse(savedWarehouseId);
+    }
+  }, [savedRoleId, savedOrgId, savedWarehouseId]);
+
   // Handle errors
   useEffect(() => {
     if (error) {
@@ -94,9 +135,9 @@ const SelectRoleScreen = ({ navigation, route }) => {
     
     try {
       // Get the selected item names
-      const roleName = getSelectedItemName(roles, selectedRole);
-      const organizationName = getSelectedItemName(organizations, selectedOrganization);
-      const warehouseName = getSelectedItemName(warehouses, selectedWarehouse);
+      const roleName = getSelectedItemName(roles, selectedRole) || savedRoleName;
+      const organizationName = getSelectedItemName(organizations, selectedOrganization) || savedOrgName;
+      const warehouseName = getSelectedItemName(warehouses, selectedWarehouse) || savedWarehouseName;
 
       // Create parameters
       const parameters = {
@@ -110,7 +151,7 @@ const SelectRoleScreen = ({ navigation, route }) => {
       // Complete login
       const response = await completeLoginMutation.mutateAsync(parameters);
       
-      // Store complete auth data
+      // Store complete auth data (this will save role for next login)
       setCompleteAuthData({
         token: response.token,
         extractedUserId: response.extractedUserId,
@@ -195,6 +236,12 @@ const SelectRoleScreen = ({ navigation, route }) => {
     navigation.navigate('SignIn');
   };
 
+  // Handle calendar icon click (for future implementation)
+  const handleCalendarClick = () => {
+    // This will be implemented in the future
+    Alert.alert('Info', 'Date picker will be implemented in future update');
+  };
+
   // Check if all fields are selected
   const isLoginDisabled = isLoading || isLoadingLocal || 
                          !selectedRole || !selectedOrganization || !selectedWarehouse;
@@ -205,217 +252,261 @@ const SelectRoleScreen = ({ navigation, route }) => {
   const filteredWarehouses = filterValidItems(warehouses);
 
   return (
-    <View style={styles.container}>
-      {/* Header Image */}
-      <View style={styles.imageContainer}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      
+      <ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent,
+          isLandscape && styles.scrollContentLandscape,
+          isTablet && styles.scrollContentTablet
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Logo */}
         <Image
           source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
-          style={styles.image}
+          style={[
+            styles.logo,
+            isLandscape && styles.logoLandscape,
+            isTablet && styles.logoTablet
+          ]}
           resizeMode="contain"
         />
-      </View>
 
-      {/* User Info - Static below image */}
-      <View style={styles.userInfoContainer}>
-        <Text style={styles.userInfoText}>Welcome, {userName}</Text>
-        <Text style={styles.userInfoSubtext}>Client: {clientName || 'Not selected'}</Text>
-      </View>
+        {/* Title */}
+        <Text style={[
+          styles.title,
+          isLandscape && styles.titleLandscape,
+          isTablet && styles.titleTablet
+        ]}>
+          Set User Role
+        </Text>
+        
+        {/* Client info */}
+        <Text style={[
+          styles.clientText,
+          isLandscape && styles.clientTextLandscape,
+          isTablet && styles.clientTextTablet
+        ]}>
+          Client: {clientName || 'Not selected'}
+        </Text>
 
-      {/* Main Form Card */}
-      <View style={styles.mainCard}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.title}>Set User Role & Context</Text>
-          
-          {/* All three pickers in same card */}
-          
-          {/* 1. Role Picker */}
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionLabel}>
-              Role {selectedRole && '✓'}
+        {/* Card */}
+        <View style={[
+          styles.card,
+          isLandscape && styles.cardLandscape,
+          isTablet && styles.cardTablet
+        ]}>
+          {/* Role */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Role
             </Text>
             <View style={[
               styles.pickerWrapper,
-              selectedRole && styles.pickerWrapperSelected
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet
             ]}>
-              {loadingRoles ? (
-                <View style={styles.loadingPlaceholder}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.loadingText}>Loading roles...</Text>
-                </View>
-              ) : filteredRoles.length === 0 ? (
-                <View style={styles.disabledPlaceholder}>
-                  <Text style={styles.disabledText}>No roles available</Text>
-                </View>
-              ) : (
-                <Picker
-                  selectedValue={selectedRole}
-                  onValueChange={handleRoleChange}
-                  style={styles.picker}
-                  dropdownIconColor={colors.primary}
-                >
-                  <Picker.Item 
-                    label="Select Role" 
-                    value="" 
-                    color={colors.textSecondary}
+              <Picker
+                selectedValue={selectedRole}
+                onValueChange={handleRoleChange}
+                style={[
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet
+                ]}
+              >
+                <Picker.Item label="Select Role" value="" />
+                {filteredRoles.map(role => (
+                  <Picker.Item
+                    key={role.id}
+                    label={role.name}
+                    value={role.id}
                   />
-                  {filteredRoles.map(role => (
-                    <Picker.Item
-                      key={role.id}
-                      label={role.name}
-                      value={role.id}
-                      color={colors.textPrimary}
-                    />
-                  ))}
-                </Picker>
-              )}
+                ))}
+              </Picker>
             </View>
-            {selectedRole && (
-              <Text style={styles.selectedText}>
-                Selected: {getSelectedItemName(roles, selectedRole)}
-              </Text>
-            )}
           </View>
 
-          {/* 2. Organization Picker */}
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionLabel}>
-              Organization {selectedOrganization && '✓'}
+          {/* Organization */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Organization
             </Text>
             <View style={[
               styles.pickerWrapper,
-              !selectedRole && styles.pickerWrapperDisabled,
-              selectedOrganization && styles.pickerWrapperSelected
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet,
+              !selectedRole && styles.disabledWrapper
             ]}>
-              {!selectedRole ? (
-                <View style={styles.disabledPlaceholder}>
-                  <Text style={styles.disabledText}>Select role first</Text>
-                </View>
-              ) : loadingOrgs ? (
-                <View style={styles.loadingPlaceholder}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.loadingText}>Loading organizations...</Text>
-                </View>
-              ) : filteredOrgs.length === 0 ? (
-                <View style={styles.disabledPlaceholder}>
-                  <Text style={styles.disabledText}>No organizations available</Text>
-                </View>
-              ) : (
-                <Picker
-                  selectedValue={selectedOrganization}
-                  onValueChange={handleOrganizationChange}
-                  style={styles.picker}
-                  dropdownIconColor={colors.primary}
-                >
-                  <Picker.Item 
-                    label="Select Organization" 
-                    value="" 
-                    color={colors.textSecondary}
+              <Picker
+                selectedValue={selectedOrganization}
+                onValueChange={handleOrganizationChange}
+                enabled={!!selectedRole}
+                style={[
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet,
+                  !selectedRole && styles.disabledPicker
+                ]}
+              >
+                <Picker.Item label="Select Organization" value="" />
+                {filteredOrgs.map(org => (
+                  <Picker.Item
+                    key={org.id}
+                    label={org.name}
+                    value={org.id}
                   />
-                  {filteredOrgs.map(org => (
-                    <Picker.Item
-                      key={org.id}
-                      label={org.name}
-                      value={org.id}
-                      color={colors.textPrimary}
-                    />
-                  ))}
-                </Picker>
-              )}
+                ))}
+              </Picker>
             </View>
-            {selectedOrganization && (
-              <Text style={styles.selectedText}>
-                Selected: {getSelectedItemName(organizations, selectedOrganization)}
-              </Text>
-            )}
           </View>
 
-          {/* 3. Company/Warehouse Picker */}
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionLabel}>
-              Company {selectedWarehouse && '✓'}
+          {/* Company */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Warehouse
             </Text>
             <View style={[
               styles.pickerWrapper,
-              (!selectedRole || !selectedOrganization) && styles.pickerWrapperDisabled,
-              selectedWarehouse && styles.pickerWrapperSelected
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet,
+              (!selectedRole || !selectedOrganization) && styles.disabledWrapper
             ]}>
-              {!selectedRole || !selectedOrganization ? (
-                <View style={styles.disabledPlaceholder}>
-                  <Text style={styles.disabledText}>
-                    {!selectedRole ? 'Select role first' : 'Select organization first'}
-                  </Text>
-                </View>
-              ) : loadingWarehouses ? (
-                <View style={styles.loadingPlaceholder}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.loadingText}>Loading companies...</Text>
-                </View>
-              ) : filteredWarehouses.length === 0 ? (
-                <View style={styles.disabledPlaceholder}>
-                  <Text style={styles.disabledText}>No companies available</Text>
-                </View>
-              ) : (
-                <Picker
-                  selectedValue={selectedWarehouse}
-                  onValueChange={handleWarehouseChange}
-                  style={styles.picker}
-                  dropdownIconColor={colors.primary}
-                >
-                  <Picker.Item 
-                    label="Select Company" 
-                    value="" 
-                    color={colors.textSecondary}
+              <Picker
+                selectedValue={selectedWarehouse}
+                onValueChange={handleWarehouseChange}
+                enabled={!!selectedOrganization}
+                style={[
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet,
+                  (!selectedRole || !selectedOrganization) && styles.disabledPicker
+                ]}
+              >
+                <Picker.Item label="Select Company" value="" />
+                {filteredWarehouses.map(w => (
+                  <Picker.Item
+                    key={w.id}
+                    label={w.name}
+                    value={w.id}
                   />
-                  {filteredWarehouses.map(warehouse => (
-                    <Picker.Item
-                      key={warehouse.id}
-                      label={warehouse.name}
-                      value={warehouse.id}
-                      color={colors.textPrimary}
-                    />
-                  ))}
-                </Picker>
-              )}
+                ))}
+              </Picker>
             </View>
-            {selectedWarehouse && (
-              <Text style={styles.selectedText}>
-                Selected: {getSelectedItemName(warehouses, selectedWarehouse)}
-              </Text>
-            )}
+          </View>
+
+          {/* Date - with Calendar Icon */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Date
+            </Text>
+            <View style={[
+              styles.dateContainer,
+              isLandscape && styles.dateContainerLandscape,
+              isTablet && styles.dateContainerTablet
+            ]}>
+              <TextInput
+                value={currentDate}
+                style={[
+                  styles.dateInput,
+                  isLandscape && styles.dateInputLandscape,
+                  isTablet && styles.dateInputTablet
+                ]}
+                editable={false}
+                selectTextOnFocus={false}
+                pointerEvents="none"
+              />
+              <TouchableOpacity 
+                style={[
+                  styles.calendarIconContainer,
+                  isLandscape && styles.calendarIconContainerLandscape,
+                  isTablet && styles.calendarIconContainerTablet
+                ]}
+                onPress={handleCalendarClick}
+                activeOpacity={0.7}
+              >
+                <FontAwesome 
+                  name="calendar" 
+                  size={width * 0.05} 
+                  color={colors.authButton}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Buttons */}
-          <View style={styles.buttonContainer}>
+          <View style={[
+            styles.buttonRow,
+            isLandscape && styles.buttonRowLandscape,
+            isTablet && styles.buttonRowTablet
+          ]}>
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
+              style={[
+                styles.cancelBtn,
+                isLandscape && styles.cancelBtnLandscape,
+                isTablet && styles.cancelBtnTablet,
+                (isLoading || isLoadingLocal) && styles.buttonDisabled
+              ]}
               onPress={handleCancel}
               disabled={isLoading || isLoadingLocal}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={[
+                styles.cancelText,
+                isLandscape && styles.cancelTextLandscape,
+                isTablet && styles.cancelTextTablet
+              ]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
-                styles.button, 
-                styles.saveButton, 
-                isLoginDisabled && styles.buttonDisabled
+                styles.saveBtn,
+                isLandscape && styles.saveBtnLandscape,
+                isTablet && styles.saveBtnTablet,
+                isLoginDisabled && styles.disabled,
               ]}
               onPress={handleLogin}
               disabled={isLoginDisabled}
             >
               {(isLoading || isLoadingLocal) ? (
-                <ActivityIndicator size="small" color={colors.textInverse} />
+                <ActivityIndicator color={colors.textInverse} size="small" />
               ) : (
-                <Text style={styles.saveButtonText}>Complete Login</Text>
+                <Text style={[
+                  styles.saveText,
+                  isLandscape && styles.saveTextLandscape,
+                  isTablet && styles.saveTextTablet
+                ]}>
+                  Save
+                </Text>
               )}
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </View>
-    </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -424,180 +515,369 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  imageContainer: {
-    height: height / 5,
-    width: width,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingTop: 10,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    elevation: 5,
-    shadowColor: colors.shadowDark,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  image: {
-    height: height / 6,
-    width: width / 4,
-  },
-  userInfoContainer: {
-    alignItems: 'center',
-    paddingVertical: 5,
-    backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  userInfoText: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.primary,
-    fontFamily: 'K2D-SemiBold',
-    marginBottom: 4,
-  },
-  userInfoSubtext: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontFamily: 'K2D-Regular',
-  },
-  mainCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    marginTop: 10,
-    marginHorizontal: 15,
-    borderRadius: 20,
-    elevation: 8,
-    shadowColor: colors.shadowDark,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    marginBottom: 10,
-  },
+
   scrollContent: {
-    padding: 20,
-    paddingBottom: 30,
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingTop: height * 0.08,
+    paddingBottom: height * 0.05,
+    paddingHorizontal: width * 0.05,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: colors.primary,
-    fontFamily: 'K2D-Bold',
-    marginBottom: 15,
+
+  scrollContentLandscape: {
+    paddingTop: height * 0.05,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+
+  scrollContentTablet: {
+    paddingTop: height * 0.1,
+    paddingHorizontal: width * 0.1,
+  },
+
+  logo: {
+    width: width * 0.25,
+    height: height * 0.12,
+    maxWidth: 100,
+    maxHeight: 100,
+    marginBottom: height * 0.03,
+  },
+
+  logoLandscape: {
+    width: width * 0.15,
+    height: height * 0.2,
+    marginBottom: height * 0.02,
+  },
+
+  logoTablet: {
+    width: width * 0.2,
+    height: height * 0.15,
+    maxWidth: 120,
+    maxHeight: 120,
+    marginBottom: height * 0.04,
+  },
+
+  clientText: {
+    fontSize: width * 0.04,
+    color: colors.textSecondary,
+    marginBottom: height * 0.04,
     textAlign: 'center',
   },
-  sectionContainer: {
-    marginBottom: 10,
-    backgroundColor: colors.inputBackground,
-    padding: 10,
+
+  clientTextLandscape: {
+    fontSize: width * 0.035,
+    marginBottom: height * 0.03,
+  },
+
+  clientTextTablet: {
+    fontSize: width * 0.045,
+    marginBottom: height * 0.05,
+  },
+
+  title: {
+    fontSize: width * 0.065,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: height * 0.015,
+    textAlign: 'center',
+  },
+
+  titleLandscape: {
+    fontSize: width * 0.055,
+    marginBottom: height * 0.01,
+  },
+
+  titleTablet: {
+    fontSize: width * 0.075,
+    marginBottom: height * 0.02,
+  },
+
+  card: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: colors.surface,
     borderRadius: 12,
+    padding: width * 0.04,
+    elevation: 3,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  sectionLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    fontFamily: 'K2D-SemiBold',
-    marginBottom: 10,
+
+  cardLandscape: {
+    width: width * 0.6,
+    maxWidth: 450,
+    padding: width * 0.03,
   },
+
+  cardTablet: {
+    width: width * 0.7,
+    maxWidth: 600,
+    padding: width * 0.05,
+    borderRadius: 16,
+  },
+
+  section: {
+    marginBottom: height * 0.02,
+  },
+
+  label: {
+    fontSize: width * 0.04,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginBottom: height * 0.01,
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  labelLandscape: {
+    fontSize: width * 0.035,
+  },
+
+  labelTablet: {
+    fontSize: width * 0.045,
+  },
+
   pickerWrapper: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.inputBackground,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
-    minHeight: 30,
+    minHeight: 44,
   },
-  pickerWrapperSelected: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-    backgroundColor: 'rgba(33, 150, 243, 0.05)',
+
+  pickerWrapperLandscape: {
+    borderRadius: 6,
+    minHeight: 44,
   },
-  pickerWrapperDisabled: {
+
+  pickerWrapperTablet: {
+    borderRadius: 10,
+    minHeight: 48,
+  },
+
+  disabledWrapper: {
     backgroundColor: colors.surfaceDisabled,
     borderColor: colors.borderLight,
   },
+
   picker: {
-    height: 50,
+    height: height * 0.055,
+    minHeight: 44,
     color: colors.textPrimary,
     fontFamily: 'K2D-Regular',
   },
-  loadingPlaceholder: {
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
+
+  pickerLandscape: {
+    height: height * 0.06,
+    minHeight: 44,
   },
-  loadingText: {
-    marginLeft: 10,
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
+
+  pickerTablet: {
+    height: height * 0.06,
+    minHeight: 48,
   },
-  disabledPlaceholder: {
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-  },
-  disabledText: {
+
+  disabledPicker: {
     color: colors.textTertiary,
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    fontFamily: 'K2D-Regular',
   },
-  selectedText: {
-    fontSize: 14,
-    color: colors.success,
-    fontFamily: 'K2D-Regular',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  buttonContainer: {
+
+  // Date container with icon - Updated for consistent sizing
+  dateContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 25,
-    marginBottom: 10,
+    alignItems: 'center',
+    backgroundColor: colors.inputBackground,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    overflow: 'hidden',
+    minHeight: 44,
   },
-  button: {
-    height: 55,
+
+  dateContainerLandscape: {
+    borderRadius: 6,
+    minHeight: 44,
+  },
+
+  dateContainerTablet: {
+    borderRadius: 10,
+    minHeight: 48,
+  },
+
+  dateInput: {
     flex: 1,
-    borderRadius: 12,
+    height: height * 0.055,
+    minHeight: 44,
+    color: colors.textTertiary,
+    fontSize: width * 0.04,
+    fontFamily: 'K2D-Regular',
+    paddingHorizontal: width * 0.03,
+    paddingVertical: height * 0.015,
+  },
+
+  dateInputLandscape: {
+    height: height * 0.06,
+    minHeight: 44,
+    fontSize: width * 0.035,
+    paddingVertical: height * 0.015,
+  },
+
+  dateInputTablet: {
+    height: height * 0.06,
+    minHeight: 48,
+    fontSize: width * 0.045,
+    paddingVertical: height * 0.015,
+  },
+
+  calendarIconContainer: {
+    paddingHorizontal: width * 0.03,
+    height: '100%',
+    minHeight: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 8,
+    backgroundColor: colors.primary + '10',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.borderLight,
   },
-  cancelButton: {
-    backgroundColor: colors.background,
+
+  calendarIconContainerLandscape: {
+    paddingHorizontal: width * 0.02,
+    minHeight: 44,
+  },
+
+  calendarIconContainerTablet: {
+    paddingHorizontal: width * 0.04,
+    minHeight: 48,
+  },
+
+  dateHint: {
+    fontSize: width * 0.032,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+    marginTop: height * 0.005,
+    fontFamily: 'K2D-Regular',
+  },
+
+  dateHintLandscape: {
+    fontSize: width * 0.028,
+  },
+
+  dateHintTablet: {
+    fontSize: width * 0.038,
+  },
+
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: height * 0.03,
+    gap: width * 0.02,
+  },
+
+  buttonRowLandscape: {
+    marginTop: height * 0.04,
+    gap: width * 0.015,
+  },
+
+  buttonRowTablet: {
+    marginTop: height * 0.04,
+    gap: width * 0.03,
+  },
+
+  cancelBtn: {
+    height: height * 0.05,
+    minHeight: 44,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.authButton,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: width * 0.06,
+    minWidth: width * 0.2,
   },
-  cancelButtonText: {
-    color: colors.textSecondary,
-    fontSize: 16,
+
+  cancelBtnLandscape: {
+    height: height * 0.06,
+    minHeight: 44,
+    paddingHorizontal: width * 0.05,
+    minWidth: width * 0.15,
+  },
+
+  cancelBtnTablet: {
+    height: height * 0.055,
+    minHeight: 44,
+    borderRadius: 10,
+    paddingHorizontal: width * 0.08,
+    minWidth: width * 0.15,
+  },
+
+  saveBtn: {
+    height: height * 0.05,
+    minHeight: 44,
+    backgroundColor: colors.authButton,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: width * 0.06,
+    minWidth: width * 0.2,
+  },
+
+  saveBtnLandscape: {
+    height: height * 0.06,
+    minHeight: 44,
+    paddingHorizontal: width * 0.05,
+    minWidth: width * 0.15,
+  },
+
+  saveBtnTablet: {
+    height: height * 0.055,
+    minHeight: 44,
+    borderRadius: 10,
+    paddingHorizontal: width * 0.08,
+    minWidth: width * 0.15,
+  },
+
+  cancelText: {
+    color: colors.primary,
+    fontSize: width * 0.04,
+    fontWeight: '500',
     fontFamily: 'K2D-SemiBold',
   },
-  saveButton: {
-    backgroundColor: colors.primary,
-    elevation: 4,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+
+  cancelTextLandscape: {
+    fontSize: width * 0.035,
   },
-  saveButtonText: {
+
+  cancelTextTablet: {
+    fontSize: width * 0.045,
+  },
+
+  saveText: {
     color: colors.textInverse,
-    fontSize: 16,
-    fontFamily: 'K2D-Bold',
-    textAlign: 'center',
+    fontSize: width * 0.04,
+    fontWeight: '500',
+    fontFamily: 'K2D-SemiBold',
   },
+
+  saveTextLandscape: {
+    fontSize: width * 0.035,
+  },
+
+  saveTextTablet: {
+    fontSize: width * 0.045,
+  },
+
+  disabled: {
+    opacity: 0.5,
+  },
+
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
 });
 

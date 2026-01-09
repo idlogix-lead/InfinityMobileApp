@@ -3,7 +3,8 @@ const colors = {
   primary: '#2F4FE2', // Your app's blue from splash screen
   primaryDark: '#2806bdff', // Dark blue from button
   primaryLight: '#5A7BFF',
-  
+  //Buttons
+  authButton:'#002E62',
   // Secondary Colors
   secondary: '#FF6B35', // Orange accent
   secondaryDark: '#D35400',

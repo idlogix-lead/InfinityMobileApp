@@ -1,15 +1,64 @@
 // hooks/useCRM.js
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import crmApiService from '../../services/CRMAPI/crmApiService';
+import { useAuthStore } from '../../store/authStore';
+
+// ============================================
+// COMMON ERROR HANDLER
+// ============================================
+const handleApiError = (error, context) => {
+  console.error(`❌ ${context} Error:`, error.message);
+  
+  // Handle specific error types
+  if (error.message === 'SESSION_EXPIRED') {
+    console.log('⚠️ Session expired, triggering logout...');
+    // You could trigger a logout action here
+    // useAuthStore.getState().logout();
+    throw new Error('Your session has expired. Please login again.');
+  } else if (error.message === 'PERMISSION_DENIED') {
+    throw new Error('You do not have permission to access this resource.');
+  } else if (error.message === 'SERVER_CONFIG_MISSING') {
+    throw new Error('Server configuration is missing. Please configure server settings.');
+  } else if (error.message === 'AUTH_TOKEN_MISSING') {
+    throw new Error('Authentication token is missing. Please login again.');
+  }
+  
+  throw error;
+};
+
+// ============================================
+// QUERY HOOKS
+// ============================================
 
 // Hook for fetching leads
 export const useLeads = (filters = {}, enabled = true) => {
+  console.log('📞 useLeads called, enabled:', enabled);
+  
   return useQuery({
     queryKey: ['leads', filters],
-    queryFn: () => crmApiService.getLeads(filters),
+    queryFn: async () => {
+      console.log('🔍 useLeads queryFn executing with filters:', filters);
+      try {
+        const data = await crmApiService.getLeads(filters);
+        
+        // SAFETY: Ensure we always return an array
+        if (!Array.isArray(data)) {
+          console.warn('⚠️ useLeads: API returned non-array, converting to array');
+          return [];
+        }
+        
+        console.log(`✅ useLeads success, data length: ${data.length}`);
+        return data;
+      } catch (error) {
+        handleApiError(error, 'useLeads');
+        return []; // Fallback to empty array
+      }
+    },
     enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
     cacheTime: 1000 * 60 * 10, // 10 minutes
+    retry: 1,
+    retryDelay: 1000,
   });
 };
 
@@ -17,7 +66,14 @@ export const useLeads = (filters = {}, enabled = true) => {
 export const useLeadStatistics = (enabled = true) => {
   return useQuery({
     queryKey: ['lead-statistics'],
-    queryFn: () => crmApiService.getLeadStatistics(),
+    queryFn: async () => {
+      try {
+        return await crmApiService.getLeadStatistics();
+      } catch (error) {
+        handleApiError(error, 'useLeadStatistics');
+        return { total: 0, new: 0, working: 0, converted: 0, expired: 0 };
+      }
+    },
     enabled,
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
@@ -27,7 +83,23 @@ export const useLeadStatistics = (enabled = true) => {
 export const useFollowups = (filters = {}, enabled = true) => {
   return useQuery({
     queryKey: ['followups', filters],
-    queryFn: () => crmApiService.getFollowups(filters),
+    queryFn: async () => {
+      try {
+        const data = await crmApiService.getFollowups(filters);
+        
+        // SAFETY: Ensure array response
+        if (!Array.isArray(data)) {
+          console.warn('⚠️ useFollowups: API returned non-array');
+          return [];
+        }
+        
+        console.log(`✅ Retrieved ${data.length} followups`);
+        return data;
+      } catch (error) {
+        handleApiError(error, 'useFollowups');
+        return [];
+      }
+    },
     enabled,
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
@@ -35,13 +107,54 @@ export const useFollowups = (filters = {}, enabled = true) => {
 
 // Hook for fetching sales opportunities
 export const useSalesOpportunities = (filters = {}, enabled = true) => {
+  console.log('📞 useSalesOpportunities called, enabled:', enabled);
+  
   return useQuery({
     queryKey: ['sales-opportunities', filters],
-    queryFn: () => crmApiService.getSalesOpportunities(filters),
+    queryFn: async () => {
+      console.log('🔍 useSalesOpportunities queryFn executing with filters:', filters);
+      try {
+        // Get auth state to ensure we're authenticated
+        const isCompleteAuthenticated = useAuthStore.getState().isCompleteAuthenticated;
+        if (!isCompleteAuthenticated) {
+          console.log('🛑 useSalesOpportunities: Not authenticated, returning empty array');
+          return [];
+        }
+        
+        // Add user ID to filters if not present
+        const userId = useAuthStore.getState().userId;
+        const finalFilters = {
+          ...filters,
+          userId: filters.userId || userId,
+        };
+        
+        const data = await crmApiService.getSalesOpportunities(finalFilters);
+        
+        // SAFETY: Critical fix for destructuring errors
+        if (!Array.isArray(data)) {
+          console.warn('⚠️ useSalesOpportunities: API returned non-array, type:', typeof data);
+          console.log('⚠️ Data received:', data);
+          return [];
+        }
+        
+        console.log(`✅ useSalesOpportunities success, data length: ${data.length}`);
+        return data;
+      } catch (error) {
+        handleApiError(error, 'useSalesOpportunities');
+        return []; // Always return empty array on error
+      }
+    },
     enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    cacheTime: 1000 * 60 * 10, // 10 minutes
+    retry: 1,
+    retryDelay: 1000,
   });
 };
+
+// ============================================
+// MUTATION HOOKS
+// ============================================
 
 // Mutation for creating a lead
 export const useCreateLead = () => {
@@ -53,6 +166,9 @@ export const useCreateLead = () => {
       // Invalidate leads queries
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['lead-statistics']);
+    },
+    onError: (error) => {
+      handleApiError(error, 'useCreateLead');
     },
   });
 };
@@ -66,13 +182,18 @@ export const useUpdateLead = () => {
     onSuccess: (updatedLead) => {
       // Update leads cache
       queryClient.setQueryData(['leads'], (oldData) => {
-        return oldData?.map(lead => 
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.map(lead => 
           lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
-        ) || [];
+        );
       });
       
       // Invalidate statistics
       queryClient.invalidateQueries(['lead-statistics']);
+    },
+    onError: (error) => {
+      handleApiError(error, 'useUpdateLead');
     },
   });
 };
@@ -86,13 +207,21 @@ export const useUpdateLeadStatus = () => {
     onSuccess: (updatedLead) => {
       // Update leads cache
       queryClient.setQueryData(['leads'], (oldData) => {
-        return oldData?.map(lead => 
-          lead.id === updatedLead.id ? { ...lead, LeadStatus: { id: updatedLead.status } } : lead
-        ) || [];
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.map(lead => 
+          lead.id === updatedLead.id ? { 
+            ...lead, 
+            LeadStatus: { id: updatedLead.status } 
+          } : lead
+        );
       });
       
       // Invalidate statistics
       queryClient.invalidateQueries(['lead-statistics']);
+    },
+    onError: (error) => {
+      handleApiError(error, 'useUpdateLeadStatus');
     },
   });
 };
@@ -107,6 +236,9 @@ export const useCreateFollowup = () => {
       // Invalidate followups queries
       queryClient.invalidateQueries(['followups']);
     },
+    onError: (error) => {
+      handleApiError(error, 'useCreateFollowup');
+    },
   });
 };
 
@@ -119,10 +251,15 @@ export const useUpdateFollowup = () => {
     onSuccess: (updatedFollowup) => {
       // Update followups cache
       queryClient.setQueryData(['followups'], (oldData) => {
-        return oldData?.map(followup => 
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.map(followup => 
           followup.id === updatedFollowup.id ? { ...followup, ...updatedFollowup } : followup
-        ) || [];
+        );
       });
+    },
+    onError: (error) => {
+      handleApiError(error, 'useUpdateFollowup');
     },
   });
 };
@@ -136,8 +273,13 @@ export const useDeleteFollowup = () => {
     onSuccess: (result) => {
       // Remove from followups cache
       queryClient.setQueryData(['followups'], (oldData) => {
-        return oldData?.filter(followup => followup.id !== result.id) || [];
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.filter(followup => followup.id !== result.id);
       });
+    },
+    onError: (error) => {
+      handleApiError(error, 'useDeleteFollowup');
     },
   });
 };
@@ -152,6 +294,9 @@ export const useCreateSalesOpportunity = () => {
       // Invalidate sales opportunities queries
       queryClient.invalidateQueries(['sales-opportunities']);
     },
+    onError: (error) => {
+      handleApiError(error, 'useCreateSalesOpportunity');
+    },
   });
 };
 
@@ -159,9 +304,17 @@ export const useCreateSalesOpportunity = () => {
 export const useSearchLeads = (searchTerm, enabled = true) => {
   return useQuery({
     queryKey: ['search-leads', searchTerm],
-    queryFn: () => crmApiService.searchLeads(searchTerm),
-    enabled: enabled && searchTerm?.length > 2, // Only search if term is at least 3 chars
+    queryFn: async () => {
+      try {
+        return await crmApiService.searchLeads(searchTerm);
+      } catch (error) {
+        handleApiError(error, 'useSearchLeads');
+        return [];
+      }
+    },
+    enabled: enabled && searchTerm?.length > 2,
     staleTime: 1000 * 60 * 5,
+    retry: false, // Don't retry search queries
   });
 };
 
@@ -169,8 +322,31 @@ export const useSearchLeads = (searchTerm, enabled = true) => {
 export const useLeadActivities = (leadId, enabled = true) => {
   return useQuery({
     queryKey: ['lead-activities', leadId],
-    queryFn: () => crmApiService.getLeadActivities(leadId),
+    queryFn: async () => {
+      try {
+        return await crmApiService.getLeadActivities(leadId);
+      } catch (error) {
+        handleApiError(error, 'useLeadActivities');
+        return [];
+      }
+    },
     enabled: enabled && !!leadId,
     staleTime: 1000 * 60 * 2,
   });
+};
+
+// Hook for refreshing all CRM data
+export const useRefreshCRMData = () => {
+  const queryClient = useQueryClient();
+  
+  return () => {
+    console.log('🔄 Refreshing all CRM data...');
+    queryClient.invalidateQueries({
+      predicate: (query) => 
+        query.queryKey[0] === 'leads' ||
+        query.queryKey[0] === 'lead-statistics' ||
+        query.queryKey[0] === 'followups' ||
+        query.queryKey[0] === 'sales-opportunities'
+    });
+  };
 };

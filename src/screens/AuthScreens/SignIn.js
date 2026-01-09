@@ -20,31 +20,41 @@ import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 
 // Custom hooks and stores
 import { useAuthStore } from '../../store/authStore';
-import { useBasicLogin } from '../../hooks/useAuth';
+import { useBasicLogin, useCompleteLogin } from '../../hooks/useAuth';
 import colors from '../../constants/Colors';
 
-const { height, width } = Dimensions.get('window');
 
 const SignIn = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [selectedValue, setSelectedValue] = useState('English');
   const [checkedRem, setCheckedRem] = useState(true);
+  const [checkedUseSavedRole, setCheckedUseSavedRole] = useState(true); // Default to CHECKED
+  
+  // Responsive scaling factors
+  const scaleWidth = (size) => (width / 375) * size;
+  const scaleHeight = (size) => (height / 812) * size;
+  const isLandscape = width > height;
+  const isTablet = width >= 768;
   
   const languageOptions = [
     { label: 'English', value: 'English' },
   ];
 
   const basicLoginMutation = useBasicLogin();
+  const completeLoginMutation = useCompleteLogin();
   const isLoading = useAuthStore(state => state.isLoading);
   const error = useAuthStore(state => state.error);
   
   const setLoading = useAuthStore(state => state.setLoading);
   const clearError = useAuthStore(state => state.clearError);
+  const hasCompleteRoleData = useAuthStore(state => state.hasCompleteRoleData);
+  const savedRoleContext = useAuthStore(state => state.savedRoleContext);
   
   // Load saved credentials on mount
   useEffect(() => {
-    const { userName: savedUserName, password: savedPassword } = useAuthStore.getState();
+    const state = useAuthStore.getState();
+    const { userName: savedUserName, password: savedPassword } = state;
     
     if (savedUserName) {
       setUserName(savedUserName);
@@ -54,6 +64,9 @@ const SignIn = ({ navigation }) => {
       // Auto-check remember me if password is saved
       setCheckedRem(true);
     }
+    
+    // Default: "Select a role" is CHECKED (true)
+    // This means user WILL go to role selection by default
   }, []);
 
   const handleLogin = async () => {
@@ -65,10 +78,8 @@ const SignIn = ({ navigation }) => {
     try {
       // Store credentials if "Remember Me" is checked
       if (checkedRem) {
-        // Store credentials
         useAuthStore.getState().setCredentials(userName, password);
       } else {
-        // Clear stored credentials
         useAuthStore.getState().setCredentials(null, null);
       }
 
@@ -83,7 +94,7 @@ const SignIn = ({ navigation }) => {
         return;
       }
       
-      // Store login data without affecting credentials
+      // Store login data
       useAuthStore.getState().setLoginData({
         token: loginData.token,
         userId: userName, // Temporary ID
@@ -94,17 +105,99 @@ const SignIn = ({ navigation }) => {
         } : {})
       });
       
-      // Navigate based on number of clients
-      if (clients.length === 1) {
-        navigation.navigate('SelectRoleScreen');
+      // ============================================
+      // NEW LOGIC:
+      // ============================================
+      // If "Select a role" is CHECKED → Go to role selection
+      // If "Select a role" is UNCHECKED → Skip role selection and go to main app
+      // ============================================
+      
+      if (checkedUseSavedRole) {
+        // User wants to select a role → Go to role selection
+        console.log('📋 "Select a role" is CHECKED - Proceeding to role selection');
+        proceedToRoleSelection(clients);
       } else {
-        navigation.navigate('SelectClientScreen', {
-          clients: clients,
-        });
+        // User does NOT want to select a role → Try to use saved role or skip
+        console.log('🚀 "Select a role" is UNCHECKED - Trying to skip role selection');
+        
+        // Check if we have saved role data
+        const state = useAuthStore.getState();
+        const hasSavedRole = state.hasCompleteRoleData();
+        
+        if (hasSavedRole) {
+          // Use saved role data
+          console.log('✅ Found saved role data - Using it');
+          
+          setLoading(true);
+          try {
+            const parameters = {
+              clientId: state.clientId?.toString(),
+              roleId: state.roleId?.toString(),
+              organizationId: state.organizationId?.toString(),
+              warehouseId: state.warehouseId?.toString(),
+              language: 'en_US',
+            };
+            
+            console.log('📋 Using saved role parameters:', parameters);
+            
+            const response = await completeLoginMutation.mutateAsync(parameters);
+            
+            console.log('✅ Complete login successful with saved role');
+            
+            // Store complete auth data
+            useAuthStore.getState().setCompleteAuthData({
+              token: response.token,
+              extractedUserId: response.extractedUserId,
+              clientId: state.clientId,
+              roleId: state.roleId,
+              roleName: state.roleName,
+              organizationId: state.organizationId,
+              organizationName: state.organizationName,
+              warehouseId: state.warehouseId,
+              warehouseName: state.warehouseName,
+            });
+            
+            // Navigate directly to HomeScreen (main app)
+            console.log('🏠 Navigating directly to HomeScreen');
+            navigation.replace('HomeScreen');
+            
+          } catch (error) {
+            console.log('❌ Saved role login failed:', error.message);
+            // If saved role fails, fall back to role selection
+            Alert.alert('Auto-Login Failed', 'Unable to login with saved role. Please select role manually.');
+            proceedToRoleSelection(clients);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          // No saved role data available
+          console.log('❌ No saved role data available');
+          Alert.alert(
+            'No Saved Role',
+            'No role data found. Please select a role.',
+            [
+              {
+                text: 'OK',
+                onPress: () => proceedToRoleSelection(clients)
+              }
+            ]
+          );
+        }
       }
       
     } catch (error) {
       Alert.alert('Login Failed', error.message || 'Please check your credentials');
+    }
+  };
+
+  const proceedToRoleSelection = (clients) => {
+    // Navigate based on number of clients
+    if (clients.length === 1) {
+      navigation.navigate('SelectRoleScreen');
+    } else {
+      navigation.navigate('SelectClientScreen', {
+        clients: clients,
+      });
     }
   };
 
@@ -138,168 +231,206 @@ const SignIn = ({ navigation }) => {
     }
   }, [error]);
 
+  // Get safe saved role context
+  const getSafeRoleContext = () => {
+    if (savedRoleContext && savedRoleContext.role) {
+      return savedRoleContext;
+    }
+    return null;
+  };
+
+  const safeRoleContext = getSafeRoleContext();
+
+  // Update checkbox label based on state
+  const getRoleCheckboxLabel = () => {
+    if (checkedUseSavedRole) {
+      return "Select a role";
+    } else {
+      const hasSaved = useAuthStore.getState().hasCompleteRoleData();
+      return hasSaved ? "Use last selected role" : "No role saved";
+    }
+  };
+
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
     >
-      <StatusBar 
-        barStyle="light-content" 
-        backgroundColor={colors.primary}
-        translucent={false}
-      />
-      
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+
       <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
+        contentContainerStyle={[
+          styles.content,
+          isLandscape && styles.contentLandscape,
+          isTablet && styles.contentTablet
+        ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header Section */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              style={styles.settingsIconButton}
-              onPress={() => navigation.navigate('WelcomeScreen')}
-              disabled={isLoading}>
-              <Ionicons name="settings-outline" size={26} color={colors.textInverse} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.logoContainer}>
-            <View style={styles.logoBackground}>
-              <Image
-                source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-          
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Sign in to continue to Infinity ERP
-            </Text>
-          </View>
-        </View>
+        {/* Illustration */}
+        <Image
+          source={require('../../asserts/WelcomeSrn/icon-erp167.png')}
+          style={[
+            styles.illustration,
+            isLandscape && styles.illustrationLandscape,
+            isTablet && styles.illustrationTablet
+          ]}
+          resizeMode="contain"
+        />
 
-        {/* Login Card */}
-        <View style={styles.card}>
-          {/* Card Header */}
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderContent}>
-              <Text style={styles.cardTitle}>Login</Text>
-            </View>
-          </View>
-
-          {/* Card Body */}
-          <View style={styles.cardBody}>
-      
-            {/* Username Input */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.labelIcon}>👤</Text>
-                <Text style={styles.label}>Username</Text>
-              </View>
-              <TextInput
-                onChangeText={setUserName}
-                value={userName}
-                placeholder="Enter your username"
-                placeholderTextColor={colors.textTertiary}
-                style={styles.textInput}
-                editable={!isLoading}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.labelIcon}>🔒</Text>
-                <Text style={styles.label}>Password</Text>
-              </View>
-              <TextInput
-                onChangeText={setPassword}
-                value={password}
-                placeholder="Enter your password"
-                placeholderTextColor={colors.textTertiary}
-                style={styles.textInput}
-                secureTextEntry
-                editable={!isLoading}
-              />
-            </View>
-
-            {/* Language Picker */}
-            <View style={styles.inputGroup}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.labelIcon}>🌐</Text>
-                <Text style={styles.label}>Language</Text>
-              </View>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedValue}
-                  onValueChange={setSelectedValue}
-                  style={styles.picker}
-                  dropdownIconColor={colors.primary}
-                  enabled={!isLoading}
-                >
-                  {languageOptions.map(option => (
-                    <Picker.Item
-                      key={option.value}
-                      label={option.label}
-                      value={option.value}
-                      color={colors.textPrimary}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-
-            {/* Options Section */}
-            <View style={styles.optionsContainer}>
-              <View style={styles.optionsRow}>
-                <View style={styles.optionItem}>
-                  <CheckBox
-                    checked={checkedRem}
-                    onPress={() => !isLoading && setCheckedRem(!checkedRem)}
-                    containerStyle={styles.checkbox}
-                    checkedIcon={
-                      <Text style={styles.checkIcon}>✓</Text>
-                    }
-                    uncheckedIcon={<View style={styles.uncheckedIcon} />}
-                  />
-                  <Text style={styles.optionText}>Remember me</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Login Button */}
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
-                onPress={handleLogin}
-                disabled={isLoading}>
-                <View style={styles.buttonContent}>
-                  {isLoading ? (
-                    <Text style={styles.primaryButtonText}>Logging in...</Text>
-                  ) : (
-                    <>
-                      <Text style={styles.primaryButtonText}>Sign In</Text>
-                      <Text style={styles.buttonArrow}>→</Text>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Footer Info */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Secure • Reliable • Enterprise Ready
+        {/* Title Section */}
+        <View style={[
+          styles.titleSection,
+          isLandscape && styles.titleSectionLandscape
+        ]}>
+          <Text style={[
+            styles.title,
+            isLandscape && styles.titleLandscape,
+            isTablet && styles.titleTablet
+          ]}>
+            Welcome
           </Text>
-          <Text style={styles.footerVersion}>Version 1.0.0</Text>
+          <Text style={[
+            styles.subtitle,
+            isLandscape && styles.subtitleLandscape,
+            isTablet && styles.subtitleTablet
+          ]}>
+            Login to access your account
+          </Text>
+        </View>
+
+        {/* Card */}
+        <View style={[
+          styles.card,
+          isLandscape && styles.cardLandscape,
+          isTablet && styles.cardTablet
+        ]}>
+          {/* Username */}
+          <TextInput
+            style={[
+              styles.input,
+              isLandscape && styles.inputLandscape,
+              isTablet && styles.inputTablet
+            ]}
+            placeholder="Name"
+            placeholderTextColor={colors.inputPlaceholder}
+            value={userName}
+            onChangeText={setUserName}
+            autoCapitalize="none"
+            editable={!isLoading}
+          />
+
+          {/* Password */}
+          <TextInput
+            style={[
+              styles.input,
+              isLandscape && styles.inputLandscape,
+              isTablet && styles.inputTablet
+            ]}
+            placeholder="Password"
+            placeholderTextColor={colors.inputPlaceholder}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            editable={!isLoading}
+          />
+
+          {/* Language */}
+          <View style={[
+            styles.inputWrapper,
+            isLandscape && styles.inputWrapperLandscape,
+            isTablet && styles.inputWrapperTablet
+          ]}>
+            <Picker
+              selectedValue={selectedValue}
+              onValueChange={setSelectedValue}
+              enabled={!isLoading}
+              style={[
+                styles.picker,
+                isLandscape && styles.pickerLandscape,
+                isTablet && styles.pickerTablet
+              ]}
+            >
+              <Picker.Item label="English" value="English" />
+            </Picker>
+          </View>
+
+          {/* Checkboxes */}
+          <View style={[
+            styles.checkboxContainer,
+            isLandscape && styles.checkboxContainerLandscape
+          ]}>
+            <View style={styles.checkboxRow}>
+              <CheckBox
+                checked={checkedUseSavedRole}
+                onPress={() => setCheckedUseSavedRole(!checkedUseSavedRole)}
+                containerStyle={[
+                  styles.checkbox,
+                  isTablet && styles.checkboxTablet
+                ]}
+                size={isTablet ? scaleWidth(20) : scaleWidth(16)}
+              />
+              <Text style={[
+                styles.checkboxText,
+                isLandscape && styles.checkboxTextLandscape,
+                isTablet && styles.checkboxTextTablet
+              ]}>
+                {getRoleCheckboxLabel()}
+              </Text>
+            </View>
+
+            <View style={styles.checkboxRow}>
+              <CheckBox
+                checked={checkedRem}
+                onPress={() => setCheckedRem(!checkedRem)}
+                containerStyle={[
+                  styles.checkbox,
+                  isTablet && styles.checkboxTablet
+                ]}
+                size={isTablet ? scaleWidth(20) : scaleWidth(16)}
+              />
+              <Text style={[
+                styles.checkboxText,
+                isLandscape && styles.checkboxTextLandscape,
+                isTablet && styles.checkboxTextTablet
+              ]}>
+                Remember me
+              </Text>
+            </View>
+          </View>
+
+          {/* Show saved role info when checkbox is unchecked */}
+          {!checkedUseSavedRole && (
+            <View style={styles.savedRoleInfo}>
+              <Text style={styles.savedRoleText}>
+                {useAuthStore.getState().hasCompleteRoleData() 
+                  ? `Will use: ${useAuthStore.getState().roleName} at ${useAuthStore.getState().organizationName}`
+                  : 'No role saved. Please select a role first.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[
+              styles.button,
+              isLoading && styles.buttonDisabled,
+              isLandscape && styles.buttonLandscape,
+              isTablet && styles.buttonTablet
+            ]}
+            onPress={handleLogin}
+            disabled={isLoading}
+            activeOpacity={0.8}
+          >
+            <Text style={[
+              styles.buttonText,
+              isLandscape && styles.buttonTextLandscape,
+              isTablet && styles.buttonTextTablet
+            ]}>
+              {isLoading ? 'Logging in...' : 'Login'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -308,252 +439,297 @@ const SignIn = ({ navigation }) => {
 
 export default SignIn;
 
+const { height, width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContainer: {
+
+  content: {
     flexGrow: 1,
-    paddingBottom: 30,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    alignItems: 'center',
+    paddingTop: height * 0.05,
+    paddingBottom: height * 0.05,
+    paddingHorizontal: width * 0.05,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 5,
-  },
-  headerTop: {
+
+  contentLandscape: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 5,
-  },
-  settingsIconButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    justifyContent: 'space-around',
+    paddingTop: height * 0.03,
+    paddingBottom: height * 0.03,
+    paddingHorizontal: width * 0.03,
   },
-  logoContainer: {
+
+  contentTablet: {
+    paddingTop: height * 0.08,
+    paddingBottom: height * 0.08,
+    paddingHorizontal: width * 0.08,
+  },
+
+  illustration: {
+    width: width * 0.9,
+    height: height * 0.35,
+    maxWidth: 350,
+    maxHeight: 250,
+    marginBottom: height * 0.02,
+  },
+
+  illustrationLandscape: {
+    width: width * 0.35,
+    height: height * 0.6,
+    marginBottom: 0,
+    marginRight: width * 0.05,
+  },
+
+  illustrationTablet: {
+    width: width * 0.5,
+    height: height * 0.3,
+    maxWidth: 400,
+    maxHeight: 300,
+    marginBottom: height * 0.03,
+  },
+
+  titleSection: {
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: height * 0.03,
   },
-  logoBackground: {
-    width: width * 0.25,
-    height: width * 0.25,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+
+  titleSectionLandscape: {
+    marginBottom: height * 0.02,
+    marginRight: width * 0.05,
   },
-  logo: {
-    width: '70%',
-    height: '70%',
-  },
-  titleContainer: {
-    alignItems: 'center',
-  },
+
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: colors.primary,
-    marginBottom: 4,
-    fontFamily: 'K2D-Bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontFamily: 'K2D-Regular',
-    opacity: 0.9,
+    fontSize: width * 0.06,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: height * 0.005,
     textAlign: 'center',
   },
+
+  titleLandscape: {
+    fontSize: width * 0.05,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+
+  titleTablet: {
+    fontSize: width * 0.07,
+    marginBottom: height * 0.01,
+  },
+
+  subtitle: {
+    fontSize: width * 0.04,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+
+  subtitleLandscape: {
+    fontSize: width * 0.035,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+
+  subtitleTablet: {
+    fontSize: width * 0.045,
+  },
+
   card: {
+    width: '100%',
+    maxWidth: 500,
     backgroundColor: colors.surface,
-    marginHorizontal: 20,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginTop: 10,
-    elevation: 10,
-    shadowColor: colors.shadowDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
+    borderRadius: 10,
+    padding: width * 0.04,
     borderWidth: 1,
     borderColor: colors.borderLight,
-  },
-  cardHeader: {
-    backgroundColor: colors.textDisabled,
-    paddingVertical: 5,
-    paddingHorizontal: 24,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    minHeight: 60,
-    justifyContent: 'center',
-  },
-  cardHeaderContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: colors.primary,
-    fontFamily: 'K2D-Bold',
-  },
-  cardBody: {
-    padding: 15,
-  },
-  inputGroup: {
-    marginBottom: 10,
-  },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  labelIcon: {
-    fontSize: 18,
-    marginRight: 10,
-    color: colors.primary,
-  },
-  label: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    fontFamily: 'K2D-SemiBold',
-  },
-  textInput: {
-    backgroundColor: colors.inputBackground,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.borderLight,
-    height: 56,
-    paddingHorizontal: 18,
-    fontSize: 16,
-    color: colors.textPrimary,
-    fontFamily: 'K2D-Regular',
-    elevation: 3,
+    elevation: 2,
     shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  pickerContainer: {
-    backgroundColor: colors.inputBackground,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.borderLight,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
+
+  cardLandscape: {
+    width: width * 0.5,
+    maxWidth: 450,
+    padding: width * 0.03,
+  },
+
+  cardTablet: {
+    width: width * 0.6,
+    maxWidth: 600,
+    padding: width * 0.05,
+    borderRadius: 12,
+  },
+
+  inputWrapper: {
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    marginBottom: height * 0.015,
+  },
+
+  inputWrapperLandscape: {
+    marginBottom: height * 0.02,
+  },
+
+  inputWrapperTablet: {
+    borderRadius: 8,
+    marginBottom: height * 0.02,
+  },
+
   picker: {
-    height: 56,
-    color: colors.primary,
-    fontFamily: 'K2D-Regular',
-    fontSize: 16,
+    height: height * 0.06,
+    minHeight: 48,
+    color: colors.textPrimary,
   },
-  optionsContainer: {
-    marginBottom: 24,
+
+  pickerLandscape: {
+    height: height * 0.07,
   },
-  optionsRow: {
+
+  pickerTablet: {
+    height: height * 0.065,
+    minHeight: 52,
+  },
+
+  input: {
+    height: height * 0.06,
+    minHeight: 48,
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    paddingHorizontal: width * 0.04,
+    marginBottom: height * 0.015,
+    color: colors.inputText,
+    fontSize: width * 0.04,
+  },
+
+  inputLandscape: {
+    height: height * 0.07,
+    marginBottom: height * 0.02,
+    fontSize: width * 0.035,
+  },
+
+  inputTablet: {
+    height: height * 0.065,
+    minHeight: 52,
+    borderRadius: 8,
+    paddingHorizontal: width * 0.045,
+    marginBottom: height * 0.02,
+    fontSize: width * 0.045,
+  },
+
+  checkboxContainer: {
+    width: '100%',
+    marginBottom: height * 0.02,
+  },
+
+  checkboxContainerLandscape: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: height * 0.025,
   },
-  optionItem: {
+
+  checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: height * 0.012,
   },
+
   checkbox: {
     backgroundColor: 'transparent',
     borderWidth: 0,
     padding: 0,
     margin: 0,
-    marginRight: 8,
+    marginRight: width * 0.02,
   },
-  checkIcon: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.primaryDark,
+
+  checkboxTablet: {
+    marginRight: width * 0.025,
   },
-  uncheckedIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: colors.border,
-    backgroundColor: colors.inputBackground,
+
+  checkboxText: {
+    fontSize: width * 0.035,
+    color: colors.textSecondary,
   },
-  optionText: {
-    fontSize: 15,
+
+  checkboxTextLandscape: {
+    fontSize: width * 0.03,
+  },
+
+  checkboxTextTablet: {
+    fontSize: width * 0.04,
+  },
+
+  // Saved role info styles
+  savedRoleInfo: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: 6,
+    padding: width * 0.03,
+    marginBottom: height * 0.02,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+
+  savedRoleText: {
+    fontSize: width * 0.035,
     color: colors.primary,
-    fontFamily: 'K2D-Regular',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
-  buttonGroup: {
-    marginTop: 5,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    height: 60,
-    borderRadius: 14,
-    elevation: 6,
+
+  button: {
+    height: height * 0.06,
+    minHeight: 46,
+    backgroundColor: colors.authButton,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: height * 0.015,
+    marginHorizontal: width * 0.15,
+    elevation: 3,
     shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    overflow: 'hidden',
-    marginHorizontal: 30,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
+
+  buttonLandscape: {
+    height: height * 0.07,
+    marginHorizontal: width * 0.1,
+    marginTop: height * 0.02,
+  },
+
+  buttonTablet: {
+    height: height * 0.07,
+    minHeight: 52,
+    borderRadius: 8,
+    marginHorizontal: width * 0.2,
+    marginTop: height * 0.02,
+  },
+
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-  },
-  primaryButtonText: {
+
+  buttonText: {
     color: colors.textInverse,
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: 'K2D-Bold',
+    fontSize: width * 0.045,
+    fontWeight: '600',
   },
-  buttonArrow: {
-    color: colors.textInverse,
-    fontSize: 24,
-    marginLeft: 12,
-    fontWeight: 'bold',
+
+  buttonTextLandscape: {
+    fontSize: width * 0.04,
   },
-  footer: {
-    alignItems: 'center',
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  footerText: {
-    fontSize: 14,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 2,
-    fontFamily: 'K2D-Regular',
-  },
-  footerVersion: {
-    fontSize: 12,
-    color: colors.textPrimary,
-    fontFamily: 'K2D-Regular',
+
+  buttonTextTablet: {
+    fontSize: width * 0.05,
   },
 });
