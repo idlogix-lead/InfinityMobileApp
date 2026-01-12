@@ -34,7 +34,7 @@ const screenWidth = Dimensions.get('window').width;
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const userName = useAuthStore(state => state.userName);
-  
+
   // Get UI states from CRM store
   const {
     activeTab,
@@ -46,39 +46,39 @@ const CrmScreen = ({ navigation }) => {
     setShowSalesCard,
     setShowOverviewCard,
   } = useCRMStore();
-  
+
   // Fetch data with React Query
   const {
     data: leads = [],
     isLoading: leadsLoading,
     error: leadsError,
   } = useLeads();
-  
+
   const {
     data: followups = [],
     isLoading: followupsLoading,
     error: followupsError,
   } = useFollowups();
-  
+
   const {
     data: salesOpportunities = [],
     isLoading: salesLoading,
     error: salesError,
   } = useSalesOpportunities();
-  
+
   // Memoized lead calculations
-  const { 
-    newLeads, 
-    convertedLeads, 
-    workingLeads, 
+  const {
+    newLeads,
+    convertedLeads,
+    workingLeads,
     expiredLeads,
-    totalLeads 
+    totalLeads
   } = useMemo(() => {
     const newLeads = leads.filter(lead => lead?.LeadStatus?.id === 'N');
     const converted = leads.filter(lead => lead?.LeadStatus?.id === 'C');
     const working = leads.filter(lead => lead?.LeadStatus?.id === 'W');
     const expired = leads.filter(lead => lead?.LeadStatus?.id === 'E');
-    
+
     return {
       newLeads,
       convertedLeads: converted,
@@ -87,7 +87,7 @@ const CrmScreen = ({ navigation }) => {
       totalLeads: leads.length,
     };
   }, [leads]);
-  
+
   // Memoized followup calculations
   const { todayFollowups, futureFollowups, missedFollowups } = useMemo(() => {
     const today = moment().startOf('day');
@@ -96,7 +96,7 @@ const CrmScreen = ({ navigation }) => {
       const endB = b.EndDate ? moment(b.EndDate) : moment(b.StartDate);
       return endB.valueOf() - endA.valueOf();
     });
-    
+
     const todayFollowups = sortedFollowups.filter(item => {
       const start = moment(item.StartDate);
       const end = item.EndDate ? moment(item.EndDate) : start;
@@ -106,24 +106,24 @@ const CrmScreen = ({ navigation }) => {
         item.IsComplete === false
       );
     });
-    
+
     const futureFollowups = sortedFollowups.filter(item => {
       const start = moment(item.StartDate);
       return start.isAfter(today, 'day') && item.IsComplete === false;
     });
-    
+
     const missedFollowups = sortedFollowups.filter(item => {
       const end = item.EndDate ? moment(item.EndDate) : moment(item.StartDate);
       return end.isBefore(today, 'day') && item.IsComplete === false;
     });
-    
+
     return { todayFollowups, futureFollowups, missedFollowups };
   }, [followups]);
-  
+
   // Handle tab press
   const handleTabPress = (tab) => {
     setActiveTab(tab);
-    
+
     switch (tab) {
       case 'Leads':
         setShowCRMCard(true);
@@ -146,7 +146,7 @@ const CrmScreen = ({ navigation }) => {
         setShowOverviewCard(false);
     }
   };
-  
+
   // Handle lead navigation
   const handleLeadNavigation = (type, leadsData) => {
     navigation.navigate(`Crm${type}`, {
@@ -154,7 +154,7 @@ const CrmScreen = ({ navigation }) => {
       activities: followups,
     });
   };
-  
+
   // Handle lead actions
   const handleMail = (email) => {
     if (!email) {
@@ -163,7 +163,7 @@ const CrmScreen = ({ navigation }) => {
     }
     Linking.openURL(`mailto:${email}`);
   };
-  
+
   const handlePhone = (phone) => {
     if (!phone) {
       Alert.alert('Error', 'Phone number not found.');
@@ -171,7 +171,7 @@ const CrmScreen = ({ navigation }) => {
     }
     Linking.openURL(`tel:${phone}`);
   };
-  
+
   // Render lead card for main screen
   const renderLeadCard = (item) => {
     const userActivity = followups.filter(act => act?.AD_User_ID?.id === item?.id);
@@ -180,7 +180,7 @@ const CrmScreen = ({ navigation }) => {
     )[0];
     const lastActivityType = lastActivity?.ContactActivityType?.identifier || 'N/A';
     const activityCount = userActivity.length;
-    
+
     return (
       <View style={{ marginHorizontal: 10, marginVertical: 5 }}>
         <CRMCard
@@ -208,10 +208,10 @@ const CrmScreen = ({ navigation }) => {
       </View>
     );
   };
-  
+
   // Loading state
   const isLoading = leadsLoading || followupsLoading || salesLoading;
-  
+
   // Show error if any
   if (leadsError || followupsError || salesError) {
     return (
@@ -231,7 +231,7 @@ const CrmScreen = ({ navigation }) => {
       </View>
     );
   }
-  
+
   return (
     <Provider>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -246,7 +246,7 @@ const CrmScreen = ({ navigation }) => {
                 <Ionicons name="chevron-back" size={25} color={'#000'} />
               </TouchableOpacity>
             </View>
-            
+
             {showCRMCard && (
               <TouchableOpacity
                 onPress={() => navigation.navigate('AddLeads')}
@@ -254,7 +254,7 @@ const CrmScreen = ({ navigation }) => {
                 <Text style={styles.addButtonText}>Add Lead</Text>
               </TouchableOpacity>
             )}
-            
+
             {showSalesCard && (
               <TouchableOpacity
                 onPress={() => navigation.navigate('AddSaleOppor')}
@@ -263,13 +263,13 @@ const CrmScreen = ({ navigation }) => {
               </TouchableOpacity>
             )}
           </View>
-          
+
           {/* Title */}
           <Text style={styles.chartTitle}>CRM Board</Text>
           <Text style={styles.chartSubtitle}>
             Manage leads and opportunities to drive business growth.
           </Text>
-          
+
           {/* Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
@@ -279,7 +279,7 @@ const CrmScreen = ({ navigation }) => {
                 Leads
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               onPress={() => handleTabPress('SalesOpportunity')}
               style={[styles.tab, activeTab === 'SalesOpportunity' && styles.activeTab]}>
@@ -287,7 +287,7 @@ const CrmScreen = ({ navigation }) => {
                 Sales Opportunity
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               onPress={() => handleTabPress('Overview')}
               style={[styles.tab, activeTab === 'Overview' && styles.activeTab]}>
@@ -296,7 +296,7 @@ const CrmScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Content based on active tab */}
           {showSalesCard && (
             <SalesOpper
@@ -306,18 +306,18 @@ const CrmScreen = ({ navigation }) => {
               salesCall={salesOpportunities}
             />
           )}
-          
+
           {showCRMCard && (
             <View style={{ marginVertical: '4%' }}>
               <EarningChart
                 data={[1950, 2089, 3267, 5789, 4234, 3000, 2200]}
                 days={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']}
               />
-              
+
               <Text style={[styles.sectionTitle, { paddingVertical: '2%' }]}>
                 Leads Summary
               </Text>
-              
+
               <View style={styles.leadsContainer}>
                 {/* Working Leads */}
                 <TouchableOpacity
@@ -336,7 +336,7 @@ const CrmScreen = ({ navigation }) => {
                   </View>
                   <Text style={styles.leadSubtitle}>Open leads</Text>
                 </TouchableOpacity>
-                
+
                 {/* New Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
@@ -354,7 +354,7 @@ const CrmScreen = ({ navigation }) => {
                   </View>
                   <Text style={styles.leadSubtitle}>Open leads</Text>
                 </TouchableOpacity>
-                
+
                 {/* Converted Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
@@ -374,7 +374,7 @@ const CrmScreen = ({ navigation }) => {
                   </View>
                   <Text style={styles.leadSubtitle}>Total converted</Text>
                 </TouchableOpacity>
-                
+
                 {/* Total Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
@@ -395,22 +395,23 @@ const CrmScreen = ({ navigation }) => {
               </View>
             </View>
           )}
-          
+
           {/* Followups Section */}
           {!showOverviewCard && (
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Followups</Text>
                 <TouchableOpacity
-                  onPress={() => navigation.navigate('AllFollowups', { 
+                  onPress={() => navigation.navigate('AllFollowups', {
                     data: followups,
-                    activities: followups 
+                    activities: followups,
+                    activeTab: 'all'  // Add this
                   })}
                   style={styles.viewAllButton}>
                   <Text style={styles.viewAllButtonText}>All Activities</Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.followupsContainer}>
                 {/* Today's Followups */}
                 <TouchableOpacity
@@ -428,7 +429,7 @@ const CrmScreen = ({ navigation }) => {
                   <Text style={styles.followupText}>Today's Followup</Text>
                   <Ionicons name="chevron-forward" size={18} color="#000" />
                 </TouchableOpacity>
-                
+
                 {/* Future Followups */}
                 <TouchableOpacity
                   onPress={() => navigation.navigate('AllFollowups', {
@@ -445,7 +446,7 @@ const CrmScreen = ({ navigation }) => {
                   <Text style={styles.followupText}>Future Followup</Text>
                   <Ionicons name="chevron-forward" size={18} color="#000" />
                 </TouchableOpacity>
-                
+
                 {/* Missed Followups */}
                 <TouchableOpacity
                   onPress={() => navigation.navigate('AllFollowups', {
@@ -466,10 +467,10 @@ const CrmScreen = ({ navigation }) => {
             </>
           )}
         </View>
-        
+
         {isLoading && <Loader />}
       </ScrollView>
-      
+
       {/* Floating Action Button */}
       {showCRMCard && (
         <TouchableOpacity

@@ -3,14 +3,13 @@ import {
   Text,
   View,
   Dimensions,
-  Image,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   BackHandler,
   StatusBar,
   FlatList,
   Modal,
+  ScrollView,
 } from 'react-native';
 import React, {useEffect, useState, useRef} from 'react';
 import Card from '../../components/ProfileScreenComponents/Card';
@@ -20,31 +19,20 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Loader from '../../components/Loader';
-import RBSheet from 'react-native-raw-bottom-sheet';
 import { useAuthStore } from '../../store/authStore'; 
 
 const {height, width} = Dimensions.get('window');
 
 const ProfileScreen = ({navigation}) => {
-  const bottomSheetRef = useRef();
   const [isLoading, setIsLoading] = useState(false);
-  const [multiUsers, setMultiUsers] = useState([]);
   const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState([]);
   
   // Get auth state and actions from store
   const {
     userName,
-    userId,
-    roleId,
-    roleName,
-    clientName,
-    organizationName,
-    warehouseName,
     logout
   } = useAuthStore();
-  
-  const openBottomSheet = () => bottomSheetRef.current?.open();
 
   // Load saved accounts on component mount
   useEffect(() => {
@@ -122,8 +110,6 @@ const ProfileScreen = ({navigation}) => {
             try {
               setIsLoading(true);
               
-              // For now, we'll just update the current user info
-              // In a real app, you would perform login with these credentials
               Alert.alert(
                 'Switch Account',
                 'This feature requires re-login. Would you like to log out and login with this account?',
@@ -313,7 +299,7 @@ const ProfileScreen = ({navigation}) => {
   ]);
 };
 
-  // Render saved account item
+  // Render saved account item for modal
   const renderAccountItem = ({ item }) => (
     <TouchableOpacity
       style={styles.accountItem}
@@ -340,8 +326,13 @@ const ProfileScreen = ({navigation}) => {
 
   return (
     <>
-      <View style={{flex: 1, backgroundColor: 'white', alignItems: 'center'}}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}>
+        
         <StatusBar backgroundColor={'#0050C0'} />
+        
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -381,31 +372,23 @@ const ProfileScreen = ({navigation}) => {
           txt="Switch Account"
           handlePress={() => setShowSwitchAccountModal(true)}
         />
-        
-        {/* Saved Accounts Count */}
-        {savedAccounts.length > 0 && (
-          <TouchableOpacity
-            style={styles.savedAccountsCount}
-            onPress={() => setShowSwitchAccountModal(true)}>
-            <Text style={styles.savedAccountsText}>
-              {savedAccounts.length} saved account{savedAccounts.length !== 1 ? 's' : ''}
-            </Text>
-          </TouchableOpacity>
-        )}
 
         <View style={styles.accountCon}>
           <Text style={styles.userAccountTxt}>Your Account</Text>
         </View>
+        
         <Card
           Icon={<FontAwesome name="wpforms" size={25} color="#877e7e" />}
           txt="Company Information"
           handlePress={() => navigation.navigate('CompanyInformationScreen')}
         />
+        
         <Card
           Icon={<MaterialIcons name="co-present" size={25} color="#877e7e" />}
           txt="Preferences"
           handlePress={() => {/* Navigate to preferences */}}
         />
+        
         <Card
           Icon={
             <MaterialIcons
@@ -417,6 +400,7 @@ const ProfileScreen = ({navigation}) => {
           txt="Change Role"
           handlePress={handlePressRole}
         />
+        
         <Card
           Icon={<MaterialIcons name="feedback" size={25} color="#877e7e" />}
           txt="Feedback"
@@ -443,7 +427,7 @@ const ProfileScreen = ({navigation}) => {
           handlePress={() => {/* Open language selector */}}
         />
 
-        <View style={{width: '90%', marginTop: 15}}>
+        <View style={styles.logoutContainer}>
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={handlePressLogout}>
@@ -455,9 +439,9 @@ const ProfileScreen = ({navigation}) => {
             </View>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Switch Account Modal */}
+      {/* Switch Account Modal - Only accessible via "Switch Account" button */}
       <Modal
         visible={showSwitchAccountModal}
         animationType="slide"
@@ -527,12 +511,21 @@ const ProfileScreen = ({navigation}) => {
 export default ProfileScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  contentContainer: {
+    paddingTop: 40,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
   header: {
     height: height / 8,
     flexDirection: 'row',
     width: '95%',
-    marginTop: 40,
     alignItems: 'flex-start',
+    marginBottom: 20,
   },
   backBtn: {
     padding: 10,
@@ -558,7 +551,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    marginBottom: 20,
+    marginBottom: 5,
     width: '90%',
   },
   saveAccountText: {
@@ -568,32 +561,22 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   
-  // Saved Accounts Count
-  savedAccountsCount: {
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginBottom: 20,
-    width: '90%',
-    alignItems: 'center',
-  },
-  savedAccountsText: {
-    color: '#666',
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-  },
-  
   accountCon: {
     width: '90%',
     marginTop: 5,
-    marginBottom: 10,
+    marginBottom: 5,
   },
   userAccountTxt: {
     color: 'black',
     fontSize: 20,
     fontFamily: 'K2D-Bold',
     fontWeight: '600',
+  },
+  
+  logoutContainer: {
+    width: '90%',
+    marginTop: 15,
+    marginBottom: 30,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -656,7 +639,7 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   
-  // Account Item Styles
+  // Account Item Styles (for modal only)
   accountItem: {
     flexDirection: 'row',
     alignItems: 'center',
