@@ -1,4 +1,4 @@
-// hooks/useAddLeadForm.js
+// hooks/useAddLeadForm.js - FIXED VERSION
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,10 +20,10 @@ export const useAddLeadForm = () => {
     phone2: '',
     birthday: '',
     salesLead: 'true',
-    vendorLead: '',
+    vendorLead: 'false',
     searchKey: '',
     city: '',
-    leadSource: '',
+    leadSource: 'Cold Call',
     leadSourceID: 'CC',
     leadSourceDesc: '',
     leadStatusDesc: '',
@@ -53,8 +53,11 @@ export const useAddLeadForm = () => {
   const initializeForm = useCallback(async () => {
     try {
       // Auto-fill sales rep from auth store
-      const userName = useAuthStore.getState().userName;
-      const userId = useAuthStore.getState().userId;
+      const authState = useAuthStore.getState();
+      const userName = authState.userName;
+      const userId = authState.userId;
+      
+      console.log('🔄 Initializing form with auth data:', { userName, userId });
       
       if (userName) {
         setFormData(prev => ({
@@ -73,7 +76,7 @@ export const useAddLeadForm = () => {
           setFormData(prev => ({
             ...prev,
             organization: orgs[0].name,
-            organizationID: orgs[0].id || '1000001',
+            organizationID: orgs[0].id || '1000000',
           }));
         }
       }
@@ -107,8 +110,11 @@ export const useAddLeadForm = () => {
   }, []);
 
   const validatePhone = useCallback((phone) => {
-    const phoneRegex = /^\+\d{8,15}$/;
-    return phoneRegex.test(phone);
+    // More flexible phone validation
+    if (!phone) return false;
+    // Accept +92XXXXXXXXXX or 03XXXXXXXXX or other formats
+    const phoneRegex = /^(\+\d{1,4})?\d{8,15}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
   }, []);
 
   const validateDate = useCallback((date) => {
@@ -138,13 +144,25 @@ export const useAddLeadForm = () => {
       newErrors.phone = 'Invalid phone format (use +92XXXXXXXXXX)';
     }
 
+    // Secondary phone format validation (optional)
+    if (formData.phone2 && formData.phone2.trim() && !validatePhone(formData.phone2)) {
+      newErrors.phone2 = 'Invalid phone format';
+    }
+
     // Birthday format validation
     if (formData.birthday && !validateDate(formData.birthday)) {
       newErrors.birthday = 'Invalid date format (use YYYY-MM-DD)';
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    if (Object.keys(newErrors).length > 0) {
+      console.log('❌ Form validation errors:', newErrors);
+      return false;
+    }
+    
+    console.log('✅ Form validation passed');
+    return true;
   }, [formData, validateEmail, validatePhone, validateDate]);
 
   // Copy contact info to business partner
@@ -156,51 +174,55 @@ export const useAddLeadForm = () => {
     }));
   }, []);
 
-  // Prepare form data for API submission
+  // Prepare form data for API submission - MATCH OLD VERSION STRUCTURE
   const prepareSubmitData = useCallback(() => {
+    console.log('📦 Preparing submit data from form:', formData);
+    
+    // Location data (must match old version)
+    const locationData = {
+      AD_Client_ID: { id: formData.businessPartnerID || '1000000' },
+      AD_Org_ID: { id: formData.organizationID || '1000000' },
+      Address1: formData.address || '',
+      City: formData.city || '',
+      C_Country_ID: { id: formData.countryID || '271' },
+      IsActive: true,
+    };
+    
+    // Main lead data (must match old version)
     const submitData = {
-      // Core lead data
-      Name: formData.name,
-      EMail: formData.email,
-      Phone: formData.phone,
+      Name: formData.name || '',
+      EMail: formData.email || '',
+      Phone: formData.phone || '',
       Phone2: formData.phone2 || '',
       IsSalesLead: formData.salesLead === 'true',
       IsVendorLead: formData.vendorLead === 'true',
-      BPName: formData.companyName,
+      BPName: formData.companyName || '',
       SalesRep_ID: { id: formData.salesRepID || '1000117' },
-      AD_Org_ID: { id: formData.organizationID || '1000001' },
+      AD_Org_ID: { id: formData.organizationID || '1000000' },
       AD_Client_ID: { id: formData.businessPartnerID || '1000000' },
-      Description: formData.description,
+      Description: formData.description || '',
       IsActive: true,
-      LeadStatus: { id: formData.statusID || 'N' },
+      LeadStatus: { id: formData.statusID || 'N' }, // FIXED: Should be object
       Value: formData.searchKey || '',
-      LeadSource: { id: formData.leadSourceID || 'CC' },
+      LeadSource: { id: formData.leadSourceID || 'CC' }, // FIXED: Should be object
       LeadSourceDescription: formData.leadSourceDesc || '',
       LeadStatusDescription: formData.leadStatusDesc || '',
       Comments: formData.comments || '',
-      UserAddress1: formData.address,
-      UserAddress2: formData.companyAddress,
-      
-      // Location data
-      locationData: {
-        AD_Client_ID: { id: formData.businessPartnerID || '1000000' },
-        AD_Org_ID: { id: formData.organizationID || '1000001' },
-        Address1: formData.address,
-        City: formData.city || '',
-        C_Country_ID: { id: formData.countryID || '271' },
-        IsActive: true,
-      },
+      UserAddress1: formData.address || '',
+      UserAddress2: formData.companyAddress || '',
+      locationData: locationData,
     };
-
+    
     // Add optional fields if they exist
     if (formData.birthday) {
       submitData.Birthday = formData.birthday;
     }
-
+    
     if (formData.campaignID) {
       submitData.C_Campaign_ID = { id: formData.campaignID };
     }
-
+    
+    console.log('📦 Final submit data:', submitData);
     return submitData;
   }, [formData]);
 

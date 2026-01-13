@@ -242,6 +242,26 @@ const crmApiService = {
       throw error;
     }
   },
+/**
+ * Create a new location
+ */
+createLocation: async (locationData) => {
+  try {
+    const url = buildUrl('models/C_Location');
+    console.log('📍 Create location URL:', url);
+    
+    const data = await makeRequest(url, {
+      method: 'POST',
+      body: locationData,
+    });
+    
+    console.log('✅ Location created successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Create location failed:', error.message);
+    throw error;
+  }
+},
 
   /**
    * Create a new lead
@@ -618,6 +638,74 @@ const crmApiService = {
       return [];
     }
   },
+  /**
+ * Get campaigns
+ */
+getCampaigns: async () => {
+  try {
+    const url = buildUrl('models/C_Campaign');
+    console.log('🎯 Get campaigns URL:', url);
+    
+    const data = await makeRequest(url);
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} campaigns`);
+    return records;
+  } catch (error) {
+    console.error('Get campaigns failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
+
+/**
+ * Get lead sources
+ */
+getLeadSources: async () => {
+  try {
+    const url = buildUrl('models/C_LeadSource');
+    console.log('📞 Get lead sources URL:', url);
+    
+    const data = await makeRequest(url);
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} lead sources`);
+    return records;
+  } catch (error) {
+    console.error('Get lead sources failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
+
+/**
+ * Get lead statuses
+ */
+getLeadStatuses: async () => {
+  try {
+    const url = buildUrl('models/C_LeadStatus');
+    console.log('📊 Get lead statuses URL:', url);
+    
+    const data = await makeRequest(url);
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} lead statuses`);
+    return records;
+  } catch (error) {
+    console.error('Get lead statuses failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
 };
 
 export default crmApiService;

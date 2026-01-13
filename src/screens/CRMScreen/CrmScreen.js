@@ -1,5 +1,5 @@
-// screens/CrmScreen.js - Updated with complete logic
-import React, { useRef, useMemo } from 'react';
+// screens/CrmScreen.js - Simplified without manual refresh button
+import React, { useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
-  Linking
+  Linking,
+  RefreshControl
 } from 'react-native';
 import { useQueryClient } from 'react-query';
 import { useAuthStore } from '../../store/authStore';
@@ -18,7 +19,6 @@ import {
   useLeads,
   useFollowups,
   useSalesOpportunities,
-  useUpdateFollowup,
 } from '../../hooks/CRMhooks/useCRM';
 import Loader from '../../components/Loader';
 import EarningChart from '../../components/CRMSearch/CRMChart/EarningChart';
@@ -33,7 +33,7 @@ const screenWidth = Dimensions.get('window').width;
 
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
-  const userName = useAuthStore(state => state.userName);
+  const scrollViewRef = useRef(null);
 
   // Get UI states from CRM store
   const {
@@ -47,24 +47,60 @@ const CrmScreen = ({ navigation }) => {
     setShowOverviewCard,
   } = useCRMStore();
 
+  // State for pull-to-refresh
+  const [manualRefreshing, setManualRefreshing] = React.useState(false);
+
   // Fetch data with React Query
   const {
     data: leads = [],
     isLoading: leadsLoading,
     error: leadsError,
+    refetch: refetchLeads,
+    isRefetching: leadsRefetching,
   } = useLeads();
 
   const {
     data: followups = [],
     isLoading: followupsLoading,
     error: followupsError,
+    refetch: refetchFollowups,
+    isRefetching: followupsRefetching,
   } = useFollowups();
 
   const {
     data: salesOpportunities = [],
     isLoading: salesLoading,
     error: salesError,
+    refetch: refetchSales,
+    isRefetching: salesRefetching,
   } = useSalesOpportunities();
+
+  // Combined refreshing state
+  const isRefreshing = leadsRefetching || followupsRefetching || salesRefetching || manualRefreshing;
+
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    
+    try {
+      // Refresh all data in parallel
+      await Promise.all([
+        refetchLeads(),
+        refetchFollowups(),
+        refetchSales(),
+      ]);
+      
+      // Also invalidate queries for good measure
+      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries(['salesOpportunities']);
+    } catch (error) {
+      console.error('Refresh error:', error);
+      Alert.alert('Refresh Failed', 'Could not update data. Please try again.');
+    } finally {
+      setManualRefreshing(false);
+    }
+  }, [refetchLeads, refetchFollowups, refetchSales, queryClient]);
 
   // Memoized lead calculations
   const {
@@ -234,7 +270,18 @@ const CrmScreen = ({ navigation }) => {
 
   return (
     <Provider>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={['#2F4FE3']}
+            tintColor="#2F4FE3"
+          />
+        }
+      >
         <StatusBar barStyle={'dark-content'} />
         <View style={styles.container}>
           {/* Header */}
@@ -304,6 +351,7 @@ const CrmScreen = ({ navigation }) => {
               futureFollowups={futureFollowups}
               missedFollowups={missedFollowups}
               salesCall={salesOpportunities}
+              isRefreshing={isRefreshing}
             />
           )}
 
@@ -312,6 +360,7 @@ const CrmScreen = ({ navigation }) => {
               <EarningChart
                 data={[1950, 2089, 3267, 5789, 4234, 3000, 2200]}
                 days={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']}
+                isRefreshing={isRefreshing}
               />
 
               <Text style={[styles.sectionTitle, { paddingVertical: '2%' }]}>
@@ -322,75 +371,93 @@ const CrmScreen = ({ navigation }) => {
                 {/* Working Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Working', workingLeads)}>
+                  onPress={() => handleLeadNavigation('Working', workingLeads)}
+                  disabled={isRefreshing}>
                   <View style={styles.leadContent}>
-                    <View style={styles.leadIconWrapper}>
-                      <MaterialIcons name="update" size={15} color="#000" />
+                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
+                      <MaterialIcons name="update" size={15} color={isRefreshing ? '#999' : '#000'} />
                     </View>
-                    <Text style={styles.leadTitle}>Working Leads</Text>
-                    <View style={[styles.badge, { backgroundColor: '#DBEAFE' }]}>
-                      <Text style={styles.badgeText}>
+                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
+                      Working Leads
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: '#DBEAFE' }, isRefreshing && styles.disabledBadge]}>
+                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
                         {workingLeads.length.toString().padStart(2, '0')}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.leadSubtitle}>Open leads</Text>
+                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
+                    Open leads
+                  </Text>
                 </TouchableOpacity>
 
                 {/* New Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('New', newLeads)}>
+                  onPress={() => handleLeadNavigation('New', newLeads)}
+                  disabled={isRefreshing}>
                   <View style={styles.leadContent}>
-                    <View style={styles.leadIconWrapper}>
-                      <MaterialIcons name="gps-not-fixed" size={15} color="#000" />
+                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
+                      <MaterialIcons name="gps-not-fixed" size={15} color={isRefreshing ? '#999' : '#000'} />
                     </View>
-                    <Text style={styles.leadTitle}>New Leads</Text>
-                    <View style={[styles.badge, { backgroundColor: 'rgb(245, 225, 250)' }]}>
-                      <Text style={styles.badgeText}>
+                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
+                      New Leads
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: 'rgb(245, 225, 250)' }, isRefreshing && styles.disabledBadge]}>
+                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
                         {newLeads.length.toString().padStart(2, '0')}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.leadSubtitle}>Open leads</Text>
+                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
+                    Open leads
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Converted Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Converted', convertedLeads)}>
+                  onPress={() => handleLeadNavigation('Converted', convertedLeads)}
+                  disabled={isRefreshing}>
                   <View style={styles.leadContent}>
-                    <View style={styles.leadIconWrapper}>
-                      <MaterialIcons name="sync" size={15} color="#000" />
+                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
+                      <MaterialIcons name="sync" size={15} color={isRefreshing ? '#999' : '#000'} />
                     </View>
-                    <Text style={[styles.leadTitle, { fontSize: 13 }]}>
+                    <Text style={[styles.leadTitle, { fontSize: 13 }, isRefreshing && styles.disabledText]}>
                       Converted Leads
                     </Text>
-                    <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}>
-                      <Text style={styles.badgeText}>
+                    <View style={[styles.badge, { backgroundColor: '#DCFCE7' }, isRefreshing && styles.disabledBadge]}>
+                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
                         {convertedLeads.length.toString().padStart(2, '0')}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.leadSubtitle}>Total converted</Text>
+                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
+                    Total converted
+                  </Text>
                 </TouchableOpacity>
 
                 {/* Total Leads */}
                 <TouchableOpacity
                   style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Total', leads)}>
+                  onPress={() => handleLeadNavigation('Total', leads)}
+                  disabled={isRefreshing}>
                   <View style={styles.leadContent}>
-                    <View style={styles.leadIconWrapper}>
-                      <MaterialIcons name="diversity-2" size={15} color="#000" />
+                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
+                      <MaterialIcons name="diversity-2" size={15} color={isRefreshing ? '#999' : '#000'} />
                     </View>
-                    <Text style={styles.leadTitle}>Total Leads</Text>
-                    <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}>
-                      <Text style={styles.badgeText}>
+                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
+                      Total Leads
+                    </Text>
+                    <View style={[styles.badge, { backgroundColor: '#FEF3C7' }, isRefreshing && styles.disabledBadge]}>
+                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
                         {totalLeads.toString().padStart(2, '0')}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.leadSubtitle}>All leads</Text>
+                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
+                    All leads
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -405,10 +472,13 @@ const CrmScreen = ({ navigation }) => {
                   onPress={() => navigation.navigate('AllFollowups', {
                     data: followups,
                     activities: followups,
-                    activeTab: 'all'  // Add this
+                    activeTab: 'all'
                   })}
-                  style={styles.viewAllButton}>
-                  <Text style={styles.viewAllButtonText}>All Activities</Text>
+                  style={styles.viewAllButton}
+                  disabled={isRefreshing}>
+                  <Text style={[styles.viewAllButtonText, isRefreshing && styles.disabledText]}>
+                    All Activities
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -420,14 +490,17 @@ const CrmScreen = ({ navigation }) => {
                     activities: followups,
                     activeTab: 'today',
                   })}
-                  style={styles.followupItem}>
-                  <View style={[styles.followupBadge, { backgroundColor: '#FEF3C7' }]}>
-                    <Text style={styles.followupBadgeText}>
+                  style={styles.followupItem}
+                  disabled={isRefreshing}>
+                  <View style={[styles.followupBadge, { backgroundColor: '#FEF3C7' }, isRefreshing && styles.disabledBadge]}>
+                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
                       {todayFollowups.length.toString().padStart(2, '0')}
                     </Text>
                   </View>
-                  <Text style={styles.followupText}>Today's Followup</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#000" />
+                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
+                    Today's Followup
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
                 </TouchableOpacity>
 
                 {/* Future Followups */}
@@ -437,14 +510,17 @@ const CrmScreen = ({ navigation }) => {
                     activities: followups,
                     activeTab: 'future',
                   })}
-                  style={styles.followupItem}>
-                  <View style={[styles.followupBadge, { backgroundColor: '#DBEAFE' }]}>
-                    <Text style={styles.followupBadgeText}>
+                  style={styles.followupItem}
+                  disabled={isRefreshing}>
+                  <View style={[styles.followupBadge, { backgroundColor: '#DBEAFE' }, isRefreshing && styles.disabledBadge]}>
+                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
                       {futureFollowups.length.toString().padStart(2, '0')}
                     </Text>
                   </View>
-                  <Text style={styles.followupText}>Future Followup</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#000" />
+                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
+                    Future Followup
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
                 </TouchableOpacity>
 
                 {/* Missed Followups */}
@@ -454,14 +530,17 @@ const CrmScreen = ({ navigation }) => {
                     activities: followups,
                     activeTab: 'missed',
                   })}
-                  style={styles.followupItem}>
-                  <View style={[styles.followupBadge, { backgroundColor: 'rgb(245, 225, 250)' }]}>
-                    <Text style={styles.followupBadgeText}>
+                  style={styles.followupItem}
+                  disabled={isRefreshing}>
+                  <View style={[styles.followupBadge, { backgroundColor: 'rgb(245, 225, 250)' }, isRefreshing && styles.disabledBadge]}>
+                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
                       {missedFollowups.length.toString().padStart(2, '0')}
                     </Text>
                   </View>
-                  <Text style={styles.followupText}>Missed Followup</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#000" />
+                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
+                    Missed Followup
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
                 </TouchableOpacity>
               </View>
             </>
@@ -475,7 +554,8 @@ const CrmScreen = ({ navigation }) => {
       {showCRMCard && (
         <TouchableOpacity
           onPress={() => navigation.navigate('CreateActivity')}
-          style={styles.floatingButton}>
+          style={styles.floatingButton}
+          disabled={isRefreshing}>
           <Text style={styles.floatingButtonText}>+</Text>
         </TouchableOpacity>
       )}
@@ -483,7 +563,7 @@ const CrmScreen = ({ navigation }) => {
   );
 };
 
-// Styles remain the same as in the previous CrmScreen version
+// Simplified Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -497,6 +577,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: '8%',
     marginBottom: 20,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   chartTitle: {
     fontSize: 20,
@@ -611,6 +695,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(246, 246, 246, 1)',
     padding: 10,
     borderRadius: 6,
+    marginBottom: 20,
   },
   followupItem: {
     flexDirection: 'row',
@@ -707,6 +792,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'K2D-SemiBold',
     fontSize: 16,
+  },
+  disabledText: {
+    color: '#999',
+  },
+  disabledIcon: {
+    backgroundColor: '#f0f0f0',
+    shadowOpacity: 0.1,
+  },
+  disabledBadge: {
+    opacity: 0.7,
   },
 });
 

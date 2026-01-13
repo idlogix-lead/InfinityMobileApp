@@ -18,7 +18,7 @@ const SalesOpper = () => {
     isLoading, 
     error,
     refetch,
-    isRefetching 
+    isRefetching =false
   } = useSalesOpportunities();
 
   // Debug logging
