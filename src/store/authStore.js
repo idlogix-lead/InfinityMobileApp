@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import base64 from 'base-64';
+import { keychainService } from '../services/KeyChainService';
 
 // ============================================
 // SIMPLE JWT DECODER FOR STORE
@@ -9,16 +10,13 @@ import base64 from 'base-64';
 const decodeJWT = (token) => {
   try {
     if (!token) return null;
-
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-
+    
     const payload = parts[1];
     const base64Str = payload.replace(/-/g, '+').replace(/_/g, '/');
-
-    // Add padding
     const padded = base64Str.padEnd(base64Str.length + (4 - base64Str.length % 4) % 4, '=');
-
+    
     const decoded = base64.decode(padded);
     return JSON.parse(decoded);
   } catch (error) {
@@ -36,6 +34,7 @@ export const useAuthStore = create(
       token: null,
       tokenOk: null,
       userId: null,
+      currentSessionId: null,
 
       // User info
       userName: null,
@@ -68,52 +67,24 @@ export const useAuthStore = create(
       error: null,
 
       // ============================================
-      // ACTIONS
+      // BASIC ACTIONS
       // ============================================
-
-      checkAuthState: () => {
-        const state = get();
-        const isBasicAuth = !!(state.token && state.userName);
-        const isCompleteAuth = isBasicAuth && !!state.roleId && !!state.organizationId && !!state.warehouseId;
-
-        return { isBasicAuth, isCompleteAuth };
-      },
+      setLoading: (loading) => set({ isLoading: loading }),
+      setError: (error) => set({ error }),
+      clearError: () => set({ error: null }),
 
       setCredentials: (userName, password) => set({
         userName,
         password
       }),
 
-      setLoginData: (data) => {
-        const currentState = get();
-
-        set({
-          // PRESERVE existing credentials
-          userName: currentState.userName,
-          password: currentState.password,
-
-          // Update login data
-          token: data.token || currentState.token,
-          userId: data.userId || currentState.userId,
-          clientId: data.clientId || currentState.clientId,
-          clientName: data.clientName || currentState.clientName,
-          clients: data.clients || currentState.clients,
-          availableClients: data.clients || currentState.availableClients,
-        });
-      },
-
-      setAvailableClients: (clients) => set({ availableClients: clients }),
-
-      setClientSelection: (clientId, clientName) => set({
-        clientId,
-        clientName
-      }),
-
       setServerConfig: (config) => set({
         serverConfig: { ...get().serverConfig, ...config }
       }),
 
-      // For basic login
+      // ============================================
+      // AUTH DATA SETTERS
+      // ============================================
       setBasicAuthData: (data) => {
         // Extract client info if clients array is provided
         let finalClientId = data.clientId;
@@ -142,7 +113,6 @@ export const useAuthStore = create(
           clientName: finalClientName || currentState.clientName,
 
           // Store clients array
-          clients: finalClients || currentState.clients,
           availableClients: finalClients || currentState.availableClients,
 
           // PRESERVE existing role data (automatically remembered)
@@ -155,7 +125,30 @@ export const useAuthStore = create(
         });
       },
 
-      // For complete login (after role selection)
+      setLoginData: (data) => {
+        const currentState = get();
+
+        set({
+          // PRESERVE existing credentials
+          userName: currentState.userName,
+          password: currentState.password,
+
+          // Update login data
+          token: data.token || currentState.token,
+          userId: data.userId || currentState.userId,
+          clientId: data.clientId || currentState.clientId,
+          clientName: data.clientName || currentState.clientName,
+          availableClients: data.clients || currentState.availableClients,
+        });
+      },
+
+      setAvailableClients: (clients) => set({ availableClients: clients }),
+
+      setClientSelection: (clientId, clientName) => set({
+        clientId,
+        clientName
+      }),
+
       setCompleteAuthData: (data) => {
         // Extract REAL userId from complete login token
         let realUserId = data.extractedUserId;
@@ -195,10 +188,164 @@ export const useAuthStore = create(
         warehouseName: roleData.warehouseName,
       }),
 
-      setLoading: (loading) => set({ isLoading: loading }),
-      setError: (error) => set({ error }),
+      // ============================================
+      // SESSION MANAGEMENT INTEGRATION
+      // ============================================
+      saveCurrentSession: async () => {
+        try {
+          const state = get();
+          
+          if (!state.userId || !state.token) {
+            throw new Error('No active session to save');
+          }
 
-      // Check if user has complete role data saved
+          const sessionSnapshot = {
+            // Auth state
+            token: state.token,
+            userId: state.userId,
+            currentSessionId: state.userId,
+            
+            // User info
+            userName: state.userName,
+            password: state.password,
+            
+            // Role info
+            roleId: state.roleId,
+            roleName: state.roleName,
+            organizationId: state.organizationId,
+            organizationName: state.organizationName,
+            warehouseId: state.warehouseId,
+            warehouseName: state.warehouseName,
+            
+            // Client info
+            clientId: state.clientId,
+            clientName: state.clientName,
+            
+            // Server configuration
+            serverConfig: { ...state.serverConfig },
+            
+            // Metadata
+            savedAt: new Date().toISOString(),
+            isComplete: state.isCompleteAuthenticated,
+          };
+
+          // Save to keychain
+          await keychainService.saveUserSession(sessionSnapshot);
+          
+          // Set as current session
+          await keychainService.setCurrentSessionId(state.userId);
+          
+          // Update session registry
+          set({ currentSessionId: state.userId });
+          
+          return true;
+        } catch (error) {
+          console.error('Error saving session:', error);
+          return false;
+        }
+      },
+
+      loadSession: async (userId) => {
+        try {
+          const session = await keychainService.loadUserSession(userId);
+          
+          if (!session) {
+            throw new Error('Session not found');
+          }
+
+          // Restore session state
+          set({
+            token: session.token,
+            userId: session.userId,
+            currentSessionId: session.userId,
+            userName: session.userName,
+            password: session.password,
+            roleId: session.roleId,
+            roleName: session.roleName,
+            organizationId: session.organizationId,
+            organizationName: session.organizationName,
+            warehouseId: session.warehouseId,
+            warehouseName: session.warehouseName,
+            clientId: session.clientId,
+            clientName: session.clientName,
+            serverConfig: { ...session.serverConfig },
+          });
+
+          // Update keychain current session
+          await keychainService.setCurrentSessionId(session.userId);
+          
+          return true;
+        } catch (error) {
+          console.error('Error loading session:', error);
+          return false;
+        }
+      },
+
+      clearCurrentSession: () => {
+        // Clear only session-specific data, preserve credentials if needed
+        const currentState = get();
+        
+        set({
+          token: null,
+          tokenOk: null,
+          userId: null,
+          currentSessionId: null,
+          
+          // Preserve these based on app logic
+          // userName: null, // Keep for remember me
+          // password: null, // Keep for remember me
+          
+          // Clear role-specific data
+          roleId: null,
+          roleName: null,
+          organizationId: null,
+          organizationName: null,
+          warehouseId: null,
+          warehouseName: null,
+          
+          clientId: null,
+          clientName: null,
+          availableClients: null,
+          error: null,
+          isLoading: false,
+        });
+      },
+
+      switchSession: async (userId) => {
+        const success = await get().loadSession(userId);
+        return success;
+      },
+
+      // ============================================
+      // LOGOUT
+      // ============================================
+      logout: async (deleteFromKeychain = false) => {
+        const state = get();
+        
+        if (deleteFromKeychain && state.userId) {
+          await keychainService.deleteUserSession(state.userId);
+        }
+        
+        // Save session before clearing (if not deleting)
+        if (!deleteFromKeychain && state.isCompleteAuthenticated) {
+          await get().saveCurrentSession();
+        }
+        
+        get().clearCurrentSession();
+        await keychainService.clearCurrentSessionId();
+      },
+
+      // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+      checkAuthState: () => {
+        const state = get();
+        const isBasicAuth = !!(state.token && state.userName);
+        const isCompleteAuth = state.isCompleteAuthenticated;
+
+        return { isBasicAuth, isCompleteAuth };
+      },
+
       hasCompleteRoleData: () => {
         const state = get();
         return !!(
@@ -210,49 +357,10 @@ export const useAuthStore = create(
           state.warehouseName
         );
       },
-logout: () => {
-  // Get current state to preserve credentials and role data
-  const currentState = get();
-
-  set({
-    // Clear session data
-    token: null,
-    tokenOk: null,
-    userId: null,
-    
-    // Preserve credentials (for Remember Me)
-    userName: currentState.userName,
-    password: currentState.password,
-    
-    // Preserve role data (for Use Last Role)
-    roleId: currentState.roleId,
-    roleName: currentState.roleName,
-    organizationId: currentState.organizationId,
-    organizationName: currentState.organizationName,
-    warehouseId: currentState.warehouseId,
-    warehouseName: currentState.warehouseName,
-    
-    // Preserve client data
-    clientId: currentState.clientId,
-    clientName: currentState.clientName,
-    
-    // Preserve server config
-    serverConfig: currentState.serverConfig,
-    
-    // Clear temporary data
-    availableClients: null,
-    error: null,
-    isLoading: false,
-  });
-},
-
-      clearError: () => set({ error: null }),
 
       // ============================================
       // GETTERS
       // ============================================
-
-      // Check if user has basic authentication (after login)
       get isBasicAuthenticated() {
         const state = get();
         return !!(
@@ -263,7 +371,6 @@ logout: () => {
         );
       },
 
-      // Check if user has complete authentication (after role selection)
       get isCompleteAuthenticated() {
         const state = get();
 
@@ -326,18 +433,17 @@ logout: () => {
         };
       },
 
-      // Get saved role context for display
-    get savedRoleContext() {
-  const state = get();
-  if (state.hasCompleteRoleData() && state.roleName && state.organizationName && state.warehouseName) {
-    return {
-      role: state.roleName,
-      organization: state.organizationName,
-      warehouse: state.warehouseName,
-    };
-  }
-  return null;
-},
+      get savedRoleContext() {
+        const state = get();
+        if (state.hasCompleteRoleData() && state.roleName && state.organizationName && state.warehouseName) {
+          return {
+            role: state.roleName,
+            organization: state.organizationName,
+            warehouse: state.warehouseName,
+          };
+        }
+        return null;
+      },
 
       get isTokenValidJWT() {
         const token = get().token;
@@ -372,6 +478,8 @@ logout: () => {
         organizationName: state.organizationName,
         warehouseId: state.warehouseId,
         warehouseName: state.warehouseName,
+        // Session management
+        currentSessionId: state.currentSessionId,
       }),
     }
   )

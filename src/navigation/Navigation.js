@@ -1,9 +1,10 @@
-import {StyleSheet} from 'react-native';
-import React from 'react';
-import {NavigationContainer} from '@react-navigation/native';
-import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import { StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AppInitializer from '../components/AppInitializer';
 import { useAuthStore } from '../store/authStore';
+import { useSessionStore } from '../store/sessionStore';
 
 // Import navigators
 import AuthNavigator from './MainNavigation/AuthNavigator';
@@ -12,14 +13,19 @@ import AppNavigator from './MainNavigation/AppNavigator';
 const Stack = createNativeStackNavigator();
 
 const Navigation = () => {
-  // Get all auth state values
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // Get auth state
   const token = useAuthStore(state => state.token);
   const userId = useAuthStore(state => state.userId);
   const userName = useAuthStore(state => state.userName);
   const roleId = useAuthStore(state => state.roleId);
   
-  // Manual check - more reliable than the getter
-  const isCompleteAuthenticated = React.useMemo(() => {
+  // Get session state
+  const { sessionsRegistry, getCurrentSession } = useSessionStore();
+  
+  // Check authentication status
+  const isAuthenticated = React.useMemo(() => {
     return Boolean(
       token &&
       typeof token === 'string' &&
@@ -32,11 +38,35 @@ const Navigation = () => {
     );
   }, [token, userId, userName, roleId]);
   
+  // Check for valid session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      // Wait a moment for stores to initialize
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsCheckingAuth(false);
+    };
+    
+    checkSession();
+  }, []);
+  
+  // Show loading while checking
+  if (isCheckingAuth) {
+    return (
+      <NavigationContainer>
+        <AppInitializer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Auth" component={AuthNavigator} />
+          </Stack.Navigator>
+        </AppInitializer>
+      </NavigationContainer>
+    );
+  }
+  
   return (
     <NavigationContainer>
       <AppInitializer>
-        <Stack.Navigator screenOptions={{headerShown: false}}>
-          {isCompleteAuthenticated ? (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {isAuthenticated ? (
             <Stack.Screen 
               name="App" 
               component={AppNavigator}

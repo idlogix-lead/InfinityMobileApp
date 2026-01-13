@@ -13,7 +13,7 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Picker } from '@react-native-picker/picker';
 import { CheckBox } from 'react-native-elements';
 import Ionicons from 'react-native-vector-icons/dist/Ionicons';
@@ -23,13 +23,14 @@ import { useAuthStore } from '../../store/authStore';
 import { useBasicLogin, useCompleteLogin } from '../../hooks/useAuth';
 import colors from '../../constants/Colors';
 
+const { height, width } = Dimensions.get('window');
 
 const SignIn = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [selectedValue, setSelectedValue] = useState('English');
   const [checkedRem, setCheckedRem] = useState(true);
-  const [checkedUseSavedRole, setCheckedUseSavedRole] = useState(true); // Default to CHECKED
+  const [checkedUseSavedRole, setCheckedUseSavedRole] = useState(true);
   
   // Responsive scaling factors
   const scaleWidth = (size) => (width / 375) * size;
@@ -46,9 +47,12 @@ const SignIn = ({ navigation }) => {
   const isLoading = useAuthStore(state => state.isLoading);
   const error = useAuthStore(state => state.error);
   
-  const setLoading = useAuthStore(state => state.setLoading);
-  const clearError = useAuthStore(state => state.clearError);
-  const hasCompleteRoleData = useAuthStore(state => state.hasCompleteRoleData);
+  // Get store functions
+  const { setLoading, clearError } = useAuthStore(state => ({
+    setLoading: state.setLoading,
+    clearError: state.clearError,
+  }));
+  
   const savedRoleContext = useAuthStore(state => state.savedRoleContext);
   
   // Load saved credentials on mount
@@ -65,8 +69,21 @@ const SignIn = ({ navigation }) => {
       setCheckedRem(true);
     }
     
-    // Default: "Select a role" is CHECKED (true)
-    // This means user WILL go to role selection by default
+    // Clear any existing errors when component mounts
+    clearError();
+  }, []); // Remove clearError from dependencies
+
+  // Check if user has complete role data
+  const hasCompleteRoleData = useCallback(() => {
+    const state = useAuthStore.getState();
+    return !!(
+      state.roleId &&
+      state.organizationId &&
+      state.warehouseId &&
+      state.roleName &&
+      state.organizationName &&
+      state.warehouseName
+    );
   }, []);
 
   const handleLogin = async () => {
@@ -76,6 +93,8 @@ const SignIn = ({ navigation }) => {
     }
 
     try {
+      setLoading(true);
+      
       // Store credentials if "Remember Me" is checked
       if (checkedRem) {
         useAuthStore.getState().setCredentials(userName, password);
@@ -91,6 +110,7 @@ const SignIn = ({ navigation }) => {
       
       if (clients.length === 0) {
         Alert.alert('Login Failed', 'No clients available for this user');
+        setLoading(false);
         return;
       }
       
@@ -105,31 +125,27 @@ const SignIn = ({ navigation }) => {
         } : {})
       });
       
-      // ============================================
-      // NEW LOGIC:
-      // ============================================
       // If "Select a role" is CHECKED → Go to role selection
       // If "Select a role" is UNCHECKED → Skip role selection and go to main app
-      // ============================================
       
       if (checkedUseSavedRole) {
         // User wants to select a role → Go to role selection
         console.log('📋 "Select a role" is CHECKED - Proceeding to role selection');
+        setLoading(false);
         proceedToRoleSelection(clients);
       } else {
         // User does NOT want to select a role → Try to use saved role or skip
         console.log('🚀 "Select a role" is UNCHECKED - Trying to skip role selection');
         
         // Check if we have saved role data
-        const state = useAuthStore.getState();
-        const hasSavedRole = state.hasCompleteRoleData();
+        const hasSavedRole = hasCompleteRoleData();
         
         if (hasSavedRole) {
           // Use saved role data
           console.log('✅ Found saved role data - Using it');
           
-          setLoading(true);
           try {
+            const state = useAuthStore.getState();
             const parameters = {
               clientId: state.clientId?.toString(),
               roleId: state.roleId?.toString(),
@@ -159,19 +175,20 @@ const SignIn = ({ navigation }) => {
             
             // Navigate directly to HomeScreen (main app)
             console.log('🏠 Navigating directly to HomeScreen');
+            setLoading(false);
             navigation.replace('HomeScreen');
             
           } catch (error) {
             console.log('❌ Saved role login failed:', error.message);
             // If saved role fails, fall back to role selection
+            setLoading(false);
             Alert.alert('Auto-Login Failed', 'Unable to login with saved role. Please select role manually.');
             proceedToRoleSelection(clients);
-          } finally {
-            setLoading(false);
           }
         } else {
           // No saved role data available
           console.log('❌ No saved role data available');
+          setLoading(false);
           Alert.alert(
             'No Saved Role',
             'No role data found. Please select a role.',
@@ -186,6 +203,7 @@ const SignIn = ({ navigation }) => {
       }
       
     } catch (error) {
+      setLoading(false);
       Alert.alert('Login Failed', error.message || 'Please check your credentials');
     }
   };
@@ -201,12 +219,8 @@ const SignIn = ({ navigation }) => {
     }
   };
 
+  // Handle back button press - SIMPLIFIED VERSION
   useEffect(() => {
-    // Clear error on focus
-    const unsubscribe = navigation.addListener('focus', () => {
-      clearError();
-    });
-
     const backAction = () => {
       navigation.navigate('WelcomeScreen');
       return true;
@@ -217,8 +231,8 @@ const SignIn = ({ navigation }) => {
       backAction
     );
 
+    // Cleanup function - ONLY remove the back handler
     return () => {
-      unsubscribe();
       backHandler.remove();
     };
   }, [navigation]);
@@ -229,27 +243,26 @@ const SignIn = ({ navigation }) => {
       Alert.alert('Login Error', error);
       clearError();
     }
-  }, [error]);
-
-  // Get safe saved role context
-  const getSafeRoleContext = () => {
-    if (savedRoleContext && savedRoleContext.role) {
-      return savedRoleContext;
-    }
-    return null;
-  };
-
-  const safeRoleContext = getSafeRoleContext();
+  }, [error, clearError]); // Add clearError as dependency
 
   // Update checkbox label based on state
-  const getRoleCheckboxLabel = () => {
+  const getRoleCheckboxLabel = useCallback(() => {
     if (checkedUseSavedRole) {
       return "Select a role";
     } else {
-      const hasSaved = useAuthStore.getState().hasCompleteRoleData();
+      const hasSaved = hasCompleteRoleData();
       return hasSaved ? "Use last selected role" : "No role saved";
     }
-  };
+  }, [checkedUseSavedRole, hasCompleteRoleData]);
+
+  // Get saved role info for display
+  const getSavedRoleInfo = useCallback(() => {
+    const state = useAuthStore.getState();
+    if (hasCompleteRoleData()) {
+      return `Will use: ${state.roleName} at ${state.organizationName}`;
+    }
+    return 'No role saved. Please select a role first.';
+  }, [hasCompleteRoleData]);
 
   return (
     <KeyboardAvoidingView
@@ -370,6 +383,7 @@ const SignIn = ({ navigation }) => {
                   isTablet && styles.checkboxTablet
                 ]}
                 size={isTablet ? scaleWidth(20) : scaleWidth(16)}
+                disabled={isLoading}
               />
               <Text style={[
                 styles.checkboxText,
@@ -389,6 +403,7 @@ const SignIn = ({ navigation }) => {
                   isTablet && styles.checkboxTablet
                 ]}
                 size={isTablet ? scaleWidth(20) : scaleWidth(16)}
+                disabled={isLoading}
               />
               <Text style={[
                 styles.checkboxText,
@@ -404,9 +419,7 @@ const SignIn = ({ navigation }) => {
           {!checkedUseSavedRole && (
             <View style={styles.savedRoleInfo}>
               <Text style={styles.savedRoleText}>
-                {useAuthStore.getState().hasCompleteRoleData() 
-                  ? `Will use: ${useAuthStore.getState().roleName} at ${useAuthStore.getState().organizationName}`
-                  : 'No role saved. Please select a role first.'}
+                {getSavedRoleInfo()}
               </Text>
             </View>
           )}
@@ -439,8 +452,7 @@ const SignIn = ({ navigation }) => {
 
 export default SignIn;
 
-const { height, width } = Dimensions.get('window');
-
+// ... styles remain the same ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,

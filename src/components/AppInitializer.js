@@ -1,53 +1,100 @@
-// components/AppInitializer.js
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { useCheckAuth } from '../hooks/useAuth';
+import { useSessionStore } from '../store/sessionStore';
 
 const AppInitializer = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
-  const { isAuthenticated, hasServerConfig, token, userName, password } = useAuthStore();
-  const checkAuthQuery = useCheckAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { initialize: initializeSessions } = useSessionStore();
+  const token = useAuthStore(state => state.token);
+  const userId = useAuthStore(state => state.userId);
 
   useEffect(() => {
-    const initialize = async () => {
+    const initializeApp = async () => {
       try {
-        // Wait for Zustand to hydrate from AsyncStorage
-        const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
-          // Check if we have credentials stored
-          if (userName && password && token) {
-            // The useCheckAuth hook will automatically run when enabled
-            // Wait a moment for the query to start
-            setTimeout(() => setIsInitialized(true), 100);
-          } else {
-            setIsInitialized(true);
-          }
+        console.log('🔄 AppInitializer: Starting initialization...');
+        
+        // Wait for Zustand hydration
+        const unsubAuth = useAuthStore.persist.onFinishHydration(() => {
+          console.log('✅ Auth store hydrated');
         });
 
-        // If already hydrated, proceed
-        if (useAuthStore.persist.hasHydrated()) {
-          if (userName && password && token) {
-            setTimeout(() => setIsInitialized(true), 100);
-          } else {
+        const unsubSession = useSessionStore.persist.onFinishHydration(() => {
+          console.log('✅ Session store hydrated');
+          
+          // Initialize session store
+          initializeSessions();
+          setIsLoading(false);
+          
+          // Check if we should auto-load a session
+          setTimeout(() => {
+            checkAutoLogin();
             setIsInitialized(true);
-          }
+          }, 500);
+        });
+
+        // If already hydrated
+        if (useAuthStore.persist.hasHydrated() && useSessionStore.persist.hasHydrated()) {
+          console.log('✅ Stores already hydrated');
+          initializeSessions();
+          setIsLoading(false);
+          checkAutoLogin();
+          setIsInitialized(true);
         }
 
-        return () => unsubscribe();
+        // Safety timeout
+        const timeout = setTimeout(() => {
+          console.log('⚠️  Initialization timeout - forcing complete');
+          setIsLoading(false);
+          setIsInitialized(true);
+        }, 5000);
+
+        return () => {
+          unsubAuth?.();
+          unsubSession?.();
+          clearTimeout(timeout);
+        };
       } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('❌ App initialization error:', error);
+        setIsLoading(false);
         setIsInitialized(true);
       }
     };
 
-    initialize();
+    initializeApp();
   }, []);
 
+  const checkAutoLogin = () => {
+    try {
+      const state = useAuthStore.getState();
+      
+      // Check if we already have a valid session
+      if (state.token && state.userId && state.isCompleteAuthenticated) {
+        console.log('✅ Already authenticated, no auto-login needed');
+        return;
+      }
+      
+      // The session switching should be handled by ProfileScreen
+      // Don't auto-login here to prevent errors
+      console.log('ℹ️  No auto-login - user needs to login manually');
+      
+    } catch (error) {
+      console.error('Error checking auto login:', error);
+    }
+  };
+
   // Show loading screen
-  if (!isInitialized || (checkAuthQuery.isFetching && isAuthenticated)) {
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5'
+      }}>
+        <ActivityIndicator size="large" color="#0050C0" />
       </View>
     );
   }

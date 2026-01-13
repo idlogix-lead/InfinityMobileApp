@@ -33,8 +33,8 @@ const WelcomeScreen = ({ navigation }) => {
   ];
 
   // Responsive scaling factors
-  const scaleWidth = (size) => (width / 375) * size; // Based on iPhone 6/7/8 width (375)
-  const scaleHeight = (size) => (height / 812) * size; // Based on iPhone 6/7/8 height (812)
+  const scaleWidth = (size) => (width / 375) * size;
+  const scaleHeight = (size) => (height / 812) * size;
   
   // Determine device orientation
   const isLandscape = width > height;
@@ -184,9 +184,9 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingTop: height * 0.05, // 5% of screen height
+    paddingTop: height * 0.05,
     paddingBottom: height * 0.05,
-    paddingHorizontal: width * 0.05, // 5% of screen width
+    paddingHorizontal: width * 0.05,
     backgroundColor: colors.background,
   },
 
@@ -199,8 +199,8 @@ const styles = StyleSheet.create({
   },
 
   illustration: {
-    height: height * 0.35, // 35% of screen height
-    width: width * 0.85, // 85% of screen width
+    height: height * 0.35,
+    width: width * 0.85,
     maxHeight: 350,
     maxWidth: 350,
     marginBottom: height * 0.02,
@@ -221,12 +221,12 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: width * 0.05, // 5% of screen width
+    fontSize: width * 0.05,
     fontWeight: '600',
     color: colors.textPrimary,
     marginBottom: height * 0.03,
     textAlign: 'center',
-    minWidth: width * 0.6, // Ensure title doesn't get too small
+    minWidth: width * 0.6,
   },
 
   titleLandscape: {
@@ -241,10 +241,10 @@ const styles = StyleSheet.create({
 
   card: {
     width: '100%',
-    maxWidth: 500, // Maximum width for larger screens
+    maxWidth: 500,
     backgroundColor: colors.surface,
     borderRadius: 12,
-    padding: width * 0.04, // 4% of screen width
+    padding: width * 0.04,
     elevation: 4,
     shadowColor: colors.shadow,
     shadowOpacity: 0.15,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   },
 
   picker: {
-    height: height * 0.06, // 6% of screen height
+    height: height * 0.06,
     minHeight: 50,
     color: colors.textPrimary,
   },
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: width * 0.04,
     marginBottom: height * 0.015,
-    fontSize: width * 0.035, // 3.5% of screen width
+    fontSize: width * 0.035,
     color: colors.inputText,
     borderWidth: 1,
     borderColor: colors.inputBorder,
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: height * 0.02,
     elevation: 4,
-    marginHorizontal: width * 0.15, // 15% margin on each side
+    marginHorizontal: width * 0.15,
     shadowColor: colors.primaryDark,
     shadowOpacity: 0.25,
     shadowRadius: 6,
