@@ -1,165 +1,4 @@
-// services/CRMAPI/crmApiService.js
-
-// ============================================
-// AUTH STATE HELPER (No React Hook Issues)
-// ============================================
-let authStore = null;
-
-// Dynamically import auth store to avoid React hook rules
-const getAuthStore = () => {
-  if (authStore) return authStore;
-  
-  try {
-    // Use require instead of import for dynamic loading
-    authStore = require('../../store/authStore');
-    return authStore;
-  } catch (error) {
-    console.error('Failed to load auth store:', error);
-    return null;
-  }
-};
-
-const getAuthState = () => {
-  const store = getAuthStore();
-  if (!store) {
-    console.warn('Auth store not available');
-    return {};
-  }
-  
-  try {
-    return store.useAuthStore.getState();
-  } catch (error) {
-    console.error('Failed to get auth state:', error);
-    return {};
-  }
-};
-
-// ============================================
-// API REQUEST HELPER
-// ============================================
-const makeRequest = async (url, options = {}) => {
-  try {
-    const authState = getAuthState();
-    const token = authState.token;
-    
-    if (!token) {
-      throw new Error('AUTH_TOKEN_MISSING');
-    }
-    
-    console.log('🌐 API Request:', {
-      method: options.method || 'GET',
-      url,
-      hasToken: !!token,
-      tokenLength: token?.length || 0
-    });
-    
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...options.headers,
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-    
-    console.log('🌐 API Response Status:', response.status);
-    
-    if (!response.ok) {
-      let errorData = null;
-      try {
-        const errorText = await response.text();
-        errorData = errorText;
-        
-        // Try to parse as JSON if possible
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          // Keep as text if not JSON
-        }
-      } catch (textError) {
-        errorData = 'Could not read error response';
-      }
-      
-      console.error('❌ API Error:', {
-        status: response.status,
-        url,
-        error: errorData
-      });
-      
-      // Handle specific HTTP errors
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
-      } else if (response.status === 403) {
-        throw new Error('PERMISSION_DENIED');
-      } else if (response.status === 404) {
-        throw new Error('RESOURCE_NOT_FOUND');
-      } else if (response.status === 500) {
-        throw new Error('SERVER_ERROR');
-      }
-      
-      throw new Error(`API_ERROR_${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    console.log('✅ API Success:', {
-      url,
-      recordCount: data.records?.length || 0,
-      rowCount: data['row-count'] || 0
-    });
-    
-    return data;
-  } catch (error) {
-    console.error('🔥 API Request Failed:', {
-      url,
-      error: error.message,
-      errorCode: error.code
-    });
-    
-    // Re-throw for react-query to handle
-    throw error;
-  }
-};
-
-// ============================================
-// URL BUILDER
-// ============================================
-const buildUrl = (endpoint, filters = {}, customFilter = null) => {
-  const authState = getAuthState();
-  const serverConfig = authState.serverConfig;
-  
-  if (!serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
-    throw new Error('SERVER_CONFIG_MISSING');
-  }
-  
-  const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
-  let url = `${baseUrl}/${endpoint}`;
-  
-  // Build filter string
-  const filterParts = [];
-  
-  // Add custom filter if provided
-  if (customFilter) {
-    filterParts.push(customFilter);
-  }
-  
-  // Add individual filters
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      filterParts.push(`${key} eq ${typeof value === 'string' ? `'${value}'` : value}`);
-    }
-  });
-  
-  // Add filter to URL if we have any
-  if (filterParts.length > 0) {
-    const filterString = filterParts.join(' and ');
-    url += `?$filter=${encodeURIComponent(filterString)}`;
-  }
-  
-  return url;
-};
+import { buildApiUrl, apiRequest, getAuthState } from '../../utils/apiUtils';
 
 // ============================================
 // CRM API SERVICE
@@ -167,7 +6,6 @@ const buildUrl = (endpoint, filters = {}, customFilter = null) => {
 const crmApiService = {
   /**
    * Fetch leads with optional filters
-   * FIXED: Proper OData filter syntax
    */
   getLeads: async (filters = {}) => {
     try {
@@ -177,7 +15,7 @@ const crmApiService = {
       // Build comprehensive filter
       let filterParts = ['IsSalesLead eq true'];
       
-      // Add user filter if available - FIXED: Use correct field name
+      // Add user filter if available
       if (userId) {
         filterParts.push(`SalesRep_ID eq ${userId}`);
       }
@@ -205,10 +43,10 @@ const crmApiService = {
       // Build filter string
       const filterString = filterParts.join(' and ');
       
-      const url = buildUrl('models/AD_User', {}, filterString);
+      const url = buildApiUrl('models/AD_User', {}, filterString);
       console.log('🔍 Leads API URL:', url);
       
-      const data = await makeRequest(url);
+      const data = await apiRequest(url);
       
       // SAFE data extraction with fallback
       const records = Array.isArray(data.records) ? data.records : [];
@@ -220,10 +58,10 @@ const crmApiService = {
       
       // Return empty array for non-auth errors
       if (error.message === 'SESSION_EXPIRED') {
-        throw error; // Let react-query handle auth errors
+        throw error;
       }
       
-      return []; // Return empty array for other errors
+      return [];
     }
   },
 
@@ -232,46 +70,47 @@ const crmApiService = {
    */
   getLeadById: async (leadId) => {
     try {
-      const url = buildUrl(`models/AD_User/${leadId}`);
+      const url = buildApiUrl(`models/AD_User/${leadId}`);
       console.log('🔍 Lead by ID URL:', url);
       
-      const data = await makeRequest(url);
+      const data = await apiRequest(url);
       return data;
     } catch (error) {
       console.error('Get lead by ID failed:', error.message);
       throw error;
     }
   },
-/**
- * Create a new location
- */
-createLocation: async (locationData) => {
-  try {
-    const url = buildUrl('models/C_Location');
-    console.log('📍 Create location URL:', url);
-    
-    const data = await makeRequest(url, {
-      method: 'POST',
-      body: locationData,
-    });
-    
-    console.log('✅ Location created successfully:', data);
-    return data;
-  } catch (error) {
-    console.error('Create location failed:', error.message);
-    throw error;
-  }
-},
+
+  /**
+   * Create a new location
+   */
+  createLocation: async (locationData) => {
+    try {
+      const url = buildApiUrl('models/C_Location');
+      console.log('📍 Create location URL:', url);
+      
+      const data = await apiRequest(url, {
+        method: 'POST',
+        body: locationData,
+      });
+      
+      console.log('✅ Location created successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('Create location failed:', error.message);
+      throw error;
+    }
+  },
 
   /**
    * Create a new lead
    */
   createLead: async (leadData) => {
     try {
-      const url = buildUrl('models/AD_User');
+      const url = buildApiUrl('models/AD_User');
       console.log('📝 Create lead URL:', url);
       
-      const data = await makeRequest(url, {
+      const data = await apiRequest(url, {
         method: 'POST',
         body: leadData,
       });
@@ -289,10 +128,10 @@ createLocation: async (locationData) => {
    */
   updateLead: async (leadId, updates) => {
     try {
-      const url = buildUrl(`models/AD_User/${leadId}`);
+      const url = buildApiUrl(`models/AD_User/${leadId}`);
       console.log('✏️ Update lead URL:', url);
       
-      const data = await makeRequest(url, {
+      const data = await apiRequest(url, {
         method: 'PUT',
         body: updates,
       });
@@ -365,13 +204,13 @@ createLocation: async (locationData) => {
       }
 
       // Build URL with filters
-      const url = buildUrl('models/C_ContactActivity', {}, 
+      const url = buildApiUrl('models/C_ContactActivity', {}, 
         filterParts.length > 0 ? filterParts.join(' and ') : null
       );
       
       console.log('🔍 Followups API URL:', url);
       
-      const data = await makeRequest(url);
+      const data = await apiRequest(url);
       
       const records = Array.isArray(data.records) ? data.records : [];
       console.log(`✅ Retrieved ${records.length} followups`);
@@ -391,8 +230,8 @@ createLocation: async (locationData) => {
    */
   getFollowupById: async (followupId) => {
     try {
-      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
-      const data = await makeRequest(url);
+      const url = buildApiUrl(`models/C_ContactActivity/${followupId}`);
+      const data = await apiRequest(url);
       return data;
     } catch (error) {
       console.error('Get followup by ID failed:', error.message);
@@ -405,8 +244,8 @@ createLocation: async (locationData) => {
    */
   createFollowup: async (followupData) => {
     try {
-      const url = buildUrl('models/C_ContactActivity');
-      const data = await makeRequest(url, {
+      const url = buildApiUrl('models/C_ContactActivity');
+      const data = await apiRequest(url, {
         method: 'POST',
         body: followupData,
       });
@@ -424,8 +263,8 @@ createLocation: async (locationData) => {
    */
   updateFollowup: async (followupId, updates) => {
     try {
-      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
-      const data = await makeRequest(url, {
+      const url = buildApiUrl(`models/C_ContactActivity/${followupId}`);
+      const data = await apiRequest(url, {
         method: 'PUT',
         body: updates,
       });
@@ -443,8 +282,8 @@ createLocation: async (locationData) => {
    */
   deleteFollowup: async (followupId) => {
     try {
-      const url = buildUrl(`models/C_ContactActivity/${followupId}`);
-      await makeRequest(url, {
+      const url = buildApiUrl(`models/C_ContactActivity/${followupId}`);
+      await apiRequest(url, {
         method: 'DELETE',
       });
       
@@ -458,23 +297,18 @@ createLocation: async (locationData) => {
 
   /**
    * Fetch sales opportunities
-   * FIXED: Correct filter field names and structure
    */
   getSalesOpportunities: async (filters = {}) => {
     try {
       const authState = getAuthState();
       const userId = authState.userId;
       
-      // Build filter parts - CRITICAL FIX: Use correct field names
+      // Build filter parts
       const filterParts = [];
       
-      // Option 1: Try with SalesRep_ID (most common)
       if (userId) {
         filterParts.push(`SalesRep_ID eq ${userId}`);
       }
-      
-      // Option 2: Try with AD_User_ID if SalesRep_ID doesn't work
-      // filterParts.push(`AD_User_ID eq ${userId}`);
       
       // Stage filter
       if (filters.stage) {
@@ -497,40 +331,25 @@ createLocation: async (locationData) => {
       // Always include active records
       filterParts.push(`IsActive eq true`);
       
-      const url = buildUrl('models/C_Opportunity', {}, 
+      const url = buildApiUrl('models/C_Opportunity', {}, 
         filterParts.length > 0 ? filterParts.join(' and ') : null
       );
       
       console.log('🔍 Sales Opportunities URL:', url);
       
-      const data = await makeRequest(url);
+      const data = await apiRequest(url);
       
       // SAFE data extraction
       const records = Array.isArray(data.records) ? data.records : [];
       
       console.log(`✅ Retrieved ${records.length} sales opportunities`);
       
-      // DEBUG: If no records, try without user filter to check permissions
-      if (records.length === 0) {
-        console.log('🔄 Debug: Trying without user filter...');
-        const debugUrl = buildUrl('models/C_Opportunity', {}, 'IsActive eq true');
-        const debugData = await makeRequest(debugUrl);
-        console.log(`🔄 Debug: Found ${debugData.records?.length || 0} total opportunities in system`);
-      }
-      
       return records;
     } catch (error) {
       console.error('❌ Get sales opportunities failed:', error.message);
       
-      // Handle specific errors
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
-      } else if (error.message === 'RESOURCE_NOT_FOUND') {
-        console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
-        return [];
-      } else if (error.message === 'PERMISSION_DENIED') {
-        console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
-        return [];
       }
       
       return [];
@@ -542,8 +361,8 @@ createLocation: async (locationData) => {
    */
   createSalesOpportunity: async (opportunityData) => {
     try {
-      const url = buildUrl('models/C_Opportunity');
-      const data = await makeRequest(url, {
+      const url = buildApiUrl('models/C_Opportunity');
+      const data = await apiRequest(url, {
         method: 'POST',
         body: opportunityData,
       });
@@ -561,8 +380,8 @@ createLocation: async (locationData) => {
    */
   updateSalesOpportunity: async (opportunityId, updates) => {
     try {
-      const url = buildUrl(`models/C_Opportunity/${opportunityId}`);
-      const data = await makeRequest(url, {
+      const url = buildApiUrl(`models/C_Opportunity/${opportunityId}`);
+      const data = await apiRequest(url, {
         method: 'PUT',
         body: updates,
       });
@@ -624,10 +443,10 @@ createLocation: async (locationData) => {
       // Build search filter
       const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (contains(Name, '${searchTerm}') or contains(EMail, '${searchTerm}') or contains(Phone, '${searchTerm}'))`;
       
-      const url = buildUrl('models/AD_User', {}, searchFilter);
+      const url = buildApiUrl('models/AD_User', {}, searchFilter);
       console.log('🔍 Search leads URL:', url);
       
-      const data = await makeRequest(url);
+      const data = await apiRequest(url);
       
       const records = Array.isArray(data.records) ? data.records : [];
       console.log(`✅ Found ${records.length} leads matching search`);
@@ -638,74 +457,75 @@ createLocation: async (locationData) => {
       return [];
     }
   },
+
   /**
- * Get campaigns
- */
-getCampaigns: async () => {
-  try {
-    const url = buildUrl('models/C_Campaign');
-    console.log('🎯 Get campaigns URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} campaigns`);
-    return records;
-  } catch (error) {
-    console.error('Get campaigns failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+   * Get campaigns
+   */
+  getCampaigns: async () => {
+    try {
+      const url = buildApiUrl('models/C_Campaign');
+      console.log('🎯 Get campaigns URL:', url);
+      
+      const data = await apiRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} campaigns`);
+      return records;
+    } catch (error) {
+      console.error('Get campaigns failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
 
-/**
- * Get lead sources
- */
-getLeadSources: async () => {
-  try {
-    const url = buildUrl('models/C_LeadSource');
-    console.log('📞 Get lead sources URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} lead sources`);
-    return records;
-  } catch (error) {
-    console.error('Get lead sources failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+  /**
+   * Get lead sources
+   */
+  getLeadSources: async () => {
+    try {
+      const url = buildApiUrl('models/C_LeadSource');
+      console.log('📞 Get lead sources URL:', url);
+      
+      const data = await apiRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} lead sources`);
+      return records;
+    } catch (error) {
+      console.error('Get lead sources failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
 
-/**
- * Get lead statuses
- */
-getLeadStatuses: async () => {
-  try {
-    const url = buildUrl('models/C_LeadStatus');
-    console.log('📊 Get lead statuses URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} lead statuses`);
-    return records;
-  } catch (error) {
-    console.error('Get lead statuses failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+  /**
+   * Get lead statuses
+   */
+  getLeadStatuses: async () => {
+    try {
+      const url = buildApiUrl('models/C_LeadStatus');
+      console.log('📊 Get lead statuses URL:', url);
+      
+      const data = await apiRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} lead statuses`);
+      return records;
+    } catch (error) {
+      console.error('Get lead statuses failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
 };
 
 export default crmApiService;

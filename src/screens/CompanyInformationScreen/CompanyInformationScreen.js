@@ -89,7 +89,7 @@ const CompanyInformationScreen = ({ navigation }) => {
                 />
 
                 <CardCompanyInformation
-                    topText="Company"
+                    topText="Warehouse"
                     secondtext={warehouseName || 'Not Selected'}
                     Icon={<MaterialCommunityIcons name='warehouse' size={iconSize} color='#877e7e'/>}
                     spacing={cardSpacing}

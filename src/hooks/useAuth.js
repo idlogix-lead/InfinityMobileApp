@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useAuthStore } from '../store/authStore';
-import apiService from '../services/api';
+import apiService from '../services/authApi';
 
 // Hook for Step 1: Basic login
 export const useBasicLogin = () => {
