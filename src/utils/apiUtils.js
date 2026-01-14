@@ -1,24 +1,26 @@
-// ============================================
-// SHARED API UTILITIES
-// ============================================
-
+// apiUtils.js - FIXED VERSION
 import { useAuthStore } from '../store/authStore';
-import base64 from 'base64-js';
+import base64 from 'base64-js'; // Make sure you have this installed
 
 // ============================================
-// JWT DECODER (Reusable)
+// JWT DECODER (Reusable) - USING base64 library
 // ============================================
 export const decodeJWT = (token) => {
   try {
-    if (!token) return null;
+    if (!token) {
+      console.error('No token provided to decodeJWT');
+      return null;
+    }
     
     // Remove Bearer prefix if exists
-    const cleanToken = token.replace('Bearer ', '');
+    const cleanToken = token.replace('Bearer ', '').trim();
+    
+    console.log('🔐 Decoding JWT token, length:', cleanToken.length);
     
     // Split into 3 parts
     const parts = cleanToken.split('.');
     if (parts.length !== 3) {
-      console.error('Invalid JWT format');
+      console.error('Invalid JWT format, parts:', parts.length);
       return null;
     }
     
@@ -33,16 +35,53 @@ export const decodeJWT = (token) => {
       standardBase64 += '=';
     }
     
-    // Decode using base64 library
-    const decodedStr = base64.decode(standardBase64);
+    // Decode using base64 library - CORRECT WAY
+    // base64-js returns Uint8Array, need to convert to string
+    const bytes = base64.toByteArray(standardBase64);
+    const decodedStr = new TextDecoder().decode(bytes);
     
-    // Parse JSON
-    return JSON.parse(decodedStr);
+    const decoded = JSON.parse(decodedStr);
+    console.log('✅ JWT Decoded successfully:', decoded);
+    
+    return decoded;
+  } catch (error) {
+    console.error('🔥 JWT Decode Error Details:', {
+      error: error.message,
+      tokenPreview: token ? token.substring(0, 50) + '...' : 'null'
+    });
+    return null;
+  }
+};
+
+// ============================================
+// ALTERNATIVE: Use the original base64 library
+// If you were using 'base-64' npm package instead
+// ============================================
+// If you want to use the original method, install:
+// npm install base-64
+
+// Then use:
+/*
+import base64 from 'base-64';
+
+export const decodeJWT = (token) => {
+  try {
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const payload = parts[1];
+    const base64Str = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64Str.padEnd(base64Str.length + (4 - base64Str.length % 4) % 4, '=');
+    
+    const decoded = base64.decode(padded);
+    return JSON.parse(decoded);
   } catch (error) {
     console.error('API Service - JWT Decode Error:', error);
     return null;
   }
 };
+*/
 
 // ============================================
 // BASE URL BUILDER (Reusable)
@@ -98,7 +137,6 @@ export const buildApiUrl = (endpoint, filters = {}, customFilter = null) => {
   // Add individual filters
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
-      // Handle string values with quotes, numbers without
       if (typeof value === 'string') {
         filterParts.push(`${key} eq '${value.replace(/'/g, "''")}'`);
       } else {
@@ -161,7 +199,6 @@ export const apiRequest = async (url, options = {}, authToken = null) => {
         const errorText = await response.text();
         errorData = errorText;
         
-        // Try to parse as JSON if possible
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -177,7 +214,6 @@ export const apiRequest = async (url, options = {}, authToken = null) => {
         error: errorData
       });
       
-      // Handle specific HTTP errors
       if (response.status === 401) {
         throw new Error('SESSION_EXPIRED');
       } else if (response.status === 403) {
@@ -207,7 +243,6 @@ export const apiRequest = async (url, options = {}, authToken = null) => {
       errorCode: error.code
     });
     
-    // Re-throw for react-query to handle
     throw error;
   }
 };
