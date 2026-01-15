@@ -8,13 +8,15 @@ import SignIn from '../screens/AuthScreens/SignIn';
 import SelectRoleScreen from '../screens/SelectRoleScreens/SelectRoleScreen';
 import HomeScreen from '../screens/HomeScreens/HomeScreen';
 import BottomTab from './BottomTab/BottomTab';
+import FingerPrintScreen from '../screens/AddFingerPrint/FingerPrintScreen';
+
 import ApprovalScreens from '../screens/ApprovalScreens/ApprovalScreens';
 import CompanyInformationScreen from '../screens/CompanyInformationScreen/CompanyInformationScreen';
 import ApprovalByDoc from '../screens/ApprovalScreens/ApprovalByDoc';
 import ApprovalByDate from '../screens/ApprovalScreens/ApprovalByDate';
 import ApprovalCardList from '../screens/ApprovalScreens/ApprovalCardList';
 import FinancialByDoc from '../screens/ApprovalScreens/FinancialByDoc';
-import FingerPrintScreen from '../screens/AddFingerPrint/FingerPrintScreen';
+
 import RequestScreen from '../screens/RequestScreens/RequestScreen';
 import RequestList from '../screens/RequestScreens/RequestList';
 import CreateNewReq from '../screens/RequestScreens/CreateNewReq';
@@ -68,10 +70,16 @@ import SaleStageDetails from '../screens/SalesOppertunity/SaleStageDetails';
 import AllFollowups from '../screens/CRMFollowupsScreen/AllFollowups';
 import AddSaleOppor from '../screens/SalesOppertunity/AddSaleOppor';
 import CreateActivity from '../screens/CRMActivity/CreateActivity';
-import Requests from '../screens/Requests/Request';
+// import Requests from '../screens/Requests/Request';
 import DueTasks from '../screens/Requests/DueTasks';
 import PriorityRequests from '../screens/Requests/PriorityRequests';
 import TaskDetail from '../screens/Requests/TaskDetail';
+import BottomTabsReq from './BottomTab/BottomTabReq';
+import AddTask from '../screens/Requests/AddTask';
+import MyTasks from '../screens/Requests/MyTasks';
+import Requests from '../screens/Requests/Request';
+import AllProjects from '../screens/Requests/AllProjects';
+import TaskStatus from '../screens/Requests/TaskStatus';
 
 const Stack = createNativeStackNavigator();
 const Navigation = () => {
@@ -82,8 +90,12 @@ const Navigation = () => {
         <Stack.Screen name="WelcomeScreen" component={WelcomeScreen} />
         <Stack.Screen name="SignIn" component={SignIn} />
         <Stack.Screen name="SelectRoleScreen" component={SelectRoleScreen} />
+        <Stack.Screen name="FingerPrintScreen" component={FingerPrintScreen} />
+
         <Stack.Screen name="HomeScreen" component={HomeScreen} />
         <Stack.Screen name="BottomTab" component={BottomTab} />
+        <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+
         <Stack.Screen name="ApprovalScreens" component={ApprovalScreens} />
         <Stack.Screen
           name="CompanyInformationScreen"
@@ -93,7 +105,7 @@ const Navigation = () => {
         <Stack.Screen name="ApprovalByDate" component={ApprovalByDate} />
         <Stack.Screen name="ApprovalCardList" component={ApprovalCardList} />
         <Stack.Screen name="FinancialByDoc" component={FinancialByDoc} />
-        <Stack.Screen name="FingerPrintScreen" component={FingerPrintScreen} />
+        {/* <Stack.Screen name="FingerPrintScreen" component={FingerPrintScreen} /> */}
         <Stack.Screen name="RequestScreen" component={RequestScreen} />
         <Stack.Screen name="RequestList" component={RequestList} />
         <Stack.Screen name="CreateNewReq" component={CreateNewReq} />
@@ -127,7 +139,7 @@ const Navigation = () => {
         <Stack.Screen name="LeaveStatus" component={LeaveStatus} />
         <Stack.Screen name="AnnualLeave" component={AnnualLeave} />
         <Stack.Screen name="DetailedLeave" component={DetailedLeave} />
-        <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+        {/* <Stack.Screen name="ProfileScreen" component={ProfileScreen} /> */}
         <Stack.Screen name="ReportMain" component={ReportMain} />
         <Stack.Screen name="Liquidity" component={Liquidity} />
         <Stack.Screen name="TopNavigationATS" component={TopNavigationATS} />
@@ -156,11 +168,16 @@ const Navigation = () => {
         <Stack.Screen name="AddSaleOppor" component={AddSaleOppor} />
         <Stack.Screen name="CreateActivity" component={CreateActivity} />
 
+        {/* <Stack.Screen name="Requests" component={BottomTabsReq} /> */}
         <Stack.Screen name="Requests" component={Requests} />
         <Stack.Screen name="PriorityRequests" component={PriorityRequests} />
-
+        <Stack.Screen name="AddTask" component={AddTask} />
+        <Stack.Screen name="MyTasks" component={MyTasks} />
         <Stack.Screen name="DueTasks" component={DueTasks} />
         <Stack.Screen name="TaskDetail" component={TaskDetail} />
+        <Stack.Screen name="BottomTabsReq" component={BottomTabsReq} />
+        <Stack.Screen name="AllProjects" component={AllProjects} />
+        <Stack.Screen name="TaskStatus" component={TaskStatus} />
 
       </Stack.Navigator>
     </NavigationContainer>

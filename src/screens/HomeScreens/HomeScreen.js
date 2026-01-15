@@ -276,13 +276,34 @@ const HomeScreen = ({route}) => {
         const filteredArrayAccount = dataArray.filter(obj =>
           tableIdsAccount.includes(obj.AD_Table_ID.id),
         );
-        // navigation.navigate('ApprovalScreens', { token, filteredArraySupply, filteredArrayAccount, tokenOk, roleId })
-        navigation.navigate('AllApprovalList');
+        navigation.navigate('Approval', {
+          screen: 'ApprovalScreens',
+          params: {
+            token,
+            filteredArraySupply,
+            filteredArrayAccount,
+            tokenOk,
+            roleId,
+          },
+        });
+
+        // navigation.navigate('AllApprovalList');
         setIsLoading(false);
       })
       .catch(error => {
         console.error(error);
-        navigation.navigate('ApprovalScreens');
+        // navigation.navigate('ApprovalScreens');
+        navigation.navigate('Approval', {
+          screen: 'ApprovalScreens',
+          params: {
+            filteredArraySupply: [],
+            filteredArrayAccount: [],
+            token,
+            tokenOk,
+            roleId,
+          },
+        });
+
         setIsLoading(false);
       });
   };
@@ -464,7 +485,9 @@ const HomeScreen = ({route}) => {
   const currentDate = new Date();
   const day = currentDate.getDate();
   // const weekday = currentDate.toLocaleDateString('en-US', {weekday: 'long'});
-  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentDate);
+  const weekday = new Intl.DateTimeFormat('en-US', {weekday: 'long'}).format(
+    currentDate,
+  );
 
   const monthDayYear = currentDate.toLocaleDateString('en-US', {
     month: 'short',
@@ -550,7 +573,9 @@ const HomeScreen = ({route}) => {
           </View>
 
           {/* Umar.Maqbool and ICON */}
-          <View style={styles.profileInfo}>
+          <TouchableOpacity
+            style={styles.profileInfo}
+            onPress={() => navigation.navigate('ProfileScreen')}>
             <Image
               source={require('../../asserts/HomeScreenAssets/HeaderImage/whiteicon.png')}
               style={{width: 76, height: 70, alignSelf: 'center'}}
@@ -568,7 +593,7 @@ const HomeScreen = ({route}) => {
               {name}
             </Text>
             <Text style={styles.subtitle}>United Actros Developers</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Date in Home Screen */}
           {/* <View
@@ -620,7 +645,9 @@ const HomeScreen = ({route}) => {
               alignItems: 'center',
               marginTop: 13,
             }}>
-            <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
+            <Text style={styles.cardSubtitle}>
+              Track Operations in Real-Time
+            </Text>
             <TouchableOpacity style={styles.analyticsBtn}>
               <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
             </TouchableOpacity>
@@ -697,7 +724,11 @@ const HomeScreen = ({route}) => {
         <View style={styles.bottomGrid}>
           <TouchableOpacity
             style={styles.gridBox}
-            onPress={() => navigation.navigate('CrmScreen')}>
+            onPress={() =>
+              navigation.navigate('CRM', {
+                screen: 'CrmHome',
+              })
+            }>
             <View style={styles.gridIconWrapper}>
               <MaterialIcons
                 name="all-inclusive"
@@ -711,7 +742,9 @@ const HomeScreen = ({route}) => {
             style={styles.gridBox}
             onPress={async () => {
               const approvalData = await getApprovalNum(); // Wait for the result
-              navigation.navigate('AllApprovalList', {data: approvalData}); // Pass as object
+              navigation.navigate('AllApprovalList', {
+                data: approvalData,
+              }); // Pass as object
             }}>
             <View style={styles.gridIconWrapper}>
               <MaterialIcons
@@ -735,7 +768,7 @@ const HomeScreen = ({route}) => {
             <Text style={styles.gridLabel}>Requests</Text>
           </TouchableOpacity> */}
 
-           <TouchableOpacity
+          <TouchableOpacity
             style={styles.gridBox}
             onPress={() => navigation.navigate('Requests')}>
             <View style={styles.gridIconWrapper}>
@@ -875,7 +908,7 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-SemiBold',
     letterSpacing: 1,
     color: '#000',
-    paddingHorizontal:'1%'
+    paddingHorizontal: '1%',
   },
 
   dateRight: {
@@ -1072,8 +1105,8 @@ const styles = StyleSheet.create({
     marginBottom: '40%',
     // width: '90%',
     gap: 20,
-    justifyContent:'center',
-    paddingHorizontal:'3%'
+    justifyContent: 'center',
+    paddingHorizontal: '3%',
   },
   gridBox: {
     width: '45%',

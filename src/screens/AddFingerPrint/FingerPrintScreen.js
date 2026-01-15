@@ -20,7 +20,16 @@ const FingerPrintScreen = ({route, navigation}) => {
     //     console.log('Authentication error');
     // });
     await AsyncStorage.setItem('token', token);
-    navigation.navigate('BottomTab', {token, tokenOk, roleId, userId});
+    // navigation.navigate('BottomTab', {token, tokenOk, roleId, userId});
+    navigation.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'BottomTab',
+          params: {token, tokenOk, roleId, userId},
+        },
+      ],
+    });
   };
   useEffect(() => {
     addFinerPrint();
