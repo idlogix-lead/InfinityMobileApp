@@ -310,7 +310,18 @@ const HomeScreen = ({route}) => {
       })
       .catch(error => {
         console.error(error);
-        navigation.navigate('ApprovalScreens');
+        // navigation.navigate('ApprovalScreens');
+        navigation.navigate('Approval', {
+          screen: 'ApprovalScreens',
+          params: {
+            filteredArraySupply: [],
+            filteredArrayAccount: [],
+            token,
+            tokenOk,
+            roleId,
+          },
+        });
+
         setIsLoading(false);
       });
   };

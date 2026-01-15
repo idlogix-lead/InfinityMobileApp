@@ -2,6 +2,7 @@ import {StyleSheet, Text, View, FlatList, TouchableOpacity} from 'react-native';
 import React from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useNavigation} from '@react-navigation/native';
+import ReqHeader from '../../components/ReqHeader';
 
 const DueTasks = ({route}) => {
   const {data} = route.params || {};
@@ -10,13 +11,7 @@ const DueTasks = ({route}) => {
   if (!data || data.length === 0) {
     return (
       <>
-        <View style={[styles.header, {paddingTop:'7%'}]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back-ios" size={20} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Due Tasks</Text>
-          <View style={{width: 20}} />
-        </View>
+        <ReqHeader title={'Due Tasks'} />
         <View style={styles.empty}>
           <Text style={styles.emptyText}>No due tasks found</Text>
         </View>
