@@ -248,10 +248,10 @@ const SignIn = ({ navigation }) => {
   // Update checkbox label based on state
   const getRoleCheckboxLabel = useCallback(() => {
     if (checkedUseSavedRole) {
-      return "Select a role";
+      return "Select Role";
     } else {
       const hasSaved = hasCompleteRoleData();
-      return hasSaved ? "Use last selected role" : "No role saved";
+      return hasSaved ? "Select Role" : "Select Role";
     }
   }, [checkedUseSavedRole, hasCompleteRoleData]);
 
@@ -452,7 +452,6 @@ const SignIn = ({ navigation }) => {
 
 export default SignIn;
 
-// ... styles remain the same ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -483,8 +482,8 @@ const styles = StyleSheet.create({
   },
 
   illustration: {
-    width: width * 0.9,
-    height: height * 0.35,
+    width: width * 0.7,
+    height: height * 0.25,
     maxWidth: 350,
     maxHeight: 250,
     marginBottom: height * 0.02,

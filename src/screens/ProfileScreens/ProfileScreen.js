@@ -82,62 +82,61 @@ const ProfileScreen = ({navigation}) => {
   };
 
   // Switch to a different account
-  // Switch to a different account
-const switchAccount = async (session) => {
-  if (session.userId === currentUserId) {
-    Alert.alert('Info', 'You are already using this account');
-    setShowSwitchAccountModal(false);
-    return;
-  }
+  const switchAccount = async (session) => {
+    if (session.userId === currentUserId) {
+      Alert.alert('Info', 'You are already using this account');
+      setShowSwitchAccountModal(false);
+      return;
+    }
 
-  Alert.alert(
-    'Switch Account',
-    `Switch to ${session.userName}?`,
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Switch',
-        onPress: async () => {
-          try {
-            setIsLoading(true);
-            
-            // Clear current session first
-            clearCurrentSession();
-            
-            // Try to load the new session
-            const success = await switchSession(session.userId);
-            
-            if (success) {
-              // Navigate to HomeScreen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'HomeScreen' }],
-              });
-            } else {
+    Alert.alert(
+      'Switch Account',
+      `Switch to ${session.userName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Switch',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              
+              // Clear current session first
+              clearCurrentSession();
+              
+              // Try to load the new session
+              const success = await switchSession(session.userId);
+              
+              if (success) {
+                // Navigate to HomeScreen
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'HomeScreen' }],
+                });
+              } else {
+                Alert.alert('Error', 'Failed to switch account');
+                // If failed, go back to login
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'WelcomeScreen' }],
+                });
+              }
+            } catch (error) {
+              console.error('Error switching account:', error);
               Alert.alert('Error', 'Failed to switch account');
-              // If failed, go back to login
+              // Go back to login on error
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'WelcomeScreen' }],
               });
+            } finally {
+              setIsLoading(false);
+              setShowSwitchAccountModal(false);
             }
-          } catch (error) {
-            console.error('Error switching account:', error);
-            Alert.alert('Error', 'Failed to switch account');
-            // Go back to login on error
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'WelcomeScreen' }],
-            });
-          } finally {
-            setIsLoading(false);
-            setShowSwitchAccountModal(false);
           }
         }
-      }
-    ]
-  );
-};
+      ]
+    );
+  };
 
   // Remove a saved account from Keychain
   const removeAccount = async (userId) => {
@@ -274,34 +273,34 @@ const switchAccount = async (session) => {
   };
 
   // Handle logout
- const handlePressLogout = async () => {
-  Alert.alert('Confirmation', 'Do you want to Logout?', [
-    {text: 'Cancel', style: 'cancel'},
-    {
-      text: 'Logout',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          // Save current account before logging out
-          await saveCurrentSession();
-          
-          // Logout without deleting from Keychain
-          await logout(false);
+  const handlePressLogout = async () => {
+    Alert.alert('Confirmation', 'Do you want to Logout?', [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            // Save current account before logging out
+            await saveCurrentSession();
+            
+            // Logout without deleting from Keychain
+            await logout(false);
 
-          // Navigate to WelcomeScreen
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'WelcomeScreen' }],
-          });
-          
-        } catch (error) {
-          console.error('Error during logout:', error);
-          Alert.alert('Error', 'Failed to logout properly');
-        }
+            // Navigate to WelcomeScreen
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'WelcomeScreen' }],
+            });
+            
+          } catch (error) {
+            console.error('Error during logout:', error);
+            Alert.alert('Error', 'Failed to logout properly');
+          }
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
   // Handle logout and delete from Keychain
   const handleLogoutAndDelete = async () => {
@@ -436,17 +435,18 @@ const switchAccount = async (session) => {
         
         <StatusBar backgroundColor={'#0050C0'} />
         
+        {/* FIXED HEADER SECTION - Back arrow and username in same row */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.goBack()}>
-            <MaterialCommunityIcons
-              name="keyboard-backspace"
-              color="#000"
-              size={35}
-            />
-          </TouchableOpacity>
-          <View style={styles.name}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons
+                name="keyboard-backspace"
+                color="#000"
+                size={30}
+              />
+            </TouchableOpacity>
             <Text style={styles.nameTxt}>{userName || 'User'}</Text>
           </View>
         </View>
@@ -558,7 +558,7 @@ const switchAccount = async (session) => {
         </View>
       </ScrollView>
 
-      {/* Switch Account Modal - Only accessible via "Switch Account" button */}
+      {/* Switch Account Modal */}
       <Modal
         visible={showSwitchAccountModal}
         animationType="slide"
@@ -651,27 +651,31 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: 'center',
   },
+  
+  // FIXED HEADER STYLES - back arrow and username in same row
   header: {
-    height: height / 8,
-    flexDirection: 'row',
     width: '95%',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 25,
+    paddingHorizontal: 5,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center', // This aligns items vertically in the center
+    justifyContent: 'flex-start', // Aligns items to the left
   },
   backBtn: {
-    padding: 10,
-    marginTop: 5,
-  },
-  name: {
+    height: 45,
+    width: 45,
     justifyContent: 'center',
-    marginLeft: 10,
-    flex: 1,
+    alignItems: 'center',
+    marginRight: 15,
   },
   nameTxt: {
     color: 'black',
-    fontSize: 24,
-    fontFamily: 'K2D-Regular',
+    fontSize: 26,
+    fontFamily: 'K2D-Bold',
     fontWeight: 'bold',
+    flex: 1, // Takes available space
   },
   
   // Save Account Button

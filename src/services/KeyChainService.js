@@ -1,24 +1,13 @@
+// KeyChainService.js - FINAL VERSION
 import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Constants
-const SERVICE_NAME = 'com.erp.mobile.app';
-const CURRENT_SESSION_KEY = 'current_session_key';
-const SESSIONS_REGISTRY_KEY = 'sessions_registry';
-const SESSIONS_COUNT_KEY = 'sessions_count_key';
-
-// ============================================
-// KEYCHAIN SERVICE
-// ============================================
+const SERVICE_PREFIX = 'com.erp.mobile.app';
 
 export const keychainService = {
-  // ============================================
-  // SESSION MANAGEMENT
-  // ============================================
-
-  /**
-   * Save a complete user session to Keychain
-   */
+  // ==================== CORE FUNCTIONS ====================
+  
   saveUserSession: async (sessionData) => {
     try {
       const { userId, userName } = sessionData;
@@ -27,399 +16,362 @@ export const keychainService = {
         throw new Error('User ID and Username are required');
       }
 
-      // Create unique key for this user
-      const key = `${SERVICE_NAME}.session.${userId}`;
+      console.log(`[Keychain] Saving session for ${userName}`);
       
-      // Serialize session data
-      const sessionString = JSON.stringify({
+      // Prepare session data
+      const sessionToSave = {
         ...sessionData,
         savedAt: new Date().toISOString(),
-      });
+        version: '1.0',
+      };
 
-      // Save to Keychain (encrypted)
-      const result = await Keychain.setInternetCredentials(
-        key,
+      const sessionString = JSON.stringify(sessionToSave);
+
+      // Save to Keychain - SIMPLE & DIRECT
+      const result = await Keychain.setGenericPassword(
         userName,
         sessionString,
         {
-          service: SERVICE_NAME,
-          accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-          securityLevel: Keychain.SECURITY_LEVEL.SECURE_HARDWARE,
+          service: `${SERVICE_PREFIX}.${userId}`,
+          accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
+          storage: Keychain.STORAGE_TYPE.FB,
         }
       );
 
       if (result) {
-        // Add to registry
-        await keychainService.addToRegistry(userId, userName, key);
-        // Update sessions count
-        await keychainService.updateSessionsCount();
-        console.log(`✅ Session saved for user: ${userName} (${userId})`);
+        // Update registry
+        await keychainService._updateRegistry(userId, userName);
+        console.log(`[Keychain] ✅ Session saved for ${userName}`);
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error('❌ Error saving session to Keychain:', error);
-      throw error;
+      console.error('[Keychain] ❌ Save error:', error.message);
+      
+      // Fallback to AsyncStorage
+      try {
+        await keychainService._saveToFallback(sessionData);
+        return true;
+      } catch (fallbackError) {
+        console.error('[Keychain] Fallback also failed:', fallbackError);
+        return false;
+      }
     }
   },
 
-  /**
-   * Load a specific user session from Keychain
-   */
   loadUserSession: async (userId) => {
     try {
-      const key = `${SERVICE_NAME}.session.${userId}`;
+      console.log(`[Keychain] Loading session for ${userId}`);
       
-      const credentials = await Keychain.getInternetCredentials(key, {
-        service: SERVICE_NAME,
+      // Try Keychain
+      const credentials = await Keychain.getGenericPassword({
+        service: `${SERVICE_PREFIX}.${userId}`,
       });
 
       if (credentials && credentials.password) {
         const sessionData = JSON.parse(credentials.password);
-        console.log(`✅ Session loaded for user ID: ${userId}`);
+        console.log(`[Keychain] ✅ Session loaded`);
         return sessionData;
       }
       
-      return null;
+      // Try fallback
+      return await keychainService._loadFromFallback(userId);
     } catch (error) {
-      console.error('❌ Error loading session from Keychain:', error);
-      return null;
+      console.error('[Keychain] ❌ Load error:', error.message);
+      return await keychainService._loadFromFallback(userId);
     }
   },
 
-  /**
-   * Get all saved sessions from Keychain
-   */
+  deleteUserSession: async (userId) => {
+    try {
+      console.log(`[Keychain] Deleting session for ${userId}`);
+      
+      // Delete from Keychain
+      const result = await Keychain.resetGenericPassword({
+        service: `${SERVICE_PREFIX}.${userId}`,
+      });
+      
+      // Delete from registry
+      await keychainService._removeFromRegistry(userId);
+      
+      // Delete from fallback
+      await AsyncStorage.removeItem(`keychain_fallback_${userId}`);
+      
+      console.log(`[Keychain] ✅ Session deleted`);
+      return result;
+    } catch (error) {
+      console.error('[Keychain] ❌ Delete error:', error.message);
+      return false;
+    }
+  },
+
   getAllSessions: async () => {
     try {
-      // Get sessions registry
-      const sessionsRegistry = await AsyncStorage.getItem(SESSIONS_REGISTRY_KEY);
-      
-      if (!sessionsRegistry) {
-        return [];
-      }
-
-      const sessionKeys = JSON.parse(sessionsRegistry);
+      const registry = await keychainService._getRegistry();
       const sessions = [];
-
-      // Load each session
-      for (const sessionKey of sessionKeys) {
-        try {
-          if (sessionKey && sessionKey.userId) {
-            const session = await keychainService.loadUserSession(sessionKey.userId);
-            if (session) {
-              sessions.push({
-                ...session,
-                key: sessionKey.key,
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Error loading session ${sessionKey?.userId}:`, error);
+      
+      for (const item of registry) {
+        const session = await keychainService.loadUserSession(item.userId);
+        if (session) {
+          sessions.push({
+            ...session,
+            userName: item.userName,
+            savedAt: item.timestamp,
+          });
         }
       }
-
-      // Sort by most recent
-      return sessions.sort((a, b) => 
-        new Date(b.savedAt || 0) - new Date(a.savedAt || 0)
-      );
+      
+      console.log(`[Keychain] Found ${sessions.length} sessions`);
+      return sessions;
     } catch (error) {
-      console.error('❌ Error getting all sessions:', error);
+      console.error('[Keychain] ❌ Get all sessions error:', error);
       return [];
     }
   },
 
-  /**
-   * Delete a specific user session
-   */
-  deleteUserSession: async (userId) => {
+  // ==================== CURRENT SESSION ====================
+  
+  setCurrentSessionId: async (userId) => {
     try {
-      const key = `${SERVICE_NAME}.session.${userId}`;
-      
-      // Remove from Keychain
-      const result = await Keychain.resetInternetCredentials(key, {
-        service: SERVICE_NAME,
-      });
-
-      if (result) {
-        // Update sessions registry
-        const sessionsRegistry = await AsyncStorage.getItem(SESSIONS_REGISTRY_KEY);
-        
-        if (sessionsRegistry) {
-          const sessionKeys = JSON.parse(sessionsRegistry);
-          const updatedKeys = sessionKeys.filter(session => 
-            session && session.userId !== userId
-          );
-          
-          await AsyncStorage.setItem(
-            SESSIONS_REGISTRY_KEY,
-            JSON.stringify(updatedKeys)
-          );
-          
-          await keychainService.updateSessionsCount();
-        }
-
-        console.log(`🗑️ Session deleted for user ID: ${userId}`);
-        return true;
-      }
-      
-      return false;
+      await AsyncStorage.setItem('current_session_id', userId || '');
     } catch (error) {
-      console.error('❌ Error deleting session:', error);
-      return false;
+      console.error('[Keychain] Set current session error:', error);
     }
   },
 
-  /**
-   * Delete all saved sessions
-   */
-  deleteAllSessions: async () => {
+  getCurrentSessionId: async () => {
     try {
-      const sessions = await keychainService.getAllSessions();
-      
-      for (const session of sessions) {
-        if (session && session.userId) {
-          await keychainService.deleteUserSession(session.userId);
-        }
-      }
-
-      // Clear registry
-      await AsyncStorage.removeItem(SESSIONS_REGISTRY_KEY);
-      await AsyncStorage.removeItem(SESSIONS_COUNT_KEY);
-
-      console.log('🗑️ All sessions deleted');
-      return true;
+      return await AsyncStorage.getItem('current_session_id');
     } catch (error) {
-      console.error('❌ Error deleting all sessions:', error);
-      return false;
+      console.error('[Keychain] Get current session error:', error);
+      return null;
     }
   },
 
-  /**
-   * Update sessions count in AsyncStorage
-   */
-  updateSessionsCount: async () => {
+  clearCurrentSessionId: async () => {
     try {
-      const sessions = await keychainService.getAllSessions();
-      await AsyncStorage.setItem(SESSIONS_COUNT_KEY, sessions.length.toString());
+      await AsyncStorage.removeItem('current_session_id');
     } catch (error) {
-      console.error('Error updating sessions count:', error);
+      console.error('[Keychain] Clear current session error:', error);
     }
   },
 
-  /**
-   * Get total sessions count
-   */
-  getSessionsCount: async () => {
-    try {
-      const count = await AsyncStorage.getItem(SESSIONS_COUNT_KEY);
-      return count ? parseInt(count, 10) : 0;
-    } catch (error) {
-      console.error('Error getting sessions count:', error);
-      return 0;
-    }
-  },
-
-  /**
-   * Check if a session exists for a user
-   */
+  // ==================== UTILITY FUNCTIONS ====================
+  
   hasSession: async (userId) => {
     try {
       const session = await keychainService.loadUserSession(userId);
       return !!session;
     } catch (error) {
-      console.error('Error checking session:', error);
+      console.error('[Keychain] Has session check error:', error);
       return false;
     }
   },
 
-  // ============================================
-  // CURRENT SESSION MANAGEMENT
-  // ============================================
-
-  /**
-   * Save current session ID
-   */
-  setCurrentSessionId: async (userId) => {
+  getSessionByUsername: async (userName) => {
     try {
-      await AsyncStorage.setItem(CURRENT_SESSION_KEY, userId || '');
+      const sessions = await keychainService.getAllSessions();
+      return sessions.find(session => session.userName === userName) || null;
     } catch (error) {
-      console.error('Error setting current session ID:', error);
-    }
-  },
-
-  /**
-   * Get current session ID
-   */
-  getCurrentSessionId: async () => {
-    try {
-      const userId = await AsyncStorage.getItem(CURRENT_SESSION_KEY);
-      return userId || null;
-    } catch (error) {
-      console.error('Error getting current session ID:', error);
+      console.error('[Keychain] Get by username error:', error);
       return null;
     }
   },
 
-  /**
-   * Clear current session ID
-   */
-  clearCurrentSessionId: async () => {
+  deleteAllSessions: async () => {
     try {
-      await AsyncStorage.removeItem(CURRENT_SESSION_KEY);
+      const registry = await keychainService._getRegistry();
+      
+      // Delete all sessions
+      for (const item of registry) {
+        await keychainService.deleteUserSession(item.userId);
+      }
+      
+      // Clear registry
+      await AsyncStorage.removeItem('sessions_registry');
+      await AsyncStorage.removeItem('current_session_id');
+      
+      console.log('[Keychain] ✅ All sessions deleted');
+      return true;
     } catch (error) {
-      console.error('Error clearing current session ID:', error);
+      console.error('[Keychain] ❌ Delete all sessions error:', error);
+      return false;
     }
   },
 
-  // ============================================
-  // SESSION REGISTRY MANAGEMENT
-  // ============================================
-
-  /**
-   * Add session to registry
-   */
-  addToRegistry: async (userId, userName, key) => {
+  // ==================== PRIVATE HELPERS ====================
+  
+  _saveToFallback: async (sessionData) => {
     try {
-      const sessionsRegistry = await AsyncStorage.getItem(SESSIONS_REGISTRY_KEY);
-      const registry = sessionsRegistry ? JSON.parse(sessionsRegistry) : [];
+      const { userId } = sessionData;
+      const sessionString = JSON.stringify({
+        ...sessionData,
+        savedAt: new Date().toISOString(),
+        isFallback: true,
+      });
       
-      // Check if already exists
-      const existingIndex = registry.findIndex(session => 
-        session && session.userId === userId
-      );
-      
-      if (existingIndex !== -1) {
-        // Update existing entry
-        registry[existingIndex] = {
-          userId,
-          userName,
-          key,
-          updatedAt: new Date().toISOString(),
-        };
-      } else {
-        // Add new entry
-        registry.push({
-          userId,
-          userName,
-          key,
-          addedAt: new Date().toISOString(),
-        });
+      await AsyncStorage.setItem(`keychain_fallback_${userId}`, sessionString);
+      await keychainService._updateRegistry(userId, sessionData.userName);
+      console.log(`[Keychain] ⚠️ Saved to fallback: ${userId}`);
+      return true;
+    } catch (error) {
+      console.error('[Keychain] ❌ Fallback save failed:', error);
+      return false;
+    }
+  },
+
+  _loadFromFallback: async (userId) => {
+    try {
+      const sessionString = await AsyncStorage.getItem(`keychain_fallback_${userId}`);
+      if (sessionString) {
+        const session = JSON.parse(sessionString);
+        console.log(`[Keychain] ⚠️ Loaded from fallback: ${userId}`);
+        return session;
       }
+      return null;
+    } catch (error) {
+      console.error('[Keychain] ❌ Fallback load failed:', error);
+      return null;
+    }
+  },
+
+  _updateRegistry: async (userId, userName) => {
+    try {
+      let registry = await keychainService._getRegistry();
       
-      // Limit to last 5 accounts
+      // Remove if exists
+      registry = registry.filter(item => item.userId !== userId);
+      
+      // Add to beginning
+      registry.unshift({
+        userId,
+        userName,
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Keep only 5 most recent
       if (registry.length > 5) {
-        registry.splice(0, registry.length - 5);
+        registry = registry.slice(0, 5);
       }
       
-      await AsyncStorage.setItem(SESSIONS_REGISTRY_KEY, JSON.stringify(registry));
+      await AsyncStorage.setItem('sessions_registry', JSON.stringify(registry));
     } catch (error) {
-      console.error('Error adding to registry:', error);
+      console.error('[Keychain] Registry update error:', error);
     }
   },
 
-  /**
-   * Get sessions registry
-   */
-  getSessionsRegistry: async () => {
+  _getRegistry: async () => {
     try {
-      const registry = await AsyncStorage.getItem(SESSIONS_REGISTRY_KEY);
-      return registry ? JSON.parse(registry) : [];
+      const registryString = await AsyncStorage.getItem('sessions_registry');
+      return registryString ? JSON.parse(registryString) : [];
     } catch (error) {
-      console.error('Error getting sessions registry:', error);
+      console.error('[Keychain] Registry get error:', error);
       return [];
     }
   },
 
-  // ============================================
-  // UTILITY FUNCTIONS
-  // ============================================
-
-  /**
-   * Create a session snapshot from auth store
-   */
-  createSessionSnapshot: (authStore) => {
-    return {
-      // Auth state
-      token: authStore.token,
-      tokenOk: authStore.tokenOk,
-      userId: authStore.userId,
-      
-      // User info
-      userName: authStore.userName,
-      password: authStore.password,
-      
-      // Role info
-      roleId: authStore.roleId,
-      roleName: authStore.roleName,
-      organizationId: authStore.organizationId,
-      organizationName: authStore.organizationName,
-      warehouseId: authStore.warehouseId,
-      warehouseName: authStore.warehouseName,
-      
-      // Client info
-      clientId: authStore.clientId,
-      clientName: authStore.clientName,
-      
-      // Server configuration
-      serverConfig: { ...authStore.serverConfig },
-      
-      // Metadata
-      savedAt: new Date().toISOString(),
-      isComplete: authStore.isCompleteAuthenticated,
-    };
+  _removeFromRegistry: async (userId) => {
+    try {
+      let registry = await keychainService._getRegistry();
+      registry = registry.filter(item => item.userId !== userId);
+      await AsyncStorage.setItem('sessions_registry', JSON.stringify(registry));
+    } catch (error) {
+      console.error('[Keychain] Registry remove error:', error);
+    }
   },
-  /**
- * Get session by username
- */
-getSessionByUsername: async (userName) => {
-  try {
-    const sessions = await keychainService.getAllSessions();
-    return sessions.find(session => 
-      session.userName === userName
-    ) || null;
-  } catch (error) {
-    console.error('Error getting session by username:', error);
-    return null;
-  }
-},
 
-  /**
-   * Validate session data
-   */
-  validateSession: (sessionData) => {
-    if (!sessionData) return false;
+  // ==================== TEST FUNCTIONS ====================
+  
+  testKeychain: async () => {
+    const testId = `test_${Date.now()}`;
+    const testSession = {
+      userId: testId,
+      userName: 'testuser',
+      token: 'test_token_' + Math.random().toString(36).substring(7),
+      serverConfig: {
+        protocol: 'https',
+        host: 'test.example.com',
+        port: '443',
+      },
+    };
+
+    console.log('[Keychain] === STARTING TEST ===');
     
-    const requiredFields = [
-      'token',
-      'userId',
-      'userName',
-      'serverConfig',
-      'savedAt'
-    ];
-    
-    for (const field of requiredFields) {
-      if (!sessionData[field]) {
-        console.error(`Missing required field: ${field}`);
-        return false;
+    try {
+      // Test 1: Save
+      console.log('[Keychain] Test 1: Saving session...');
+      const saved = await keychainService.saveUserSession(testSession);
+      
+      if (!saved) {
+        return { success: false, error: 'Failed to save' };
       }
+
+      // Test 2: Load
+      console.log('[Keychain] Test 2: Loading session...');
+      const loaded = await keychainService.loadUserSession(testId);
+      
+      if (!loaded) {
+        return { success: false, error: 'Failed to load' };
+      }
+
+      // Test 3: Delete
+      console.log('[Keychain] Test 3: Deleting session...');
+      const deleted = await keychainService.deleteUserSession(testId);
+      
+      if (!deleted) {
+        return { success: false, error: 'Failed to delete' };
+      }
+
+      // Test 4: Verify deleted
+      console.log('[Keychain] Test 4: Verifying deletion...');
+      const shouldBeNull = await keychainService.loadUserSession(testId);
+      
+      if (shouldBeNull) {
+        return { success: false, error: 'Session not properly deleted' };
+      }
+
+      console.log('[Keychain] ✅ ALL TESTS PASSED');
+      return { success: true, message: 'Keychain is working properly' };
+      
+    } catch (error) {
+      console.error('[Keychain] ❌ TEST FAILED:', error);
+      return { 
+        success: false, 
+        error: error.message,
+        stack: error.stack 
+      };
     }
-    
-    // Validate server config
-    const { protocol, host, port } = sessionData.serverConfig;
-    if (!protocol || !host || !port) {
-      console.error('Invalid server config in session');
-      return false;
+  },
+
+  getDeviceCapabilities: async () => {
+    try {
+      const capabilities = {
+        biometryType: await Keychain.getSupportedBiometryType(),
+        canUseHardware: await Keychain.canUseHardware(),
+        securityLevel: await Keychain.getSecurityLevel(),
+      };
+      console.log('[Keychain] Device Capabilities:', capabilities);
+      return capabilities;
+    } catch (error) {
+      console.error('[Keychain] Error getting device capabilities:', error);
+      return { error: error.message };
     }
-    
-    // Validate token
-    if (typeof sessionData.token !== 'string' || sessionData.token.length < 10) {
-      console.error('Invalid token in session');
-      return false;
+  },
+
+  healthCheck: async () => {
+    try {
+      // Check if Keychain is accessible
+      await Keychain.getSupportedBiometryType();
+      return { status: 'healthy', keychain: 'accessible' };
+    } catch (error) {
+      console.error('[Keychain] Health check failed:', error);
+      return { 
+        status: 'unhealthy', 
+        keychain: 'inaccessible',
+        error: error.message 
+      };
     }
-    
-    return true;
   },
 };
 

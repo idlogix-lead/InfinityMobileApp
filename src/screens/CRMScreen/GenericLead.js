@@ -99,7 +99,6 @@ const GenericLead = ({
   return (
     <Provider>
       <View style={{ flex: 1 }}>
-        <CustomHeader title={screenTitle} />
         
         <View style={styles.main}>
           {/* Stats Section */}

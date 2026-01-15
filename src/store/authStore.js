@@ -69,6 +69,39 @@ export const useAuthStore = create(
       // ============================================
       // BASIC ACTIONS
       // ============================================
+    // In your auth store, update the createSessionSnapshot method:
+createSessionSnapshot: () => {
+  const state = get();
+  return {
+    // Auth state
+    token: state.token,
+    tokenOk: state.tokenOk,
+    userId: state.userId,
+    
+    // User info
+    userName: state.userName,
+    password: state.password,
+    
+    // Role info
+    roleId: state.roleId,
+    roleName: state.roleName,
+    organizationId: state.organizationId,
+    organizationName: state.organizationName,
+    warehouseId: state.warehouseId,
+    warehouseName: state.warehouseName,
+    
+    // Client info
+    clientId: state.clientId,
+    clientName: state.clientName,
+    
+    // Server configuration
+    serverConfig: { ...state.serverConfig },
+    
+    // Metadata
+    savedAt: new Date().toISOString(),
+    isComplete: state.isCompleteAuthenticated,
+  };
+},
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
       clearError: () => set({ error: null }),
@@ -191,59 +224,32 @@ export const useAuthStore = create(
       // ============================================
       // SESSION MANAGEMENT INTEGRATION
       // ============================================
-      saveCurrentSession: async () => {
-        try {
-          const state = get();
-          
-          if (!state.userId || !state.token) {
-            throw new Error('No active session to save');
-          }
+    saveCurrentSession: async () => {
+  try {
+    const state = get();
+    
+    if (!state.userId || !state.token) {
+      throw new Error('No active session to save');
+    }
 
-          const sessionSnapshot = {
-            // Auth state
-            token: state.token,
-            userId: state.userId,
-            currentSessionId: state.userId,
-            
-            // User info
-            userName: state.userName,
-            password: state.password,
-            
-            // Role info
-            roleId: state.roleId,
-            roleName: state.roleName,
-            organizationId: state.organizationId,
-            organizationName: state.organizationName,
-            warehouseId: state.warehouseId,
-            warehouseName: state.warehouseName,
-            
-            // Client info
-            clientId: state.clientId,
-            clientName: state.clientName,
-            
-            // Server configuration
-            serverConfig: { ...state.serverConfig },
-            
-            // Metadata
-            savedAt: new Date().toISOString(),
-            isComplete: state.isCompleteAuthenticated,
-          };
-
-          // Save to keychain
-          await keychainService.saveUserSession(sessionSnapshot);
-          
-          // Set as current session
-          await keychainService.setCurrentSessionId(state.userId);
-          
-          // Update session registry
-          set({ currentSessionId: state.userId });
-          
-          return true;
-        } catch (error) {
-          console.error('Error saving session:', error);
-          return false;
-        }
-      },
+    // Use the new method
+    const sessionSnapshot = get().createSessionSnapshot();
+    
+    // Save to keychain
+    await keychainService.saveUserSession(sessionSnapshot);
+    
+    // Set as current session
+    await keychainService.setCurrentSessionId(state.userId);
+    
+    // Update session registry
+    set({ currentSessionId: state.userId });
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving session:', error);
+    return false;
+  }
+},
 
       loadSession: async (userId) => {
         try {

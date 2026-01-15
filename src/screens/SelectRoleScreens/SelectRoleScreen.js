@@ -278,23 +278,28 @@ const SelectRoleScreen = ({ navigation, route }) => {
           resizeMode="contain"
         />
 
-        {/* Title */}
-        <Text style={[
-          styles.title,
-          isLandscape && styles.titleLandscape,
-          isTablet && styles.titleTablet
+        {/* Title Section */}
+        <View style={[
+          styles.titleSection,
+          isLandscape && styles.titleSectionLandscape
         ]}>
-          Set User Role
-        </Text>
-        
-        {/* Client info */}
-        <Text style={[
-          styles.clientText,
-          isLandscape && styles.clientTextLandscape,
-          isTablet && styles.clientTextTablet
-        ]}>
-          Client: {clientName || 'Not selected'}
-        </Text>
+          <Text style={[
+            styles.title,
+            isLandscape && styles.titleLandscape,
+            isTablet && styles.titleTablet
+          ]}>
+            Set User Role
+          </Text>
+          
+          {/* Client info */}
+          <Text style={[
+            styles.subtitle,
+            isLandscape && styles.subtitleLandscape,
+            isTablet && styles.subtitleTablet
+          ]}>
+            Client: {clientName || 'Not selected'}
+          </Text>
+        </View>
 
         {/* Card */}
         <View style={[
@@ -401,7 +406,7 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   (!selectedRole || !selectedOrganization) && styles.disabledPicker
                 ]}
               >
-                <Picker.Item label="Select Company" value="" />
+                <Picker.Item label="Select Warehouse" value="" />
                 {filteredWarehouses.map(w => (
                   <Picker.Item
                     key={w.id}
@@ -519,22 +524,24 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingTop: height * 0.08,
+    paddingTop: height * 0.05,
     paddingBottom: height * 0.05,
     paddingHorizontal: width * 0.05,
   },
 
   scrollContentLandscape: {
-    paddingTop: height * 0.05,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: height * 0.03,
+    paddingBottom: height * 0.03,
+    paddingHorizontal: width * 0.03,
   },
 
   scrollContentTablet: {
-    paddingTop: height * 0.1,
-    paddingHorizontal: width * 0.1,
+    paddingTop: height * 0.08,
+    paddingBottom: height * 0.08,
+    paddingHorizontal: width * 0.08,
   },
 
   logo: {
@@ -542,13 +549,14 @@ const styles = StyleSheet.create({
     height: height * 0.12,
     maxWidth: 100,
     maxHeight: 100,
-    marginBottom: height * 0.03,
+    marginBottom: height * 0.02,
   },
 
   logoLandscape: {
-    width: width * 0.15,
-    height: height * 0.2,
-    marginBottom: height * 0.02,
+    width: width * 0.2,
+    height: height * 0.25,
+    marginBottom: 0,
+    marginRight: width * 0.05,
   },
 
   logoTablet: {
@@ -556,70 +564,83 @@ const styles = StyleSheet.create({
     height: height * 0.15,
     maxWidth: 120,
     maxHeight: 120,
-    marginBottom: height * 0.04,
-  },
-
-  clientText: {
-    fontSize: width * 0.04,
-    color: colors.textSecondary,
-    marginBottom: height * 0.04,
-    textAlign: 'center',
-  },
-
-  clientTextLandscape: {
-    fontSize: width * 0.035,
     marginBottom: height * 0.03,
   },
 
-  clientTextTablet: {
-    fontSize: width * 0.045,
-    marginBottom: height * 0.05,
+  titleSection: {
+    alignItems: 'center',
+    marginBottom: height * 0.03,
+  },
+
+  titleSectionLandscape: {
+    marginBottom: height * 0.02,
+    marginRight: width * 0.05,
+    alignItems: 'flex-start',
   },
 
   title: {
-    fontSize: width * 0.065,
+    fontSize: width * 0.06,
     fontWeight: '600',
     color: colors.textPrimary,
-    marginBottom: height * 0.015,
+    marginBottom: height * 0.005,
     textAlign: 'center',
+    fontFamily: 'K2D-SemiBold',
   },
 
   titleLandscape: {
-    fontSize: width * 0.055,
-    marginBottom: height * 0.01,
+    fontSize: width * 0.05,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
   },
 
   titleTablet: {
-    fontSize: width * 0.075,
-    marginBottom: height * 0.02,
+    fontSize: width * 0.07,
+    marginBottom: height * 0.01,
+  },
+
+  subtitle: {
+    fontSize: width * 0.04,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontFamily: 'K2D-Regular',
+  },
+
+  subtitleLandscape: {
+    fontSize: width * 0.035,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+
+  subtitleTablet: {
+    fontSize: width * 0.045,
   },
 
   card: {
     width: '100%',
     maxWidth: 500,
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: width * 0.04,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    elevation: 2,
     shadowColor: colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
-    borderWidth: 1,
-    borderColor: colors.borderLight,
   },
 
   cardLandscape: {
-    width: width * 0.6,
+    width: width * 0.5,
     maxWidth: 450,
     padding: width * 0.03,
   },
 
   cardTablet: {
-    width: width * 0.7,
+    width: width * 0.6,
     maxWidth: 600,
     padding: width * 0.05,
-    borderRadius: 16,
+    borderRadius: 12,
   },
 
   section: {
@@ -643,22 +664,22 @@ const styles = StyleSheet.create({
   },
 
   pickerWrapper: {
-    backgroundColor: colors.inputBackground,
-    borderRadius: 8,
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
     overflow: 'hidden',
-    minHeight: 44,
+    minHeight: 48,
   },
 
   pickerWrapperLandscape: {
     borderRadius: 6,
-    minHeight: 44,
+    minHeight: 48,
   },
 
   pickerWrapperTablet: {
-    borderRadius: 10,
-    minHeight: 48,
+    borderRadius: 8,
+    minHeight: 52,
   },
 
   disabledWrapper: {
@@ -667,69 +688,69 @@ const styles = StyleSheet.create({
   },
 
   picker: {
-    height: height * 0.055,
-    minHeight: 44,
+    height: height * 0.06,
+    minHeight: 48,
     color: colors.textPrimary,
     fontFamily: 'K2D-Regular',
   },
 
   pickerLandscape: {
-    height: height * 0.06,
-    minHeight: 44,
+    height: height * 0.07,
+    minHeight: 48,
   },
 
   pickerTablet: {
-    height: height * 0.06,
-    minHeight: 48,
+    height: height * 0.065,
+    minHeight: 52,
   },
 
   disabledPicker: {
     color: colors.textTertiary,
   },
 
-  // Date container with icon - Updated for consistent sizing
+  // Date container with icon
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.inputBackground,
-    borderRadius: 8,
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.inputBorder,
     overflow: 'hidden',
-    minHeight: 44,
+    minHeight: 48,
   },
 
   dateContainerLandscape: {
     borderRadius: 6,
-    minHeight: 44,
+    minHeight: 48,
   },
 
   dateContainerTablet: {
-    borderRadius: 10,
-    minHeight: 48,
+    borderRadius: 8,
+    minHeight: 52,
   },
 
   dateInput: {
     flex: 1,
-    height: height * 0.055,
-    minHeight: 44,
-    color: colors.textTertiary,
+    height: height * 0.06,
+    minHeight: 48,
+    color: colors.textPrimary,
     fontSize: width * 0.04,
     fontFamily: 'K2D-Regular',
-    paddingHorizontal: width * 0.03,
+    paddingHorizontal: width * 0.04,
     paddingVertical: height * 0.015,
   },
 
   dateInputLandscape: {
-    height: height * 0.06,
-    minHeight: 44,
+    height: height * 0.07,
+    minHeight: 48,
     fontSize: width * 0.035,
     paddingVertical: height * 0.015,
   },
 
   dateInputTablet: {
-    height: height * 0.06,
-    minHeight: 48,
+    height: height * 0.065,
+    minHeight: 52,
     fontSize: width * 0.045,
     paddingVertical: height * 0.015,
   },
@@ -737,7 +758,7 @@ const styles = StyleSheet.create({
   calendarIconContainer: {
     paddingHorizontal: width * 0.03,
     height: '100%',
-    minHeight: 44,
+    minHeight: 48,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.primary + '10',
@@ -747,28 +768,12 @@ const styles = StyleSheet.create({
 
   calendarIconContainerLandscape: {
     paddingHorizontal: width * 0.02,
-    minHeight: 44,
+    minHeight: 48,
   },
 
   calendarIconContainerTablet: {
     paddingHorizontal: width * 0.04,
-    minHeight: 48,
-  },
-
-  dateHint: {
-    fontSize: width * 0.032,
-    color: colors.textTertiary,
-    fontStyle: 'italic',
-    marginTop: height * 0.005,
-    fontFamily: 'K2D-Regular',
-  },
-
-  dateHintLandscape: {
-    fontSize: width * 0.028,
-  },
-
-  dateHintTablet: {
-    fontSize: width * 0.038,
+    minHeight: 52,
   },
 
   buttonRow: {
@@ -789,11 +794,11 @@ const styles = StyleSheet.create({
   },
 
   cancelBtn: {
-    height: height * 0.05,
-    minHeight: 44,
+    height: height * 0.06,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: colors.authButton,
-    borderRadius: 8,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -802,25 +807,25 @@ const styles = StyleSheet.create({
   },
 
   cancelBtnLandscape: {
-    height: height * 0.06,
-    minHeight: 44,
+    height: height * 0.07,
+    minHeight: 46,
     paddingHorizontal: width * 0.05,
     minWidth: width * 0.15,
   },
 
   cancelBtnTablet: {
-    height: height * 0.055,
-    minHeight: 44,
-    borderRadius: 10,
+    height: height * 0.07,
+    minHeight: 52,
+    borderRadius: 8,
     paddingHorizontal: width * 0.08,
     minWidth: width * 0.15,
   },
 
   saveBtn: {
-    height: height * 0.05,
-    minHeight: 44,
+    height: height * 0.06,
+    minHeight: 46,
     backgroundColor: colors.authButton,
-    borderRadius: 8,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: width * 0.06,
@@ -828,48 +833,48 @@ const styles = StyleSheet.create({
   },
 
   saveBtnLandscape: {
-    height: height * 0.06,
-    minHeight: 44,
+    height: height * 0.07,
+    minHeight: 46,
     paddingHorizontal: width * 0.05,
     minWidth: width * 0.15,
   },
 
   saveBtnTablet: {
-    height: height * 0.055,
-    minHeight: 44,
-    borderRadius: 10,
+    height: height * 0.07,
+    minHeight: 52,
+    borderRadius: 8,
     paddingHorizontal: width * 0.08,
     minWidth: width * 0.15,
   },
 
   cancelText: {
     color: colors.primary,
-    fontSize: width * 0.04,
-    fontWeight: '500',
+    fontSize: width * 0.045,
+    fontWeight: '600',
     fontFamily: 'K2D-SemiBold',
   },
 
   cancelTextLandscape: {
-    fontSize: width * 0.035,
+    fontSize: width * 0.04,
   },
 
   cancelTextTablet: {
-    fontSize: width * 0.045,
+    fontSize: width * 0.05,
   },
 
   saveText: {
     color: colors.textInverse,
-    fontSize: width * 0.04,
-    fontWeight: '500',
+    fontSize: width * 0.045,
+    fontWeight: '600',
     fontFamily: 'K2D-SemiBold',
   },
 
   saveTextLandscape: {
-    fontSize: width * 0.035,
+    fontSize: width * 0.04,
   },
 
   saveTextTablet: {
-    fontSize: width * 0.045,
+    fontSize: width * 0.05,
   },
 
   disabled: {

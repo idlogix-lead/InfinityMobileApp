@@ -512,34 +512,13 @@ const HomeScreen = ({route}) => {
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       <StatusBar translucent={true} backgroundColor="transparent" />
       
-      {/* Header Section with Menu and Notification */}
+      {/* COMPACT HEADER - Username and Notification in same row */}
       <View style={styles.header}>
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity>
-            <Icon name="menu" size={30} color="#000" />
-          </TouchableOpacity>
-
-          <View style={{position: 'relative'}}>
-            <TouchableOpacity
-              style={styles.notificationBellViewStyle}
-              onPress={() => navigation.navigate('NotificationSrn')}>
-              <Icon
-                name="notifications-outline"
-                size={24}
-                color="#000"
-                style={{alignSelf: 'center'}}
-              />
-            </TouchableOpacity>
-
-            {notificationCount > 0 && <View style={styles.redDot} />}
-          </View>
-        </View>
-
-        {/* User Info with Clickable Username */}
-        <View style={styles.userInfoSection}>
-          {/* Clickable Username */}
+        {/* Single Row with Username and Notification */}
+        <View style={styles.headerRow}>
+          {/* Username with Profile Navigation */}
           <TouchableOpacity 
-            style={styles.usernameRow}
+            style={styles.usernameContainer}
             onPress={() => navigation.navigate('ProfileScreen')}
             activeOpacity={0.7}
           >
@@ -553,38 +532,45 @@ const HomeScreen = ({route}) => {
               style={styles.chevronIcon}
             />
           </TouchableOpacity>
+          
+          {/* Notification Bell */}
+          <View style={styles.notificationContainer}>
+            <TouchableOpacity
+              style={styles.notificationBell}
+              onPress={() => navigation.navigate('NotificationSrn')}
+            >
+              <Icon
+                name="notifications-outline"
+                size={24}
+                color="#000"
+              />
+              {notificationCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.badgeText}>
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      {/* Blue Card - Main Content Card */}
+      {/* Blue Card - Moved closer to header */}
       <View style={styles.blueCard}>
         <Image
           source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
-          style={{position: 'absolute'}}
+          style={styles.cardBackground}
         />
         <Text style={styles.cardTitle}>
-          <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
-            Sales{' '}
-          </Text>
-          <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
-            Performance
-          </Text>
+          <Text style={styles.cardTitleMain}>Sales </Text>
+          <Text style={styles.cardTitleSub}>Performance</Text>
         </Text>
         <Text style={styles.cardTitle2}>
-          <Text style={{color: '#fff', fontFamily: 'K2D-SemiBold'}}>
-            Command{' '}
-          </Text>
-          <Text style={{color: '#cce1ff', fontFamily: 'K2D-Light'}}>
-            Center
-          </Text>
+          <Text style={styles.cardTitleMain}>Command </Text>
+          <Text style={styles.cardTitleSub}>Center</Text>
         </Text>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: 13,
-          }}>
+        <View style={styles.cardBottomRow}>
           <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
           <TouchableOpacity style={styles.analyticsBtn}>
             <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
@@ -730,70 +716,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  
+  // COMPACT HEADER STYLES
   header: {
-    padding: 20,
     paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
     backgroundColor: '#f8f9ff',
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
   },
-  headerTopRow: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    width: '100%',
   },
-  notificationBellViewStyle: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  redDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: 'red',
-    borderWidth: 1,
-    borderColor: '#fff',
-    zIndex: 10,
-  },
-  // User Info Section
-  userInfoSection: {
-    flex: 1,
-    paddingRight: 15,
-  },
-  usernameRow: {
+  usernameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    marginBottom: 10,
+    flex: 1,
   },
   username: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '900',
     color: '#000',
     fontFamily: 'K2D-Bold',
-    marginRight: 8,
   },
   chevronIcon: {
-    marginLeft: 4,
+    marginLeft: 8,
+    marginTop: 3,
   },
-  // Blue Card
+  notificationContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBell: {
+    width: 45,
+    height: 45,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22.5,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    backgroundColor: '#FF3B30',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+    fontFamily: 'K2D-Bold',
+  },
+  
+  // BLUE CARD - Positioned closer to header
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
     borderRadius: 15,
-    marginTop: 20,
+    marginTop: 15, // Reduced from 20 to bring it closer
     padding: 20,
     shadowColor: '#000',
     shadowOpacity: 0.15,
@@ -806,6 +803,12 @@ const styles = StyleSheet.create({
     width: '90%',
     marginLeft: '5%',
   },
+  cardBackground: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
   cardTitle: {
     fontSize: 17,
     lineHeight: 30,
@@ -816,6 +819,20 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: 0.1,
   },
+  cardTitleMain: {
+    color: '#fff', 
+    fontFamily: 'K2D-SemiBold',
+  },
+  cardTitleSub: {
+    color: '#cce1ff', 
+    fontFamily: 'K2D-Light',
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 13,
+  },
   cardSubtitle: {
     fontSize: 13,
     color: 'rgba(234, 234, 234, 1)',
@@ -824,7 +841,6 @@ const styles = StyleSheet.create({
     fontFamily: 'KaushanScript-Regular',
   },
   analyticsBtn: {
-    alignSelf: 'flex-start',
     backgroundColor: '#fff',
     borderRadius: 20,
     marginTop: 12,
@@ -838,6 +854,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0.5,
   },
+  
+  // Quick Stats Row
   topRow: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -874,6 +892,8 @@ const styles = StyleSheet.create({
     color: 'rgba(106, 106, 106, 1)',
     fontFamily: 'K2D-Medium',
   },
+  
+  // Categories Section
   sectionTitle: {
     color: 'black',
     width: '90%',
@@ -883,6 +903,8 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     marginBottom: 15,
   },
+  
+  // Grid Layout
   bottomGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
