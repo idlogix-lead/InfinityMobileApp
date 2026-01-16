@@ -2321,3 +2321,202 @@ const styles = StyleSheet.create({
 });
 
 export default AddTask;
+
+
+import React, {useState, useMemo} from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import {useQuery, useMutation, useQueryClient} from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ReqHeader from '../../components/ReqHeader';
+import {useTaskStore} from '../../store/useTaskStore';
+import {
+  fetchRequestTypes,
+  fetchCategories,
+  fetchGroups,
+  fetchProjects,
+  fetchSalesUsers,
+  createTask,
+} from '../../api/requests.api';
+
+const PRIORITIES = [
+  {id: '1', label: 'Urgent', color: '#E74C3C'},
+  {id: '3', label: 'High', color: '#E67E22'},
+  {id: '5', label: 'Medium', color: '#3498DB'},
+  {id: '7', label: 'Low', color: '#2ECC71'},
+  {id: '4', label: 'Minor', color: '#95A5A6'},
+];
+
+const projectColor = id => {
+  const colors = ['#6C5CE7', '#00B894', '#0984E3', '#D63031', '#E84393'];
+  return colors[id % colors.length];
+};
+
+const AddTask = ({navigation, isModal = false, onClose}) => {
+  const queryClient = useQueryClient();
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+
+  const {
+    summary,
+    setSummary,
+    selectedRequestType,
+    setSelectedRequestType,
+    selectedCategory,
+    setSelectedCategory,
+    selectedGroup,
+    setSelectedGroup,
+    priority,
+    setPriority,
+    selectedProject,
+    setSelectedProject,
+    selectedSalesRep,
+    setSelectedSalesRep,
+    startDate,
+    setStartDate,
+    startTime,
+    setStartTime,
+    endDate,
+    setEndDate,
+    resetForm,
+  } = useTaskStore();
+
+  // 🔹 Fetch all dropdowns
+  const {data: requestTypes = []} = useQuery(['requestTypes'], fetchRequestTypes);
+  const {data: categories = []} = useQuery(['categories'], fetchCategories);
+  const {data: groups = []} = useQuery(['groups'], fetchGroups);
+  const {data: projects = []} = useQuery(['projects'], fetchProjects);
+  const {data: salesUsers = []} = useQuery(['salesUsers'], fetchSalesUsers);
+
+  const filteredSalesUsers = useMemo(() => {
+    if (!selectedSalesRep) return salesUsers;
+    return [
+      selectedSalesRep,
+      ...salesUsers.filter(u => u.id !== selectedSalesRep.id),
+    ];
+  }, [salesUsers, selectedSalesRep]);
+
+  const filteredProjects = useMemo(() => {
+    if (!selectedProject) return projects;
+    return [selectedProject, ...projects.filter(p => p.id !== selectedProject.id)];
+  }, [projects, selectedProject]);
+
+  // 🔹 Mutation to create task
+  const {mutate: createTaskMutate, isLoading: creating} = useMutation(createTask, {
+    onSuccess: () => {
+      Alert.alert('Success', 'Task created');
+      resetForm();
+      queryClient.invalidateQueries(['projects']); // optional refetch
+      if (isModal) onClose();
+      else navigation.goBack();
+    },
+    onError: () => Alert.alert('Error', 'Task not created'),
+  });
+
+  const combineDateAndTime = (date, time) => {
+    const combined = new Date(date);
+    combined.setHours(time.getHours());
+    combined.setMinutes(time.getMinutes());
+    combined.setSeconds(0);
+    combined.setMilliseconds(0);
+    return combined.toISOString();
+  };
+
+  const handleCreateTask = async () => {
+    if (!summary || !selectedRequestType || !selectedCategory || !selectedGroup || !selectedProject) {
+      Alert.alert('Error', 'Fill all fields');
+      return;
+    }
+
+    await AsyncStorage.setItem('LAST_PROJECT', JSON.stringify(selectedProject));
+
+    const payload = {
+      Summary: summary,
+      SalesRep_ID: {id: selectedSalesRep.id, identifier: selectedSalesRep.Name},
+      StartDate: startDate.toISOString().split('T')[0] + 'T00:00:00Z',
+      StartTime: combineDateAndTime(startDate, startTime),
+      EndTime: endDate.toISOString(),
+      R_RequestType_ID: {id: selectedRequestType.id},
+      R_Category_ID: {id: selectedCategory.id},
+      R_Group_ID: {id: selectedGroup.id},
+      Priority: {id: priority.id},
+      C_Project_ID: {id: selectedProject.id},
+    };
+
+    createTaskMutate(payload);
+  };
+
+  return (
+    <>
+      <ReqHeader title="Create Request" />
+      <ScrollView style={{flex: 1, padding: '5%'}} keyboardShouldPersistTaps="handled">
+        {/* Task Name */}
+        <TextInput
+          placeholder="Task Name..."
+          value={summary}
+          onChangeText={setSummary}
+          style={{borderBottomWidth: 1, borderColor: '#ccc', fontSize: 18, padding: 8}}
+        />
+
+        {/* Priority */}
+        <TouchableOpacity onPress={() => setPriority(PRIORITIES[2])} style={{marginVertical: 10}}>
+          <Text>Priority: {priority.label}</Text>
+        </TouchableOpacity>
+
+        {/* Request Type Dropdown */}
+        <TouchableOpacity onPress={() => setSelectedRequestType(requestTypes[0])}>
+          <Text>Request Type: {selectedRequestType?.Name || 'Select'}</Text>
+        </TouchableOpacity>
+
+        {/* Category Dropdown */}
+        <TouchableOpacity onPress={() => setSelectedCategory(categories[0])}>
+          <Text>Category: {selectedCategory?.Name || 'Select'}</Text>
+        </TouchableOpacity>
+
+        {/* Group Dropdown */}
+        <TouchableOpacity onPress={() => setSelectedGroup(groups[0])}>
+          <Text>Group: {selectedGroup?.Name || 'Select'}</Text>
+        </TouchableOpacity>
+
+        {/* Project Dropdown */}
+        <TouchableOpacity onPress={() => setSelectedProject(projects[0])}>
+          <Text>Project: {selectedProject?.Name || 'Select'}</Text>
+        </TouchableOpacity>
+
+        {/* Sales Rep */}
+        <TouchableOpacity onPress={() => setSelectedSalesRep(salesUsers[0])}>
+          <Text>Sales Rep: {selectedSalesRep?.Name || 'Select'}</Text>
+        </TouchableOpacity>
+
+        {/* Dates */}
+        <TouchableOpacity onPress={() => setShowStartDatePicker(true)}>
+          <Text>Start Date: {startDate.toDateString()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowStartTimePicker(true)}>
+          <Text>Start Time: {startTime.toLocaleTimeString()}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowEndDatePicker(true)}>
+          <Text>End Date: {endDate.toDateString()}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleCreateTask}
+          style={{backgroundColor: '#2F4FE3', padding: 12, borderRadius: 8, marginTop: 20}}>
+          <Text style={{color: '#fff', fontWeight: '600'}}>{creating ? 'Creating...' : 'Create Task'}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </>
+  );
+};
+
+export default AddTask;
+

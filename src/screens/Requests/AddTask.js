@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo} from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,17 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import CustomHeader from '../../components/CustomHeader';
+import {useQuery, useMutation, useQueryClient} from 'react-query';
 import ReqHeader from '../../components/ReqHeader';
+import {
+  fetchRequestTyp,
+  fetchRequestCat,
+  fetchRequestGrp,
+  fetchRequestpro,
+  fetchUsers,
+  createTask,
+} from '../../api/requests.api';
+import {useAuthStore} from '../../store/authStore';
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C'},
@@ -30,172 +37,109 @@ const projectColor = id => {
 };
 
 const AddTask = ({navigation, isModal = false, onClose}) => {
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
+
+  const {userId, userName} = useAuthStore();
 
   const [summary, setSummary] = useState('');
-  const [assignedUser, setAssignedUser] = useState('');
-  const [dueDate, setDueDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  const [requestTypes, setRequestTypes] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [group, setGroup] = useState([]);
-  const [priority, setPriority] = useState(PRIORITIES[1]);
   const [selectedRequestType, setSelectedRequestType] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [token, setToken] = useState('');
+  const [priority, setPriority] = useState(PRIORITIES[1]);
 
-  // PROJECT
-  const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const [projectSearch, setProjectSearch] = useState('');
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
 
-  // DROPDOWNS
+  const [selectedSalesRep, setSelectedSalesRep] = useState(null);
+  const [salesRepSearch, setSalesRepSearch] = useState('');
+  const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
+
+  const [startDate, setStartDate] = useState(new Date());
+  const [startTime, setStartTime] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
   const [showRequestTypeDropdown, setShowRequestTypeDropdown] = useState(false);
 
-  //SALESREP_ID
-  const [salesUsers, setSalesUsers] = useState([]);
-  const [selectedSalesRep, setSelectedSalesRep] = useState(null);
-  const [showSalesRepDropdown, setShowSalesRepDropdown] = useState(false);
-  const [salesRepSearch, setSalesRepSearch] = useState('');
-  //Dates
-  const [startDate, setStartDate] = useState(new Date()); // StartDate
-  const [startTime, setStartTime] = useState(new Date()); // StartTime (time picker)
-  const [endDate, setEndDate] = useState(new Date()); // EndDate
+  // ==============================
+  // FETCH DROPDOWNS USING REACT QUERY
+  // ==============================
+  const {data: requestTypes = []} = useQuery(['requestTypes'], fetchRequestTyp);
+  const {data: categories = []} = useQuery(['categories'], fetchRequestCat);
+  const {data: groups = []} = useQuery(['groups'], fetchRequestGrp);
+  const {data: projects = []} = useQuery(['projects'], fetchRequestpro);
+  const {data: salesUsers = []} = useQuery(['salesUsers'], fetchUsers);
 
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-
-  const LAST_SALES_REP = 'LAST_SALES_REP';
-
+  // ==============================
+  // FILTERED LISTS
+  // ==============================
   // useEffect(() => {
-  //   const load = async () => {
-  //     setToken(await AsyncStorage.getItem('token'));
+  //   if (!selectedSalesRep && salesUsers.length > 0 && userId) {
+  //     const loggedInUser = salesUsers.find(
+  //       u => Number(u.id) === Number(userId),
+  //     );
 
-  //     const userName = await AsyncStorage.getItem('userName');
-  //     const userId = await AsyncStorage.getItem('userId');
-
-  //     const lastSalesRep = await AsyncStorage.getItem(LAST_SALES_REP);
-
-  //     if (lastSalesRep) {
-  //       setSelectedSalesRep(JSON.parse(lastSalesRep));
-  //     } else {
-  //       setSelectedSalesRep({
-  //         id: userId,
-  //         Name: userName,
-  //         identifier: userName,
-  //       });
+  //     if (loggedInUser) {
+  //       setSelectedSalesRep(loggedInUser);
   //     }
-  //     const last = await AsyncStorage.getItem('LAST_PROJECT');
-  //     if (last) setSelectedProject(JSON.parse(last));
-  //   };
-  //   load();
-  // }, []);
-
-  // FETCH DATA
-
+  //   }
+  // }, [salesUsers, userId]);
   useEffect(() => {
-    const load = async () => {
-      setToken(await AsyncStorage.getItem('token'));
-
-      const userName = await AsyncStorage.getItem('userName');
-      const userId = await AsyncStorage.getItem('userId');
-
-      // DEFAULT: set logged-in user as selectedSalesRep
+    if (!selectedSalesRep && userId && userName) {
       setSelectedSalesRep({
-        id: userId,
+        id: Number(userId),
         Name: userName,
-        identifier: userName,
       });
-
-      const last = await AsyncStorage.getItem('LAST_PROJECT');
-      if (last) setSelectedProject(JSON.parse(last));
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (!token) return;
-
-    const fetchData = async () => {
-      const headers = {Authorization: `Bearer ${token}`};
-
-      const [rt, cat, grp, proj, users] = await Promise.all([
-        axios.get('http://116.58.53.114:9999/api/v1/models/R_RequestType', {
-          headers,
-        }),
-        axios.get('http://116.58.53.114:9999/api/v1/models/R_Category', {
-          headers,
-        }),
-        axios.get('http://116.58.53.114:9999/api/v1/models/R_Group', {
-          headers,
-        }),
-        axios.get('http://116.58.53.114:9999/api/v1/models/C_Project', {
-          headers,
-        }),
-        axios.get('http://116.58.53.114:9999/api/v1/models/AD_User', {
-          headers,
-        }),
-      ]);
-
-      setRequestTypes(rt.data.records || []);
-      setCategories(cat.data.records || []);
-      setGroup(grp.data.records || []);
-      setProjects(proj.data.records || []);
-      setSalesUsers(users.data.records || []);
-    };
-
-    fetchData().catch(() => Alert.alert('Error', 'Failed to load dropdowns'));
-  }, [token]);
-
-  // SEARCH SalesUsers + RECENT LOGIC
+    }
+  }, [userId, userName]);
 
   const filteredSalesUsers = useMemo(() => {
     let list = salesUsers.filter(u =>
       u.Name?.toLowerCase().includes(salesRepSearch.toLowerCase()),
     );
-
-    // ⭐ logged-in user top pe
     if (selectedSalesRep) {
       list = [
         selectedSalesRep,
         ...list.filter(u => u.id !== selectedSalesRep.id),
       ];
     }
-
     return list;
   }, [salesUsers, salesRepSearch, selectedSalesRep]);
 
-  // SEARCH + RECENT LOGIC
   const filteredProjects = useMemo(() => {
     let list = projects.filter(p =>
-      p.Name.toLowerCase().includes(projectSearch.toLowerCase()),
+      p.Name?.toLowerCase().includes(projectSearch.toLowerCase()),
     );
-
     if (selectedProject) {
       list = [
         selectedProject,
         ...list.filter(p => p.id !== selectedProject.id),
       ];
     }
-
     return list;
   }, [projects, projectSearch, selectedProject]);
 
-  useEffect(() => {
-    if (selectedProject) setSelectedProject(selectedProject);
-  }, [selectedProject]);
+  // ==============================
+  // CREATE TASK MUTATION
+  // ==============================
+  const mutation = useMutation(createTask, {
+    onSuccess: () => {
+      queryClient.invalidateQueries(['myRequests']);
+      Alert.alert('Success', 'Task created successfully');
+      resetForm();
+      if (isModal) onClose();
+      else navigation.goBack();
+    },
+    onError: () => Alert.alert('Error', 'Task not created'),
+  });
 
-  // CREATE TASK
-  const handleCreateTask = async () => {
-    if (creating) return;
-
+  const handleCreateTask = () => {
     if (
       !summary ||
       !selectedRequestType ||
@@ -207,22 +151,11 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
       return;
     }
 
-    setCreating(true);
-
-    await AsyncStorage.setItem('LAST_PROJECT', JSON.stringify(selectedProject));
-
-    // format dates as ISO strings
     const payload = {
       Summary: summary,
-      SalesRep_ID: {
-        id: selectedSalesRep.id,
-        identifier: selectedSalesRep.Name,
-      },
-      // StartDate only date part
+      SalesRep_ID: {id: selectedSalesRep.id, identifier: selectedSalesRep.Name},
       StartDate: startDate.toISOString().split('T')[0] + 'T00:00:00Z',
-      // StartTime combined with date (full ISO)
       StartTime: combineDateAndTime(startDate, startTime),
-      // EndDate full ISO
       EndTime: endDate.toISOString(),
       R_RequestType_ID: {id: selectedRequestType.id},
       R_Category_ID: {id: selectedCategory.id},
@@ -231,29 +164,9 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
       C_Project_ID: {id: selectedProject.id},
     };
 
-    try {
-      const res = await axios.post(
-        'http://116.58.53.114:9999/api/v1/models/R_Request',
-        payload,
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
-
-      Alert.alert('Success', 'Task created successfully');
-      resetForm();
-
-      if (isModal) {
-        onClose();
-      } else {
-        navigation.goBack();
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Task not created');
-    } finally {
-      setCreating(false);
-    }
+    mutation.mutate(payload);
   };
 
-  // Combine date and time to ISO string
   const combineDateAndTime = (date, time) => {
     const combined = new Date(date);
     combined.setHours(time.getHours());
@@ -268,30 +181,27 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
     setSelectedRequestType(null);
     setSelectedCategory(null);
     setSelectedGroup(null);
-
-    setPriority(PRIORITIES[1]); // default High (ya jo chaho)
-
+    setPriority(PRIORITIES[1]);
+    setSelectedProject(null);
     setProjectSearch('');
-    setShowProjectDropdown(false);
-
+    setSelectedSalesRep(null);
     setSalesRepSearch('');
-    setShowSalesRepDropdown(false);
-
     setStartDate(new Date());
     setStartTime(new Date());
     setEndDate(new Date());
   };
 
+  // ==============================
+  // RENDER
+  // ==============================
   return (
     <>
-      {/* {!isModal && <CustomHeader title={'Create Request'} />} */}
       <ReqHeader title={'Create Request'} />
-
       <ScrollView
         style={styles.container}
-        nestedScrollEnabled={true}
+        nestedScrollEnabled
         keyboardShouldPersistTaps="handled">
-        {/* Header */}
+        {/* PRIORITY */}
         <View
           style={[
             styles.row,
@@ -338,12 +248,12 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
                       </Text>
 
                       {/* <View
-                        style={[
-                          styles.priorityCircle,
-                          {backgroundColor: p.color},
-                          isSelected && styles.prioritySelectedCircle,
-                        ]}
-                      /> */}
+                               style={[
+                                 styles.priorityCircle,
+                                 {backgroundColor: p.color},
+                                 isSelected && styles.prioritySelectedCircle,
+                               ]}
+                             /> */}
                     </TouchableOpacity>
                   );
                 })}
@@ -352,9 +262,8 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
           </View>
         </View>
 
-        {/* Task Name */}
+        {/* TASK NAME */}
         <View style={styles.inputRow}>
-          {/* <MaterialIcons name="subject" size={24} color="#2F4FE3" /> */}
           <TextInput
             style={styles.input}
             placeholder="Task name..."
@@ -364,12 +273,13 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
           />
         </View>
 
+        {/* ASSIGNED SALES REP */}
         {/* Assigned User & Due Date */}
         <View style={[styles.row, {paddingHorizontal: '2%'}]}>
           {/* <View style={{flexDirection: 'row', alignItems: 'center'}}>
-            <MaterialIcons name="person-outline" size={24} color="#2F4FE3" />
-            <Text style={{marginLeft: 8, color: '#000'}}>{assignedUser}</Text>
-          </View> */}
+                    <MaterialIcons name="person-outline" size={24} color="#2F4FE3" />
+                    <Text style={{marginLeft: 8, color: '#000'}}>{assignedUser}</Text>
+                  </View> */}
           <View style={styles.dropdownRowPro}>
             <TouchableOpacity
               style={styles.dropdownHeaderPro}
@@ -380,24 +290,27 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
               <View>
                 <Text style={styles.rowLabel}>Assigned to</Text>
                 <Text style={styles.rowValue}>
-                  {selectedSalesRep ? selectedSalesRep.Name : assignedUser}
+                  {selectedSalesRep
+                    ? selectedSalesRep.Name
+                    : 'Select Sales Rep'}
                 </Text>
               </View>
             </TouchableOpacity>
-
             {showSalesRepDropdown && (
               <View style={styles.dropdownBoxPro}>
                 <TextInput
-                  placeholder="Search Sales Rep"
+                  placeholder={
+                    selectedSalesRep
+                      ? selectedSalesRep.Name
+                      : 'Search Sales Rep'
+                  }
                   value={salesRepSearch}
                   onChangeText={setSalesRepSearch}
                   style={styles.searchInput}
-                  placeholderTextColor="#ccc"
                 />
-
                 <ScrollView
                   style={{maxHeight: 220}}
-                  nestedScrollEnabled={true}
+                  nestedScrollEnabled
                   keyboardShouldPersistTaps="handled">
                   {filteredSalesUsers.map(u => (
                     <TouchableOpacity
@@ -502,101 +415,6 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
           )}
         </View>
 
-        {/* Request Type */}
-        <View style={styles.dropdownRow}>
-          <TouchableOpacity
-            onPress={() =>
-              setShowRequestTypeDropdown(!showRequestTypeDropdown)
-            }>
-            <View style={[styles.row, {justifyContent: 'flex-start'}]}>
-              <MaterialIcons name="add" size={25} color={'#444'} />
-              <Text style={[styles.rowText, {color: '#999'}]}>
-                {/* Request Type{' '} */}
-                {selectedRequestType
-                  ? selectedRequestType.Name || selectedRequestType.uid
-                  : 'Select Request type'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          {showRequestTypeDropdown &&
-            requestTypes.map(rt => (
-              <TouchableOpacity
-                key={rt.id}
-                onPress={() => {
-                  setSelectedRequestType(rt);
-                  setShowRequestTypeDropdown(false);
-                }}
-                style={styles.dropdownItem}>
-                <Text style={[styles.dropdownText, {color: '#2F4FE3'}]}>
-                  {rt.Name || rt.uid}
-                </Text>
-              </TouchableOpacity>
-            ))}
-        </View>
-
-        {/* Category */}
-        <View style={styles.dropdownRowPro}>
-          <TouchableOpacity
-            onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}>
-            <View
-              style={[
-                styles.row,
-                {justifyContent: 'flex-start', paddingVertical: 0},
-              ]}>
-              <MaterialIcons name="add" size={25} color={'#444'} />
-              <Text style={[styles.rowText, {color: '#999'}]}>
-                {/* Category:{' '} */}
-                {selectedCategory
-                  ? selectedCategory.Name || selectedCategory.identifier
-                  : 'Select Category'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {showCategoryDropdown &&
-            categories.map(cat => (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => {
-                  setSelectedCategory(cat);
-                  setShowCategoryDropdown(false);
-                }}
-                style={styles.dropdownItem}>
-                <Text style={[styles.dropdownText, {color: '#2F4FE3'}]}>
-                  {cat.Name || cat.identifier}
-                </Text>
-              </TouchableOpacity>
-            ))}
-        </View>
-        {/* Group */}
-        <View style={styles.dropdownRowPro}>
-          <TouchableOpacity
-            onPress={() => setShowGroupDropdown(!showGroupDropdown)}>
-            <View style={[styles.row, {justifyContent: 'flex-start'}]}>
-              <MaterialIcons name="add" size={25} color={'#444'} />
-              <Text style={[styles.rowText, {color: '#999'}]}>
-                {/* Group:{' '} */}
-                {selectedGroup
-                  ? selectedGroup.Name || selectedGroup.identifier
-                  : 'Select Group'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {showGroupDropdown &&
-            group.map(grp => (
-              <TouchableOpacity
-                key={grp.id}
-                onPress={() => {
-                  setSelectedGroup(grp);
-                  setShowGroupDropdown(false);
-                }}
-                style={styles.dropdownItem}>
-                <Text style={[styles.dropdownText, {color: '#2F4FE3'}]}>
-                  {grp.Name || grp.identifier}
-                </Text>
-              </TouchableOpacity>
-            ))}
-        </View>
         {/* PROJECT */}
         <View style={styles.dropdownRowPro}>
           <TouchableOpacity
@@ -617,7 +435,6 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
               </Text>
             </View>
           </TouchableOpacity>
-
           {showProjectDropdown && (
             <View style={styles.dropdownBoxPro}>
               <TextInput
@@ -625,13 +442,10 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
                 style={styles.searchInput}
                 value={projectSearch}
                 onChangeText={setProjectSearch}
-                placeholderTextColor={'#ccc'}
-                cursorColor={'#2F4FE3'}
               />
-
               <ScrollView
                 style={{maxHeight: 220}}
-                nestedScrollEnabled={true}
+                nestedScrollEnabled
                 keyboardShouldPersistTaps="handled">
                 {filteredProjects.map(p => (
                   <TouchableOpacity
@@ -656,10 +470,99 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
           )}
         </View>
 
-        {/* Submit */}
+        {/* REQUEST TYPE */}
+        <View style={styles.dropdownRow}>
+          <TouchableOpacity
+            onPress={() =>
+              setShowRequestTypeDropdown(!showRequestTypeDropdown)
+            }>
+            <View style={[styles.row, {justifyContent: 'flex-start'}]}>
+              <MaterialIcons name="add" size={25} color={'#444'} />
+              <Text style={[styles.rowText, {color: '#999'}]}>
+                {selectedRequestType
+                  ? selectedRequestType.Name || selectedRequestType.uid
+                  : 'Select Request Type'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          {showRequestTypeDropdown &&
+            requestTypes.map(rt => (
+              <TouchableOpacity
+                key={rt.id}
+                onPress={() => {
+                  setSelectedRequestType(rt);
+                  setShowRequestTypeDropdown(false);
+                }}
+                style={styles.dropdownItem}>
+                <Text style={[styles.dropdownTextPro, {color: '#2F4FE3'}]}>
+                  {rt.Name || rt.uid}
+                </Text>
+              </TouchableOpacity>
+            ))}
+        </View>
+
+        {/* CATEGORY */}
+        <View style={styles.dropdownRowPro}>
+          <TouchableOpacity
+            onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}>
+            <View style={[styles.row, {justifyContent: 'flex-start'}]}>
+              <MaterialIcons name="add" size={25} color={'#444'} />
+              <Text style={[styles.rowText, {color: '#999'}]}>
+                {selectedCategory
+                  ? selectedCategory.Name || selectedCategory.identifier
+                  : 'Select Category'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          {showCategoryDropdown &&
+            categories.map(cat => (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => {
+                  setSelectedCategory(cat);
+                  setShowCategoryDropdown(false);
+                }}
+                style={styles.dropdownItem}>
+                <Text style={[styles.dropdownTextPro, {color: '#2F4FE3'}]}>
+                  {cat.Name || cat.identifier}
+                </Text>
+              </TouchableOpacity>
+            ))}
+        </View>
+
+        {/* GROUP */}
+        <View style={styles.dropdownRowPro}>
+          <TouchableOpacity
+            onPress={() => setShowGroupDropdown(!showGroupDropdown)}>
+            <View style={[styles.row, {justifyContent: 'flex-start'}]}>
+              <MaterialIcons name="add" size={25} color={'#444'} />
+              <Text style={[styles.rowText, {color: '#999'}]}>
+                {selectedGroup
+                  ? selectedGroup.Name || selectedGroup.identifier
+                  : 'Select Group'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          {showGroupDropdown &&
+            groups.map(grp => (
+              <TouchableOpacity
+                key={grp.id}
+                onPress={() => {
+                  setSelectedGroup(grp);
+                  setShowGroupDropdown(false);
+                }}
+                style={styles.dropdownItem}>
+                <Text style={[styles.dropdownTextPro, {color: '#2F4FE3'}]}>
+                  {grp.Name || grp.identifier}
+                </Text>
+              </TouchableOpacity>
+            ))}
+        </View>
+
+        {/* SUBMIT */}
         <TouchableOpacity style={styles.button} onPress={handleCreateTask}>
           <Text style={styles.buttonText}>
-            {creating ? 'Creating...' : 'Create Tasks'}
+            {mutation.isLoading ? 'Creating...' : 'Create Task'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -667,20 +570,45 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
   );
 };
 
+// === STYLES ===
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#fff', paddingHorizontal: '5%'},
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    // marginVertical: 12,
     paddingVertical: '1%',
   },
-  rowText: {
-    fontSize: 15,
-    marginLeft: 2,
-    fontFamily: 'K2D-Medium',
-    color: '#000',
+  inputRow: {flexDirection: 'row', alignItems: 'center'},
+  input: {
+    flex: 1,
+    fontSize: 20,
+    paddingVertical: '2%',
+    color: '#555',
+    fontFamily: 'K2D-SemiBold',
+  },
+  dropdownRow: {marginVertical: 12},
+  dropdownRowPro: {marginVertical: 12},
+  dropdownHeaderPro: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  dropdownBoxPro: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+  },
+  dropdownItemPro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 10,
+  },
+  dropdownTextPro: {color: '#000'},
+  searchInput: {
+    borderBottomWidth: 1,
+    margin: 8,
+    paddingVertical: 4,
+    color: '#555',
   },
   rowLabel: {
     fontSize: 15,
@@ -705,25 +633,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     right: 7,
   },
-  inputRow: {flexDirection: 'row', alignItems: 'center'},
-  input: {
-    flex: 1,
-    // marginLeft: 8,
-    // borderBottomWidth: 1,
-    // borderColor: '#ccc',
-    fontSize: 20,
-    paddingVertical: '2%',
-    color: '#555',
-    fontFamily: 'K2D-SemiBold',
-  },
-  dropdownRow: {marginVertical: 12},
-  dropdownItem: {
-    padding: 10,
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 6,
-  },
+  projectDot: {width: 10, height: 10, borderRadius: 5},
   button: {
     backgroundColor: '#2F4FE3',
     padding: 14,
@@ -732,67 +642,11 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   buttonText: {color: '#fff', fontWeight: '600', fontSize: 16},
-  dropdownText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  priorityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  priorityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginTop: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-
-  prioritySelectedRow: {
-    borderColor: '#2F4FE3',
-    backgroundColor: '#F4F6FF',
-  },
-
-  //   summaryRow: {
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  //   justifyContent: 'space-between',
-  //   marginVertical: 12,
-  // },
-
-  // summaryInput: {
-  //   flex: 1,
-  //   flexDirection: 'row',
-  //   alignItems: 'center',
-  //   marginRight: 12,
-  // },
-
-  priorityMini: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 5,
-  },
-
-  priorityMiniLabel: {
-    fontSize: 14,
-    color: '#555',
-    fontFamily: 'K2D-Medium',
-    // marginBottom: 4,
-    // right:'10%'
-  },
-
+  priorityMini: {alignItems: 'center', flexDirection: 'row', gap: 5},
+  priorityMiniLabel: {fontSize: 14, color: '#555', fontFamily: 'K2D-Medium'},
   priorityPopup: {
     position: 'absolute',
-    // right: '2%',
-    // top: 20,
     left: '95%',
-
     backgroundColor: '#fff',
     padding: 5,
     borderRadius: 10,
@@ -803,7 +657,6 @@ const styles = StyleSheet.create({
     zIndex: 999,
     flexDirection: 'row',
   },
-
   priorityOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -811,58 +664,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 6,
   },
-
-  priorityLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-
-  priorityCircle: {
-    width: 14,
-    height: 14,
-    borderRadius: 8,
-  },
-
-  prioritySelectedCircle: {
-    borderWidth: 2,
-    borderColor: '#2F4FE3',
-  },
-  dropdownHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  dropdownBox: {
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    elevation: 4,
-  },
-  dropdownRowPro: {marginVertical: 12},
-  dropdownHeaderPro: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  dropdownBoxPro: {
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-  },
-  dropdownItemPro: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  priorityLabel: {fontSize: 10, fontWeight: '500'},
+  priorityCircle: {width: 14, height: 14, borderRadius: 8},
+  dropdownItem: {
     padding: 10,
-  },
-  dropdownTextPro: {color: '#000'},
-  projectDot: {width: 10, height: 10, borderRadius: 5},
-  searchInput: {
-    borderBottomWidth: 1,
-    margin: 8,
-    paddingVertical: 4,
-    color: '#555',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
   },
 });
 

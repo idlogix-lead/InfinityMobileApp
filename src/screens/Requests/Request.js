@@ -379,8 +379,8 @@ const Requests = () => {
         </View>
 
         {/* PRIORITY TASKS */}
-
-        {/* <View style={styles.topCard}>
+{/* 
+        <View style={styles.topCard}>
           <Text style={styles.mainHeader}>Priority Tasks</Text>
           <ScrollView
             horizontal

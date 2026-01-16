@@ -3,7 +3,6 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import BottomTab from '../BottomTab/BottomTab';
 import HomeScreen from '../../screens/HomeScreens/HomeScreen';
 
-
 import ApprovalScreens from '../../screens/ApprovalScreens/ApprovalScreens';
 import CompanyInformationScreen from '../../screens/CompanyInformationScreen/CompanyInformationScreen';
 import ApprovalByDoc from '../../screens/ApprovalScreens/ApprovalByDoc';
@@ -68,7 +67,9 @@ import Requests from '../../screens/Requests/Request';
 import DueTasks from '../../screens/Requests/DueTasks';
 import PriorityRequests from '../../screens/Requests/PriorityRequests';
 import TaskDetail from '../../screens/Requests/TaskDetail';
-
+import TaskStatus from '../../screens/Requests/TaskStatus';
+import AllProjects from '../../screens/Requests/AllProjects';
+import AddTask from '../../screens/Requests/AddTask';
 
 const Stack = createNativeStackNavigator();
 
@@ -76,79 +77,85 @@ const AppNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{headerShown: false}}>
       <Stack.Screen name="BottomTab" component={BottomTab} />
-       <Stack.Screen name="ApprovalScreens" component={ApprovalScreens} />
-    <Stack.Screen
-      name="CompanyInformationScreen"
-      component={CompanyInformationScreen}
-    />
-    <Stack.Screen name="ApprovalByDoc" component={ApprovalByDoc} />
-    <Stack.Screen name="ApprovalByDate" component={ApprovalByDate} />
-    <Stack.Screen name="ApprovalCardList" component={ApprovalCardList} />
-    <Stack.Screen name="FinancialByDoc" component={FinancialByDoc} />
-    
-    <Stack.Screen name="RequestScreen" component={RequestScreen} />
-    <Stack.Screen name="RequestList" component={RequestList} />
-    <Stack.Screen name="CreateNewReq" component={CreateNewReq} />
-    <Stack.Screen
-      name="TeamTaskCreateNewReq"
-      component={TeamTaskCreateNewReq}
-    />
-    <Stack.Screen name="RequestDetails" component={RequestDetails} />
-    <Stack.Screen name="UserList" component={UserList} />
-    <Stack.Screen name="ChatScreen" component={ChatScreen} />
-    <Stack.Screen name="AllApprovalList" component={AllApprovalList} />
-    <Stack.Screen name="ApprovalDetails" component={ApprovalDetails} />
-    <Stack.Screen name="PendingDetails" component={PendingDetails} />
-    <Stack.Screen name="AllTaskScreen" component={AllTaskScreen} />
-    <Stack.Screen name="Performance" component={Performance} />
-    <Stack.Screen name="EmployeePortal" component={EmployeePortal} />
-    <Stack.Screen
-      name="EmployeeProfileTopNavigation"
-      component={EmployeeProfileTopNavigation}
-    />
-    <Stack.Screen name="BasicInformation" component={BasicInformation} />
-    <Stack.Screen name="Education" component={Education} />
-    <Stack.Screen name="Experience" component={Experience} />
-    <Stack.Screen
-      name="TopNavigationEmployeeProfile"
-      component={TopNavigationEmployeeProfile}
-    />
-    <Stack.Screen name="SalarySlip" component={SalarySlip} />
-    <Stack.Screen name="AttendenceStatus" component={AttendenceStatus} />
-    <Stack.Screen name="StaffAttendance" component={StaffAttendance} />
-    <Stack.Screen name="LeaveStatus" component={LeaveStatus} />
-    <Stack.Screen name="AnnualLeave" component={AnnualLeave} />
-    <Stack.Screen name="DetailedLeave" component={DetailedLeave} />
-    <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
-    <Stack.Screen name="ReportMain" component={ReportMain} />
-    <Stack.Screen name="Liquidity" component={Liquidity} />
-    <Stack.Screen name="TopNavigationATS" component={TopNavigationATS} />
-    <Stack.Screen name="ShowMyTask" component={ShowMyTask} />
-    <Stack.Screen name="showMyTeamTask" component={ShowTeamTask} />
-    <Stack.Screen name="NotificationSrn" component={NotificationSrn} />
-    <Stack.Screen name="QRScannerScreen" component={QRScannerScreen} />
-    <Stack.Screen name="CrmScreen" component={CrmScreen} />
-    <Stack.Screen name="CrmTotal" component={CrmTotal} />
-    <Stack.Screen name="CrmNew" component={CrmNew} />
-    <Stack.Screen name="CrmWorking" component={CrmWorking} />
-    <Stack.Screen name="CrmConverted" component={CrmConverted} />
-    <Stack.Screen name="CrmExpire" component={CrmExpire} />
-    <Stack.Screen name="ActivityList" component={ActivityList} />
-    <Stack.Screen name="AddActivity" component={AddActivity} />
-    <Stack.Screen name="LeadsDetails" component={LeadsDetails} />
-    <Stack.Screen name="AddLeads" component={AddLeads} />
-    <Stack.Screen name="CRMGraph" component={CRMGraph} />
-    <Stack.Screen name="TodayFollowups" component={TodayFollowUp} />
-    <Stack.Screen name="FutureFollowups" component={FutureFollowUp} />
-    <Stack.Screen name="MissedFollowups" component={MissedFollowUp} />
-    <Stack.Screen name="AllFollowups" component={AllFollowups} />
-    <Stack.Screen name="SaleStageDetails" component={SaleStageDetails} />
-    <Stack.Screen name="AddSaleOppor" component={AddSaleOppor} />
-    <Stack.Screen name="CreateActivity" component={CreateActivity} />
-    <Stack.Screen name="Requests" component={Requests} />
-    <Stack.Screen name="PriorityRequests" component={PriorityRequests} />
-    <Stack.Screen name="DueTasks" component={DueTasks} />
-    <Stack.Screen name="TaskDetail" component={TaskDetail} />
+      <Stack.Screen name="ApprovalScreens" component={ApprovalScreens} />
+      <Stack.Screen
+        name="CompanyInformationScreen"
+        component={CompanyInformationScreen}
+      />
+      <Stack.Screen name="ApprovalByDoc" component={ApprovalByDoc} />
+      <Stack.Screen name="ApprovalByDate" component={ApprovalByDate} />
+      <Stack.Screen name="ApprovalCardList" component={ApprovalCardList} />
+      <Stack.Screen name="FinancialByDoc" component={FinancialByDoc} />
+
+      <Stack.Screen name="RequestScreen" component={RequestScreen} />
+      <Stack.Screen name="RequestList" component={RequestList} />
+      <Stack.Screen name="CreateNewReq" component={CreateNewReq} />
+      <Stack.Screen
+        name="TeamTaskCreateNewReq"
+        component={TeamTaskCreateNewReq}
+      />
+      <Stack.Screen name="RequestDetails" component={RequestDetails} />
+      <Stack.Screen name="UserList" component={UserList} />
+      <Stack.Screen name="ChatScreen" component={ChatScreen} />
+      <Stack.Screen name="AllApprovalList" component={AllApprovalList} />
+      <Stack.Screen name="ApprovalDetails" component={ApprovalDetails} />
+      <Stack.Screen name="PendingDetails" component={PendingDetails} />
+      <Stack.Screen name="AllTaskScreen" component={AllTaskScreen} />
+      <Stack.Screen name="Performance" component={Performance} />
+      <Stack.Screen name="EmployeePortal" component={EmployeePortal} />
+      <Stack.Screen
+        name="EmployeeProfileTopNavigation"
+        component={EmployeeProfileTopNavigation}
+      />
+      <Stack.Screen name="BasicInformation" component={BasicInformation} />
+      <Stack.Screen name="Education" component={Education} />
+      <Stack.Screen name="Experience" component={Experience} />
+      <Stack.Screen
+        name="TopNavigationEmployeeProfile"
+        component={TopNavigationEmployeeProfile}
+      />
+      <Stack.Screen name="SalarySlip" component={SalarySlip} />
+      <Stack.Screen name="AttendenceStatus" component={AttendenceStatus} />
+      <Stack.Screen name="StaffAttendance" component={StaffAttendance} />
+      <Stack.Screen name="LeaveStatus" component={LeaveStatus} />
+      <Stack.Screen name="AnnualLeave" component={AnnualLeave} />
+      <Stack.Screen name="DetailedLeave" component={DetailedLeave} />
+      <Stack.Screen name="ProfileScreen" component={ProfileScreen} />
+      <Stack.Screen name="ReportMain" component={ReportMain} />
+      <Stack.Screen name="Liquidity" component={Liquidity} />
+      <Stack.Screen name="TopNavigationATS" component={TopNavigationATS} />
+      <Stack.Screen name="ShowMyTask" component={ShowMyTask} />
+      <Stack.Screen name="showMyTeamTask" component={ShowTeamTask} />
+      <Stack.Screen name="NotificationSrn" component={NotificationSrn} />
+      <Stack.Screen name="QRScannerScreen" component={QRScannerScreen} />
+      <Stack.Screen name="CrmScreen" component={CrmScreen} />
+      <Stack.Screen name="CrmTotal" component={CrmTotal} />
+      <Stack.Screen name="CrmNew" component={CrmNew} />
+      <Stack.Screen name="CrmWorking" component={CrmWorking} />
+      <Stack.Screen name="CrmConverted" component={CrmConverted} />
+      <Stack.Screen name="CrmExpire" component={CrmExpire} />
+      <Stack.Screen name="ActivityList" component={ActivityList} />
+      <Stack.Screen name="AddActivity" component={AddActivity} />
+      <Stack.Screen name="LeadsDetails" component={LeadsDetails} />
+      <Stack.Screen name="AddLeads" component={AddLeads} />
+      <Stack.Screen name="CRMGraph" component={CRMGraph} />
+      <Stack.Screen name="TodayFollowups" component={TodayFollowUp} />
+      <Stack.Screen name="FutureFollowups" component={FutureFollowUp} />
+      <Stack.Screen name="MissedFollowups" component={MissedFollowUp} />
+      <Stack.Screen name="AllFollowups" component={AllFollowups} />
+      <Stack.Screen name="SaleStageDetails" component={SaleStageDetails} />
+      <Stack.Screen name="AddSaleOppor" component={AddSaleOppor} />
+      <Stack.Screen name="CreateActivity" component={CreateActivity} />
+      <Stack.Screen name="Requests" component={Requests} />
+      <Stack.Screen name="PriorityRequests" component={PriorityRequests} />
+      <Stack.Screen name="DueTasks" component={DueTasks} />
+      <Stack.Screen name="TaskDetail" component={TaskDetail} />
+      <Stack.Screen name="TaskStatus" component={TaskStatus} />
+      <Stack.Screen name="AllProjects" component={AllProjects} />
+      <Stack.Screen name="AddTask" component={AddTask} />
+
+
+
     </Stack.Navigator>
   );
 };

@@ -1,5 +1,11 @@
-import {StyleSheet, SafeAreaView, View, ActivityIndicator, Text} from 'react-native';
-import React, { useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  SafeAreaView,
+  View,
+  ActivityIndicator,
+  Text,
+} from 'react-native';
+import React, {useEffect, useState} from 'react';
 import {
   createBottomTabNavigator,
   BottomTabBar,
@@ -10,132 +16,72 @@ import HelpScreen from '../../screens/HelpScreen/HelpScreen';
 import ProfileScreen from '../../screens/ProfileScreens/ProfileScreen';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { useAuthStore } from '../../store/authStore';
+import {useAuthStore} from '../../store/authStore';
 
 const Tab = createBottomTabNavigator();
 
-// Custom Tab Bar
-const CustomTabBar = ({state, navigation}) => {
-  const currentRouteName = state.routes[state.index].name;
+// Custom Solid Blue Tab Bar
+const CustomTabBar = props => (
+  <View style={{height: 50, backgroundColor: '#2F4FE3'}}>
+    <BottomTabBar {...props} />
+  </View>
+);
 
-  return (
-    <View
-      style={{flexDirection: 'row', height: 55, backgroundColor: '#2F4FE3'}}>
-      {state.routes.map(route => {
-        // <-- removed filter, now Home will show
-        const isFocused = currentRouteName === route.name;
-        // state.routes
-        //   .filter(route => route.name !== 'HomeScreen')
-        //   .map(route => {
-        //     const isFocused = currentRouteName === route.name;
-
-        let iconName;
-        if (route.name === 'HomeScreen') iconName = 'home';
-        if (route.name === 'CRM') iconName = 'all-inclusive';
-        // if (route.name === 'Approval') iconName = 'check-circle';
-        // if (route.name === 'Request') iconName = 'assignment';
-        if (route.name === 'Employee') iconName = 'person';
-        // if (route.name === 'Notification') iconName = 'notifications';
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name, {
-              screen:
-                route.name === 'HomeScreen'
-                  ? 'HomeMain'
-                  : route.name === 'CRM'
-                  ? 'CRMMain'
-                  : // : route.name === 'Approval'
-                  // ? 'ApprovalMain'
-                  // : route.name === 'Request'
-                  // ? 'RequestMain'
-                  route.name === 'Employee'
-                  ? 'EmployeeMain'
-                  : // : route.name === 'Notification'
-                    // ? 'NotificationSrn'
-                    undefined,
-            });
-          }
-        };
-
-        return (
-          <TouchableOpacity
-            key={route.key}
-            onPress={onPress}
-            style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-            <MaterialIcons
-              name={iconName}
-              size={isFocused ? 30 : 24}
-              color={isFocused ? '#fff' : '#cfd8ff'}
-            />
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-};
-
-const BottomTab = ({ navigation }) => {
+const BottomTab = ({navigation}) => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  
+
   // Get auth data from store
   const token = useAuthStore(state => state.token);
   const userId = useAuthStore(state => state.userId);
   const userName = useAuthStore(state => state.userName);
   const roleId = useAuthStore(state => state.roleId);
-  
+
   // Create a reliable auth check (don't rely on isAuthenticated getter)
   const isAuthenticated = React.useMemo(() => {
     return Boolean(
       token &&
-      typeof token === 'string' &&
-      token.length > 10 &&
-      userName &&
-      userId &&
-      !isNaN(Number(userId)) &&
-      userId !== userName &&
-      roleId
+        typeof token === 'string' &&
+        token.length > 10 &&
+        userName &&
+        userId &&
+        !isNaN(Number(userId)) &&
+        userId !== userName &&
+        roleId,
     );
   }, [token, userId, userName, roleId]);
-  
+
   console.log('🔍 BottomTab - Auth Check:', {
     hasToken: !!token,
     tokenLength: token?.length || 0,
     userId,
     userName,
     roleId,
-    isAuthenticated
+    isAuthenticated,
   });
-  
+
   useEffect(() => {
     const checkAuth = async () => {
       // Wait a moment for store to update
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       console.log('🔍 BottomTab - Final Auth State:', {
         isAuthenticated,
         userId,
-        roleId
+        roleId,
       });
-      
+
       if (!isAuthenticated) {
         console.log('❌ BottomTab: Not authenticated - showing error state');
         // Don't navigate - just show error state
         // The main Navigation component should handle switching back to Auth
       }
-      
+
       setIsCheckingAuth(false);
     };
-    
+
     checkAuth();
   }, [isAuthenticated]);
-  
+
   // Show loading while checking auth
   if (isCheckingAuth) {
     return (
@@ -147,7 +93,7 @@ const BottomTab = ({ navigation }) => {
       </View>
     );
   }
-  
+
   // If not authenticated, show error screen
   if (!isAuthenticated) {
     return (
@@ -157,8 +103,10 @@ const BottomTab = ({ navigation }) => {
           You need to be logged in to access the app.
         </Text>
         <Text style={styles.debugInfo}>
-          Token: {token ? 'Present' : 'Missing'}{'\n'}
-          User ID: {userId || 'Not set'}{'\n'}
+          Token: {token ? 'Present' : 'Missing'}
+          {'\n'}
+          User ID: {userId || 'Not set'}
+          {'\n'}
           Role ID: {roleId || 'Not set'}
         </Text>
         <Text style={styles.instruction}>
@@ -167,19 +115,11 @@ const BottomTab = ({ navigation }) => {
       </View>
     );
   }
-  
+
   // User is authenticated - show the tab navigator
   return (
     <SafeAreaView style={{flex: 1}}>
-      {/* Global StatusBar */}
-      <StatusBar
-        backgroundColor="transparent"
-        barStyle="light-content"
-        translucent={false}
-      />
-
       <Tab.Navigator
-        initialRouteName="HomeScreen"
         tabBar={props => <CustomTabBar {...props} />}
         screenOptions={({route}) => ({
           headerShown: false,
@@ -205,31 +145,31 @@ const BottomTab = ({ navigation }) => {
           tabBarActiveTintColor: 'white',
           tabBarInactiveTintColor: '#ccc',
         })}>
-        <Tab.Screen 
-          name="Home" 
+        <Tab.Screen
+          name="Home"
           component={HomeScreen}
           listeners={{
             tabPress: () => {
               console.log('🏠 Home tab pressed - User:', userName);
-            }
+            },
           }}
         />
-        <Tab.Screen 
-          name="Help" 
+        <Tab.Screen
+          name="Help"
           component={CrmScreen}
           listeners={{
             tabPress: () => {
               console.log('📊 CRM tab pressed - User:', userName);
-            }
+            },
           }}
         />
-        <Tab.Screen 
-          name="Profile" 
+        <Tab.Screen
+          name="Profile"
           component={ProfileScreen}
           listeners={{
             tabPress: () => {
               console.log('👤 Profile tab pressed - User:', userName);
-            }
+            },
           }}
         />
       </Tab.Navigator>

@@ -33,3 +33,47 @@ export const useTaskStore = create(set => ({
   setStandardResponses: responses => set({standardResponses: responses}),
   setSelectedActivity: activity => set({selectedActivity: activity}),
 }));
+
+export const useAddTaskStore = create(set => ({
+  summary: '',
+  setSummary: summary => set({summary}),
+
+  selectedRequestType: null,
+  setSelectedRequestType: selectedRequestType => set({selectedRequestType}),
+
+  selectedCategory: null,
+  setSelectedCategory: selectedCategory => set({selectedCategory}),
+
+  selectedGroup: null,
+  setSelectedGroup: selectedGroup => set({selectedGroup}),
+
+  priority: {id: '3', label: 'High', color: '#E67E22'},
+  setPriority: priority => set({priority}),
+
+  selectedProject: null,
+  setSelectedProject: selectedProject => set({selectedProject}),
+
+  selectedSalesRep: null,
+  setSelectedSalesRep: selectedSalesRep => set({selectedSalesRep}),
+
+  startDate: new Date(),
+  setStartDate: startDate => set({startDate}),
+  startTime: new Date(),
+  setStartTime: startTime => set({startTime}),
+  endDate: new Date(),
+  setEndDate: endDate => set({endDate}),
+
+  resetForm: () =>
+    set({
+      summary: '',
+      selectedRequestType: null,
+      selectedCategory: null,
+      selectedGroup: null,
+      priority: {id: '3', label: 'High', color: '#E67E22'},
+      selectedProject: null,
+      selectedSalesRep: null,
+      startDate: new Date(),
+      startTime: new Date(),
+      endDate: new Date(),
+    }),
+}));
