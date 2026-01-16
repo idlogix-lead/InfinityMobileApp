@@ -749,7 +749,7 @@ const Requests = () => {
                     setSelectedProject(project);
                     closeEssentialProjectModal();
                   }}>
-                  <Text style={styles.modalItemText}>{project.name}</Text>
+                  <Text style={styles.modalText}>{project.name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

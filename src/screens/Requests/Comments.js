@@ -110,10 +110,13 @@ const Comments = ({requestId}) => {
               color={'#E74C3C77'}
               size={60}
             />
-            <Text style={styles.emptyTitle}>No comments mentioning you</Text>
+            {/* <Text style={styles.emptyTitle}>No comments mentioning you</Text> */}
             <Text style={styles.emptySubtitle}>
               Comments where you are mentioned with @username will appear here.
             </Text>
+            <TouchableOpacity style={styles.emptyBtn}>
+              <Text style={styles.emptyBtnText}>Go To Inbox</Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -189,6 +192,23 @@ const styles = StyleSheet.create({
     color: '#777',
     marginTop: '3%',
     marginBottom:'5%',
+    textAlign: 'center',
+  },
+    emptyBtn: {
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+
+  emptyBtnText: {
+    color: '#333',
+    fontSize: 13,
+    fontFamily: 'K2D-Medium',
     textAlign: 'center',
   },
 });

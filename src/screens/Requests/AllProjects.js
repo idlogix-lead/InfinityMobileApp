@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  projectTitle: {fontSize: 16, fontWeight: '500'},
+  projectTitle: {fontSize: 16, fontWeight: '500', color:'#555'},
 });
 
 export default AllProjects;

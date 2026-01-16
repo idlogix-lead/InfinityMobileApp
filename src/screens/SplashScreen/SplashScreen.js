@@ -5,104 +5,24 @@ import {
   Dimensions,
   Image,
   StatusBar,
-  ImageBackground,
   Animated,
 } from 'react-native';
-import React, {useEffect, useCallback, useRef, useMemo} from 'react';
-import {useFocusEffect} from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useRef, useMemo } from 'react';
+import { useAuthStore } from '../../store/authStore';
+import { useCheckAuth } from '../../hooks/useAuth';
 
-const {height, width} = Dimensions.get('window');
-const SplashScreen = ({navigation}) => {
+const { height, width } = Dimensions.get('window');
+
+const SplashScreen = ({ navigation }) => {
   const moveAnim = useMemo(() => new Animated.Value(-1000), []);
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-
-  const getTokens = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const tokenOk = await AsyncStorage.getItem('tokenOk');
-    const userId = await AsyncStorage.getItem('userId');
-    const roleId = await AsyncStorage.getItem('roleId');
-    const userName = await AsyncStorage.getItem('userName');
-    const password = await AsyncStorage.getItem('password');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const clientId = await AsyncStorage.getItem('clientId');
-    const organizationId = await AsyncStorage.getItem('organizationId');
-    const warehouseId = await AsyncStorage.getItem('warehouseId');
-
-    if (!protocol || !host || !port) {
-      // First time or config deleted manually
-      setTimeout(() => {
-        navigation.replace('WelcomeScreen');
-      }, 2000);
-      return;
-    }
-
-    if (token && userName && password) {
-      try {
-        const loginResp = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({userName, password}),
-          },
-        );
-
-        const loginData = await loginResp.json();
-        const newToken = loginData.token;
-
-        const sessionResp = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${newToken}`,
-            },
-            body: JSON.stringify({
-              clientId,
-              roleId,
-              organizationId,
-              warehouseId,
-              language: 'en_US',
-            }),
-          },
-        );
-
-        if (sessionResp.ok) {
-          const sessionData = await sessionResp.json();
-          await AsyncStorage.setItem('token', sessionData.token);
-          setTimeout(() => {
-            navigation.replace('FingerPrintScreen', {
-              token: sessionData.token,
-              userId,
-              tokenOk,
-              roleId,
-            });
-          }, 2000);
-        } else {
-          alert('Session failed');
-          navigation.replace('WelcomeScreen');
-        }
-      } catch (error) {
-        console.error('Login/session error:', error);
-        alert('Error contacting server');
-        navigation.replace('WelcomeScreen');
-      }
-    } else {
-      navigation.replace('SignIn'); // Config present but not logged in
-    }
-  };
-  useFocusEffect(
-    useCallback(() => {
-      getTokens();
-    }, []),
-  );
+  
+  const { hasServerConfig, isAuthenticated } = useAuthStore();
+  const { data: authCheck, error, isLoading } = useCheckAuth();
 
   useEffect(() => {
+    // EXACT SAME ANIMATION as old splash
     Animated.timing(opacityAnim, {
       toValue: 1,
       duration: 100,
@@ -124,10 +44,45 @@ const SplashScreen = ({navigation}) => {
     });
   }, []);
 
+  useEffect(() => {
+    // New authentication logic
+    const handleNavigation = async () => {
+      // Check server configuration first
+      if (!hasServerConfig) {
+        setTimeout(() => {
+          navigation.replace('WelcomeScreen');
+        }, 2000);
+        return;
+      }
+
+      // If still checking auth, wait
+      if (isLoading) return;
+
+      // Handle authentication results
+      if (error || !isAuthenticated) {
+        // Not authenticated or error occurred
+        setTimeout(() => {
+          navigation.replace('SignIn');
+        }, 2000);
+      } else if (authCheck) {
+        // Successfully authenticated
+        setTimeout(() => {
+          navigation.replace('FingerPrintScreen', {
+            token: authCheck.token,
+            userId: authCheck.userId,
+          });
+        }, 2000);
+      }
+    };
+
+    handleNavigation();
+  }, [hasServerConfig, isAuthenticated, authCheck, error, isLoading]);
+
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '30deg'],
   });
+
   return (
     <View style={styles.container}>
       <StatusBar translucent={true} backgroundColor="transparent" />
@@ -137,21 +92,18 @@ const SplashScreen = ({navigation}) => {
           height: 900,
           flexDirection: 'row',
           alignItems: 'center',
-          // backgroundColor:"red",
           marginRight: '0%',
-
           transform: [{rotate: rotateInterpolate}],
         }}>
         <Image
           source={require('../../asserts/splashScreenAsserts/Frame393(3).png')}
-          // source={require('../../asserts/splashScreenAsserts/87.png')}
           style={{width: 100, height: 120}}
         />
         <View>
           <Animated.Image
             source={require('../../asserts/splashScreenAsserts/dot(1).png')}
             style={{
-              transform: [{translateY: moveAnim}], // Move dot UP first
+              transform: [{translateY: moveAnim}],
               width: 30,
               height: 30,
             }}

@@ -1,27 +1,25 @@
-import { ImageBackground, StyleSheet, Text, View, Dimensions, Image, TouchableOpacity, BackHandler } from 'react-native'
-import React, { useEffect, useState } from 'react'
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, BackHandler, Platform, useWindowDimensions } from 'react-native'
+import React, { useEffect } from 'react'
 import CardCompanyInformation from '../../components/CompanyInformationScreen/CardCompanyInformation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomHeader from '../../components/CustomHeader';
-import FontAwesome6 from 'react-native-vector-icons/FontAwesome6'
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5'
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6'
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { useAuthStore } from '../../store/authStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { height, width } = Dimensions.get('window');
 const CompanyInformationScreen = ({ navigation }) => {
-    const [clientName,setClientName] = useState('')
-    const [organizationName,setOrganizationName] = useState('')
-    const [roleName,setRoleName] = useState('')
-    const [wareHouseName,setWareHouseName] = useState('')
+    // Get screen dimensions
+    const { width, height } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
     
-
-    const getInfo = async () => {
-        setClientName(await AsyncStorage.getItem('clientNameSelected'))
-        setOrganizationName(await AsyncStorage.getItem('roleNameSelected'))
-        setRoleName(await AsyncStorage.getItem('organizationNameSelected'))
-        setWareHouseName(await AsyncStorage.getItem('warehouseNameSelected'))
-    }
-    console.log(clientName)
+    // Get data from Zustand store
+    const {
+        clientName,
+        roleName,
+        organizationName,
+        warehouseName,
+    } = useAuthStore();
 
     useEffect(() => {
         const backAction = () => {
@@ -33,56 +31,71 @@ const CompanyInformationScreen = ({ navigation }) => {
             'hardwareBackPress',
             backAction,
         );
-        getInfo()
+
         return () => backHandler.remove();
-    }, [])
+    }, []);
+
+    // Responsive calculations
+    const isSmallScreen = width < 375; // iPhone SE, small Android
+    const isMediumScreen = width >= 375 && width < 414; // iPhone 8, 11 Pro
+    const isLargeScreen = width >= 414; // iPhone Plus, Pro Max
+    const isTablet = width >= 768;
+
+    // Responsive sizes
+    const getResponsiveValue = (phone, tablet) => isTablet ? tablet : phone;
+    
+    const profileMarginTop = getResponsiveValue(
+        Platform.OS === 'ios' ? 15 + insets.top : 15,
+        20
+    );
+    
+    const iconSize = getResponsiveValue(23, 28);
+    const profileFontSize = getResponsiveValue(24, 28);
+    const cardSpacing = getResponsiveValue(25, 30);
 
     return (
-        <View style={{ flex: 1,  }}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+            <CustomHeader title={'Company Information'}/>
 
-            <CustomHeader title={'Company information'}/>
-            
-            {/* Top header */}
-            {/* <ImageBackground
-                source={require('../../asserts/CompanyInformationScreen/Rectangle.png')}
-                style={styles.header}>
-                <View style={styles.imageCon}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Image source={require('../../asserts/CompanyInformationScreen/Arrow.png')} />
-                    </TouchableOpacity>
-                    <Text style={styles.company}>Company information</Text>
-                </View>
-            </ImageBackground> */}
-
-            <View style={styles.profileCon}>
-                <Text style={styles.profileTxt}>Profile</Text>
+            <View style={[styles.profileCon, { marginTop: profileMarginTop }]}>
+                <Text style={[styles.profileTxt, { fontSize: profileFontSize }]}>
+                    Profile
+                </Text>
             </View>
 
-            <CardCompanyInformation
-                topText="Client"
-                secondtext={clientName}
-                Icon={<FontAwesome5 name='user-tie' size={23} color='#877e7e'/>}
-                text='Test Client'
-                 />
+            <View style={styles.cardsContainer}>
+                <CardCompanyInformation
+                    topText="Client"
+                    secondtext={clientName || 'Not Selected'}
+                    Icon={<FontAwesome5 name='user-tie' size={iconSize} color='#877e7e'/>}
+                    spacing={cardSpacing}
+                    isTablet={isTablet}
+                />
 
-            <CardCompanyInformation
-                topText="Role"
-                secondtext={organizationName}
-                Icon={<FontAwesome5 name='user-check' size={23} color='#877e7e'/>}
-                 text='Test Client' />
+                <CardCompanyInformation
+                    topText="Role"
+                    secondtext={roleName || 'Not Selected'}
+                    Icon={<FontAwesome5 name='user-check' size={iconSize} color='#877e7e'/>}
+                    spacing={cardSpacing}
+                    isTablet={isTablet}
+                />
 
-            <CardCompanyInformation
-                topText="Organization"
-                secondtext={roleName}
-                Icon={<FontAwesome6 name='users-viewfinder' size={23} color='#877e7e'/>}
-                 text='Test Client' />
+                <CardCompanyInformation
+                    topText="Organization"
+                    secondtext={organizationName || 'Not Selected'}
+                    Icon={<FontAwesome6 name='users-viewfinder' size={iconSize} color='#877e7e'/>}
+                    spacing={cardSpacing}
+                    isTablet={isTablet}
+                />
 
-
-            <CardCompanyInformation
-                topText="Warehouse"
-                secondtext={wareHouseName}
-                Icon={<MaterialCommunityIcons name='warehouse' size={23} color='#877e7e'/>}
-                text='Test Client' />
+                <CardCompanyInformation
+                    topText="Warehouse"
+                    secondtext={warehouseName || 'Not Selected'}
+                    Icon={<MaterialCommunityIcons name='warehouse' size={iconSize} color='#877e7e'/>}
+                    spacing={cardSpacing}
+                    isTablet={isTablet}
+                />
+            </View>
         </View>
     )
 }
@@ -90,31 +103,21 @@ const CompanyInformationScreen = ({ navigation }) => {
 export default CompanyInformationScreen
 
 const styles = StyleSheet.create({
-    header: {
-        width: width,
-        height: height / 8.5,
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    imageCon: {
-        width: '90%',
-        flexDirection: 'row',
-        alignItems: 'center'
-    },
-    company: {
-        color: 'white',
-        marginLeft: 10,
-        fontSize: 24,
-        fontFamily: 'K2D-SemiBold'
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
     },
     profileCon: {
-        marginTop: 15,
         width: '90%',
-        alignSelf:'center'
+        alignSelf: 'center',
     },
     profileTxt: {
-        fontSize: 24,
         fontFamily: 'K2D-Regular',
-        color: '#00B0F0'
-    }
-})
+        color: '#00B0F0',
+        includeFontPadding: false,
+    },
+    cardsContainer: {
+        width: '100%',
+        alignItems: 'center',
+    },
+});

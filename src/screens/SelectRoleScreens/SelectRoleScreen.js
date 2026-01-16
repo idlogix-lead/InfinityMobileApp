@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,634 +9,881 @@ import {
   ActivityIndicator,
   BackHandler,
   Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  TextInput,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
-import {Picker} from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { Picker } from '@react-native-picker/picker';
+import { useAuthStore } from '../../store/authStore';
+import { 
+  useRoles, 
+  useOrganizations, 
+  useWarehouses,
+  useCompleteLogin 
+} from '../../hooks/useAuth';
+import colors from '../../constants/Colors';
+import FontAwesome from 'react-native-vector-icons/FontAwesome';
 
-const {height, width} = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
 
-const SelectRoleScreen = ({navigation, route}) => {
-  const {
-    token,
-    clientId,
-    clientName,
-    protocol,
-    host,
-    port,
-    checkedRem = false,
-  } = route.params;
-  const fromProfile = route?.params?.fromProfile || false;
-  console.log(`Token: ${token}`);
-  console.log(clientId, 'clientId');
-  const [selectedClient, setSelectedClient] = useState('');
+const SelectRoleScreen = ({ navigation, route }) => {
+  // Get state from auth store
+  const token = useAuthStore(state => state.token);
+  const clientId = useAuthStore(state => state.clientId);
+  const clientName = useAuthStore(state => state.clientName);
+  const userName = useAuthStore(state => state.userName);
+  const isLoading = useAuthStore(state => state.isLoading);
+  const error = useAuthStore(state => state.error);
+  
+  // Get saved role data for pre-selection (always loaded from last login)
+  const savedRoleId = useAuthStore(state => state.roleId);
+  const savedOrgId = useAuthStore(state => state.organizationId);
+  const savedWarehouseId = useAuthStore(state => state.warehouseId);
+  const savedRoleName = useAuthStore(state => state.roleName);
+  const savedOrgName = useAuthStore(state => state.organizationName);
+  const savedWarehouseName = useAuthStore(state => state.warehouseName);
+  
+  // Responsive scaling
+  const scaleWidth = (size) => (width / 375) * size;
+  const scaleHeight = (size) => (height / 812) * size;
+  const isLandscape = width > height;
+  const isTablet = width >= 768;
+  
+  // Get store actions
+  const setCompleteAuthData = useAuthStore(state => state.setCompleteAuthData);
+  const setLoading = useAuthStore(state => state.setLoading);
+  const clearError = useAuthStore(state => state.clearError);
+  
+  // Local state
   const [selectedRole, setSelectedRole] = useState('');
-  const [selectedOrgan, setSelectedOrgan] = useState('');
-  const [selectedWareHouse, setSelectedWareHouse] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [optionsRoles, setOptionsRoles] = useState([
-    {label: 'Select Role', value: 'Select Role'},
-  ]);
-  const [optionsOrgan, setOptionsOrgan] = useState([
-    {label: 'Select Organization', value: 'Select Organization'},
-  ]);
-  const [optionsWareHouse, setOptionsWareHouse] = useState([
-    {label: 'Select WareHouse', value: 'Select WareHouse'},
-  ]);
-  const [roleId, setRoleId] = useState('');
-  const [organizationId, setOrganizationId] = useState();
-  const [warehouseId, setWareHouseId] = useState('');
+  const [selectedOrganization, setSelectedOrganization] = useState('');
+  const [selectedWarehouse, setSelectedWarehouse] = useState('');
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false);
+  
+  // Date state
+  const [currentDate] = useState(() => {
+    const now = new Date();
+    // Format: DD/MM/YYYY
+    const day = now.getDate().toString().padStart(2, '0');
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const year = now.getFullYear();
+    return `${day}/${month}/${year}`;
+  });
 
-  const optionClient = [
-    {label: 'Select Client', value: 'Select Client'},
-    {label: clientName, value: clientName},
-  ];
-  // Menual fetch roles
-  const fetchRoles = async () => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('roles'));
+  // Queries
+  const { 
+    data: roles = [], 
+    isLoading: loadingRoles,
+    isError: rolesError,
+    refetch: refetchRoles 
+  } = useRoles(clientId, !!clientId);
 
-      console.log(data, '/////////');
-      const roles = data.filter(role => !role.name.includes('*'));
-      setOptionsRoles([
-        {label: 'Select Role', value: ''},
-        ...roles.map(r => ({name: r.name, value: r.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Roles Error:', error);
-      Alert.alert('Error', 'Failed to load roles');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { 
+    data: organizations = [], 
+    isLoading: loadingOrgs,
+    isError: orgsError,
+    refetch: refetchOrgs 
+  } = useOrganizations(clientId, selectedRole, !!selectedRole);
 
-  const fetchOrganization = async roleId => {
-    try {
-      setIsLoading(true);
+  const { 
+    data: warehouses = [], 
+    isLoading: loadingWarehouses,
+    isError: warehousesError,
+    refetch: refetchWarehouses 
+  } = useWarehouses(clientId, selectedRole, selectedOrganization, !!selectedOrganization);
 
-      const data = JSON.parse(await AsyncStorage.getItem('orgs'));
-      const orgs = data.filter(org => !org.name.includes('*'));
-      setOptionsOrgan([
-        {name: 'Select Organization', value: ''},
-        ...orgs.map(o => ({name: o.name, value: o.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Organizations Error:', error);
-      Alert.alert('Error', 'Failed to load organizations');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Mutation
+  const completeLoginMutation = useCompleteLogin();
 
-  // Fetch warehouses by role + organization
-  const fetchWareHouse = async orgId => {
-    try {
-      setIsLoading(true);
-      const data = JSON.parse(await AsyncStorage.getItem('warehouses'));
-      const whs = data.filter(wh => !wh.name.includes('*'));
-      setOptionsWareHouse([
-        {label: 'Select WareHouse', value: ''},
-        ...whs.map(w => ({label: w.name, value: w.id})),
-      ]);
-    } catch (error) {
-      console.error('Fetch Warehouses Error:', error);
-      Alert.alert('Error', 'Failed to load warehouses');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Auto select flow for initial login
-  const autoSelectFlow = async () => {
-    try {
-      setIsLoading(true);
-
-      // Roles
-      const rolesResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/roles?client=${clientId}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const rolesData = await rolesResponse.json();
-
-      const roles = rolesData.roles;
-      console.log(roles, '??????????');
-      await AsyncStorage.setItem('roles', JSON.stringify(rolesData.roles));
-      const validRole = roles.find(role => !role.name.includes('*'));
-      if (!validRole) throw new Error('No valid role found');
-      setOptionsRoles([
-        {label: 'Select Role', value: ''},
-        ...roles.map(r => ({name: r.name, value: r.id})),
-      ]);
-      setSelectedRole(validRole.id);
-
-      // Organizations
-      const orgResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/organizations?client=${clientId}&role=${validRole.id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const orgData = await orgResponse.json();
-      const orgs = orgData.organizations;
-      await AsyncStorage.setItem('orgs', JSON.stringify(orgData.organizations));
-      const validOrg = orgs.find(org => !org.name.includes('*'));
-      if (!validOrg) throw new Error('No valid organization found');
-      setOptionsOrgan([
-        {name: 'Select Organization', value: ''},
-        ...orgs.map(o => ({label: o.name, value: o.id})),
-      ]);
-      setSelectedOrgan(validOrg.id);
-
-      console.log('clientId', clientId);
-      console.log('clientRole', validRole);
-      console.log('client Organization', validOrg);
-
-      // Warehouses
-      const whResponse = await fetch(
-        `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
-      const whData = await whResponse.json();
-      const warehouses = whData.warehouses;
-      await AsyncStorage.setItem(
-        'warehouses',
-        JSON.stringify(whData.warehouses),
-      );
-      const validWH = warehouses.find(wh => !wh.name.includes('*'));
-      if (!validWH) throw new Error('No valid warehouse found');
-      setOptionsWareHouse([
-        {label: 'Select WareHouse', value: ''},
-        ...warehouses.map(w => ({label: w.name, value: w.id})),
-      ]);
-      setSelectedWareHouse(validWH.id);
-
-      // Warehouses
-      // const whResponse = await fetch(
-      //   `${protocol}://${host}:${port}/api/v1/auth/warehouses?client=${clientId}&role=${validRole.id}&organization=${validOrg.id}`,
-      //   {
-      //     method: 'GET',
-      //     headers: {
-      //       Authorization: `Bearer ${token}`,
-      //       'Content-Type': 'application/json',
-      //     },
-      //   },
-      // );
-
-      // const whData = await whResponse.json();
-      // const warehouses = whData.warehouses;
-
-      // Save raw response
-      // await AsyncStorage.setItem('warehouses', JSON.stringify(warehouses));
-      // console.log('warehose response', warehouses);
-
-      // ✅ STATIC WAREHOUSE (Temporary fix)
-      // let validWH;
-
-      // if (!warehouses || warehouses.length === 0) {
-      //   console.warn('API returned no warehouses, using STATIC warehouse ID');
-      //   validWH = {id: '1000001', name: 'Static Warehouse'};
-      // } else {
-      //   validWH =
-      //     warehouses.find(wh => !wh.name.includes('*')) || warehouses[0];
-      // }
-
-      // Dropdown options
-      // setOptionsWareHouse([
-      //   {label: 'Select WareHouse', value: ''},
-      //   ...(warehouses && warehouses.length > 0
-      //     ? warehouses.map(w => ({label: w.name, value: w.id}))
-      //     : [{label: validWH.name, value: validWH.id}]),
-      // ]);
-
-      // Selected warehouse
-      // setSelectedWareHouse(validWH.id);
-      // console.log('Selected warehouse ID:', validWH.id);
-
-      // Login
-      await Login(validRole.id, validOrg.id, validWH.id);
-    } catch (error) {
-      console.error('Auto-select error:', error);
-      Alert.alert('Auto Login Failed', error.message || 'An error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  //  Login Function
-  const Login = async (roleIdVal, orgIdVal, whIdVal, fromProfile = false) => {
-    setIsLoading(true);
-    const userName = await AsyncStorage.getItem('userName');
-    const password = await AsyncStorage.getItem('password');
-    try {
-      let sessionResponse;
-      if (fromProfile === true) {
-        console.log(
-          JSON.stringify({
-            userName: userName,
-            password: password,
-            parameters: {
-              clientId: clientId,
-              roleId: roleIdVal,
-              organizationId: orgIdVal,
-              warehouseId: whIdVal,
-              language: 'en_US',
-            },
-          }),
-          'payload Data,,,,,,,',
-        );
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-
-            body: JSON.stringify({
-              userName: userName,
-              password: password,
-              parameters: {
-                clientId: clientId,
-                roleId: roleIdVal,
-                organizationId: orgIdVal,
-                warehouseId: whIdVal,
-                language: 'en_US',
-              },
-            }),
-          },
-        );
-      } else {
-        sessionResponse = await fetch(
-          `${protocol}://${host}:${port}/api/v1/auth/tokens`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              clientId: clientId,
-              roleId: roleIdVal,
-              organizationId: orgIdVal,
-              warehouseId: whIdVal,
-              language: 'en_US',
-            }),
-          },
-        );
-      }
-
-      if (!sessionResponse.ok) {
-        throw new Error(
-          `Session update failed with status: ${sessionResponse.status}`,
-        );
-      }
-
-      const sessionData = await sessionResponse.json();
-      const updatedToken = sessionData.token;
-      const userId = sessionData.userId.toString();
-      console.log(tokenOk, 'TokenOk////////');
-      const tokenOk = userId;
-
-      const itemsToSave = [
-        ['token', updatedToken],
-        ['tokenOk', tokenOk],
-        ['userId', userId],
-        ['clientName', clientName],
-        ['clientId', clientId.toString()],
-        ['roleId', roleIdVal.toString()],
-        ['organizationId', orgIdVal.toString()],
-        ['warehouseId', whIdVal.toString()],
-      ];
-
-      if (fromProfile) {
-        itemsToSave.push(['userName', userName]);
-        itemsToSave.push(['password', password]);
-      }
-      await AsyncStorage.multiSet(itemsToSave);
-
-      navigation.navigate('FingerPrintScreen', {
-        token: updatedToken,
-        tokenOk,
-        roleId: roleIdVal,
-        userId,
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert(
-        'Login Error',
-        error.message || 'An error occurred during login.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  //  Login Function End
-  const clickOk = () => {
-    if (!selectedClient) {
-      alert('please select client');
-    } else if (!selectedRole) {
-      alert('please select the role');
-    } else if (!selectedOrgan) {
-      alert('select an organization');
-    } else if (!selectedWareHouse) {
-      alert('select an wareHouse');
-    } else {
-      Login(selectedRole, selectedOrgan, selectedWareHouse, true);
-    }
-  };
-
+  // Initialize with saved values if available (pre-fill with last selection)
   useEffect(() => {
-    if (!fromProfile) {
-      autoSelectFlow();
-    } else {
-      fetchRoles();
+    if (savedRoleId) {
+      setSelectedRole(savedRoleId);
+    }
+    if (savedOrgId) {
+      setSelectedOrganization(savedOrgId);
+    }
+    if (savedWarehouseId) {
+      setSelectedWarehouse(savedWarehouseId);
+    }
+  }, [savedRoleId, savedOrgId, savedWarehouseId]);
+
+  // Handle errors
+  useEffect(() => {
+    if (error) {
+      Alert.alert('Error', error);
+      clearError();
+    }
+    
+    if (rolesError) {
+      Alert.alert('Error', 'Failed to load roles. Please try again.');
+    }
+  }, [error, rolesError]);
+
+  // Handle complete login
+  const handleLogin = async () => {
+    // Validation
+    if (!selectedRole || !selectedOrganization || !selectedWarehouse) {
+      Alert.alert('Required', 'Please select Role, Organization, and Company');
+      return;
     }
 
+    setIsLoadingLocal(true);
+    setLoading(true);
+    
+    try {
+      // Get the selected item names
+      const roleName = getSelectedItemName(roles, selectedRole) || savedRoleName;
+      const organizationName = getSelectedItemName(organizations, selectedOrganization) || savedOrgName;
+      const warehouseName = getSelectedItemName(warehouses, selectedWarehouse) || savedWarehouseName;
+
+      // Create parameters
+      const parameters = {
+        clientId: clientId?.toString(),
+        roleId: selectedRole?.toString(),
+        organizationId: selectedOrganization?.toString(),
+        warehouseId: selectedWarehouse?.toString(),
+        language: 'en_US',
+      };
+      
+      // Complete login
+      const response = await completeLoginMutation.mutateAsync(parameters);
+      
+      // Store complete auth data (this will save role for next login)
+      setCompleteAuthData({
+        token: response.token,
+        extractedUserId: response.extractedUserId,
+        clientId: clientId,
+        roleId: selectedRole,
+        roleName: roleName,
+        organizationId: selectedOrganization,
+        organizationName: organizationName,
+        warehouseId: selectedWarehouse,
+        warehouseName: warehouseName,
+      });
+      
+      // Navigate to FingerPrintScreen
+      navigation.replace('FingerPrintScreen');
+      
+    } catch (error) {
+      // Error handling
+      let errorMessage = error.message || 'An error occurred during login.';
+      
+      if (error.message.includes('Network request failed')) {
+        errorMessage = 'Unable to connect to server. Please check your internet connection.';
+      } else if (error.message.includes('Failed to extract')) {
+        errorMessage = 'Could not retrieve user information. Please try again.';
+      }
+      
+      Alert.alert('Login Failed', errorMessage);
+      
+    } finally {
+      setIsLoadingLocal(false);
+      setLoading(false);
+    }
+  };
+
+  // Handle role change
+  const handleRoleChange = (roleId) => {
+    setSelectedRole(roleId);
+    setSelectedOrganization('');
+    setSelectedWarehouse('');
+  };
+
+  // Handle organization change
+  const handleOrganizationChange = (orgId) => {
+    setSelectedOrganization(orgId);
+    setSelectedWarehouse('');
+  };
+
+  // Handle warehouse change
+  const handleWarehouseChange = (warehouseId) => {
+    setSelectedWarehouse(warehouseId);
+  };
+
+  // Filter out entries with asterisk
+  const filterValidItems = (items) => {
+    if (!items || !Array.isArray(items)) return [];
+    return items.filter(item => item && !item.name?.includes('*'));
+  };
+
+  // Get display name for selected items
+  const getSelectedItemName = (items, selectedId) => {
+    if (!selectedId) return '';
+    const item = items.find(item => item.id?.toString() === selectedId?.toString());
+    return item?.name || '';
+  };
+
+  // Back handler
+  useEffect(() => {
     const backAction = () => {
-      navigation.goBack();
+      navigation.navigate('SignIn');
       return true;
     };
+    
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
-      backAction,
+      backAction
     );
+    
     return () => backHandler.remove();
-  }, []);
+  }, [navigation]);
+
+  // Handle cancel
+  const handleCancel = () => {
+    navigation.navigate('SignIn');
+  };
+
+  // Handle calendar icon click (for future implementation)
+  const handleCalendarClick = () => {
+    // This will be implemented in the future
+    Alert.alert('Info', 'Date picker will be implemented in future update');
+  };
+
+  // Check if all fields are selected
+  const isLoginDisabled = isLoading || isLoadingLocal || 
+                         !selectedRole || !selectedOrganization || !selectedWarehouse;
+
+  // Get filtered items
+  const filteredRoles = filterValidItems(roles);
+  const filteredOrgs = filterValidItems(organizations);
+  const filteredWarehouses = filterValidItems(warehouses);
 
   return (
-    <>
-      {isLoading && (
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-          <ActivityIndicator size="large" color="#0050C0" />
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      
+      <ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent,
+          isLandscape && styles.scrollContentLandscape,
+          isTablet && styles.scrollContentTablet
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Logo */}
+        <Image
+          source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
+          style={[
+            styles.logo,
+            isLandscape && styles.logoLandscape,
+            isTablet && styles.logoTablet
+          ]}
+          resizeMode="contain"
+        />
+
+        {/* Title Section */}
+        <View style={[
+          styles.titleSection,
+          isLandscape && styles.titleSectionLandscape
+        ]}>
+          <Text style={[
+            styles.title,
+            isLandscape && styles.titleLandscape,
+            isTablet && styles.titleTablet
+          ]}>
+            Set User Role
+          </Text>
+          
+          {/* Client info */}
+          <Text style={[
+            styles.subtitle,
+            isLandscape && styles.subtitleLandscape,
+            isTablet && styles.subtitleTablet
+          ]}>
+            Client: {clientName || 'Not selected'}
+          </Text>
         </View>
-      )}
-      {!isLoading && (
-        <View
-          style={{
-            flex: 1,
-            // backgroundColor: '#0050C0',
-            backgroundColor: '#fff',
-            alignItems: 'center',
-          }}>
-          {/* First image */}
-          <View style={styles.imageCon}>
-            <Image
-              // source={require('../../asserts/splashScreenAsserts/infinityLoginIcon.png')}
-              source={require('../../asserts/WelcomeSrn/infinityerpiconillustrator23.png')}
-              style={{height: height / 3, width: width / 3}}
-              // style={{ height: height , width: width / 1,  }}
-              resizeMode="contain"
-            />
-          </View>
 
-          {/* Pickers */}
-          {/* Client picker */}
-          <View
-            style={{
-              backgroundColor: '#f1f1f1',
-              width: '95%',
-              alignSelf: 'center',
-              borderRadius: 10,
-            }}>
-            {/* Text  */}
-            <View>
-              <Text
-                style={{
-                  marginTop: '5%',
-                  fontSize: 20,
-                  fontWeight: '800',
-                  color: 'black',
-                  paddingLeft: '3%',
-                }}>
-                Set User Role
-              </Text>
-            </View>
-
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedClient}
-                onValueChange={async (itemValue, itemIndex) => (
-                  setSelectedClient(itemValue),
-                  await AsyncStorage.setItem(
-                    'clientNameSelected',
-                    optionClient[itemIndex].label,
-                  )
-                )}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionClient.map(option => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                    color="black"
-                    // color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* role picker */}
-            <View style={styles.pickerStyle}>
+        {/* Card */}
+        <View style={[
+          styles.card,
+          isLandscape && styles.cardLandscape,
+          isTablet && styles.cardTablet
+        ]}>
+          {/* Role */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Role
+            </Text>
+            <View style={[
+              styles.pickerWrapper,
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet
+            ]}>
               <Picker
                 selectedValue={selectedRole}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedRole(itemValue);
-                  await AsyncStorage.setItem(
-                    'roleNameSelected',
-                    optionsRoles[itemIndex].name,
-                  );
-                  if (itemValue === 'Select Role') {
-                    alert('Please select an role');
-                  } else {
-                    await setRoleId(itemValue);
-                    fetchOrganization(itemValue);
-                    setIsLoading(true);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsRoles.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* organization picker */}
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedOrgan}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedOrgan(itemValue);
-                  await AsyncStorage.setItem(
-                    'organizationNameSelected',
-                    optionsOrgan[itemIndex].name,
-                  );
-                  if (itemValue === 'Select Organization') {
-                    alert('Please select an organization');
-                  } else {
-                    setIsLoading(true);
-                    await setOrganizationId(itemValue);
-                    fetchWareHouse(itemValue);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsOrgan.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* warehouse picker */}
-            <View style={styles.pickerStyle}>
-              <Picker
-                selectedValue={selectedWareHouse}
-                onValueChange={async (itemValue, itemIndex) => {
-                  setSelectedWareHouse(itemValue);
-                  await AsyncStorage.setItem(
-                    'warehouseNameSelected',
-                    optionsOrgan[itemIndex].name,
-                  );
-                  // await AsyncStorage.setItem(
-                  //   'warehouseNameSelected',
-                  //   optionsWareHouse[itemIndex].label,
-                  // );
-
-                  if (itemValue === 'Select WareHouse') {
-                    alert('Please select an Warehouse');
-                  } else {
-                    setIsLoading(true);
-                    await setWareHouseId(itemValue);
-                    setIsLoading(false);
-                  }
-                }}
-                style={styles.pickerItem}
-                dropdownIconColor={'black'}>
-                {optionsWareHouse.map(option => (
-                  <Picker.Item
-                    label={option.name || option.label}
-                    value={option.id || option.value}
-                    key={option.id || option.value}
-                    color="black"
-                    //  color="#fff"
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {/* Buttoms */}
-            <View
-              style={{
-                marginTop: '10%',
-                flexDirection: 'row',
-                justifyContent: 'flex-end',
-                alignItems: 'flex-end',
-              }}>
-              <TouchableOpacity
+                onValueChange={handleRoleChange}
                 style={[
-                  styles.btn,
-                  {backgroundColor: '#f1f1f1', borderWidth: 1},
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet
                 ]}
-                onPress={() => navigation.goBack()}>
-                <Text style={[styles.btnTxt, {color: 'black'}]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, {marginRight: '5%'}]}
-                onPress={() => clickOk()}>
-                <Text style={styles.btnTxt}>Save</Text>
+              >
+                <Picker.Item label="Select Role" value="" />
+                {filteredRoles.map(role => (
+                  <Picker.Item
+                    key={role.id}
+                    label={role.name}
+                    value={role.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {/* Organization */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Organization
+            </Text>
+            <View style={[
+              styles.pickerWrapper,
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet,
+              !selectedRole && styles.disabledWrapper
+            ]}>
+              <Picker
+                selectedValue={selectedOrganization}
+                onValueChange={handleOrganizationChange}
+                enabled={!!selectedRole}
+                style={[
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet,
+                  !selectedRole && styles.disabledPicker
+                ]}
+              >
+                <Picker.Item label="Select Organization" value="" />
+                {filteredOrgs.map(org => (
+                  <Picker.Item
+                    key={org.id}
+                    label={org.name}
+                    value={org.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {/* Company */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Warehouse
+            </Text>
+            <View style={[
+              styles.pickerWrapper,
+              isLandscape && styles.pickerWrapperLandscape,
+              isTablet && styles.pickerWrapperTablet,
+              (!selectedRole || !selectedOrganization) && styles.disabledWrapper
+            ]}>
+              <Picker
+                selectedValue={selectedWarehouse}
+                onValueChange={handleWarehouseChange}
+                enabled={!!selectedOrganization}
+                style={[
+                  styles.picker,
+                  isLandscape && styles.pickerLandscape,
+                  isTablet && styles.pickerTablet,
+                  (!selectedRole || !selectedOrganization) && styles.disabledPicker
+                ]}
+              >
+                <Picker.Item label="Select Warehouse" value="" />
+                {filteredWarehouses.map(w => (
+                  <Picker.Item
+                    key={w.id}
+                    label={w.name}
+                    value={w.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          {/* Date - with Calendar Icon */}
+          <View style={styles.section}>
+            <Text style={[
+              styles.label,
+              isLandscape && styles.labelLandscape,
+              isTablet && styles.labelTablet
+            ]}>
+              Date
+            </Text>
+            <View style={[
+              styles.dateContainer,
+              isLandscape && styles.dateContainerLandscape,
+              isTablet && styles.dateContainerTablet
+            ]}>
+              <TextInput
+                value={currentDate}
+                style={[
+                  styles.dateInput,
+                  isLandscape && styles.dateInputLandscape,
+                  isTablet && styles.dateInputTablet
+                ]}
+                editable={false}
+                selectTextOnFocus={false}
+                pointerEvents="none"
+              />
+              <TouchableOpacity 
+                style={[
+                  styles.calendarIconContainer,
+                  isLandscape && styles.calendarIconContainerLandscape,
+                  isTablet && styles.calendarIconContainerTablet
+                ]}
+                onPress={handleCalendarClick}
+                activeOpacity={0.7}
+              >
+                <FontAwesome 
+                  name="calendar" 
+                  size={width * 0.05} 
+                  color={colors.authButton}
+                />
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Buttons */}
+          <View style={[
+            styles.buttonRow,
+            isLandscape && styles.buttonRowLandscape,
+            isTablet && styles.buttonRowTablet
+          ]}>
+            <TouchableOpacity
+              style={[
+                styles.cancelBtn,
+                isLandscape && styles.cancelBtnLandscape,
+                isTablet && styles.cancelBtnTablet,
+                (isLoading || isLoadingLocal) && styles.buttonDisabled
+              ]}
+              onPress={handleCancel}
+              disabled={isLoading || isLoadingLocal}
+            >
+              <Text style={[
+                styles.cancelText,
+                isLandscape && styles.cancelTextLandscape,
+                isTablet && styles.cancelTextTablet
+              ]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.saveBtn,
+                isLandscape && styles.saveBtnLandscape,
+                isTablet && styles.saveBtnTablet,
+                isLoginDisabled && styles.disabled,
+              ]}
+              onPress={handleLogin}
+              disabled={isLoginDisabled}
+            >
+              {(isLoading || isLoadingLocal) ? (
+                <ActivityIndicator color={colors.textInverse} size="small" />
+              ) : (
+                <Text style={[
+                  styles.saveText,
+                  isLandscape && styles.saveTextLandscape,
+                  isTablet && styles.saveTextTablet
+                ]}>
+                  Save
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
-    </>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
-export default SelectRoleScreen;
-
 const styles = StyleSheet.create({
-  imageCon: {
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    height: height / 3.5,
-    width: width,
-    // backgroundColor:"red"
+    paddingTop: height * 0.05,
+    paddingBottom: height * 0.05,
+    paddingHorizontal: width * 0.05,
   },
-  middleContainer: {
-    alignItems: 'center',
-  },
-  txt: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#800000',
-  },
-  txt2: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: '#330000',
-  },
-  topMiddleText: {
+
+  scrollContentLandscape: {
     flexDirection: 'row',
-  },
-  pickerStyle: {
-    width: width / 1.3,
-    // borderBottomColor: 'white',
-    // borderBottomWidth: 1,
-    marginTop: 14,
-    width: '90%',
-    alignSelf: 'center',
-    backgroundColor: '#DCDADA',
-    borderRadius: 10,
-  },
-  pickerItem: {
-    color: 'black',
-    fontFamily: 'K2D',
-  },
-  btn: {
-    // backgroundColor: '#00B0F0',
-    backgroundColor: '#002E62',
-    height: height / 20,
-    width: width / 3,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: '3%',
-    borderRadius: 10,
-    marginLeft: '4%',
-    marginBottom: '15%',
+    justifyContent: 'space-around',
+    paddingTop: height * 0.03,
+    paddingBottom: height * 0.03,
+    paddingHorizontal: width * 0.03,
   },
-  btnTxt: {
-    fontSize: 16,
-    color: 'white',
+
+  scrollContentTablet: {
+    paddingTop: height * 0.08,
+    paddingBottom: height * 0.08,
+    paddingHorizontal: width * 0.08,
+  },
+
+  logo: {
+    width: width * 0.25,
+    height: height * 0.12,
+    maxWidth: 100,
+    maxHeight: 100,
+    marginBottom: height * 0.02,
+  },
+
+  logoLandscape: {
+    width: width * 0.2,
+    height: height * 0.25,
+    marginBottom: 0,
+    marginRight: width * 0.05,
+  },
+
+  logoTablet: {
+    width: width * 0.2,
+    height: height * 0.15,
+    maxWidth: 120,
+    maxHeight: 120,
+    marginBottom: height * 0.03,
+  },
+
+  titleSection: {
+    alignItems: 'center',
+    marginBottom: height * 0.03,
+  },
+
+  titleSectionLandscape: {
+    marginBottom: height * 0.02,
+    marginRight: width * 0.05,
+    alignItems: 'flex-start',
+  },
+
+  title: {
+    fontSize: width * 0.06,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: height * 0.005,
+    textAlign: 'center',
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  titleLandscape: {
+    fontSize: width * 0.05,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+
+  titleTablet: {
+    fontSize: width * 0.07,
+    marginBottom: height * 0.01,
+  },
+
+  subtitle: {
+    fontSize: width * 0.04,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontFamily: 'K2D-Regular',
+  },
+
+  subtitleLandscape: {
+    fontSize: width * 0.035,
+    textAlign: 'left',
+    alignSelf: 'flex-start',
+  },
+
+  subtitleTablet: {
+    fontSize: width * 0.045,
+  },
+
+  card: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    padding: width * 0.04,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+
+  cardLandscape: {
+    width: width * 0.5,
+    maxWidth: 450,
+    padding: width * 0.03,
+  },
+
+  cardTablet: {
+    width: width * 0.6,
+    maxWidth: 600,
+    padding: width * 0.05,
+    borderRadius: 12,
+  },
+
+  section: {
+    marginBottom: height * 0.02,
+  },
+
+  label: {
+    fontSize: width * 0.04,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginBottom: height * 0.01,
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  labelLandscape: {
+    fontSize: width * 0.035,
+  },
+
+  labelTablet: {
+    fontSize: width * 0.045,
+  },
+
+  pickerWrapper: {
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    overflow: 'hidden',
+    minHeight: 48,
+  },
+
+  pickerWrapperLandscape: {
+    borderRadius: 6,
+    minHeight: 48,
+  },
+
+  pickerWrapperTablet: {
+    borderRadius: 8,
+    minHeight: 52,
+  },
+
+  disabledWrapper: {
+    backgroundColor: colors.surfaceDisabled,
+    borderColor: colors.borderLight,
+  },
+
+  picker: {
+    height: height * 0.06,
+    minHeight: 48,
+    color: colors.textPrimary,
+    fontFamily: 'K2D-Regular',
+  },
+
+  pickerLandscape: {
+    height: height * 0.07,
+    minHeight: 48,
+  },
+
+  pickerTablet: {
+    height: height * 0.065,
+    minHeight: 52,
+  },
+
+  disabledPicker: {
+    color: colors.textTertiary,
+  },
+
+  // Date container with icon
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    overflow: 'hidden',
+    minHeight: 48,
+  },
+
+  dateContainerLandscape: {
+    borderRadius: 6,
+    minHeight: 48,
+  },
+
+  dateContainerTablet: {
+    borderRadius: 8,
+    minHeight: 52,
+  },
+
+  dateInput: {
+    flex: 1,
+    height: height * 0.06,
+    minHeight: 48,
+    color: colors.textPrimary,
+    fontSize: width * 0.04,
+    fontFamily: 'K2D-Regular',
+    paddingHorizontal: width * 0.04,
+    paddingVertical: height * 0.015,
+  },
+
+  dateInputLandscape: {
+    height: height * 0.07,
+    minHeight: 48,
+    fontSize: width * 0.035,
+    paddingVertical: height * 0.015,
+  },
+
+  dateInputTablet: {
+    height: height * 0.065,
+    minHeight: 52,
+    fontSize: width * 0.045,
+    paddingVertical: height * 0.015,
+  },
+
+  calendarIconContainer: {
+    paddingHorizontal: width * 0.03,
+    height: '100%',
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.borderLight,
+  },
+
+  calendarIconContainerLandscape: {
+    paddingHorizontal: width * 0.02,
+    minHeight: 48,
+  },
+
+  calendarIconContainerTablet: {
+    paddingHorizontal: width * 0.04,
+    minHeight: 52,
+  },
+
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: height * 0.03,
+    gap: width * 0.02,
+  },
+
+  buttonRowLandscape: {
+    marginTop: height * 0.04,
+    gap: width * 0.015,
+  },
+
+  buttonRowTablet: {
+    marginTop: height * 0.04,
+    gap: width * 0.03,
+  },
+
+  cancelBtn: {
+    height: height * 0.06,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.authButton,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: width * 0.06,
+    minWidth: width * 0.2,
+  },
+
+  cancelBtnLandscape: {
+    height: height * 0.07,
+    minHeight: 46,
+    paddingHorizontal: width * 0.05,
+    minWidth: width * 0.15,
+  },
+
+  cancelBtnTablet: {
+    height: height * 0.07,
+    minHeight: 52,
+    borderRadius: 8,
+    paddingHorizontal: width * 0.08,
+    minWidth: width * 0.15,
+  },
+
+  saveBtn: {
+    height: height * 0.06,
+    minHeight: 46,
+    backgroundColor: colors.authButton,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: width * 0.06,
+    minWidth: width * 0.2,
+  },
+
+  saveBtnLandscape: {
+    height: height * 0.07,
+    minHeight: 46,
+    paddingHorizontal: width * 0.05,
+    minWidth: width * 0.15,
+  },
+
+  saveBtnTablet: {
+    height: height * 0.07,
+    minHeight: 52,
+    borderRadius: 8,
+    paddingHorizontal: width * 0.08,
+    minWidth: width * 0.15,
+  },
+
+  cancelText: {
+    color: colors.primary,
+    fontSize: width * 0.045,
+    fontWeight: '600',
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  cancelTextLandscape: {
+    fontSize: width * 0.04,
+  },
+
+  cancelTextTablet: {
+    fontSize: width * 0.05,
+  },
+
+  saveText: {
+    color: colors.textInverse,
+    fontSize: width * 0.045,
+    fontWeight: '600',
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  saveTextLandscape: {
+    fontSize: width * 0.04,
+  },
+
+  saveTextTablet: {
+    fontSize: width * 0.05,
+  },
+
+  disabled: {
+    opacity: 0.5,
+  },
+
+  buttonDisabled: {
+    opacity: 0.5,
   },
 });
+
+export default SelectRoleScreen;

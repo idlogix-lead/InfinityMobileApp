@@ -1,28 +1,53 @@
-import React from 'react';
-import {StyleSheet} from 'react-native';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
-import {MenuProvider} from 'react-native-popup-menu';
+import React, { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from 'react-query';
+import { MenuProvider } from 'react-native-popup-menu';
 import Navigation from './src/navigation/Navigation';
-import {QueryClient, QueryClientProvider} from '@tanstack/react-query';
+import { Platform } from 'react-native';
+import keychainService from './src/services/KeyChainService';
 
-// 1️⃣ Create QueryClient
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      cacheTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    },
+  },
+});
 
-export default function App() {
+function App() {
+  useEffect(() => {
+    const initializeKeychain = async () => {
+      try {
+        // Simple health check
+        const health = await keychainService.healthCheck();
+        
+        // Test Keychain in development mode only
+        if (!health.error) {
+          // Run a quick test but don't show errors to user
+          setTimeout(async () => {
+            try {
+              await keychainService.testKeychain();
+            } catch (testError) {
+              // Silent fail
+            }
+          }, 1000);
+        }
+      } catch (error) {
+        // Silent fail
+      }
+    };
+    
+    initializeKeychain();
+  }, []);
+
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <QueryClientProvider client={queryClient}>
       <MenuProvider>
-        {/* 2️⃣ Wrap your app with QueryClientProvider */}
-        <QueryClientProvider client={queryClient}>
-          <Navigation />
-        </QueryClientProvider>
+        <Navigation />
       </MenuProvider>
-    </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+export default App;
