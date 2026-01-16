@@ -175,11 +175,7 @@ const CrmTotal = ({ route, navigation }) => {
       
       {/* Custom Header with Filter */}
       <View style={{ flex: 1 }}>
-        <CustomHeader
-          title="Total Leads"
-          RightIcon="filter"
-          RightPress={() => setFilterVisible(true)}
-        />
+       
         
         {/* Modified GenericLead with filtered data */}
         <GenericLead
