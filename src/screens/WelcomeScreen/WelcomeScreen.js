@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Added useRef
 import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '../../store/authStore';
 import colors from '../../constants/Colors';
@@ -23,6 +23,8 @@ const WelcomeScreen = ({ navigation }) => {
   const [selectedValue, setSelectedValue] = useState('http');
   const [ipAddress, setIpAddress] = useState('');
   const [portNum, setPortNum] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false); // Prevent double navigation
+  const navigationRef = useRef(false); // Track if we've already navigated
   
   const setServerConfig = useAuthStore(state => state.setServerConfig);
   const serverConfig = useAuthStore(state => state.serverConfig);
@@ -41,6 +43,9 @@ const WelcomeScreen = ({ navigation }) => {
   const isTablet = width >= 768;
 
   useEffect(() => {
+    console.log('🌐 WelcomeScreen: Mounted');
+    navigationRef.current = false;
+    
     // Load saved config on mount
     if (serverConfig.protocol) setSelectedValue(serverConfig.protocol);
     if (serverConfig.host) setIpAddress(serverConfig.host);
@@ -52,11 +57,19 @@ const WelcomeScreen = ({ navigation }) => {
     };
 
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
-    return () =>
+    return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
+      console.log('🌐 WelcomeScreen: Unmounted');
+    };
   }, []);
 
   const navigateToSignIn = () => {
+    // Prevent double navigation
+    if (isNavigating || navigationRef.current) {
+      console.log('⚠️ WelcomeScreen: Navigation already in progress, ignoring');
+      return;
+    }
+    
     if (!selectedValue) {
       alert('Please select host protocol');
       return;
@@ -68,6 +81,12 @@ const WelcomeScreen = ({ navigation }) => {
       return;
     }
 
+    // Set navigating flag
+    setIsNavigating(true);
+    navigationRef.current = true;
+    
+    console.log('🌐 WelcomeScreen: Saving config and navigating...');
+
     // Save to Zustand store
     setServerConfig({
       protocol: selectedValue,
@@ -75,7 +94,16 @@ const WelcomeScreen = ({ navigation }) => {
       port: portNum,
     });
 
-    navigation.navigate('SignIn');
+    // Use setTimeout to ensure state update
+    setTimeout(() => {
+      console.log('🌐 WelcomeScreen: Navigating to SignIn');
+      navigation.navigate('SignIn');
+      
+      // Reset flag after navigation
+      setTimeout(() => {
+        setIsNavigating(false);
+      }, 1000);
+    }, 100);
   };
 
   return (
@@ -156,15 +184,17 @@ const WelcomeScreen = ({ navigation }) => {
             style={[
               styles.button,
               isLandscape && styles.buttonLandscape,
-              isTablet && styles.buttonTablet
+              isTablet && styles.buttonTablet,
+              isNavigating && styles.buttonDisabled
             ]} 
             onPress={navigateToSignIn}
+            disabled={isNavigating}
           >
             <Text style={[
               styles.buttonText,
               isTablet && styles.buttonTextTablet
             ]}>
-              Save
+              {isNavigating ? 'Saving...' : 'Save'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -307,6 +337,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
+  },
+
+  buttonDisabled: {
+    backgroundColor: '#cccccc',
   },
 
   buttonLandscape: {

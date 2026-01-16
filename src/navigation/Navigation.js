@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AppInitializer from '../components/AppInitializer';
 import { useAuthStore } from '../store/authStore';
-import { useSessionStore } from '../store/sessionStore';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Import navigators
 import AuthNavigator from './MainNavigation/AuthNavigator';
@@ -21,12 +21,12 @@ const Navigation = () => {
   const userName = useAuthStore(state => state.userName);
   const roleId = useAuthStore(state => state.roleId);
   
-  // Get session state
-  const { sessionsRegistry, getCurrentSession } = useSessionStore();
-  
-  // Check authentication status
+  // Check authentication status - SIMPLIFIED AND RELIABLE
   const isAuthenticated = React.useMemo(() => {
-    return Boolean(
+    // Only check when we're not in checking state
+    if (isCheckingAuth) return false;
+    
+    const result = Boolean(
       token &&
       typeof token === 'string' &&
       token.length > 10 &&
@@ -36,18 +36,52 @@ const Navigation = () => {
       userId !== userName &&
       roleId
     );
-  }, [token, userId, userName, roleId]);
+    
+    console.log('🧭 Navigation - Auth Check:', {
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+      userName: !!userName,
+      userId: !!userId,
+      roleId: !!roleId,
+      isAuthenticated: result,
+      isCheckingAuth
+    });
+    
+    return result;
+  }, [token, userId, userName, roleId, isCheckingAuth]);
   
   // Check for valid session on mount
   useEffect(() => {
     const checkSession = async () => {
-      // Wait a moment for stores to initialize
-      await new Promise(resolve => setTimeout(resolve, 500));
+      console.log('🧭 Navigation: Starting auth check...');
+      
+      // Wait for stores to initialize
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const storeState = useAuthStore.getState();
+      console.log('🧭 Navigation: Store state loaded', {
+        userId: storeState.userId,
+        tokenExists: !!storeState.token,
+        roleId: storeState.roleId,
+        isCompleteAuth: storeState.isCompleteAuthenticated
+      });
+      
       setIsCheckingAuth(false);
     };
     
     checkSession();
   }, []);
+  
+  // Listen for auth state changes
+  useEffect(() => {
+    if (!isCheckingAuth) {
+      console.log('🧭 Navigation: Auth state updated', {
+        isAuthenticated,
+        userId,
+        userName
+      });
+    }
+  }, [isAuthenticated, isCheckingAuth]);
   
   // Show loading while checking
   if (isCheckingAuth) {
@@ -65,18 +99,21 @@ const Navigation = () => {
   return (
     <NavigationContainer>
       <AppInitializer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator 
+          screenOptions={{ 
+            headerShown: false,
+            animation: 'none' // Disable animation to prevent flicker
+          }}
+        >
           {isAuthenticated ? (
             <Stack.Screen 
               name="App" 
               component={AppNavigator}
-              options={{ animation: 'fade' }}
             />
           ) : (
             <Stack.Screen 
               name="Auth" 
               component={AuthNavigator}
-              options={{ animation: 'fade' }}
             />
           )}
         </Stack.Navigator>

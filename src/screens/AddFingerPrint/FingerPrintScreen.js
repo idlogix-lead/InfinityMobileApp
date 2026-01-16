@@ -1,4 +1,3 @@
-// Updated FingerPrintScreen.js
 import {
   StyleSheet,
   Text,
@@ -10,22 +9,17 @@ import {
 } from 'react-native';
 import React, { useEffect, useState, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuthStore } from '../../store/authStore'; 
+import { useAuthStore } from '../../store/authStore';
 
 const FingerPrintScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticatedState, setIsAuthenticatedState] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Verifying authentication...');
   
   // Get all auth data
   const token = useAuthStore(state => state.token);
   const userId = useAuthStore(state => state.userId);
   const userName = useAuthStore(state => state.userName);
-  const tokenOk = useAuthStore(state => state.tokenOk);
   const roleId = useAuthStore(state => state.roleId);
-  const clientId = useAuthStore(state => state.clientId);
-  const clientName = useAuthStore(state => state.clientName);
-  const organizationId = useAuthStore(state => state.organizationId);
-  const warehouseId = useAuthStore(state => state.warehouseId);
   
   // Create a reliable auth check
   const isAuthenticated = useMemo(() => {
@@ -35,86 +29,86 @@ const FingerPrintScreen = ({ navigation }) => {
       token.length > 10 &&
       userName &&
       userId &&
-      !isNaN(Number(userId)) && // Must be numeric
-      userId !== userName
+      !isNaN(Number(userId)) &&
+      userId !== userName &&
+      roleId
     );
     
-    console.log('📱 FingerPrintScreen auth check:', {
+    console.log('📱 FingerPrintScreen - Auth Check:', {
       tokenExists: !!token,
       tokenLength: token?.length || 0,
       userName,
       userId,
-      userIdIsNumeric: userId && !isNaN(Number(userId)),
+      isNumericUserId: userId && !isNaN(Number(userId)),
+      hasRoleId: !!roleId,
       calculatedValue: result
     });
     
     return result;
-  }, [token, userId, userName]);
+  }, [token, userId, userName, roleId]);
 
   useEffect(() => {
     console.log('\n' + '='.repeat(60));
-    console.log('👆 FINGERPRINT SCREEN - UPDATED');
+    console.log('👆 FINGERPRINT SCREEN');
     console.log('='.repeat(60));
-    
-    console.log('🔍 Auth values:');
-    console.log('  Token:', token ? `${token.substring(0, 30)}...` : 'null');
-    console.log('  Token length:', token?.length || 0);
-    console.log('  User ID:', userId);
-    console.log('  Username:', userName);
-    console.log('  TokenOk:', tokenOk);
-    console.log('  Role ID:', roleId);
-    console.log('  Client ID:', clientId);
-    console.log('  Organization ID:', organizationId);
-    console.log('  Warehouse ID:', warehouseId);
-    console.log('  Calculated isAuthenticated:', isAuthenticated);
     
     const checkAuth = async () => {
       setIsLoading(true);
+      setStatusMessage('Verifying authentication...');
       
       // Wait for store to update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Use the calculated value
+      console.log('📱 FingerPrintScreen values:');
+      console.log('  Token length:', token?.length || 0);
+      console.log('  User ID:', userId);
+      console.log('  Username:', userName);
+      console.log('  Role ID:', roleId);
+      console.log('  Calculated isAuthenticated:', isAuthenticated);
+      
       if (isAuthenticated) {
-        console.log('\n✅ AUTHENTICATED! Saving data and waiting...');
-        setIsAuthenticatedState(true);
+        console.log('\n✅ AUTHENTICATED! Saving data...');
+        setStatusMessage('Authentication successful! Saving data...');
         
         await saveUserData();
         
-        // DON'T navigate here - just update state
-        // The main Navigation component will detect the auth change
-        // and automatically switch from Auth to App navigator
+        // Wait a moment then update status
+        setTimeout(() => {
+          setStatusMessage('Authentication complete! You will be redirected...');
+          setIsLoading(false);
+          
+          // Automatically go back after 2 seconds
+          setTimeout(() => {
+            // Just go back - Navigation component will handle the switch
+            navigation.goBack();
+          }, 2000);
+        }, 1000);
         
       } else {
         console.log('\n❌ NOT AUTHENTICATED');
-        setIsAuthenticatedState(false);
+        setStatusMessage('Authentication failed. Please login again.');
+        setIsLoading(false);
         
-        // If not authenticated after 3 seconds, show error
+        // Show error and go back after 3 seconds
         setTimeout(() => {
           Alert.alert(
             'Authentication Failed',
             'Unable to verify authentication. Please login again.',
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
+            [{ 
+              text: 'OK', 
+              onPress: () => navigation.goBack() 
+            }]
           );
-        }, 3000);
+        }, 2000);
       }
-      
-      setIsLoading(false);
     };
     
     checkAuth();
     
-    // Back handler
+    // Back handler - always go back
     const backAction = () => {
-      if (isAuthenticatedState) {
-        // If authenticated, exit app or go to app
-        BackHandler.exitApp();
-        return true;
-      } else {
-        // If not authenticated, go back
-        navigation.goBack();
-        return true;
-      }
+      navigation.goBack();
+      return true;
     };
     
     const backHandler = BackHandler.addEventListener(
@@ -123,7 +117,7 @@ const FingerPrintScreen = ({ navigation }) => {
     );
     
     return () => backHandler.remove();
-  }, [isAuthenticated, navigation, token, userId, userName, tokenOk, roleId, clientId, organizationId, warehouseId]);
+  }, [isAuthenticated, navigation]);
 
   // Save user data to AsyncStorage
   const saveUserData = async () => {
@@ -140,15 +134,14 @@ const FingerPrintScreen = ({ navigation }) => {
         // Auth data
         userName: userName,
         password: useAuthStore.getState().password,
-        clientName: clientName,
-        clientId: clientId,
+        clientName: useAuthStore.getState().clientName,
+        clientId: useAuthStore.getState().clientId,
         roleId: roleId,
         roleName: useAuthStore.getState().roleName,
-        organizationId: organizationId,
+        organizationId: useAuthStore.getState().organizationId,
         organizationName: useAuthStore.getState().organizationName,
-        warehouseId: warehouseId,
+        warehouseId: useAuthStore.getState().warehouseId,
         warehouseName: useAuthStore.getState().warehouseName,
-        tokenOk: tokenOk,
         userId: userId,
         token: token,
       };
@@ -172,18 +165,15 @@ const FingerPrintScreen = ({ navigation }) => {
   const handleManualContinue = async () => {
     if (isAuthenticated) {
       await saveUserData();
-      // The navigation will happen automatically via the main Navigation component
-      // Just show a message
-      Alert.alert(
-        'Success',
-        'Authentication complete! The app will now load...',
-        [{ text: 'OK' }]
-      );
+      navigation.goBack();
     } else {
       Alert.alert(
         'Not Authenticated',
-        'Please wait for authentication to complete or try again.',
-        [{ text: 'OK' }]
+        'Authentication failed. Please login again.',
+        [{ 
+          text: 'OK', 
+          onPress: () => navigation.goBack() 
+        }]
       );
     }
   };
@@ -193,12 +183,12 @@ const FingerPrintScreen = ({ navigation }) => {
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#800000" />
-          <Text style={styles.loadingText}>Verifying authentication...</Text>
-          <Text style={styles.subText}>User ID: {userId}</Text>
-          <Text style={styles.subText}>Username: {userName}</Text>
-          {isAuthenticated && (
-            <Text style={styles.successText}>✅ Authentication successful!</Text>
-          )}
+          <Text style={styles.loadingText}>{statusMessage}</Text>
+          <View style={styles.detailsContainer}>
+            <Text style={styles.detailText}>User ID: {userId || 'Not set'}</Text>
+            <Text style={styles.detailText}>Username: {userName || 'Not set'}</Text>
+            <Text style={styles.detailText}>Role ID: {roleId || 'Not set'}</Text>
+          </View>
         </View>
       </View>
     );
@@ -207,18 +197,18 @@ const FingerPrintScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        {isAuthenticatedState ? (
+        {isAuthenticated ? (
           <>
-            <Text style={styles.title}>Authentication Complete!</Text>
+            <Text style={styles.title}>✅ Authentication Complete!</Text>
             <View style={styles.infoCard}>
-              <Text style={styles.infoText}>✅ User: {userName}</Text>
-              <Text style={styles.infoText}>✅ ID: {userId}</Text>
-              <Text style={styles.infoText}>✅ Role: {useAuthStore.getState().roleName}</Text>
-              <Text style={styles.infoText}>✅ Client: {clientName}</Text>
+              <Text style={styles.infoText}>User: {userName}</Text>
+              <Text style={styles.infoText}>ID: {userId}</Text>
+              <Text style={styles.infoText}>Role: {useAuthStore.getState().roleName || 'Not set'}</Text>
+              <Text style={styles.infoText}>Client: {useAuthStore.getState().clientName || 'Not set'}</Text>
             </View>
             
             <Text style={styles.successMessage}>
-              You are now authenticated and will be redirected to the main app...
+              Your authentication is complete. The app will now redirect you...
             </Text>
             
             <TouchableOpacity 
@@ -230,12 +220,16 @@ const FingerPrintScreen = ({ navigation }) => {
           </>
         ) : (
           <>
-            <Text style={styles.title}>Authentication Required</Text>
-            <View style={styles.infoCard}>
-              <Text style={styles.errorText}>❌ User: {userName || 'Not found'}</Text>
-              <Text style={styles.errorText}>❌ ID: {userId || 'Not found'}</Text>
-              <Text style={styles.errorText}>❌ Authentication failed</Text>
+            <Text style={styles.title}>❌ Authentication Failed</Text>
+            <View style={[styles.infoCard, styles.errorCard]}>
+              <Text style={styles.errorText}>User: {userName || 'Not found'}</Text>
+              <Text style={styles.errorText}>ID: {userId || 'Not found'}</Text>
+              <Text style={styles.errorText}>Role ID: {roleId || 'Not found'}</Text>
             </View>
+            
+            <Text style={styles.errorMessage}>
+              Please check your credentials and try again.
+            </Text>
             
             <TouchableOpacity 
               style={[styles.button, styles.errorButton]} 
@@ -268,17 +262,19 @@ const styles = StyleSheet.create({
     color: '#333',
     marginTop: 20,
     fontWeight: '600',
+    textAlign: 'center',
   },
-  subText: {
+  detailsContainer: {
+    marginTop: 20,
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 8,
+    width: '90%',
+  },
+  detailText: {
     fontSize: 14,
     color: '#666',
-    marginTop: 10,
-  },
-  successText: {
-    fontSize: 16,
-    color: 'green',
-    marginTop: 20,
-    fontWeight: 'bold',
+    marginVertical: 3,
   },
   content: {
     flex: 1,
@@ -304,6 +300,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  errorCard: {
+    borderColor: '#ff4444',
+    borderWidth: 1,
   },
   infoText: {
     fontSize: 16,
@@ -339,7 +339,13 @@ const styles = StyleSheet.create({
     color: 'green',
     marginTop: 20,
     textAlign: 'center',
-    fontStyle: 'italic',
+    paddingHorizontal: 20,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: 'red',
+    marginTop: 20,
+    textAlign: 'center',
     paddingHorizontal: 20,
   },
 });

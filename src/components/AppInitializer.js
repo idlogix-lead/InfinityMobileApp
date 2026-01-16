@@ -8,14 +8,19 @@ const AppInitializer = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   
   const { initialize: initializeSessions } = useSessionStore();
-  const token = useAuthStore(state => state.token);
-  const userId = useAuthStore(state => state.userId);
 
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('🔄 AppInitializer: Starting initialization...');
+        console.log('🔄 AppInitializer: Starting...');
         
+        // Set a timeout to ensure we don't get stuck
+        const timeout = setTimeout(() => {
+          console.log('⚠️ AppInitializer: Timeout - forcing completion');
+          setIsLoading(false);
+          setIsInitialized(true);
+        }, 3000);
+
         // Wait for Zustand hydration
         const unsubAuth = useAuthStore.persist.onFinishHydration(() => {
           console.log('✅ Auth store hydrated');
@@ -23,38 +28,30 @@ const AppInitializer = ({ children }) => {
 
         const unsubSession = useSessionStore.persist.onFinishHydration(() => {
           console.log('✅ Session store hydrated');
-          
-          // Initialize session store
           initializeSessions();
-          setIsLoading(false);
-          
-          // Check if we should auto-load a session
-          setTimeout(() => {
-            checkAutoLogin();
-            setIsInitialized(true);
-          }, 500);
         });
 
-        // If already hydrated
+        // If already hydrated, complete immediately
         if (useAuthStore.persist.hasHydrated() && useSessionStore.persist.hasHydrated()) {
           console.log('✅ Stores already hydrated');
           initializeSessions();
+          clearTimeout(timeout);
           setIsLoading(false);
-          checkAutoLogin();
           setIsInitialized(true);
         }
 
-        // Safety timeout
-        const timeout = setTimeout(() => {
-          console.log('⚠️  Initialization timeout - forcing complete');
+        // Complete after 1 second regardless
+        setTimeout(() => {
+          console.log('✅ AppInitializer: Complete');
+          clearTimeout(timeout);
           setIsLoading(false);
           setIsInitialized(true);
-        }, 5000);
+        }, 1000);
 
         return () => {
+          clearTimeout(timeout);
           unsubAuth?.();
           unsubSession?.();
-          clearTimeout(timeout);
         };
       } catch (error) {
         console.error('❌ App initialization error:', error);
@@ -65,25 +62,6 @@ const AppInitializer = ({ children }) => {
 
     initializeApp();
   }, []);
-
-  const checkAutoLogin = () => {
-    try {
-      const state = useAuthStore.getState();
-      
-      // Check if we already have a valid session
-      if (state.token && state.userId && state.isCompleteAuthenticated) {
-        console.log('✅ Already authenticated, no auto-login needed');
-        return;
-      }
-      
-      // The session switching should be handled by ProfileScreen
-      // Don't auto-login here to prevent errors
-      console.log('ℹ️  No auto-login - user needs to login manually');
-      
-    } catch (error) {
-      console.error('Error checking auto login:', error);
-    }
-  };
 
   // Show loading screen
   if (isLoading) {

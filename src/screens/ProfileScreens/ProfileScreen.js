@@ -1,3 +1,4 @@
+// ProfileScreen.js - COMPLETELY UPDATED
 import {
   StyleSheet,
   Text,
@@ -11,7 +12,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useEffect, useState} from 'react';
 import Card from '../../components/ProfileScreenComponents/Card';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -20,7 +21,6 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import Loader from '../../components/Loader';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
-import { keychainService } from '../../services/KeyChainService';
 
 const {height, width} = Dimensions.get('window');
 
@@ -29,28 +29,18 @@ const ProfileScreen = ({navigation}) => {
   const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
   
   // Get auth state from store
-  const {
-    userName,
-    clientName,
-    roleName,
-    organizationName,
-    warehouseName,
-    logout,
-    saveCurrentSession,
-    switchSession,
-    clearCurrentSession,
-  } = useAuthStore();
+  const userName = useAuthStore(state => state.userName);
+  const currentUserId = useAuthStore(state => state.userId);
+  const logout = useAuthStore(state => state.logout);
+  const saveCurrentSession = useAuthStore(state => state.saveCurrentSession);
+  const switchSession = useAuthStore(state => state.switchSession);
+  const clearCurrentSession = useAuthStore(state => state.clearCurrentSession);
   
   // Get session store
-  const {
-    sessionsRegistry,
-    loadAllSessions,
-    removeSession,
-    switchToSession,
-  } = useSessionStore();
-
-  // Get current user ID for comparison
-  const currentUserId = useAuthStore(state => state.userId);
+  const sessionsRegistry = useSessionStore(state => state.sessionsRegistry);
+  const loadAllSessions = useSessionStore(state => state.loadAllSessions);
+  const removeSession = useSessionStore(state => state.removeSession);
+  const switchToSession = useSessionStore(state => state.switchToSession);
 
   // Load saved sessions on mount
   useEffect(() => {
@@ -70,9 +60,23 @@ const ProfileScreen = ({navigation}) => {
   const saveCurrentAccount = async () => {
     try {
       setIsLoading(true);
-      await saveCurrentSession();
-      await loadAllSessions();
-      Alert.alert('Success', 'Account saved successfully');
+      console.log('💾 Attempting to save current account...');
+      
+      // Check if we have a valid session to save
+      const authState = useAuthStore.getState();
+      if (!authState.userId || !authState.token) {
+        Alert.alert('Error', 'No active session to save. Please login first.');
+        return;
+      }
+      
+      const success = await saveCurrentSession();
+      
+      if (success) {
+        await loadAllSessions();
+        Alert.alert('Success', 'Account saved successfully');
+      } else {
+        Alert.alert('Error', 'Failed to save account');
+      }
     } catch (error) {
       console.error('Error saving account:', error);
       Alert.alert('Error', 'Failed to save account');
@@ -100,34 +104,44 @@ const ProfileScreen = ({navigation}) => {
             try {
               setIsLoading(true);
               
-              // Clear current session first
+              // First save current session
+              console.log('💾 Saving current session before switching...');
+              try {
+                await saveCurrentSession();
+              } catch (saveError) {
+                console.warn('⚠️ Could not save current session:', saveError);
+                // Continue anyway
+              }
+              
+              // Clear current session from store
               clearCurrentSession();
               
               // Try to load the new session
+              console.log(`🔄 Switching to session: ${session.userName}`);
               const success = await switchSession(session.userId);
               
               if (success) {
-                // Navigate to HomeScreen
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'HomeScreen' }],
-                });
+                console.log('✅ Account switched successfully');
+                
+                // Update session store
+                await switchToSession(session.userId);
+                
+                setShowSwitchAccountModal(false);
+                
+                // Show success message
+                Alert.alert(
+                  'Success', 
+                  `Switched to ${session.userName}`,
+                  [{ text: 'OK' }]
+                );
+                
+                // The Navigation component will detect the auth change automatically
               } else {
                 Alert.alert('Error', 'Failed to switch account');
-                // If failed, go back to login
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'WelcomeScreen' }],
-                });
               }
             } catch (error) {
               console.error('Error switching account:', error);
               Alert.alert('Error', 'Failed to switch account');
-              // Go back to login on error
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'WelcomeScreen' }],
-              });
             } finally {
               setIsLoading(false);
               setShowSwitchAccountModal(false);
@@ -141,7 +155,7 @@ const ProfileScreen = ({navigation}) => {
   // Remove a saved account from Keychain
   const removeAccount = async (userId) => {
     if (userId === currentUserId) {
-      Alert.alert('Cannot Remove', 'You cannot remove your current account while logged in.');
+      Alert.alert('Cannot Remove', 'You cannot remove your current account while logged in. Please logout first or switch to another account.');
       return;
     }
 
@@ -179,19 +193,30 @@ const ProfileScreen = ({navigation}) => {
           text: 'Continue',
           onPress: async () => {
             try {
-              // Save current session before logging out
-              await saveCurrentSession();
+              console.log('➕ Add New Account initiated...');
               
-              // Clear current session (keep in Keychain)
-              clearCurrentSession();
+              // Check if we have a valid session to save
+              const authState = useAuthStore.getState();
+              if (authState.userId && authState.token) {
+                console.log('💾 Saving current session before adding new account...');
+                try {
+                  await saveCurrentSession();
+                  console.log('✅ Current session saved');
+                } catch (saveError) {
+                  console.warn('⚠️ Could not save current session:', saveError);
+                  // Continue anyway
+                }
+              }
               
-              // Navigate to WelcomeScreen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'WelcomeScreen' }],
-              });
+              // Logout without deleting from Keychain
+              await logout(false);
+              
+              console.log('✅ Logged out, ready for new account');
+              // The Navigation component will detect the auth change automatically
+              
             } catch (error) {
               console.error('Error adding new account:', error);
+              Alert.alert('Error', 'Failed to add new account');
             }
           }
         }
@@ -214,18 +239,20 @@ const ProfileScreen = ({navigation}) => {
     return () => backHandler.remove();
   }, [navigation]);
 
-  // Handle Change Role (your existing function)
+  // Handle Change Role
   const handlePressRole = async () => {
     try {
       // Get credentials from store
       const state = useAuthStore.getState();
-      const { userName, password, serverConfig } = state;
+      const { userName: username, password, serverConfig } = state;
       
-      if (!userName || !password || !serverConfig?.protocol) {
+      if (!username || !password || !serverConfig?.protocol) {
         Alert.alert('Error', 'Missing login information');
         return;
       }
 
+      setIsLoading(true);
+      
       const response = await fetch(
         `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1/auth/tokens`,
         {
@@ -234,7 +261,7 @@ const ProfileScreen = ({navigation}) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            userName: userName,
+            userName: username,
             password: password,
           }),
         }
@@ -262,74 +289,91 @@ const ProfileScreen = ({navigation}) => {
         clients: responseJSON.clients || []
       });
 
-      // Navigate to SelectRoleScreen
+      // Navigate to SelectRoleScreen within AppNavigator
       navigation.navigate('SelectRoleScreen', {
         fromProfile: true,
       });
     } catch (error) {
       console.error('Error in handlePressRole:', error);
       Alert.alert('Error', 'Failed to get roles. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Handle logout
-  const handlePressLogout = async () => {
-    Alert.alert('Confirmation', 'Do you want to Logout?', [
-      {text: 'Cancel', style: 'cancel'},
+// In ProfileScreen.js - Update logout functions
+
+// Handle logout
+// ProfileScreen.js - Updated Logout Section Only
+
+// In the handlePressLogout function:
+const handlePressLogout = async () => {
+  Alert.alert('Confirmation', 'Do you want to Logout?', [
+    {text: 'Cancel', style: 'cancel'},
+    {
+      text: 'Logout',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          console.log('🚪 ProfileScreen: Logout initiated...');
+          
+          // Get current auth state
+          const authState = useAuthStore.getState();
+          
+          if (authState.userId && authState.token) {
+            console.log('💾 Saving session before logout...');
+            try {
+              await saveCurrentSession();
+              console.log('✅ Session saved');
+            } catch (saveError) {
+              console.warn('⚠️ Could not save session:', saveError.message);
+            }
+          }
+          
+          // Logout WITHOUT deleting from Keychain (save session)
+          await logout(false);
+          
+          console.log('✅ ProfileScreen: Logout completed - auth state cleared');
+          console.log('🧭 Navigation will automatically switch to Auth flow');
+          
+        } catch (error) {
+          console.error('Error during logout:', error);
+          Alert.alert('Error', 'Failed to logout properly');
+        }
+      },
+    },
+  ]);
+};
+
+// In the handleLogoutAndDelete function:
+const handleLogoutAndDelete = async () => {
+  Alert.alert(
+    'Logout & Remove Account',
+    'This will logout and remove your current account from saved accounts. Continue?',
+    [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Logout',
+        text: 'Logout & Remove',
         style: 'destructive',
         onPress: async () => {
           try {
-            // Save current account before logging out
-            await saveCurrentSession();
+            console.log('🚪 ProfileScreen: Logout & Delete initiated...');
             
-            // Logout without deleting from Keychain
-            await logout(false);
-
-            // Navigate to WelcomeScreen
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'WelcomeScreen' }],
-            });
+            // Logout and DELETE from Keychain
+            await logout(true);
+            
+            console.log('✅ ProfileScreen: Logout & Delete completed');
+            console.log('🧭 Navigation will automatically switch to Auth flow');
             
           } catch (error) {
-            console.error('Error during logout:', error);
-            Alert.alert('Error', 'Failed to logout properly');
-          }
-        },
-      },
-    ]);
-  };
-
-  // Handle logout and delete from Keychain
-  const handleLogoutAndDelete = async () => {
-    Alert.alert(
-      'Logout & Remove Account',
-      'This will logout and remove your account from saved accounts. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout & Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Logout and delete from Keychain
-              await logout(true);
-              
-              // Navigate to WelcomeScreen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'WelcomeScreen' }],
-              });
-            } catch (error) {
-              console.error('Error during logout & delete:', error);
-            }
+            console.error('Error during logout & delete:', error);
+            Alert.alert('Error', 'Failed to logout & delete account');
           }
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
 
   // Sort sessions: current account first, then others
   const getSortedSessions = () => {
@@ -435,7 +479,7 @@ const ProfileScreen = ({navigation}) => {
         
         <StatusBar backgroundColor={'#0050C0'} />
         
-        {/* FIXED HEADER SECTION - Back arrow and username in same row */}
+        {/* Header Section */}
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -651,8 +695,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     alignItems: 'center',
   },
-  
-  // FIXED HEADER STYLES - back arrow and username in same row
   header: {
     width: '95%',
     marginBottom: 25,
@@ -660,8 +702,8 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center', // This aligns items vertically in the center
-    justifyContent: 'flex-start', // Aligns items to the left
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   backBtn: {
     height: 45,
@@ -675,10 +717,8 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontFamily: 'K2D-Bold',
     fontWeight: 'bold',
-    flex: 1, // Takes available space
+    flex: 1,
   },
-  
-  // Save Account Button
   saveAccountButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -695,7 +735,6 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     marginLeft: 10,
   },
-  
   accountCon: {
     width: '90%',
     marginTop: 5,
@@ -707,8 +746,6 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     fontWeight: '600',
   },
-  
-  // Logout Container
   logoutContainer: {
     width: '90%',
     marginTop: 15,
@@ -747,8 +784,6 @@ const styles = StyleSheet.create({
   logoutTextDanger: {
     color: '#ff4444',
   },
-  
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -784,8 +819,6 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 5,
   },
-  
-  // Current Account Header in Modal
   currentAccountHeader: {
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -870,8 +903,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontFamily: 'K2D-Medium',
   },
-  
-  // Account Item Styles
   accountItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -941,12 +972,9 @@ const styles = StyleSheet.create({
     color: '#999',
     fontFamily: 'K2D-Regular',
   },
-  
   accountsList: {
     maxHeight: height * 0.4,
   },
-  
-  // No Other Accounts
   noOtherAccounts: {
     alignItems: 'center',
     padding: 40,
@@ -964,8 +992,6 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Regular',
     textAlign: 'center',
   },
-  
-  // Add New in Modal
   addNewInModal: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -980,8 +1006,6 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     marginLeft: 10,
   },
-  
-  // No Accounts State
   noAccountsContainer: {
     alignItems: 'center',
     padding: 40,
