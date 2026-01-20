@@ -90,7 +90,7 @@ const Info = ({icon, color, children}) => (
 );
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F5F7FA'},
+  container: {flex: 1, backgroundColor: '#F9F8F6'},
   header: {
     flexDirection: 'row',
     alignItems: 'center',

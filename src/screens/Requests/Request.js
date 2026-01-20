@@ -23,6 +23,7 @@ import ReqHeader from '../../components/ReqHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useRequestStore} from '../../store/requestStore';
 import {useMyRequests, useMyProjects} from '../../hooks/useRequests';
+import {useAuthStore} from '../../store/authStore';
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C', icon: 'priority-high'},
@@ -51,6 +52,8 @@ const SECTIONS = [
 
 const Requests = () => {
   const navigation = useNavigation();
+  const {userId, userName} = useAuthStore();
+
   const today = dayjs().startOf('day');
   const tomorrow = dayjs().add(1, 'day').startOf('day');
   const todayDate = dayjs().format('ddd, DD MMMM');
@@ -72,7 +75,7 @@ const Requests = () => {
   const openProjectModal = () => setProjectModal(true);
   const closeProjectModal = () => setProjectModal(false);
 
-  const [userName, setUserName] = useState('');
+  // const [userName, setUserName] = useState('');
   const [currentTime, setCurrentTime] = useState('');
   const [projectFilter, setProjectFilter] = useState('recents');
   const [essentialProjectModal, setEssentialProjectModal] = useState(false);
@@ -158,9 +161,9 @@ const Requests = () => {
   const closeCreateTaskModal = () => createTaskModalRef.current?.close();
 
   /* ------------------- USER & CLOCK ------------------- */
-  useEffect(() => {
-    AsyncStorage.getItem('userName').then(name => setUserName(name || ''));
-  }, []);
+  // useEffect(() => {
+  //   AsyncStorage.getItem('userName').then(name => setUserName(name || ''));
+  // }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -252,6 +255,27 @@ const Requests = () => {
     };
   };
 
+  const getGlobalTasksByStatus = tasks => {
+    const today = dayjs().startOf('day');
+
+    return {
+      Completed: tasks.filter(
+        t => t.R_Status_ID?.identifier === '9_Final Close',
+      ),
+      Due: tasks.filter(
+        t =>
+          t.R_Status_ID?.identifier !== '9_Final Close' &&
+          t.DueType?.identifier === 'Due',
+      ),
+
+      Overdue: tasks.filter(
+        t =>
+          t.R_Status_ID?.identifier !== '9_Final Close' &&
+          t.DueType?.identifier === 'Overdue',
+      ),
+    };
+  };
+
   /* ------------------- ITEM COMPONENTS ------------------- */
   const TaskItem = ({item, showStatus}) => (
     <TouchableOpacity
@@ -297,7 +321,20 @@ const Requests = () => {
 
   const EmptyState = ({title, subtitle, buttonText}) => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="assignment" size={56} color="#E74C3C77" />
+      {/* <MaterialIcons name="assignment" size={56} color="#E74C3C77" /> */}
+      <View
+        style={{
+          height: 50,
+          width: 50,
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Image
+          source={require('../../asserts/RequestAsserts/emptyTask.png')}
+          style={{height: 150, width: 150}}
+        />
+      </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
       <TouchableOpacity
@@ -310,8 +347,14 @@ const Requests = () => {
 
   const ProjectEmptyState = ({title, subtitle}) => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="folder-open" size={56} color="#2F4FE355" />
-      <Text style={styles.emptyTitle}>{title}</Text>
+      {/* <MaterialIcons name="folder-open" size={56} color="#2F4FE355" /> */}
+      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+        <Image
+          source={require('../../asserts/RequestAsserts/emptyProject.png')}
+          style={{height: 150, width: 150}}
+        />
+      </View>
+      <Text style={[styles.emptyTitle, {marginTop: '-10%'}]}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
     </View>
   );
@@ -349,7 +392,8 @@ const Requests = () => {
                 style={styles.profileImage}
               />
             </View>
-            <View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ProfileScreen')}>
               <Text style={styles.userName}>
                 Good {getGreeting()}
                 <Text style={styles.userName}>
@@ -357,7 +401,7 @@ const Requests = () => {
                   {userName}
                 </Text>
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
           {/* <View style={{flexDirection: 'row', justifyContent: 'flex-end'}}>
             <TouchableOpacity style={{}} onPress={() => navigation.navigate('Create')}>
@@ -379,7 +423,7 @@ const Requests = () => {
         </View>
 
         {/* PRIORITY TASKS */}
-{/* 
+        {/* 
         <View style={styles.topCard}>
           <Text style={styles.mainHeader}>Priority Tasks</Text>
           <ScrollView
@@ -445,7 +489,7 @@ const Requests = () => {
         </View>
 
         {/* DUE TASKS */}
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={styles.dueCard}
           onPress={() => navigation.navigate('DueTasks', {data: dueTasks})}>
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -461,7 +505,7 @@ const Requests = () => {
             </Text>
           </View>
           <MaterialIcons name="arrow-forward-ios" size={18} color={'#2F4FE3'} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         {/* MY TASKS */}
         <View style={styles.sectionWrapper}>
           <View style={styles.myTasksHeader}>
@@ -500,13 +544,44 @@ const Requests = () => {
           )}
         </View>
 
-        {/* ESSENTIALS & BY STATUS */}
+        {/* GLOBAL BY STATUS CARD */}
         <View style={styles.sectionWrapper}>
+          <View style={styles.myTasksHeader}>
+            <Text style={styles.mainHeader}>By Status</Text>
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              paddingVertical: '3%',
+            }}>
+            {Object.entries(getGlobalTasksByStatus(allRequests)).map(
+              ([label, tasks]) => (
+                <TouchableOpacity
+                  key={label}
+                  style={styles.essentialRow}
+                  onPress={() =>
+                    navigation.navigate('TaskStatus', {
+                      title: label,
+                      tasks,
+                    })
+                  }>
+                  <Text style={styles.essentialText}>{label}</Text>
+                  <Text style={styles.essentialTxtLen}>{tasks.length}</Text>
+                </TouchableOpacity>
+              ),
+            )}
+          </View>
+        </View>
+
+        {/* ESSENTIALS & BY STATUS */}
+        {/* <View style={styles.sectionWrapper}>
           {!selectedProject ? (
             // When no project is selected
             <>
               <View style={styles.myTasksHeader}>
-                <Text style={styles.mainHeader}>By Status</Text>
+                <Text style={styles.mainHeader}>Essentials</Text>
                 <TouchableOpacity onPress={openEssentialProjectModal}>
                   <MaterialIcons name="more-horiz" size={20} color="#999" />
                 </TouchableOpacity>
@@ -520,7 +595,7 @@ const Requests = () => {
             // When a project IS selected
             <>
               <View style={styles.myTasksHeader}>
-                <Text style={styles.mainHeader}>By Status</Text>
+                <Text style={styles.mainHeader}>Essentials</Text>
                 <TouchableOpacity onPress={openEssentialProjectModal}>
                   <MaterialIcons name="more-horiz" size={22} color="#555" />
                 </TouchableOpacity>
@@ -561,7 +636,7 @@ const Requests = () => {
               )}
             </>
           )}
-        </View>
+        </View> */}
 
         {/* RECENTS */}
         <View style={styles.sectionWrapper}>
@@ -638,7 +713,8 @@ const Requests = () => {
       </ScrollView>
 
       <TouchableOpacity
-        onPress={() => navigation.navigate('AddTask')}
+        // onPress={() => navigation.navigate('AddTask')}
+        onPress={openCreateTaskModal}
         style={styles.floatingButton}>
         <Text
           style={{
@@ -777,7 +853,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: '5%',
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F9F8F6',
     marginBottom: 5,
   },
   header: {

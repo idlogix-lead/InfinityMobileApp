@@ -112,8 +112,8 @@ import {
   fetchRequestCat,
   fetchRequestGrp,
   fetchRequestpro,
+  fetchReqStatus,
 } from '../api/requests.api';
-
 
 // Queries
 export const useMyRequests = () => useQuery('my-requests', fetchMyRequests);
@@ -166,3 +166,5 @@ export const useCreateTask = () =>
     const {createTask} = require('../api/requests.api');
     return createTask(payload);
   });
+
+export const useReqStatus = () => useQuery('reqStatus', () => fetchReqStatus());

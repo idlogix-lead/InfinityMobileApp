@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -105,16 +106,26 @@ const Comments = ({requestId}) => {
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <MaterialIcons
+            {/* <MaterialIcons
               name="comments-disabled"
               color={'#E74C3C77'}
               size={60}
-            />
+            /> */}
+            <View
+              style={{flex: 1, alignItems: 'center', justifyContent: 'center', marginTop:'-30%'}}>
+              <Image
+                source={require('../../asserts/RequestAsserts/emptyComments.jpeg')}
+                style={{height: 250, width: 250}}
+              />
+            </View>
             {/* <Text style={styles.emptyTitle}>No comments mentioning you</Text> */}
-            <Text style={styles.emptySubtitle}>
+           <View style={{marginTop: '-20%'}}>
+             <Text style={styles.emptySubtitle}>
               Comments where you are mentioned with @username will appear here.
             </Text>
-            <TouchableOpacity style={styles.emptyBtn}>
+            
+           </View>
+           <TouchableOpacity style={styles.emptyBtn}>
               <Text style={styles.emptyBtnText}>Go To Inbox</Text>
             </TouchableOpacity>
           </View>
@@ -191,10 +202,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#777',
     marginTop: '3%',
-    marginBottom:'5%',
+    marginBottom: '5%',
     textAlign: 'center',
   },
-    emptyBtn: {
+  emptyBtn: {
     marginTop: 14,
     paddingHorizontal: 18,
     paddingVertical: 8,

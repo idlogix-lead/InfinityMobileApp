@@ -302,7 +302,6 @@ const makeAddRequest = async (url, options = {}) => {
   return res.data;
 };
 
-
 // ============================================
 // API FUNCTIONS
 // ============================================
@@ -457,4 +456,10 @@ export const createTask = async payload => {
     body: payload,
   });
   return res;
+};
+
+export const fetchReqStatus = async () => {
+  const baseURL = getBaseURL();
+  const res = await makeRequest(`${baseURL}/models/R_Status`);
+  return res.records || [];
 };

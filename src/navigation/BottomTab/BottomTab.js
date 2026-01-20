@@ -10,7 +10,7 @@ import HelpScreen from '../../screens/HelpScreen/HelpScreen';
 import ProfileScreen from '../../screens/ProfileScreens/ProfileScreen';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { useAuthStore } from '../../store/authStore';
+import {useAuthStore} from '../../store/authStore';
 
 const Tab = createBottomTabNavigator();
 
@@ -21,12 +21,12 @@ const CustomTabBar = props => (
   </View>
 );
 
-const BottomTab = ({ navigation }) => {
+const BottomTab = ({navigation}) => {
   // Get user info for debugging (not for auth check)
   const userName = useAuthStore(state => state.userName);
-  
+
   console.log('🏠 BottomTab: Rendering tabs for user:', userName);
-  
+
   // User is authenticated - show the tab navigator
   // (Navigation component already verified authentication)
   return (
@@ -57,31 +57,31 @@ const BottomTab = ({ navigation }) => {
           tabBarActiveTintColor: 'white',
           tabBarInactiveTintColor: '#ccc',
         })}>
-        <Tab.Screen 
-          name="Home" 
+        <Tab.Screen
+          name="Home"
           component={HomeScreen}
           listeners={{
             tabPress: () => {
               console.log('🏠 Home tab pressed - User:', userName);
-            }
+            },
           }}
         />
-        <Tab.Screen 
-          name="Help" 
+        <Tab.Screen
+          name="Help"
           component={CrmScreen}
           listeners={{
             tabPress: () => {
               console.log('📊 CRM tab pressed - User:', userName);
-            }
+            },
           }}
         />
-        <Tab.Screen 
-          name="Profile" 
+        <Tab.Screen
+          name="Profile"
           component={ProfileScreen}
           listeners={{
             tabPress: () => {
               console.log('👤 Profile tab pressed - User:', userName);
-            }
+            },
           }}
         />
       </Tab.Navigator>

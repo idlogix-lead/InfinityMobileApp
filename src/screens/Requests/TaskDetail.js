@@ -38,8 +38,10 @@ import {
   useAssets,
   useCampaigns,
   useRMA,
+  useReqStatus,
 } from '../../hooks/useRequests';
 import Create from './Create';
+import moment from 'moment';
 
 const TaskDetail = ({route}) => {
   // const {task} = route.params;
@@ -118,6 +120,8 @@ const TaskDetail = ({route}) => {
   const {data: bpartner} = useBPartner();
   const {data: users} = useUsers();
   const {data: projects} = useProjects();
+  const {data: reqStatus} = useReqStatus();
+
   const {data: assets} = useAssets();
   const {data: campaigns} = useCampaigns();
   const {data: rma} = useRMA();
@@ -265,6 +269,7 @@ const TaskDetail = ({route}) => {
     UpdatedBy: '',
     StartDate: null,
     StartTime: null,
+    EndTime: null,
     CloseDate: null,
     LastResult: '',
     Organization: '',
@@ -285,6 +290,7 @@ const TaskDetail = ({route}) => {
     ChangeRequest: '',
     RequestInvoice: '',
     RequestAmt: '',
+    Status: '',
   });
 
   // -------------------- SYNC FETCHED TASK --------------------
@@ -307,6 +313,7 @@ const TaskDetail = ({route}) => {
         Priority: fetchedTask.Priority || '',
         StartDate: fetchedTask.StartDate || null,
         StartTime: fetchedTask.StartTime || null,
+        EndTime: fetchedTask.EndTime || null,
         CloseDate: fetchedTask.CloseDate || null,
         LastResult: fetchedTask.LastResult || '',
         Organization: fetchedTask.AD_Org_ID?.identifier || 'N/A',
@@ -323,6 +330,7 @@ const TaskDetail = ({route}) => {
         RMA: fetchedTask.M_RMA_ID?.identifier || 'N/A',
         Campaign: fetchedTask.C_Campaign_ID?.identifier || 'N/A',
         RequestAmt: fetchedTask.RequestAmt || '',
+        Status: fetchedTask.R_Status_ID?.identifier || '',
       });
     }
 
@@ -387,6 +395,9 @@ const TaskDetail = ({route}) => {
     const isSameCloseDate =
       (!editableTask.CloseDate && !task.CloseDate) ||
       editableTask.CloseDate === task.CloseDate;
+    const isSameEndTime =
+      (!editableTask.EndTime && !task.EndTime) ||
+      editableTask.EndTime === task.EndTime;
     const isSameRequestAmt = editableTask.RequestAmt === task.RequestAmt;
 
     // nothing changed
@@ -394,6 +405,7 @@ const TaskDetail = ({route}) => {
       isSameLastResult &&
       isSameSummary &&
       isSameCloseDate &&
+      isSameEndTime &&
       isSameRequestAmt
     )
       return;
@@ -404,6 +416,10 @@ const TaskDetail = ({route}) => {
         LastResult: editableTask.LastResult,
         Summary: editableTask.Summary,
         CloseDate: editableTask.CloseDate || null,
+        EndTime: moment(editableTask.EndTime).format(
+          'YYYY-MM-DD[T]HH:mm:ss[Z]',
+        ),
+
         RequestAmt: editableTask.RequestAmt || null,
       };
 
@@ -432,11 +448,11 @@ const TaskDetail = ({route}) => {
         {/* <ReqHeader title="Task Details" /> */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back" size={24} color="#555" />
+            <MaterialIcons name="chevron-left" size={30} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Task Details</Text>
           <TouchableOpacity onPress={() => setHistoryModalVisible(true)}>
-            <MaterialIcons name="settings" size={24} color="#555" />
+            <MaterialIcons name="settings" size={24} color="#333" />
           </TouchableOpacity>
         </View>
         <ScrollView
@@ -477,8 +493,8 @@ const TaskDetail = ({route}) => {
 
               <TouchableOpacity onPress={() => setShowDueDatePicker(true)}>
                 <Text style={styles.value}>
-                  {editableTask.CloseDate
-                    ? new Date(editableTask.CloseDate).toLocaleDateString(
+                  {editableTask.EndTime
+                    ? new Date(editableTask.EndTime).toLocaleDateString(
                         'en-GB',
                         {
                           day: '2-digit',
@@ -492,8 +508,8 @@ const TaskDetail = ({route}) => {
                 {showDueDatePicker && (
                   <DateTimePicker
                     value={
-                      editableTask.CloseDate
-                        ? new Date(editableTask.CloseDate)
+                      editableTask.EndTime
+                        ? new Date(editableTask.EndTime)
                         : new Date()
                     }
                     mode="date"
@@ -505,7 +521,7 @@ const TaskDetail = ({route}) => {
                       const isoDate = selectedDate.toISOString();
 
                       // 1️⃣ Update local UI immediately
-                      setEditableTask(prev => ({...prev, CloseDate: isoDate}));
+                      setEditableTask(prev => ({...prev, EndTime: isoDate}));
 
                       // 2️⃣ Auto-save to backend
                       await autoSaveTask();
@@ -823,6 +839,83 @@ const TaskDetail = ({route}) => {
                       />
                     )}
                 </View>
+                {/* STATUS */}
+                <View style={styles.referenceContainer}>
+                  <Text style={styles.referenceLabel}>Status</Text>
+
+                  <TextInput
+                    value={editableTask.StatusSearch || ''}
+                    placeholder={editableTask.Status || 'Select Status'}
+                    placeholderTextColor="#333"
+                    style={styles.bpInput}
+                    onFocus={() => {
+                      setOpenDropdown('status');
+                    }}
+                    onChangeText={text => {
+                      setEditableTask(prev => ({
+                        ...prev,
+                        StatusSearch: text,
+                      }));
+                      setOpenDropdown('status');
+                    }}
+                  />
+
+                  {openDropdown === 'status' && reqStatus?.length > 0 && (
+                    <FlatList
+                      data={reqStatus}
+                      keyExtractor={item => item.id.toString()}
+                      style={styles.bpDropdown}
+                      keyboardShouldPersistTaps="handled"
+                      renderItem={({item}) => {
+                        const identifier = `${item.SeqNo}_${item.Name}`;
+
+                        return (
+                          <TouchableOpacity
+                            style={styles.bpDropdownItem}
+                            onPress={async () => {
+                              // ✅ UI UPDATE
+                              setEditableTask(prev => ({
+                                ...prev,
+                                Status: identifier,
+                                StatusSearch: identifier,
+                              }));
+
+                              setOpenDropdown(null);
+
+                              try {
+                                // ✅ BACKEND UPDATE (only id)
+                                await updateTask({
+                                  taskId: task.id,
+                                  payload: {
+                                    R_Status_ID: item.id,
+                                  },
+                                });
+
+                                // ✅ LOCAL STORE UPDATE (full object)
+                                setTask(prev => ({
+                                  ...prev,
+                                  R_Status_ID: {
+                                    propertyLabel: 'Status',
+                                    id: item.id,
+                                    identifier,
+                                    'model-name': 'r_status',
+                                  },
+                                }));
+
+                                refetchTask();
+                              } catch (err) {
+                                Alert.alert('Error', 'Failed to update Status');
+                              }
+                            }}>
+                            <Text style={styles.bpDropdownItemText}>
+                              {identifier}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  )}
+                </View>
 
                 <ReferenceField label="Asset" value={editableTask.Asset} />
                 {/* ASSET */}
@@ -991,7 +1084,7 @@ const TaskDetail = ({route}) => {
                     />
                   )}
                 </View>
-                
+
                 <View style={styles.referenceContainer}>
                   <Text style={styles.referenceLabel}>Request Amount</Text>
 
@@ -1387,13 +1480,18 @@ export default TaskDetail;
 
 // -------------------- STYLES --------------------
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#F5F7FA', padding: '6%'},
+  container: {flex: 1, backgroundColor: '#F9F8F6', padding: '6%'},
   header: {
     paddingTop: '10%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: '4%',
+  },
+  headerTitle:{
+    fontSize: 20,
+    fontFamily: 'K2D-Regular',
+    color: '#222',
   },
   title: {
     fontSize: 18,

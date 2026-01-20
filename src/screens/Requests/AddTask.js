@@ -196,7 +196,7 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
   // ==============================
   return (
     <>
-      <ReqHeader title={'Create Request'} />
+      {/* <ReqHeader title={'Create Request'} /> */}
       <ScrollView
         style={styles.container}
         nestedScrollEnabled
@@ -572,7 +572,7 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
 
 // === STYLES ===
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#fff', paddingHorizontal: '5%'},
+  container: {flex: 1, backgroundColor: '#F9F8F6', paddingHorizontal: '5%'},
   row: {
     flexDirection: 'row',
     alignItems: 'center',

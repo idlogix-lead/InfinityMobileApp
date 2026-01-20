@@ -22,7 +22,7 @@ const AllProjects = () => {
   };
 
   return (
-    <>
+    <View style={{flex: 1, backgroundColor: '#F9F8F6'}}>
       <ReqHeader title={'All Projects'} />
       <FlatList
         data={projects}
@@ -35,7 +35,7 @@ const AllProjects = () => {
           </TouchableOpacity>
         )}
       />
-    </>
+    </View>
   );
 };
 

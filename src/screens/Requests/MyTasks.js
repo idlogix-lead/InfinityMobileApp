@@ -355,7 +355,7 @@ export default MyTasks;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F9F8F6',
     // paddingHorizontal: '5%',
     paddingTop: '10%',
   },

@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { MenuProvider } from 'react-native-popup-menu';
+import React, {useEffect} from 'react';
+import {QueryClient, QueryClientProvider} from 'react-query';
+import {MenuProvider} from 'react-native-popup-menu';
 import Navigation from './src/navigation/Navigation';
-import { Platform } from 'react-native';
+import {Platform} from 'react-native';
 import keychainService from './src/services/KeyChainService';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +22,7 @@ function App() {
       try {
         // Simple health check
         const health = await keychainService.healthCheck();
-        
+
         // Test Keychain in development mode only
         if (!health.error) {
           // Run a quick test but don't show errors to user
@@ -37,16 +38,18 @@ function App() {
         // Silent fail
       }
     };
-    
+
     initializeKeychain();
   }, []);
 
   return (
+    <GestureHandlerRootView style={{flex: 1}}>
     <QueryClientProvider client={queryClient}>
       <MenuProvider>
         <Navigation />
       </MenuProvider>
     </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
 
