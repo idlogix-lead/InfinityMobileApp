@@ -1,157 +1,56 @@
 import Icon from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import {
-  FlatList,
   StyleSheet,
   Text,
   View,
   Dimensions,
   BackHandler,
   ActivityIndicator,
-  PermissionsAndroid,
   TouchableOpacity,
   Alert,
   StatusBar,
   Image,
-  ImageBackground,
   ScrollView,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
 } from 'react-native';
-import React, {useCallback, useEffect, useState} from 'react';
-import TopHeader from '../../components/HomeScreenComponents/TopHeader';
-import NameContainer from '../../components/HomeScreenComponents/NameContainer';
-import HomeCard from '../../components/HomeScreenComponents/HomeCard';
-import HomeNotifyCard from '../../components/HomeScreenComponents/HomeNotifyCard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Entypo from 'react-native-vector-icons/Entypo';
-import Geolocation from 'react-native-geolocation-service';
+import React, {useEffect, useState} from 'react';
+import { useQuery, useQueryClient } from 'react-query';
 import axios from 'axios';
-import moment from 'moment';
-import TopNavigationATS from '../../navigation/TopNavigation/TopNavigationATS';
-import NotificationSrn from '../NotificationSrn/NotificationSrn';
-import {
-  useFocusEffect,
-  useIsFocused,
-  useNavigation,
-} from '@react-navigation/native';
-import ApprovalScreens from '../ApprovalScreens/ApprovalScreens';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../store/authStore';
 
-const transactions = [
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Pending',
-  },
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Complete',
-  },
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Complete',
-  },
-];
+const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
-const HomeScreen = ({route}) => {
-  const navigation = useNavigation();
+// Calculate responsive values based on screen dimensions
+const getResponsiveSize = (size) => {
+  return (SCREEN_WIDTH / 375) * size;
+};
 
-  // Get auth data from Zustand store
-  const token = useAuthStore(state => state.token);
-  const tokenOk = useAuthStore(state => state.tokenOk);
-  const roleId = useAuthStore(state => state.roleId);
-  const userId = useAuthStore(state => state.userId);
-  
-  const [name, setName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [approvalNum, setApprovalNum] = useState();
-  const [protocol, setProtocol] = useState();
-  const [reqNum, setReqNum] = useState();
-  const [host, setHost] = useState();
-  const [clientName, setClientName] = useState('');
-  const [port, setPort] = useState();
-  const [checkinout, setCheckinout] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [partnerId, setPartnerId] = useState(null);
-  const [years, setYears] = useState([]);
-  const [Status, setStatus] = useState(null);
-  const [notificationCount, setNotificationCount] = useState();
+const getResponsiveHeight = (size) => {
+  return (SCREEN_HEIGHT / 812) * size;
+};
 
-  // Get user info from Zustand store
-  const { 
-    userName: storeUserName, 
-    clientName: storeClientName,
-    clientId: storeClientId,
-    roleName: storeRoleName,
-    organizationName: storeOrgName,
-    warehouseName: storeWarehouseName
-  } = useAuthStore(state => ({
-    userName: state.userName,
-    clientName: state.clientName,
-    clientId: state.clientId,
-    roleName: state.roleName,
-    organizationName: state.organizationName,
-    warehouseName: state.warehouseName
-  }));
+// Create a separate function for API calls
+const createApiFunctions = (token, serverConfig) => {
+  if (!token || !serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
+    throw new Error('Missing authentication or server configuration');
+  }
 
-  const categories = [
-    {
-      title: 'CRM',
-      icon: 'all-inclusive',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('CrmScreen'),
-    },
-    {
-      title: 'Approval',
-      icon: 'check-decagram',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: async () => {
-        const approvalData = await getApprovalNum();
-        navigation.navigate('AllApprovalList', {data: approvalData});
-      },
-    },
-    {
-      title: 'Employee Portal',
-      icon: 'account-group',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('EmployeePortal'),
-    },
-    {
-      title: 'Request',
-      icon: 'file-send',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('TopNavigationATS', {token}),
-    },
-  ];
+  const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
 
-  const notificationAllDataGet = async () => {
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log('Token for notifications:', storedToken ? 'Present' : 'Missing');
-
-    try {
-      setIsLoading(true);
-      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${storedUserId}`;
+  return {
+    fetchNotificationCount: async (userId) => {
+      const URL = `${baseUrl}/models/AD_Note?$filter=AD_User_ID eq ${userId}`;
       
       const response = await axios.get(URL, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: storedToken ? `Bearer ${storedToken.trim()}` : '',
+          Authorization: token ? `Bearer ${token.trim()}` : '',
         },
+        timeout: 10000,
       });
 
       const sortedData = response?.data?.records?.sort(
@@ -161,403 +60,360 @@ const HomeScreen = ({route}) => {
       const unprocessedCount = sortedData?.filter(
         item => item.Processed === false,
       ).length;
-      setNotificationCount(unprocessedCount);
-      console.log(unprocessedCount, 'Unprocessed Notification Count');
+      
+      return unprocessedCount || 0;
+    },
 
-    } catch (error) {
-      console.log(error, 'NotificationAPIGETAllData');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getName = async () => {
-    const value = await AsyncStorage.getItem('userName');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    console.log('UserID for API calls:', storedUserId);
-    setProtocol(protocol);
-    setHost(host);
-    setPort(port);
-    setName(value);
-    getApprovalNum(protocol, host, port);
-    getReqNum(protocol, host, port, storedUserId);
-    getAtsNum(protocol, host, port, storedUserId);
-  };
-
-  const handleBackButton = () => {
-    BackHandler.exitApp();
-    return true;
-  };
-
-  const getApprovalNum = async (protocol, host, port) => {
-    if (!token || !roleId) {
-      console.error('Missing token or roleId for approval API');
-      return;
-    }
-    
-    setIsLoading(true);
-    await fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
-      {
+    fetchApprovalCount: async (roleId) => {
+      const url = `${baseUrl}/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        setApprovalNum(data['array-count']);
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error(error);
-        setIsLoading(false);
       });
-  };
-
-  const getReqNum = async (protocol, host, port, userId) => {
-    if (!token) {
-      console.error('Missing token for request API');
-      return;
-    }
-    
-    fetch(
-      `${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=CreatedBy eq ${userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        let record = data.records;
-        const filteredData = record.filter(
-          record => record.R_Status_ID.id !== 1000003,
-        );
-      })
-      .catch(error => console.error(error));
-  };
-
-  const getAtsNum = async (protocol, host, port, userId) => {
-    if (!token) {
-      console.error('Missing token for ATS API');
-      return;
-    }
-    
-    fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => {
-        return response.json();
-      })
-      .then(data => {
-        let record = data.records;
-        setReqNum(record?.length);
-      })
-      .catch(error => {
-        console.log(error);
-        setIsLoading(false);
-      });
-    setIsLoading(false);
-  };
-
-  const Approval = async () => {
-    if (!token || !roleId) {
-      console.error('Missing token or roleId for approval navigation');
-      return;
-    }
-    
-    setIsLoading(true);
-    await fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        const dataArray = data.records;
-        const tableIdsToSupplyChain = [702, 259, 319];
-        const filteredArraySupply = dataArray.filter(obj =>
-          tableIdsToSupplyChain.includes(obj.AD_Table_ID.id),
-        );
-
-        const tableIdsAccount = [335, 318, 224];
-        const filteredArrayAccount = dataArray.filter(obj =>
-          tableIdsAccount.includes(obj.AD_Table_ID.id),
-        );
-        navigation.navigate('AllApprovalList');
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error(error);
-        // navigation.navigate('ApprovalScreens');
-        navigation.navigate('Approval', {
-          screen: 'ApprovalScreens',
-          params: {
-            filteredArraySupply: [],
-            filteredArrayAccount: [],
-            token,
-            tokenOk,
-            roleId,
-          },
-        });
-
-        setIsLoading(false);
-      });
-  };
-  
-  const FindBusinessPrtId = async () => {
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-
-    try {
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=AD_User_ID eq ${storedUserId}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
-        },
-      );
-      setPartnerId(response?.data?.records[0]?.C_BPartner_ID?.id);
-    } catch (error) {
-      console.error('Error fetching business partner ID:', error);
-    }
-  };
-
-  const handleGetAttendance = async () => {
-    const date = new Date();
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    const clientid = await AsyncStorage.getItem('clientId');
-    const org_id = await AsyncStorage.getItem('organizationId');
-
-    try {
-      const filterQuery = `$filter=AD_Client_ID eq ${clientid} and AD_Org_ID eq ${org_id} and C_BPartner_ID eq ${partnerId}`;
-      setIsLoading(true);
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/HR_Daily_Attend?$orderby=Created desc&$top=1&${filterQuery}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
-        },
-      );
-      const attendanceRecord = response?.data?.records[0];
-
-      const [year, month, day] =
-        attendanceRecord?.AttDate.split('-').map(Number);
-
-      const [hour, minute, second] =
-        attendanceRecord?.AttTime.split(':').map(Number);
-
-      const lastAttDate = new Date(
-        Date.UTC(year, month - 1, day, hour, minute),
-      );
-
-      const currentTime = new Date();
-      const hoursPassed = (currentTime - lastAttDate) / 1000 / 60 / 60;
-
-      if (response?.data?.records[0]?.AttStatus?.identifier === 'IN') {
-        if (hoursPassed >= 23) {
-          await requestLocationPermission('OUT');
-          return;
-        }
-        setCheckinout(false);
-      } else {
-        setCheckinout(true);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-    } catch (error) {
-      console.log('Error in get', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      
+      const data = await response.json();
+      return data['array-count'] || 0;
+    },
 
-  const extractCurrentYearData = (data, currentYear) => {
-    const currentYearLabel = `${currentYear - 1}/${currentYear
-      .toString()
-      .slice(-2)}`;
-    return data.find(item => item.label === currentYearLabel);
-  };
-  
-  const getYearId = async () => {
-    setIsLoading(true);
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    try {
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/C_Year`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
+    fetchRequestCount: async (userId) => {
+      const url = `${baseUrl}/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.records?.length || 0;
+    },
+
+    fetchApprovalData: async (roleId) => {
+      const url = `${baseUrl}/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const dataArray = data.records || [];
+      
+      const tableIdsToSupplyChain = [702, 259, 319];
+      const filteredArraySupply = dataArray.filter(obj =>
+        tableIdsToSupplyChain.includes(obj.AD_Table_ID?.id),
       );
-      const extractedData = response?.data?.records.map(item => ({
-        label: item?.FiscalYear,
-        value: item?.id,
-      }));
-      const reversedData = extractedData.reverse();
-      const current_year = new Date().getFullYear();
-      const currentYearData = extractCurrentYearData(
-        reversedData,
-        current_year,
+
+      const tableIdsAccount = [335, 318, 224];
+      const filteredArrayAccount = dataArray.filter(obj =>
+        tableIdsAccount.includes(obj.AD_Table_ID?.id),
       );
-      setYears(currentYearData);
-    } catch (error) {
-      console.error('Error Year Id:', error);
-    } finally {
-      setIsLoading(false);
+      
+      return {
+        filteredArraySupply,
+        filteredArrayAccount,
+        count: data['array-count'] || 0
+      };
+    }
+  };
+};
+
+const HomeScreen = ({route}) => {
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
+  // Get auth data from Zustand store
+  const { 
+    token, 
+    userId, 
+    roleId, 
+    userName, 
+    serverConfig,
+    isCompleteAuthenticated 
+  } = useAuthStore(state => ({
+    token: state.token,
+    userId: state.userId,
+    roleId: state.roleId,
+    userName: state.userName,
+    serverConfig: state.serverConfig,
+    isCompleteAuthenticated: state.isCompleteAuthenticated
+  }));
+
+  // Check if we have all required authentication
+  const isAuthenticated = isCompleteAuthenticated && 
+                         !!token && 
+                         !!userId && 
+                         !!roleId && 
+                         !!serverConfig?.protocol;
+
+  // Create API functions only when authenticated
+  const apiFunctions = React.useMemo(() => {
+    if (isAuthenticated) {
+      return createApiFunctions(token, serverConfig);
+    }
+    return null;
+  }, [isAuthenticated, token, serverConfig]);
+
+  // React Query hooks for data fetching
+  const {
+    data: notificationCount = 0,
+    isLoading: isNotificationsLoading,
+    isError: isNotificationsError,
+    refetch: refetchNotifications
+  } = useQuery({
+    queryKey: ['notifications', userId],
+    queryFn: () => apiFunctions?.fetchNotificationCount(userId),
+    enabled: !!apiFunctions && !!userId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  const {
+    data: approvalCount = 0,
+    isLoading: isApprovalsLoading,
+    isError: isApprovalsError,
+    refetch: refetchApprovals
+  } = useQuery({
+    queryKey: ['approvals', roleId],
+    queryFn: () => apiFunctions?.fetchApprovalCount(roleId),
+    enabled: !!apiFunctions && !!roleId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  const {
+    data: requestCount = 0,
+    isLoading: isRequestsLoading,
+    isError: isRequestsError,
+    refetch: refetchRequests
+  } = useQuery({
+    queryKey: ['requests', userId],
+    queryFn: () => apiFunctions?.fetchRequestCount(userId),
+    enabled: !!apiFunctions && !!userId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  // Combined loading state
+  const isLoading = isNotificationsLoading || isApprovalsLoading || isRequestsLoading;
+
+  // Refresh all data
+  const handleRefresh = () => {
+    if (queryClient) {
+      refetchNotifications();
+      refetchApprovals();
+      refetchRequests();
     }
   };
 
-  useEffect(() => {
-    if (partnerId) {
-      handleGetAttendance();
-    }
-  }, [partnerId]);
+  // Grid modules data - 2 per row
+  const gridModules = React.useMemo(() => [
+    {
+      id: 1,
+      title: 'CRM',
+      icon: 'all-inclusive',
+      color: 'rgba(43, 135, 234, 1)',
+      onPress: () => navigation.navigate('CrmScreen'),
+    },
+    {
+      id: 2,
+      title: 'Approval',
+      icon: 'task-alt',
+      color: 'rgba(43, 135, 234, 1)',
+      count: approvalCount,
+      onPress: handleApprovalPress,
+    },
+    {
+      id: 3,
+      title: 'Requests',
+      icon: 'git-pull-request-outline',
+      color: 'rgba(43, 135, 234, 1)',
+      count: requestCount,
+      onPress: () => navigation.navigate('Requests'),
+    },
+    {
+      id: 4,
+      title: 'Employee Portal',
+      icon: 'polyline',
+      color: 'rgba(43, 135, 234, 1)',
+      onPress: () => navigation.navigate('EmployeePortal'),
+    },
+  ], [approvalCount, requestCount, navigation]);
 
-  useEffect(() => {
-    if (location !== null) {
-      handleAttendance(Status);
-    }
-  }, [location]);
-
-  const navigateBack = () => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      getName();
-    });
-
-    return unsubscribe;
-  };
-
-  useEffect(() => {
-    if (token && userId) {
-      getName();
-      FindBusinessPrtId();
-      getYearId();
+  // Handle approval press with React Query
+  const handleApprovalPress = React.useCallback(async () => {
+    if (!apiFunctions || !roleId) {
+      Alert.alert('Error', 'Please login again');
+      return;
     }
     
+    try {
+      const data = await queryClient.fetchQuery({
+        queryKey: ['approval-details', roleId],
+        queryFn: () => apiFunctions.fetchApprovalData(roleId),
+        staleTime: 0,
+        cacheTime: 30000,
+      });
+      
+      navigation.navigate('AllApprovalList', {
+        filteredArraySupply: data.filteredArraySupply,
+        filteredArrayAccount: data.filteredArrayAccount,
+        token,
+        roleId,
+      });
+      
+    } catch (error) {
+      console.error('Approval navigation error:', error.message);
+      
+      navigation.navigate('AllApprovalList', {
+        filteredArraySupply: [],
+        filteredArrayAccount: [],
+        token,
+        roleId,
+      });
+    }
+  }, [apiFunctions, roleId, token, navigation, queryClient]);
+
+  // Update grid modules with approval press handler
+  React.useEffect(() => {
+    if (gridModules[1]) {
+      gridModules[1].onPress = handleApprovalPress;
+    }
+  }, [handleApprovalPress, gridModules]);
+
+  // Back handler
+  useEffect(() => {
+    const handleBackButton = () => {
+      BackHandler.exitApp();
+      return true;
+    };
+
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
+    
     return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
     };
-  }, [navigation, token, userId]);
+  }, []);
 
-  // Notification ALI Calling UseEffect
-  useEffect(() => {
-    if (token && userId) {
-      notificationAllDataGet();
-    }
-  }, [token, userId]);
-
+  // Refresh data when screen is focused
   const isFocused = useIsFocused();
-
+  
   useEffect(() => {
-    if (isFocused && token && userId) {
-      console.log('pressedMe');
-      notificationAllDataGet();
+    if (isFocused && isAuthenticated && queryClient) {
+      // Invalidate and refetch all queries
+      queryClient.invalidateQueries(['notifications', userId]);
+      queryClient.invalidateQueries(['approvals', roleId]);
+      queryClient.invalidateQueries(['requests', userId]);
     }
-  }, [isFocused, token, userId]);
+  }, [isFocused, isAuthenticated, queryClient, userId, roleId]);
 
-  // Header Current Date
-  const currentDate = new Date();
-  const day = currentDate.getDate();
-  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentDate);
-
-  const monthDayYear = currentDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  // Helper function to get ordinal suffix dynamically
-  const getOrdinalSuffix = day => {
-    if (day > 3 && day < 21) return 'th';
-    switch (day % 10) {
-      case 1:
-        return 'st';
-      case 2:
-        return 'nd';
-      case 3:
-        return 'rd';
-      default:
-        return 'th';
-    }
-  };
+  // If QueryClient is not available, show a loading state
+  if (!queryClient) {
+    return (
+      <View style={styles.container}>
+        <StatusBar 
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
+          translucent={false}
+        />
+        <ActivityIndicator size="large" color="#2B87EA" style={styles.loadingContainer} />
+        <Text style={styles.loadingText}>Initializing...</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-      <StatusBar translucent={true} backgroundColor="transparent" />
-      
-      {/* COMPACT HEADER - Username and Notification in same row */}
-      <View style={styles.header}>
-        {/* Single Row with Username and Notification */}
-        <View style={styles.headerRow}>
-          {/* Username with Profile Navigation */}
-          <TouchableOpacity 
-            style={styles.usernameContainer}
-            onPress={() => navigation.navigate('ProfileScreen')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.username}>
-              {storeUserName || name || 'User'}
-            </Text>
-            <Icon 
-              name="chevron-forward-outline" 
-              size={16} 
-              color="#666" 
-              style={styles.chevronIcon}
-            />
-          </TouchableOpacity>
-          
-          {/* Notification Bell */}
-          <View style={styles.notificationContainer}>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar 
+        barStyle="dark-content" // Light icons (dark-content for light background)
+        backgroundColor="#ffffff" // White background
+        translucent={false} // Not translucent
+      />
+      <ScrollView 
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={['#2B87EA']}
+            tintColor="#2B87EA"
+            enabled={isAuthenticated}
+          />
+        }
+      >
+        {/* Loading Overlay - only show if manually refreshing */}
+        {isLoading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#2B87EA" />
+          </View>
+        )}
+        
+        {/* Header Section */}
+        <View style={[styles.header, {paddingTop: getResponsiveHeight(20)}]}>
+          <View style={styles.headerRow}>
+            {/* Username */}
+            <TouchableOpacity 
+              style={styles.usernameContainer}
+              onPress={() => navigation.navigate('ProfileScreen')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.username, {fontSize: getResponsiveSize(26)}]}>
+                {userName || 'User'}
+              </Text>
+              <Icon 
+                name="chevron-forward-outline" 
+                size={getResponsiveSize(16)} 
+                color="#666" 
+                style={styles.chevronIcon}
+              />
+            </TouchableOpacity>
+            
+            {/* Notification Bell */}
             <TouchableOpacity
-              style={styles.notificationBell}
+              style={[styles.notificationBell, {
+                width: getResponsiveSize(45),
+                height: getResponsiveSize(45),
+                borderRadius: getResponsiveSize(22.5)
+              }]}
               onPress={() => navigation.navigate('NotificationSrn')}
             >
               <Icon
                 name="notifications-outline"
-                size={24}
+                size={getResponsiveSize(24)}
                 color="#000"
               />
               {notificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.badgeText}>
+                <View style={[styles.notificationBadge, {
+                  minWidth: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                  borderRadius: getResponsiveSize(10)
+                }]}>
+                  <Text style={[styles.badgeText, {fontSize: getResponsiveSize(11)}]}>
                     {notificationCount > 9 ? '9+' : notificationCount}
                   </Text>
                 </View>
@@ -565,183 +421,315 @@ const HomeScreen = ({route}) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
 
-      {/* Blue Card - Moved closer to header */}
-      <View style={styles.blueCard}>
-        <Image
-          source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
-          style={styles.cardBackground}
-        />
-        <Text style={styles.cardTitle}>
-          <Text style={styles.cardTitleMain}>Sales </Text>
-          <Text style={styles.cardTitleSub}>Performance</Text>
-        </Text>
-        <Text style={styles.cardTitle2}>
-          <Text style={styles.cardTitleMain}>Command </Text>
-          <Text style={styles.cardTitleSub}>Center</Text>
-        </Text>
-        <View style={styles.cardBottomRow}>
-          <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
-          <TouchableOpacity style={styles.analyticsBtn}>
-            <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
-          </TouchableOpacity>
+        {/* Blue Card */}
+        <View style={[styles.blueCard, {
+          borderRadius: getResponsiveSize(15),
+          marginTop: getResponsiveHeight(15),
+          padding: getResponsiveSize(20),
+          height: getResponsiveHeight(145),
+          width: SCREEN_WIDTH * 0.9,
+          alignSelf: 'center',
+        }]}>
+          <Image
+            source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
+            style={styles.cardBackground}
+          />
+          <Text style={[styles.cardTitle, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(30)}]}>
+            <Text style={styles.cardTitleMain}>Sales </Text>
+            <Text style={styles.cardTitleSub}>Performance</Text>
+          </Text>
+          <Text style={[styles.cardTitle2, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(20)}]}>
+            <Text style={styles.cardTitleMain}>Command </Text>
+            <Text style={styles.cardTitleSub}>Center</Text>
+          </Text>
+          <View style={styles.cardBottomRow}>
+            <Text style={[styles.cardSubtitle, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Track Operations in Real-Time
+            </Text>
+            <TouchableOpacity style={[styles.analyticsBtn, {
+              borderRadius: getResponsiveSize(20),
+              marginTop: getResponsiveHeight(12),
+              paddingHorizontal: getResponsiveSize(15),
+              paddingVertical: getResponsiveHeight(8)
+            }]}>
+              <Text style={[styles.analyticsBtnTxt, {fontSize: getResponsiveSize(13)}]}>
+                View Analytics
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Quick Stats Row */}
-      <View style={styles.topRow}>
-        <View style={styles.iconBox}>
-          <View style={styles.iconWrapper}>
-            <MaterialIcons
-              name="sync"
-              size={18}
-              color="rgba(59, 99, 125, 1)"
-            />
+        {/* Quick Stats Row */}
+        <View style={[styles.topRow, {
+          borderRadius: getResponsiveSize(12),
+          marginTop: getResponsiveHeight(20),
+          paddingVertical: getResponsiveHeight(18),
+          width: SCREEN_WIDTH * 0.9,
+          alignSelf: 'center',
+        }]}>
+          <View style={styles.iconBox}>
+            <View style={[styles.iconWrapper, {
+              height: getResponsiveSize(48),
+              width: getResponsiveSize(48),
+              borderRadius: getResponsiveSize(24)
+            }]}>
+              <MaterialIcons
+                name="sync"
+                size={getResponsiveSize(18)}
+                color="rgba(59, 99, 125, 1)"
+              />
+            </View>
+            <Text style={[styles.iconLabel, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Analytics
+            </Text>
           </View>
-          <Text style={styles.iconLabel}>Analytics</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(248, 233, 229, 1)'},
-            ]}>
-            <MaterialIcons
-              name="assignment"
-              size={18}
-              color="rgba(183, 113, 85, 1)"
-            />
-          </View>
-          <Text style={styles.iconLabel}>Sales</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(252, 238, 255, 1)'},
-            ]}>
-            <MaterialIcons
-              name="gpp-maybe"
-              size={22}
-              color="rgba(185, 139, 184, 1)"
-            />
-          </View>
-          <Text style={styles.iconLabel}>Reports</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(239, 254, 233, 1)'},
-            ]}>
+          <View style={styles.iconBox}>
             <View
               style={[
-                styles.circle,
+                styles.iconWrapper,
                 {
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  borderColor: 'rgba(91, 159, 70, 1)',
+                  backgroundColor: 'rgba(248, 233, 229, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24)
                 },
               ]}>
-              <Icon name="pencil" size={12} color="rgba(91, 159, 70, 1)" />
+              <MaterialIcons
+                name="assignment"
+                size={getResponsiveSize(18)}
+                color="rgba(183, 113, 85, 1)"
+              />
             </View>
+            <Text style={[styles.iconLabel, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Sales
+            </Text>
           </View>
-          <Text style={styles.iconLabel}>Accounts</Text>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: 'rgba(252, 238, 255, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24)
+                },
+              ]}>
+              <MaterialIcons
+                name="gpp-maybe"
+                size={getResponsiveSize(22)}
+                color="rgba(185, 139, 184, 1)"
+              />
+            </View>
+            <Text style={[styles.iconLabel, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Reports
+            </Text>
+          </View>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: 'rgba(239, 254, 233, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24)
+                },
+              ]}>
+              <View
+                style={[
+                  styles.circle,
+                  {
+                    width: getResponsiveSize(20),
+                    height: getResponsiveSize(20),
+                    borderRadius: getResponsiveSize(10),
+                    borderColor: 'rgba(91, 159, 70, 1)',
+                  },
+                ]}>
+                <Icon name="pencil" size={getResponsiveSize(12)} color="rgba(91, 159, 70, 1)" />
+              </View>
+            </View>
+            <Text style={[styles.iconLabel, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Accounts
+            </Text>
+          </View>
         </View>
-      </View>
-      
-      {/* Categories Section */}
-      <View>
-        <Text style={styles.sectionTitle}>Categories</Text>
-      </View>
-
-      {/* Grid Layout for Categories */}
-      <View style={styles.bottomGrid}>
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('CrmScreen')}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="all-inclusive"
-              size={33}
-              color="rgba(43, 135, 234, 1)"
-            />
-          </View>
-          <Text style={styles.gridLabel}>CRM</Text>
-        </TouchableOpacity>
         
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={async () => {
-            const approvalData = await getApprovalNum();
-            navigation.navigate('AllApprovalList', {data: approvalData});
-          }}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="task-alt"
-              size={33}
-              color="rgba(43, 135, 234, 1)"
-            />
-          </View>
-          <Text style={styles.gridLabel}>Approval</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('Requests')}>
-          <View style={styles.gridIconWrapper}>
-            <Icon
-              name="git-pull-request-outline"
-              size={28}
-              color="rgba(43, 135, 234, 1)"
-            />
-          </View>
-          <Text style={styles.gridLabel}>Requests</Text>
-        </TouchableOpacity>
+        {/* Categories Section */}
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, {
+            fontSize: getResponsiveSize(22),
+            marginBottom: getResponsiveHeight(15)
+          }]}>
+            Categories
+          </Text>
+        </View>
 
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('EmployeePortal')}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="polyline"
-              size={28}
-              color="rgba(43, 135, 234, 1)"
-            />
+        {/* Grid Layout - 2 modules per row */}
+        <View style={[styles.gridContainer, {
+          paddingHorizontal: getResponsiveSize(15),
+          marginBottom: getResponsiveHeight(40)
+        }]}>
+          {/* First Row */}
+          <View style={styles.gridRow}>
+            {gridModules.slice(0, 2).map((module) => (
+              <TouchableOpacity
+                key={module.id}
+                style={[styles.gridBox, {
+                  width: (SCREEN_WIDTH - getResponsiveSize(45)) / 2,
+                  height: getResponsiveHeight(150),
+                  borderRadius: getResponsiveSize(12),
+                }]}
+                onPress={module.onPress}
+              >
+                <View style={[styles.gridIconWrapper, {
+                  height: getResponsiveSize(70),
+                  width: getResponsiveSize(70),
+                  borderRadius: getResponsiveSize(35),
+                  backgroundColor: 'rgba(90, 141, 238, 0.1)'
+                }]}>
+                  {module.icon.includes('git-pull-request-outline') ? (
+                    <Icon
+                      name={module.icon}
+                      size={getResponsiveSize(28)}
+                      color={module.color}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={module.icon}
+                      size={getResponsiveSize(33)}
+                      color={module.color}
+                    />
+                  )}
+                </View>
+                <Text style={[styles.gridLabel, {
+                  fontSize: getResponsiveSize(16),
+                  marginTop: getResponsiveHeight(8)
+                }]}>
+                  {module.title}
+                </Text>
+                {module.count > 0 && (
+                  <View style={[styles.gridBadge, {
+                    minWidth: getResponsiveSize(22),
+                    height: getResponsiveSize(22),
+                    borderRadius: getResponsiveSize(11),
+                  }]}>
+                    <Text style={[styles.gridBadgeText, {fontSize: getResponsiveSize(12)}]}>
+                      {module.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.gridLabel}>Employee Portal</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+
+          {/* Second Row */}
+          <View style={[styles.gridRow, {marginTop: getResponsiveHeight(15)}]}>
+            {gridModules.slice(2, 4).map((module) => (
+              <TouchableOpacity
+                key={module.id}
+                style={[styles.gridBox, {
+                  width: (SCREEN_WIDTH - getResponsiveSize(45)) / 2,
+                  height: getResponsiveHeight(150),
+                  borderRadius: getResponsiveSize(12),
+                }]}
+                onPress={module.onPress}
+              >
+                <View style={[styles.gridIconWrapper, {
+                  height: getResponsiveSize(70),
+                  width: getResponsiveSize(70),
+                  borderRadius: getResponsiveSize(35),
+                  backgroundColor: 'rgba(90, 141, 238, 0.1)'
+                }]}>
+                  {module.icon.includes('git-pull-request-outline') ? (
+                    <Icon
+                      name={module.icon}
+                      size={getResponsiveSize(28)}
+                      color={module.color}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={module.icon}
+                      size={getResponsiveSize(33)}
+                      color={module.color}
+                    />
+                  )}
+                </View>
+                <Text style={[styles.gridLabel, {
+                  fontSize: getResponsiveSize(16),
+                  marginTop: getResponsiveHeight(8)
+                }]}>
+                  {module.title}
+                </Text>
+                {module.count > 0 && (
+                  <View style={[styles.gridBadge, {
+                    minWidth: getResponsiveSize(22),
+                    height: getResponsiveSize(22),
+                    borderRadius: getResponsiveSize(11),
+                  }]}>
+                    <Text style={[styles.gridBadgeText, {fontSize: getResponsiveSize(12)}]}>
+                      {module.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollView: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
   },
+  
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
   
-  // COMPACT HEADER STYLES
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
+  },
+  
+  // Loading Overlay
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  
+  // Header Styles
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingHorizontal: SCREEN_WIDTH * 0.05,
+    paddingBottom: SCREEN_HEIGHT * 0.02,
     backgroundColor: '#f8f9ff',
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    borderBottomLeftRadius: SCREEN_WIDTH * 0.06,
+    borderBottomRightRadius: SCREEN_WIDTH * 0.06,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: '100%',
   },
   usernameContainer: {
     flexDirection: 'row',
@@ -749,26 +737,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   username: {
-    fontSize: 26,
     fontWeight: '900',
     color: '#000',
     fontFamily: 'K2D-Bold',
   },
   chevronIcon: {
-    marginLeft: 8,
-    marginTop: 3,
-  },
-  notificationContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginLeft: SCREEN_WIDTH * 0.02,
+    marginTop: SCREEN_WIDTH * 0.01,
   },
   notificationBell: {
-    width: 45,
-    height: 45,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 22.5,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
@@ -778,41 +758,29 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 3,
-    right: 3,
+    top: SCREEN_WIDTH * 0.01,
+    right: SCREEN_WIDTH * 0.01,
     backgroundColor: '#FF3B30',
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
-    paddingHorizontal: 4,
+    paddingHorizontal: SCREEN_WIDTH * 0.01,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 11,
     fontWeight: 'bold',
     fontFamily: 'K2D-Bold',
   },
   
-  // BLUE CARD - Positioned closer to header
+  // Blue Card
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
-    borderRadius: 15,
-    marginTop: 15, // Reduced from 20 to bring it closer
-    padding: 20,
     shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 10,
     elevation: 5,
-    height: 145,
     position: 'relative',
     overflow: 'hidden',
-    marginBottom: '2%',
-    width: '90%',
-    marginLeft: '5%',
   },
   cardBackground: {
     position: 'absolute',
@@ -821,13 +789,9 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   cardTitle: {
-    fontSize: 17,
-    lineHeight: 30,
     letterSpacing: 0.1,
   },
   cardTitle2: {
-    fontSize: 17,
-    lineHeight: 20,
     letterSpacing: 0.1,
   },
   cardTitleMain: {
@@ -842,50 +806,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 13,
   },
   cardSubtitle: {
-    fontSize: 13,
     color: 'rgba(234, 234, 234, 1)',
-    letterSpacing: 0.1,
-    marginTop: 10,
     fontFamily: 'KaushanScript-Regular',
   },
   analyticsBtn: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    marginTop: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
     elevation: 6,
   },
   analyticsBtnTxt: {
     color: 'rgba(0, 0, 0, 1)',
     fontFamily: 'K2D-Medium',
-    fontSize: 13,
-    letterSpacing: 0.5,
   },
   
   // Quick Stats Row
   topRow: {
     backgroundColor: '#fff',
-    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20,
-    paddingVertical: 18,
     elevation: 3,
-    marginBottom: '2%',
-    width: '90%',
-    marginLeft: '5%',
     borderWidth: 1,
     borderColor: 'rgba(240, 240, 240, 1)',
   },
   iconWrapper: {
     backgroundColor: 'rgba(236, 247, 253, 1)',
-    height: 48,
-    width: 48,
-    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -898,59 +843,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconLabel: {
-    marginTop: 10,
-    fontSize: 13,
     color: 'rgba(106, 106, 106, 1)',
     fontFamily: 'K2D-Medium',
   },
   
   // Categories Section
+  sectionTitleContainer: {
+    width: SCREEN_WIDTH * 0.9,
+    alignSelf: 'center',
+    marginTop: SCREEN_HEIGHT * 0.02,
+  },
   sectionTitle: {
     color: 'black',
-    width: '90%',
-    alignSelf: 'center',
-    marginTop: '6%',
-    fontSize: 22,
     fontFamily: 'K2D-Bold',
-    marginBottom: 15,
   },
   
-  // Grid Layout
-  bottomGrid: {
+  // Grid Layout - 2 per row
+  gridContainer: {
+    width: '100%',
+  },
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 40,
-    gap: 20,
-    paddingHorizontal: '3%',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   gridBox: {
-    width: '45%',
     backgroundColor: '#fff',
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
-    marginBottom: '2%',
     elevation: 5,
     borderWidth: 1,
     borderColor: 'rgba(240, 240, 240, 1)',
-  },
-  gridIconWrapper: {
-    backgroundColor: 'rgba(90, 141, 238, 0.1)',
-    height: 70,
-    width: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
   },
+  gridIconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   gridLabel: {
-    marginTop: 8,
-    fontSize: 16,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
+    textAlign: 'center',
+  },
+  gridBadge: {
+    position: 'absolute',
+    top: getResponsiveSize(10),
+    right: getResponsiveSize(10),
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  gridBadgeText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontFamily: 'K2D-Bold',
   },
 });
 

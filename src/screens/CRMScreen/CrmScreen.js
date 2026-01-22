@@ -1,5 +1,5 @@
 // screens/CrmScreen.js - Simplified without manual refresh button
-import React, { useRef, useMemo, useCallback } from 'react';
+import React, { useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   Dimensions,
   Alert,
   Linking,
-  RefreshControl
+  RefreshControl,
+  BackHandler
 } from 'react-native';
 import { useQueryClient } from 'react-query';
 import { useAuthStore } from '../../store/authStore';
@@ -35,6 +36,43 @@ const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const scrollViewRef = useRef(null);
 
+  // Add this useEffect to handle Android back button
+  useEffect(() => {
+    const backAction = () => {
+      // If there's a screen in stack to go back to
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return true;
+      } else {
+        // Show confirmation before exiting app
+        Alert.alert(
+          'Exit App',
+          'Do you want to exit the application?',
+          [
+            {
+              text: 'Cancel',
+              onPress: () => null,
+              style: 'cancel',
+            },
+            {
+              text: 'Exit',
+              onPress: () => BackHandler.exitApp(),
+              style: 'destructive',
+            },
+          ],
+          { cancelable: false }
+        );
+        return true;
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [navigation]);
   // Get UI states from CRM store
   const {
     activeTab,
@@ -598,7 +636,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: '#2F4FE3',
     padding: 4,
     borderRadius: 6,
     marginBottom: 20,
@@ -740,7 +778,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 8,
     elevation: 3,
-    backgroundColor: '#2F4FE3',
+    backgroundColor: '#000000',
     borderRadius: 4,
   },
   addButtonText: {

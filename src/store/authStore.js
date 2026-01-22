@@ -302,12 +302,7 @@ createSessionSnapshot: () => {
           // password: null, // Keep for remember me
           
           // Clear role-specific data
-          roleId: null,
-          roleName: null,
-          organizationId: null,
-          organizationName: null,
-          warehouseId: null,
-          warehouseName: null,
+     
           
           clientId: null,
           clientName: null,

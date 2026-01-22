@@ -251,6 +251,28 @@ const SelectRoleScreen = ({ navigation, route }) => {
   const filteredOrgs = filterValidItems(organizations);
   const filteredWarehouses = filterValidItems(warehouses);
 
+  // Function to create bold text effect
+  const makeBold = (text) => {
+    // Unicode Mathematical Bold for visual emphasis
+    const boldMap = {
+      'A': '𝗔', 'B': '𝗕', 'C': '𝗖', 'D': '𝗗', 'E': '𝗘',
+      'F': '𝗙', 'G': '𝗚', 'H': '𝗛', 'I': '𝗜', 'J': '𝗝',
+      'K': '𝗞', 'L': '𝗟', 'M': '𝗠', 'N': '𝗡', 'O': '𝗢',
+      'P': '𝗣', 'Q': '𝗤', 'R': '𝗥', 'S': '𝗦', 'T': '𝗧',
+      'U': '𝗨', 'V': '𝗩', 'W': '𝗪', 'X': '𝗫', 'Y': '𝗬',
+      'Z': '𝗭',
+      'a': '𝗮', 'b': '𝗯', 'c': '𝗰', 'd': '𝗱', 'e': '𝗲',
+      'f': '𝗳', 'g': '𝗴', 'h': '𝗵', 'i': '𝗶', 'j': '𝗷',
+      'k': '𝗸', 'l': '𝗹', 'm': '𝗺', 'n': '𝗻', 'o': '𝗼',
+      'p': '𝗽', 'q': '𝗾', 'r': '𝗿', 's': '𝘀', 't': '𝘁',
+      'u': '𝘂', 'v': '𝘃', 'w': '𝘄', 'x': '𝘅', 'y': '𝘆',
+      'z': '𝘇',
+      ' ': ' '
+    };
+    
+    return text.split('').map(char => boldMap[char] || char).join('');
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -329,13 +351,26 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   isLandscape && styles.pickerLandscape,
                   isTablet && styles.pickerTablet
                 ]}
+                dropdownIconColor="#2F4FE3"
               >
-                <Picker.Item label="Select Role" value="" />
+                {/* BOLD & PROMINENT Placeholder */}
+                <Picker.Item 
+                  label="🔷 SELECT ROLE 🔷"
+                  value="" 
+                  color="#0c0c0c"  // Red for attention
+                  fontFamily="K2D-Bold"
+                  style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
+                />
+                
+                {/* Regular role items */}
                 {filteredRoles.map(role => (
                   <Picker.Item
                     key={role.id}
                     label={role.name}
                     value={role.id}
+                    color="#000"
+                    fontFamily="K2D-Regular"
+                    style={Platform.OS === 'ios' ? styles.regularItem : {}}
                   />
                 ))}
               </Picker>
@@ -367,20 +402,33 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   isTablet && styles.pickerTablet,
                   !selectedRole && styles.disabledPicker
                 ]}
+                dropdownIconColor={selectedRole ? "#2F4FE3" : "#CCCCCC"}
               >
-                <Picker.Item label="Select Organization" value="" />
+                {/* Prominent placeholder with conditional styling */}
+                <Picker.Item 
+                  label={selectedRole ? "🔷 SELECT ORGANIZATION 🔷" : "⏳ FIRST SELECT ROLE"}
+                  value="" 
+                  color={"#0c0c0c"}  // Orange when enabled, gray when disabled
+                  fontFamily="K2D-Bold"
+                  style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
+                />
+                
+                {/* Organization items */}
                 {filteredOrgs.map(org => (
                   <Picker.Item
                     key={org.id}
                     label={org.name}
                     value={org.id}
+                    color="#000"
+                    fontFamily="K2D-Regular"
+                    style={Platform.OS === 'ios' ? styles.regularItem : {}}
                   />
                 ))}
               </Picker>
             </View>
           </View>
 
-          {/* Company */}
+          {/* Warehouse */}
           <View style={styles.section}>
             <Text style={[
               styles.label,
@@ -405,13 +453,31 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   isTablet && styles.pickerTablet,
                   (!selectedRole || !selectedOrganization) && styles.disabledPicker
                 ]}
+                dropdownIconColor={selectedOrganization ? "#2F4FE3" : "#CCCCCC"}
               >
-                <Picker.Item label="Select Warehouse" value="" />
+                {/* Prominent placeholder with state awareness */}
+                <Picker.Item 
+                  label={
+                    !selectedRole ? "⏳ FIRST SELECT ROLE" :
+                    !selectedOrganization ? "⏳ FIRST SELECT ORGANIZATION" :
+                    "🔷 SELECT WAREHOUSE 🔷"
+                  }
+                  value="" 
+                  color={"#000000"}
+                  
+                  fontFamily="K2D-Bold"
+                  style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
+                />
+                
+                {/* Warehouse items */}
                 {filteredWarehouses.map(w => (
                   <Picker.Item
                     key={w.id}
                     label={w.name}
                     value={w.id}
+                    color="#000"
+                    fontFamily="K2D-Regular"
+                    style={Platform.OS === 'ios' ? styles.regularItem : {}}
                   />
                 ))}
               </Picker>
@@ -706,6 +772,17 @@ const styles = StyleSheet.create({
 
   disabledPicker: {
     color: colors.textTertiary,
+  },
+
+  // NEW STYLES FOR BOLD PLACEHOLDERS
+  boldPlaceholder: {
+    fontSize: 17,  // Larger than regular items
+    fontWeight: 'bold',
+  },
+  
+  regularItem: {
+    fontSize: 16,  // Regular size
+    fontWeight: 'normal',
   },
 
   // Date container with icon
