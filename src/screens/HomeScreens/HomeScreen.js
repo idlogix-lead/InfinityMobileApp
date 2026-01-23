@@ -1,33 +1,26 @@
 import Icon from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import {useWFAct} from '../../hooks/ApprovalHooks/useApproval';
 import {useAuthStore} from '../../store/authStore';
 import {
-  FlatList,
   StyleSheet,
   Text,
   View,
   Dimensions,
   BackHandler,
   ActivityIndicator,
-  PermissionsAndroid,
   TouchableOpacity,
   Alert,
   StatusBar,
   Image,
-  ImageBackground,
   ScrollView,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
 } from 'react-native';
-import React, {useCallback, useEffect, useState} from 'react';
-import TopHeader from '../../components/HomeScreenComponents/TopHeader';
-import NameContainer from '../../components/HomeScreenComponents/NameContainer';
-import HomeCard from '../../components/HomeScreenComponents/HomeCard';
-import HomeNotifyCard from '../../components/HomeScreenComponents/HomeNotifyCard';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Entypo from 'react-native-vector-icons/Entypo';
-import Geolocation from 'react-native-geolocation-service';
+import React, {useEffect, useState} from 'react';
+import { useQuery, useQueryClient } from 'react-query';
 import axios from 'axios';
 import moment from 'moment';
 import TopNavigationATS from '../../navigation/TopNavigation/TopNavigationATS';
@@ -169,8 +162,9 @@ const HomeScreen = ({route}) => {
       const response = await axios.get(URL, {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: storedToken ? `Bearer ${storedToken.trim()}` : '',
+          Authorization: token ? `Bearer ${token.trim()}` : '',
         },
+        timeout: 10000,
       });
 
       const sortedData = response?.data?.records?.sort(
@@ -309,15 +303,19 @@ const HomeScreen = ({route}) => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        const dataArray = data.records;
-        const tableIdsToSupplyChain = [702, 259, 319];
-        const filteredArraySupply = dataArray.filter(obj =>
-          tableIdsToSupplyChain.includes(obj.AD_Table_ID.id),
-        );
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const dataArray = data.records || [];
+      
+      const tableIdsToSupplyChain = [702, 259, 319];
+      const filteredArraySupply = dataArray.filter(obj =>
+        tableIdsToSupplyChain.includes(obj.AD_Table_ID?.id),
+      );
 
         const tableIdsAccount = [335, 318, 224];
         const filteredArrayAccount = dataArray.filter(obj =>
@@ -456,23 +454,16 @@ const HomeScreen = ({route}) => {
       );
       setYears(currentYearData);
     } catch (error) {
-      console.error('Error Year Id:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('Approval navigation error:', error.message);
+      
+      navigation.navigate('AllApprovalList', {
+        filteredArraySupply: [],
+        filteredArrayAccount: [],
+        token,
+        roleId,
+      });
     }
-  };
-
-  useEffect(() => {
-    if (partnerId) {
-      handleGetAttendance();
-    }
-  }, [partnerId]);
-
-  useEffect(() => {
-    if (location !== null) {
-      handleAttendance(Status);
-    }
-  }, [location]);
+  }, [apiFunctions, roleId, token, navigation, queryClient]);
 
   const navigateBack = () => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -490,20 +481,15 @@ const HomeScreen = ({route}) => {
     }
 
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
+    
     return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
     };
-  }, [navigation, token, userId]);
+  }, []);
 
-  // Notification ALI Calling UseEffect
-  useEffect(() => {
-    if (token && userId) {
-      notificationAllDataGet();
-    }
-  }, [token, userId]);
-
+  // Refresh data when screen is focused
   const isFocused = useIsFocused();
-
+  
   useEffect(() => {
     if (isFocused && token && userId) {
       console.log('pressedMe');
@@ -524,20 +510,20 @@ const HomeScreen = ({route}) => {
     year: 'numeric',
   });
 
-  // Helper function to get ordinal suffix dynamically
-  const getOrdinalSuffix = day => {
-    if (day > 3 && day < 21) return 'th';
-    switch (day % 10) {
-      case 1:
-        return 'st';
-      case 2:
-        return 'nd';
-      case 3:
-        return 'rd';
-      default:
-        return 'th';
-    }
-  };
+  // If QueryClient is not available, show a loading state
+  if (!queryClient) {
+    return (
+      <View style={styles.container}>
+        <StatusBar 
+          barStyle="dark-content"
+          backgroundColor="#ffffff"
+          translucent={false}
+        />
+        <ActivityIndicator size="large" color="#2B87EA" style={styles.loadingContainer} />
+        <Text style={styles.loadingText}>Initializing...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -574,8 +560,12 @@ const HomeScreen = ({route}) => {
               onPress={() => navigation.navigate('NotificationSrn')}>
               <Icon name="notifications-outline" size={24} color="#000" />
               {notificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.badgeText}>
+                <View style={[styles.notificationBadge, {
+                  minWidth: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                  borderRadius: getResponsiveSize(10)
+                }]}>
+                  <Text style={[styles.badgeText, {fontSize: getResponsiveSize(11)}]}>
                     {notificationCount > 9 ? '9+' : notificationCount}
                   </Text>
                 </View>
@@ -583,29 +573,44 @@ const HomeScreen = ({route}) => {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
 
-      {/* Blue Card - Moved closer to header */}
-      <View style={styles.blueCard}>
-        <Image
-          source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
-          style={styles.cardBackground}
-        />
-        <Text style={styles.cardTitle}>
-          <Text style={styles.cardTitleMain}>Sales </Text>
-          <Text style={styles.cardTitleSub}>Performance</Text>
-        </Text>
-        <Text style={styles.cardTitle2}>
-          <Text style={styles.cardTitleMain}>Command </Text>
-          <Text style={styles.cardTitleSub}>Center</Text>
-        </Text>
-        <View style={styles.cardBottomRow}>
-          <Text style={styles.cardSubtitle}>Track Operations in Real-Time</Text>
-          <TouchableOpacity style={styles.analyticsBtn}>
-            <Text style={styles.analyticsBtnTxt}>View Analytics</Text>
-          </TouchableOpacity>
+        {/* Blue Card */}
+        <View style={[styles.blueCard, {
+          borderRadius: getResponsiveSize(15),
+          marginTop: getResponsiveHeight(15),
+          padding: getResponsiveSize(20),
+          height: getResponsiveHeight(145),
+          width: SCREEN_WIDTH * 0.9,
+          alignSelf: 'center',
+        }]}>
+          <Image
+            source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
+            style={styles.cardBackground}
+          />
+          <Text style={[styles.cardTitle, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(30)}]}>
+            <Text style={styles.cardTitleMain}>Sales </Text>
+            <Text style={styles.cardTitleSub}>Performance</Text>
+          </Text>
+          <Text style={[styles.cardTitle2, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(20)}]}>
+            <Text style={styles.cardTitleMain}>Command </Text>
+            <Text style={styles.cardTitleSub}>Center</Text>
+          </Text>
+          <View style={styles.cardBottomRow}>
+            <Text style={[styles.cardSubtitle, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+              Track Operations in Real-Time
+            </Text>
+            <TouchableOpacity style={[styles.analyticsBtn, {
+              borderRadius: getResponsiveSize(20),
+              marginTop: getResponsiveHeight(12),
+              paddingHorizontal: getResponsiveSize(15),
+              paddingVertical: getResponsiveHeight(8)
+            }]}>
+              <Text style={[styles.analyticsBtnTxt, {fontSize: getResponsiveSize(13)}]}>
+                View Analytics
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
       {/* Quick Stats Row */}
       <View style={styles.topRow}>
@@ -758,10 +763,11 @@ const HomeScreen = ({route}) => {
 };
 
 const styles = StyleSheet.create({
-  scrollView: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
   },
+  
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -769,18 +775,16 @@ const styles = StyleSheet.create({
 
   // COMPACT HEADER STYLES
   header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingHorizontal: SCREEN_WIDTH * 0.05,
+    paddingBottom: SCREEN_HEIGHT * 0.02,
     backgroundColor: '#f8f9ff',
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    borderBottomLeftRadius: SCREEN_WIDTH * 0.06,
+    borderBottomRightRadius: SCREEN_WIDTH * 0.06,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: '100%',
   },
   usernameContainer: {
     flexDirection: 'row',
@@ -788,26 +792,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   username: {
-    fontSize: 26,
     fontWeight: '900',
     color: '#000',
     fontFamily: 'K2D-Bold',
   },
   chevronIcon: {
-    marginLeft: 8,
-    marginTop: 3,
-  },
-  notificationContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginLeft: SCREEN_WIDTH * 0.02,
+    marginTop: SCREEN_WIDTH * 0.01,
   },
   notificationBell: {
-    width: 45,
-    height: 45,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 22.5,
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 2},
@@ -817,21 +813,17 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 3,
-    right: 3,
+    top: SCREEN_WIDTH * 0.01,
+    right: SCREEN_WIDTH * 0.01,
     backgroundColor: '#FF3B30',
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#fff',
-    paddingHorizontal: 4,
+    paddingHorizontal: SCREEN_WIDTH * 0.01,
   },
   badgeText: {
     color: '#fff',
-    fontSize: 11,
     fontWeight: 'bold',
     fontFamily: 'K2D-Bold',
   },
@@ -839,19 +831,11 @@ const styles = StyleSheet.create({
   // BLUE CARD - Positioned closer to header
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
-    borderRadius: 15,
-    marginTop: 15, // Reduced from 20 to bring it closer
-    padding: 20,
     shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 10,
     elevation: 5,
-    height: 145,
     position: 'relative',
     overflow: 'hidden',
-    marginBottom: '2%',
-    width: '90%',
-    marginLeft: '5%',
   },
   cardBackground: {
     position: 'absolute',
@@ -860,13 +844,9 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   cardTitle: {
-    fontSize: 17,
-    lineHeight: 30,
     letterSpacing: 0.1,
   },
   cardTitle2: {
-    fontSize: 17,
-    lineHeight: 20,
     letterSpacing: 0.1,
   },
   cardTitleMain: {
@@ -881,50 +861,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 13,
   },
   cardSubtitle: {
-    fontSize: 13,
     color: 'rgba(234, 234, 234, 1)',
-    letterSpacing: 0.1,
-    marginTop: 10,
     fontFamily: 'KaushanScript-Regular',
   },
   analyticsBtn: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    marginTop: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
     elevation: 6,
   },
   analyticsBtnTxt: {
     color: 'rgba(0, 0, 0, 1)',
     fontFamily: 'K2D-Medium',
-    fontSize: 13,
-    letterSpacing: 0.5,
   },
 
   // Quick Stats Row
   topRow: {
     backgroundColor: '#fff',
-    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 20,
-    paddingVertical: 18,
     elevation: 3,
-    marginBottom: '2%',
-    width: '90%',
-    marginLeft: '5%',
     borderWidth: 1,
     borderColor: 'rgba(240, 240, 240, 1)',
   },
   iconWrapper: {
     backgroundColor: 'rgba(236, 247, 253, 1)',
-    height: 48,
-    width: 48,
-    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -937,57 +898,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconLabel: {
-    marginTop: 10,
-    fontSize: 13,
     color: 'rgba(106, 106, 106, 1)',
     fontFamily: 'K2D-Medium',
   },
 
   // Categories Section
+  sectionTitleContainer: {
+    width: SCREEN_WIDTH * 0.9,
+    alignSelf: 'center',
+    marginTop: SCREEN_HEIGHT * 0.02,
+  },
   sectionTitle: {
     color: 'black',
-    width: '90%',
-    alignSelf: 'center',
-    marginTop: '6%',
-    fontSize: 22,
     fontFamily: 'K2D-Bold',
-    marginBottom: 15,
   },
 
   // Grid Layout
   bottomGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: 40,
-    gap: 20,
-    paddingHorizontal: '3%',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   gridBox: {
-    width: '45%',
     backgroundColor: '#fff',
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
-    marginBottom: '2%',
     elevation: 5,
     borderWidth: 1,
     borderColor: 'rgba(240, 240, 240, 1)',
-  },
-  gridIconWrapper: {
-    backgroundColor: 'rgba(90, 141, 238, 0.1)',
-    height: 70,
-    width: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
   },
+  gridIconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   gridLabel: {
-    marginTop: 8,
-    fontSize: 16,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
   },

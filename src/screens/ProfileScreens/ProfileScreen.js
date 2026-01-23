@@ -1,4 +1,4 @@
-// ProfileScreen.js - COMPLETELY UPDATED
+// ProfileScreen.js - UPDATED WITH COMPANY INFO DROPDOWN
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Feather from 'react-native-vector-icons/Feather';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import Loader from '../../components/Loader';
 import { useAuthStore } from '../../store/authStore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -27,9 +29,14 @@ const {height, width} = Dimensions.get('window');
 const ProfileScreen = ({navigation}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
+  const [showCompanyInfo, setShowCompanyInfo] = useState(false);
   
   // Get auth state from store
   const userName = useAuthStore(state => state.userName);
+  const clientName = useAuthStore(state => state.clientName);
+  const roleName = useAuthStore(state => state.roleName);
+  const organizationName = useAuthStore(state => state.organizationName);
+  const warehouseName = useAuthStore(state => state.warehouseName);
   const currentUserId = useAuthStore(state => state.userId);
   const logout = useAuthStore(state => state.logout);
   const saveCurrentSession = useAuthStore(state => state.saveCurrentSession);
@@ -301,79 +308,79 @@ const ProfileScreen = ({navigation}) => {
     }
   };
 
-// In ProfileScreen.js - Update logout functions
-
-// Handle logout
-// ProfileScreen.js - Updated Logout Section Only
-
-// In the handlePressLogout function:
-const handlePressLogout = async () => {
-  Alert.alert('Confirmation', 'Do you want to Logout?', [
-    {text: 'Cancel', style: 'cancel'},
-    {
-      text: 'Logout',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          console.log('🚪 ProfileScreen: Logout initiated...');
-          
-          // Get current auth state
-          const authState = useAuthStore.getState();
-          
-          if (authState.userId && authState.token) {
-            console.log('💾 Saving session before logout...');
-            try {
-              await saveCurrentSession();
-              console.log('✅ Session saved');
-            } catch (saveError) {
-              console.warn('⚠️ Could not save session:', saveError.message);
-            }
-          }
-          
-          // Logout WITHOUT deleting from Keychain (save session)
-          await logout(false);
-          
-          console.log('✅ ProfileScreen: Logout completed - auth state cleared');
-          console.log('🧭 Navigation will automatically switch to Auth flow');
-          
-        } catch (error) {
-          console.error('Error during logout:', error);
-          Alert.alert('Error', 'Failed to logout properly');
-        }
-      },
-    },
-  ]);
-};
-
-// In the handleLogoutAndDelete function:
-const handleLogoutAndDelete = async () => {
-  Alert.alert(
-    'Logout & Remove Account',
-    'This will logout and remove your current account from saved accounts. Continue?',
-    [
-      { text: 'Cancel', style: 'cancel' },
+  // Handle logout
+  const handlePressLogout = async () => {
+    Alert.alert('Confirmation', 'Do you want to Logout?', [
+      {text: 'Cancel', style: 'cancel'},
       {
-        text: 'Logout & Remove',
+        text: 'Logout',
         style: 'destructive',
         onPress: async () => {
           try {
-            console.log('🚪 ProfileScreen: Logout & Delete initiated...');
+            console.log('🚪 ProfileScreen: Logout initiated...');
             
-            // Logout and DELETE from Keychain
-            await logout(true);
+            // Get current auth state
+            const authState = useAuthStore.getState();
             
-            console.log('✅ ProfileScreen: Logout & Delete completed');
+            if (authState.userId && authState.token) {
+              console.log('💾 Saving session before logout...');
+              try {
+                await saveCurrentSession();
+                console.log('✅ Session saved');
+              } catch (saveError) {
+                console.warn('⚠️ Could not save session:', saveError.message);
+              }
+            }
+            
+            // Logout WITHOUT deleting from Keychain (save session)
+            await logout(false);
+            
+            console.log('✅ ProfileScreen: Logout completed - auth state cleared');
             console.log('🧭 Navigation will automatically switch to Auth flow');
             
           } catch (error) {
-            console.error('Error during logout & delete:', error);
-            Alert.alert('Error', 'Failed to logout & delete account');
+            console.error('Error during logout:', error);
+            Alert.alert('Error', 'Failed to logout properly');
+          }
+        },
+      },
+    ]);
+  };
+
+  // Handle logout and delete
+  const handleLogoutAndDelete = async () => {
+    Alert.alert(
+      'Logout & Remove Account',
+      'This will logout and remove your current account from saved accounts. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout & Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🚪 ProfileScreen: Logout & Delete initiated...');
+              
+              // Logout and DELETE from Keychain
+              await logout(true);
+              
+              console.log('✅ ProfileScreen: Logout & Delete completed');
+              console.log('🧭 Navigation will automatically switch to Auth flow');
+              
+            } catch (error) {
+              console.error('Error during logout & delete:', error);
+              Alert.alert('Error', 'Failed to logout & delete account');
+            }
           }
         }
-      }
-    ]
-  );
-};
+      ]
+    );
+  };
+
+  // Toggle company information dropdown
+  const toggleCompanyInfo = () => {
+    setShowCompanyInfo(!showCompanyInfo);
+  };
 
   // Sort sessions: current account first, then others
   const getSortedSessions = () => {
@@ -383,6 +390,67 @@ const handleLogoutAndDelete = async () => {
     const otherSessions = sessionsRegistry.filter(session => !session.isCurrent);
     
     return [...currentSessions, ...otherSessions];
+  };
+
+  // Render company information dropdown
+  const renderCompanyInfo = () => {
+    if (!showCompanyInfo) return null;
+
+    return (
+      <View style={styles.companyInfoDropdown}>
+        {/* Client Info */}
+        <View style={styles.companyInfoRow}>
+          <View style={styles.companyIconContainer}>
+            <FontAwesome5 name='user-tie' size={20} color='#0050C0' />
+          </View>
+          <View style={styles.companyInfoTextContainer}>
+            <Text style={styles.companyInfoLabel}>Client</Text>
+            <Text style={styles.companyInfoValue}>
+              {clientName || 'Not Selected'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Role Info */}
+        <View style={styles.companyInfoRow}>
+          <View style={styles.companyIconContainer}>
+            <FontAwesome5 name='user-check' size={20} color='#0050C0' />
+          </View>
+          <View style={styles.companyInfoTextContainer}>
+            <Text style={styles.companyInfoLabel}>Role</Text>
+            <Text style={styles.companyInfoValue}>
+              {roleName || 'Not Selected'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Organization Info */}
+        <View style={styles.companyInfoRow}>
+          <View style={styles.companyIconContainer}>
+            <FontAwesome6 name='users-viewfinder' size={20} color='#0050C0' />
+          </View>
+          <View style={styles.companyInfoTextContainer}>
+            <Text style={styles.companyInfoLabel}>Organization</Text>
+            <Text style={styles.companyInfoValue}>
+              {organizationName || 'Not Selected'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Warehouse Info */}
+        <View style={styles.companyInfoRow}>
+          <View style={styles.companyIconContainer}>
+            <MaterialCommunityIcons name='warehouse' size={20} color='#0050C0' />
+          </View>
+          <View style={styles.companyInfoTextContainer}>
+            <Text style={styles.companyInfoLabel}>Warehouse</Text>
+            <Text style={styles.companyInfoValue}>
+              {warehouseName || 'Not Selected'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
   };
 
   // Render saved account item for modal
@@ -467,8 +535,6 @@ const handleLogoutAndDelete = async () => {
   };
 
   const sortedSessions = getSortedSessions();
-  const hasOtherAccounts = sortedSessions.length > 1 || 
-    (sortedSessions.length === 1 && !sortedSessions[0].isCurrent);
 
   return (
     <>
@@ -509,29 +575,44 @@ const handleLogoutAndDelete = async () => {
         </View>
         
         <Card
-          Icon={<MaterialIcons name="add-circle-outline" size={25} color="#877e7e" />}
+          Icon={<MaterialIcons name="add-circle-outline" size={25} color="#000000" />}
           txt="Add New Account"
           handlePress={addNewAccount}
         />
         
         <Card
-          Icon={<MaterialIcons name="swap-horiz" size={25} color="#877e7e" />}
+          Icon={<MaterialIcons name="swap-horiz" size={25} color="#000000" />}
           txt="Switch Account"
           handlePress={() => setShowSwitchAccountModal(true)}
         />
+
+        {/* Company Information Section */}
+        <View style={styles.accountCon}>
+          <Text style={styles.userAccountTxt}>Company Information</Text>
+        </View>
+        
+        <Card
+          Icon={<FontAwesome name="building" size={25} color="#000000" />}
+          txt="View Company Details"
+          handlePress={toggleCompanyInfo}
+          chevron={
+            <MaterialIcons 
+              name={showCompanyInfo ? "expand-less" : "expand-more"} 
+              size={24} 
+              color="#0050C0" 
+            />
+          }
+        />
+        
+        {/* Company Information Dropdown */}
+        {renderCompanyInfo()}
 
         <View style={styles.accountCon}>
           <Text style={styles.userAccountTxt}>Your Account</Text>
         </View>
         
         <Card
-          Icon={<FontAwesome name="wpforms" size={25} color="#877e7e" />}
-          txt="Company Information"
-          handlePress={() => navigation.navigate('CompanyInformationScreen')}
-        />
-        
-        <Card
-          Icon={<MaterialIcons name="co-present" size={25} color="#877e7e" />}
+          Icon={<MaterialIcons name="co-present" size={25} color="#000000" />}
           txt="Preferences"
           handlePress={() => {/* Navigate to preferences */}}
         />
@@ -541,7 +622,7 @@ const handleLogoutAndDelete = async () => {
             <MaterialIcons
               name="published-with-changes"
               size={25}
-              color="#877e7e"
+              color="#000000"
             />
           }
           txt="Change Role"
@@ -549,7 +630,7 @@ const handleLogoutAndDelete = async () => {
         />
         
         <Card
-          Icon={<MaterialIcons name="feedback" size={25} color="#877e7e" />}
+          Icon={<MaterialIcons name="feedback" size={25} color="#000000" />}
           txt="Feedback"
           handlePress={() => {/* Navigate to feedback */}}
         />
@@ -559,7 +640,7 @@ const handleLogoutAndDelete = async () => {
         </View>
 
         <Card
-          Icon={<MaterialIcons name="help" size={23} color="#877e7e" />}
+          Icon={<MaterialIcons name="help" size={23} color="#000000" />}
           txt="Help & Support"
           handlePress={() => {/* Navigate to help */}}
         />
@@ -569,7 +650,7 @@ const handleLogoutAndDelete = async () => {
         </View>
 
         <Card
-          Icon={<FontAwesome name="language" color="#877e7e" size={23} />}
+          Icon={<FontAwesome name="language" color="#000000" size={23} />}
           txt="English"
           handlePress={() => {/* Open language selector */}}
         />
@@ -745,6 +826,49 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'K2D-Bold',
     fontWeight: '600',
+  },
+  // Company Information Dropdown Styles
+  companyInfoDropdown: {
+    width: '90%',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  companyInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  companyIconContainer: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  companyInfoTextContainer: {
+    flex: 1,
+  },
+  companyInfoLabel: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
+    marginBottom: 2,
+  },
+  companyInfoValue: {
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
+    color: '#0050C0',
   },
   logoutContainer: {
     width: '90%',
