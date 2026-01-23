@@ -1,63 +1,3 @@
-// import { StyleSheet, Text, View, Image, TouchableOpacity, SafeAreaView } from 'react-native'
-// import React, { useEffect, useState } from 'react'
-// import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-// import HomeScreen from '../../screens/HomeScreens/HomeScreen';
-// import HelpScreen from '../../screens/HelpScreen/HelpScreen';
-// import ProfileScreen from '../../screens/ProfileScreens/ProfileScreen';
-// import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
-
-// const Tab = createBottomTabNavigator();
-
-// const BottomTab = ({ route, navigation }) => {
-//     const { tokenOk, token, roleId } = route.params
-
-//     return (
-//         <SafeAreaView style={{ flex: 1 }}>
-//             <Tab.Navigator
-//                 screenOptions={({ route }) => ({
-//                     headerShown: false,
-//                     tabBarStyle: {
-//                         //  backgroundColor: "#0050C0",
-//                         // backgroundColor: "#002E62",
-//                         backgroundColor: "red",
-//                          paddingVertical: 10, height: 60,},
-//                     tabBarIcon: ({ focused, color, size }) => {
-
-//                         let icon;
-
-//                         if (route.name === 'Home') {
-//                             icon = focused ? 'home' : 'home-outline';
-//                         } else if (route.name === 'Help') {
-//                             icon = focused ? 'headset' : 'headset';
-//                         } else if (route.name === 'Profile') {
-//                             icon = focused ? 'account' : 'account-outline';
-//                         }
-
-//                         // You can return any component that you like here!
-//                         return <MaterialCommunityIcons name={icon} size={size} color={color} />;
-//                     },
-//                 })}
-
-//             >
-//                 <Tab.Screen options={{ tabBarActiveTintColor: 'white' }}
-//                     name="Home"
-//                     component={HomeScreen}
-//                     initialParams={{ tokenOk, token, roleId }} />
-//                 <Tab.Screen
-//                     options={{ tabBarActiveTintColor: 'white' }}
-//                     name="Help" component={HelpScreen} />
-//                 <Tab.Screen
-//                     options={{ tabBarActiveTintColor: 'white' }}
-//                     name="Profile" component={ProfileScreen} />
-//             </Tab.Navigator>
-//         </SafeAreaView>
-//     )
-// }
-
-// export default BottomTab
-
-// const styles = StyleSheet.create({})
-
 import {StyleSheet, SafeAreaView, View} from 'react-native';
 import React from 'react';
 import {
@@ -70,6 +10,7 @@ import HelpScreen from '../../screens/HelpScreen/HelpScreen';
 import ProfileScreen from '../../screens/ProfileScreens/ProfileScreen';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import {useAuthStore} from '../../store/authStore';
 
 const Tab = createBottomTabNavigator();
 
@@ -80,19 +21,21 @@ const CustomTabBar = props => (
   </View>
 );
 
-const BottomTab = ({route}) => {
-  const {tokenOk, token, roleId} = route.params;
+const BottomTab = ({navigation}) => {
+  // Get user info for debugging (not for auth check)
+  const userName = useAuthStore(state => state.userName);
 
+  console.log('🏠 BottomTab: Rendering tabs for user:', userName);
+
+  // User is authenticated - show the tab navigator
+  // (Navigation component already verified authentication)
   return (
     <SafeAreaView style={{flex: 1}}>
       <Tab.Navigator
         tabBar={props => <CustomTabBar {...props} />}
         screenOptions={({route}) => ({
           headerShown: false,
-
-          // 👇👇👇👇  ICON LABELS OFF
           tabBarShowLabel: false,
-
           tabBarStyle: {
             backgroundColor: 'transparent',
             borderTopWidth: 0,
@@ -100,7 +43,6 @@ const BottomTab = ({route}) => {
             height: 40,
             paddingVertical: 10,
           },
-
           tabBarIcon: ({focused, color, size}) => {
             let icon;
             if (route.name === 'Home') {
@@ -112,17 +54,36 @@ const BottomTab = ({route}) => {
             }
             return <MaterialIcons name={icon} size={size} color={color} />;
           },
-
           tabBarActiveTintColor: 'white',
           tabBarInactiveTintColor: '#ccc',
         })}>
         <Tab.Screen
           name="Home"
           component={HomeScreen}
-          initialParams={{tokenOk, token, roleId}}
+          listeners={{
+            tabPress: () => {
+              console.log('🏠 Home tab pressed - User:', userName);
+            },
+          }}
         />
-        <Tab.Screen name="Help" component={CrmScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
+        <Tab.Screen
+          name="Help"
+          component={CrmScreen}
+          listeners={{
+            tabPress: () => {
+              console.log('📊 CRM tab pressed - User:', userName);
+            },
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          listeners={{
+            tabPress: () => {
+              console.log('👤 Profile tab pressed - User:', userName);
+            },
+          }}
+        />
       </Tab.Navigator>
     </SafeAreaView>
   );
@@ -130,4 +91,6 @@ const BottomTab = ({route}) => {
 
 export default BottomTab;
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  // Remove error and loading styles - not needed anymore
+});

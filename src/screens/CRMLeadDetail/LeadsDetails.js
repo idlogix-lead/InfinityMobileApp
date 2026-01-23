@@ -8,18 +8,21 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import React, {useState} from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import {Menu, Provider, Modal} from 'react-native-paper';
+import {Modal} from 'react-native-paper';
+import {useMutation, useQueryClient} from 'react-query';
+import {useAuthStore} from '../../store/authStore';
+import crmApiService from '../../services/CRMAPI/crmApiService';
 
 const {width} = Dimensions.get('window');
 
-const LeadsDetails = ({route}) => {
-  const {data} = route.params;
+const LeadsDetails = ({route, navigation}) => {
+  const {data: leadData} = route.params;
+  const queryClient = useQueryClient();
 
   // Dropdown states
   const [showMoreInfo, setShowMoreInfo] = useState(false);
@@ -30,150 +33,206 @@ const LeadsDetails = ({route}) => {
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
   const [bpMenuVisible, setBpMenuVisible] = useState(false);
   const [orgMenuVisible, setOrgMenuVisible] = useState(false);
-  const [leadSourceMenuVisible, setLeadSourceMenuVisible] = useState(false);
   const [leadSourceModalVisible, setLeadSourceModalVisible] = useState(false);
   const [salesRepMenuVisible, setSalesRepMenuVisible] = useState(false);
 
+  // Form state - Updated based on your API response
+  const [name, setName] = useState(leadData?.Name || '');
+  const [email, setEmail] = useState(leadData?.EMail || '');
+  const [phone, setPhone] = useState(leadData?.Phone || '');
+  const [phone2, setPhone2] = useState(leadData?.Phone2 || '');
+  const [birthday, setBirthday] = useState(leadData?.Birthday || '');
+  const [salesLead, setSalesLead] = useState(leadData?.IsSalesLead || false);
+  const [vendorLead, setVendorLead] = useState(leadData?.IsVendorLead || false);
+  const [businessPartnerId, setBusinessPartnerId] = useState(leadData?.AD_Client_ID?.id || '1000000');
+  const [businessPartnerLabel, setBusinessPartnerLabel] = useState(leadData?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd');
+  const [organizationId, setOrganizationId] = useState(leadData?.AD_Org_ID?.id || '1000000');
+  const [organizationLabel, setOrganizationLabel] = useState(leadData?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd');
+  const [description, setDescription] = useState(leadData?.Description || '');
+  const [active, setActive] = useState(leadData?.IsActive !== undefined ? leadData.IsActive : true);
+  const [searchKey, setSearchKey] = useState(leadData?.Value || '');
+  const [salesRepId, setSalesRepId] = useState(leadData?.SalesRep_ID?.id || '1000117');
+  const [salesRepLabel, setSalesRepLabel] = useState(leadData?.SalesRep_ID?.identifier || 'Muhammad Anwar');
+  const [companyName, setCompanyName] = useState(leadData?.BPName || '');
+  const [leadSourceDesc, setLeadSourceDesc] = useState(leadData?.LeadSourceDescription || '');
+  const [leadStatusDesc, setLeadStatusDesc] = useState(leadData?.LeadStatusDescription || '');
+  const [comments, setComments] = useState(leadData?.Comments || '');
+
+  // Static dropdown options (since API doesn't have these tables)
   const leadStatusOptions = [
-    {id: 'N', label: 'New'},
-    {id: 'W', label: 'Working'},
-    {id: 'E', label: 'Expire'},
-    {id: 'C', label: 'Converted'},
+    {id: 'N', identifier: 'New'},
+    {id: 'W', identifier: 'Working'},
+    {id: 'C', identifier: 'Converted'},
+    {id: 'E', identifier: 'Expired'},
   ];
+
   const businessPartnerOptions = [
-    {id: 1000000, label: 'UActros'},
-    {id: 2000000, label: 'Galaxy Corp'},
+    {id: '1000000', identifier: 'Starlet Innovations Pvt Ltd'},
+    {id: '1000001', identifier: 'Other Client'},
   ];
+
   const organizationOptions = [
-    {id: 1000001, label: 'Kuwait Mall'},
-    {id: 1000000, label: 'DHA Mall'},
+    {id: '1000000', identifier: 'Starlet Innovation Pvt Ltd'},
+    {id: '1000001', identifier: 'Other Organization'},
   ];
+
   const leadSourceOptions = [
-    {id: 'CC', label: 'Cold Call'},
-    {id: 'E', label: 'Email'},
-    {id: 'P', label: 'Phone'},
+    {id: 'CC', identifier: 'Cold Call'},
+    {id: 'E', identifier: 'Email'},
+    {id: 'P', identifier: 'Phone'},
+    {id: 'W', identifier: 'Website'},
+    {id: 'R', identifier: 'Referral'},
   ];
-  const salesRepOptions = [{id: 1000117, label: 'Muhammad Anwar'}];
 
-  // Editable fields for basic info
-  const [name, setName] = useState(data?.Name || '');
-  const [email, setEmail] = useState(data?.EMail || '');
-  const [phone, setPhone] = useState(data?.Phone || '');
-  const [address, setAddress] = useState('N/A');
-  // for more info
-  const [phone2, setPhone2] = useState(data?.Phone2 || '');
-  const [birthday, setBirthday] = useState(data?.Birthday || '2025-12-19');
-  const [salesLead, setSalesLead] = useState(
-    data?.IsSalesLead ? 'true' : 'false' || '',
-  );
-  const [vendorLead, setVendorLead] = useState(
-    data?.IsVendorLead ? 'true' : 'false' || '',
-  );
-  const [bussinessPartner, setBussinessPartner] = useState(
-    data?.AD_Client_ID?.identifier || '',
-  );
-  const [bussinessPartnerID, setBussinessPartnerID] = useState(
-    data?.AD_Client_ID?.id || '',
-  );
-  const [position, setPosition] = useState('');
-  const [organization, setOrganization] = useState(
-    data?.AD_Org_ID?.identifier || '',
-  );
-  const [organizationID, setOrganizationID] = useState(
-    data?.AD_Org_ID?.id || '',
-  );
-  const [description, setDescription] = useState(data?.Description || '');
-  const [active, setActive] = useState(data?.IsActive ? 'true' : 'false' || '');
-  const [statusID, setStatusID] = useState(
-    data?.LeadStatus?.id || 'enter N/C/W/E',
-  );
-  const [status, setStatus] = useState(data?.LeadStatus?.identifier || '');
-  const [searchKey, setSearchKey] = useState(data?.Value || '');
+  const salesRepOptions = [
+    {id: '1000117', identifier: 'Muhammad Anwar'},
+    {id: '1000000', identifier: 'STIAdmin'},
+  ];
 
-  const [salesRep, setSalesRep] = useState(data?.SalesRep_ID.identifier || '');
-  const [salesRepID, setSalesRepID] = useState(data?.SalesRep_ID.id || '');
+  // Since your API doesn't have LeadStatus, we need to handle it differently
+  const [statusId, setStatusId] = useState('N');
+  const [statusLabel, setStatusLabel] = useState('New');
+  
+  // Since your API doesn't have LeadSource, we need to handle it differently
+  const [leadSourceId, setLeadSourceId] = useState('CC');
+  const [leadSourceLabel, setLeadSourceLabel] = useState('Cold Call');
 
-  // Company Info
-  const [companyName, setCompanyName] = useState(data?.BPName || '');
-  const [companyAddress, setCompanyAddress] = useState('XYZ');
+  // Update mutation
+  const updateLeadMutation = useMutation({
+    mutationFn: async (updatedData) => {
+      console.log('📝 Updating lead with data:', updatedData);
+      
+      try {
+        // Prepare the payload based on your old working code
+        const payload = {
+          Name: updatedData.Name,
+          EMail: updatedData.EMail,
+          Phone: updatedData.Phone || '',
+          Phone2: updatedData.Phone2 || '',
+          Birthday: updatedData.Birthday || null,
+          IsSalesLead: updatedData.IsSalesLead,
+          IsVendorLead: updatedData.IsVendorLead,
+          BPName: updatedData.BPName || '',
+          AD_Org_ID: {
+            id: updatedData.AD_Org_ID.id,
+            identifier: updatedData.AD_Org_ID.identifier
+          },
+          SalesRep_ID: updatedData.SalesRep_ID ? {
+            id: updatedData.SalesRep_ID.id,
+            identifier: updatedData.SalesRep_ID.identifier
+          } : null,
+          AD_Client_ID: {
+            id: updatedData.AD_Client_ID.id,
+            identifier: updatedData.AD_Client_ID.identifier
+          },
+          Description: updatedData.Description || '',
+          IsActive: updatedData.IsActive,
+          Value: updatedData.Value || '',
+          // Since API doesn't support LeadStatus table, we'll handle differently
+          // LeadStatus: updatedData.LeadStatus ? {
+          //   id: updatedData.LeadStatus.id,
+          //   identifier: updatedData.LeadStatus.identifier
+          // } : null,
+          LeadSourceDescription: updatedData.LeadSourceDescription || '',
+          LeadStatusDescription: updatedData.LeadStatusDescription || '',
+          Comments: updatedData.Comments || '',
+        };
 
-  // OtherInfo
-  const [compaign, setCompaign] = useState('');
-  const [leadSource, setLeadSource] = useState(
-    data?.LeadSource?.identifier || 'N/A',
-  );
-  const [leadSourceID, setLeadSourceID] = useState(
-    data?.LeadSource?.id || 'N/A',
-  );
-  const [leadSourceDesc, setLeadSourceDesc] = useState(
-    data?.LeadSourceDescription || '',
-  );
-  const [leadStatusDesc, setLeadStatusDesc] = useState(
-    data?.LeadStatusDescription || '',
-  );
-  const [comments, setComments] = useState(data?.Comments || '');
+        console.log('📦 Sending update payload:', JSON.stringify(payload, null, 2));
+        
+        const response = await crmApiService.updateLead(leadData.id, payload);
+        console.log('✅ Lead updated successfully:', response);
+        
+        return response;
+      } catch (error) {
+        console.error('❌ Update lead error:', error);
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      console.log('✅ Lead update successful, updating cache');
+      
+      // Invalidate and refetch leads data
+      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['lead', leadData.id]);
+      queryClient.invalidateQueries(['lead-statistics']);
+      
+      // Show success message
+      Alert.alert('Success', 'Lead updated successfully!');
+      
+      // Navigate back
+      if (navigation) {
+        navigation.goBack();
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Lead update failed:', error);
+      
+      let errorMessage = 'Failed to update lead. Please try again.';
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        errorMessage = 'Your session has expired. Please login again.';
+        // Handle session expiry
+        const logout = useAuthStore.getState().logout;
+        if (logout) {
+          logout();
+        }
+      } else if (error.message.includes('401')) {
+        errorMessage = 'Unauthorized. Please check your permissions.';
+      } else if (error.message.includes('404')) {
+        errorMessage = 'Lead not found. It may have been deleted.';
+      }
+      
+      Alert.alert('Error', errorMessage);
+    },
+  });
 
-  const LeadDetailApi = async () => {
-    try {
-      const protocol = await AsyncStorage.getItem('protocol');
-      const host = await AsyncStorage.getItem('host');
-      const port = await AsyncStorage.getItem('port');
-      const token = await AsyncStorage.getItem('token');
-      const id = data?.id;
-
-      const payload = {
-        Name: name,
-        EMail: email,
-        Phone: phone,
-        Phone2: phone2,
-        Birthday: birthday,
-        IsSalesLead: salesLead === 'true',
-        IsVendorLead: vendorLead === 'true',
-        BPName: companyName,
-        AD_Org_ID: {
-          id: organizationID,
-          identifier: organization,
-        },
-        SalesRep_ID: {
-          id: salesRepID,
-          identifier: salesRep,
-        },
-        AD_Client_ID: {
-          id: bussinessPartnerID,
-          identifier: bussinessPartner,
-        },
-        Description: description,
-        IsActive: active === 'true',
-        LeadStatus: {
-          id: statusID,
-          identifier: status,
-        },
-        Value: searchKey,
-        LeadSource: {
-          id: leadSourceID,
-          identifier: leadSource,
-        },
-        LeadSourceDescription: leadSourceDesc,
-        LeadStatusDescription: leadStatusDesc,
-        Comments: comments,
-      };
-      console.log('payload', payload);
-
-      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_User/${id}`;
-      const response = await axios.put(URL, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      console.log('Updated successfully:', response.data);
-      alert('Data saved successfully!');
-    } catch (error) {
-      console.log(error, 'CRM data save error');
-      alert('Error saving data');
+  const handleSave = () => {
+    // Validate required fields
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Name is required');
+      return;
     }
+
+    if (!email.trim()) {
+      Alert.alert('Validation Error', 'Email is required');
+      return;
+    }
+
+    // Prepare data for update
+    const updateData = {
+      Name: name,
+      EMail: email,
+      Phone: phone,
+      Phone2: phone2,
+      Birthday: birthday,
+      IsSalesLead: salesLead,
+      IsVendorLead: vendorLead,
+      BPName: companyName,
+      AD_Org_ID: {
+        id: organizationId,
+        identifier: organizationLabel
+      },
+      SalesRep_ID: {
+        id: salesRepId,
+        identifier: salesRepLabel
+      },
+      AD_Client_ID: {
+        id: businessPartnerId,
+        identifier: businessPartnerLabel
+      },
+      Description: description,
+      IsActive: active,
+      Value: searchKey,
+      LeadSourceDescription: leadSourceDesc,
+      LeadStatusDescription: leadStatusDesc,
+      Comments: comments,
+    };
+
+    console.log('💾 Saving lead data:', updateData);
+    updateLeadMutation.mutate(updateData);
   };
+
   // Section Header with dropdown
   const SectionHeader = ({title, expanded, toggle}) => (
     <TouchableOpacity onPress={toggle} style={styles.SectionHeader}>
@@ -191,19 +250,23 @@ const LeadsDetails = ({route}) => {
       style={{flex: 1}}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={styles.container}>
-        <CustomHeader title={'Leads Details'} />
-
+        <CustomHeader 
+          title={'Leads Details'}
+          onBack={() => navigation.goBack()}
+        />
+        
         <View style={{padding: '5%'}}>
+          
           {/* BASIC INFO CARD */}
           <View style={styles.card}>
             <SectionHeader
-              title=" User Basic Info"
+              title="User Basic Info"
               expanded={showBasicInfo}
               toggle={() => setShowBasicInfo(!showBasicInfo)}
             />
             {showBasicInfo && (
               <View>
-                <Text style={styles.label}>Name</Text>
+                <Text style={styles.label}>Name *</Text>
                 <TextInput
                   style={styles.inputWrapper}
                   placeholder="Enter Name"
@@ -211,15 +274,16 @@ const LeadsDetails = ({route}) => {
                   onChangeText={setName}
                   placeholderTextColor="#777"
                 />
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>Email *</Text>
                 <TextInput
                   style={styles.inputWrapper}
                   placeholder="Enter Email"
                   value={email}
                   onChangeText={setEmail}
                   placeholderTextColor="#777"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                 />
-
                 <Text style={styles.label}>Phone</Text>
                 <TextInput
                   style={styles.inputWrapper}
@@ -227,15 +291,7 @@ const LeadsDetails = ({route}) => {
                   value={phone}
                   onChangeText={setPhone}
                   placeholderTextColor="#777"
-                />
-
-                <Text style={styles.label}>Address</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={address}
-                  onChangeText={setAddress}
-                  placeholderTextColor="#777"
+                  keyboardType="phone-pad"
                 />
               </View>
             )}
@@ -253,431 +309,130 @@ const LeadsDetails = ({route}) => {
                 <Text style={styles.label}>Phone 2</Text>
                 <TextInput
                   style={styles.inputWrapper}
-                  placeholder="N/A"
+                  placeholder="Secondary Phone"
                   value={phone2}
                   onChangeText={setPhone2}
                   placeholderTextColor="#777"
+                  keyboardType="phone-pad"
                 />
-                <Text style={styles.label}>Birthday</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={birthday}
-                  onChangeText={setBirthday}
-                  placeholderTextColor="#777"
-                />
-
+                
                 <Text style={styles.label}>Sales Lead</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={salesLead}
-                  onChangeText={setSalesLead}
-                  placeholderTextColor="#777"
-                />
+                <TouchableOpacity
+                  onPress={() => setSalesLead(!salesLead)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: '#000'}}>
+                    {salesLead ? 'Yes' : 'No'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
                 <Text style={styles.label}>Vendor Lead</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={vendorLead}
-                  onChangeText={setVendorLead}
-                  placeholderTextColor="#777"
-                />
-                {/* Bussiness Partner */}
-                <Text style={styles.label}>Bussiness Partner</Text>
-                {/* <Provider>
-                  <Menu
-                    visible={bpMenuVisible}
-                    onDismiss={() => setBpMenuVisible(false)}
-                    anchor={
-                      <TouchableOpacity
-                        onPress={() => setBpMenuVisible(true)}
-                        style={[
-                          styles.inputWrapper,
-                          {
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            paddingVertical: 14,
-                          },
-                        ]}>
-                        <Text style={{color: '#000'}}>
-                          {bussinessPartner || 'Select organization'}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="chevron-down"
-                          size={22}
-                          color="#666"
-                        />
-                      </TouchableOpacity>
-                    }>
-                    {businessPartnerOptions.map(item => (
-                      <Menu.Item
-                        key={item.id}
-                        onPress={() => {
-                          setBussinessPartner(item.label);
-                          setBussinessPartnerID(item.id);
-                          setBpMenuVisible(false);
-                        }}
-                        title={item.label}
-                      />
-                    ))}
-                  </Menu>
-                </Provider> */}
-                <Provider>
-                  <TouchableOpacity
-                    onPress={() => setBpMenuVisible(true)}
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingVertical: 14,
-                      },
-                    ]}>
-                    <Text style={{color: '#555'}}>
-                      {bussinessPartner || 'select'}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={22}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setVendorLead(!vendorLead)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: '#000'}}>
+                    {vendorLead ? 'Yes' : 'No'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
-                  <Modal
-                    visible={bpMenuVisible}
-                    onDismiss={() => setBpMenuVisible(false)}
-                    transparent={true}
-                    animationType="fade">
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>Select Partner</Text>
-
-                        {businessPartnerOptions.map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.optionItem}
-                            onPress={() => {
-                              setBussinessPartner(item.label);
-                              setBussinessPartnerID(item.id);
-                              setBpMenuVisible(false);
-                            }}>
-                            <Text
-                              style={{
-                                color: '#555',
-                                fontSize: 13,
-                                fontFamily: 'K2D-Medium',
-                              }}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                          style={styles.cancelBtn}
-                          onPress={() => setBpMenuVisible(false)}>
-                          <Text style={styles.cancelBtnTxt}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                </Provider>
+                <Text style={styles.label}>Business Partner</Text>
+                <TouchableOpacity
+                  onPress={() => setBpMenuVisible(true)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: businessPartnerLabel ? '#000' : '#777'}}>
+                    {businessPartnerLabel || 'Select Business Partner'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
                 <Text style={styles.label}>Sales Representative</Text>
-                <Provider>
-                  <TouchableOpacity
-                    onPress={() => setSalesRepMenuVisible(true)}
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingVertical: 14,
-                      },
-                    ]}>
-                    <Text style={{color: '#555'}}>
-                      {salesRep || 'select Resresentative'}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={22}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSalesRepMenuVisible(true)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: salesRepLabel ? '#000' : '#777'}}>
+                    {salesRepLabel || 'Select Sales Representative'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
-                  <Modal
-                    visible={salesRepMenuVisible}
-                    onDismiss={() => setSalesRepMenuVisible(false)}
-                    transparent={true}
-                    animationType="fade">
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>
-                          Select Organization
-                        </Text>
+                <Text style={styles.label}>Organization</Text>
+                <TouchableOpacity
+                  onPress={() => setOrgMenuVisible(true)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: organizationLabel ? '#000' : '#777'}}>
+                    {organizationLabel || 'Select Organization'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
-                        {salesRepOptions.map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.optionItem}
-                            onPress={() => {
-                              setSalesRep(item.label);
-                              setSalesRepID(item.id);
-                              setSalesRepMenuVisible(false);
-                            }}>
-                            <Text
-                              style={{
-                                color: '#555',
-                                fontSize: 13,
-                                fontFamily: 'K2D-Medium',
-                              }}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                <Text style={styles.label}>Active</Text>
+                <TouchableOpacity
+                  onPress={() => setActive(!active)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: '#000'}}>
+                    {active ? 'Yes' : 'No'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
 
-                        <TouchableOpacity
-                          style={styles.cancelBtn}
-                          onPress={() => setSalesRepMenuVisible(false)}>
-                          <Text style={styles.cancelBtnTxt}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                </Provider>
-                {/* Organization */}
-
-                <Text style={styles.label}>organization</Text>
-                {/* <Provider>
-                  <Menu
-                    visible={orgMenuVisible}
-                    onDismiss={() => setOrgMenuVisible(false)}
-                    anchor={
-                      <TouchableOpacity
-                        onPress={() => setOrgMenuVisible(true)}
-                        style={[
-                          styles.inputWrapper,
-                          {
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            paddingVertical: 14,
-                          },
-                        ]}>
-                        <Text style={{color: '#000'}}>
-                          {organization || 'Select organization'}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="chevron-down"
-                          size={22}
-                          color="#666"
-                        />
-                      </TouchableOpacity>
-                    }>
-                    {organizationOptions.map(item => (
-                      <Menu.Item
-                        key={item.id}
-                        onPress={() => {
-                          setOrganization(item.label);
-                          setOrganizationID(item.id);
-                          setOrgMenuVisible(false);
-                        }}
-                        title={item.label}
-                      />
-                    ))}
-                  </Menu>
-                </Provider> */}
-                <Provider>
-                  <TouchableOpacity
-                    onPress={() => setOrgMenuVisible(true)}
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingVertical: 14,
-                      },
-                    ]}>
-                    <Text style={{color: '#555'}}>
-                      {organization || 'select Organization'}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={22}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-
-                  <Modal
-                    visible={orgMenuVisible}
-                    onDismiss={() => setOrgMenuVisible(false)}
-                    transparent={true}
-                    animationType="fade">
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>
-                          Select Organization
-                        </Text>
-
-                        {organizationOptions.map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.optionItem}
-                            onPress={() => {
-                              setOrganization(item.label);
-                              setOrganizationID(item.id);
-                              setOrgMenuVisible(false);
-                            }}>
-                            <Text
-                              style={{
-                                color: '#555',
-                                fontSize: 13,
-                                fontFamily: 'K2D-Medium',
-                              }}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                          style={styles.cancelBtn}
-                          onPress={() => setOrgMenuVisible(false)}>
-                          <Text style={styles.cancelBtnTxt}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                </Provider>
                 <Text style={styles.label}>Description</Text>
                 <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
+                  style={[styles.inputWrapper, styles.textArea]}
+                  placeholder="Enter description"
                   value={description}
                   onChangeText={setDescription}
                   placeholderTextColor="#777"
                   multiline={true}
+                  numberOfLines={3}
                 />
-
-                <Text style={styles.label}>Active</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={active}
-                  onChangeText={setActive}
-                  placeholderTextColor="#777"
-                />
-                <Text style={styles.label}>Lead Status</Text>
-                {/* <Provider>
-                  <Menu
-                    visible={statusMenuVisible}
-                    onDismiss={() => setStatusMenuVisible(false)}
-                    anchor={
-                      <TouchableOpacity
-                        onPress={() => setStatusMenuVisible(true)}
-                        style={[
-                          styles.inputWrapper,
-                          {
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            paddingVertical: 14,
-                          },
-                        ]}>
-                        <Text style={{color: '#000'}}>
-                          {status || 'Select Lead Status'}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="chevron-down"
-                          size={22}
-                          color="#666"
-                        />
-                      </TouchableOpacity>
-                    }>
-                    {leadStatusOptions.map(item => (
-                      <Menu.Item
-                        key={item.id}
-                        onPress={() => {
-                          setStatus(item.label);
-                          setStatusID(item.id);
-                          setStatusMenuVisible(false);
-                        }}
-                        title={item.label}
-                      />
-                    ))}
-                  </Menu>
-                </Provider> */}
-                <Provider>
-                  <TouchableOpacity
-                    onPress={() => setStatusMenuVisible(true)}
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingVertical: 14,
-                      },
-                    ]}>
-                    <Text style={{color: '#555'}}>
-                      {status || 'select lead status'}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={22}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-
-                  <Modal
-                    visible={statusMenuVisible}
-                    onDismiss={() => setStatusMenuVisible(false)}
-                    transparent={true}
-                    animationType="fade">
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>
-                          Select Lead Status
-                        </Text>
-
-                        {leadStatusOptions.map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.optionItem}
-                            onPress={() => {
-                              setStatus(item.label);
-                              setStatusID(item.id);
-                              setStatusMenuVisible(false);
-                            }}>
-                            <Text
-                              style={{
-                                color: '#555',
-                                fontSize: 13,
-                                fontFamily: 'K2D-Medium',
-                              }}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                          style={styles.cancelBtn}
-                          onPress={() => setStatusMenuVisible(false)}>
-                          <Text style={styles.cancelBtnTxt}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                </Provider>
 
                 <Text style={styles.label}>Search Key</Text>
                 <TextInput
                   style={styles.inputWrapper}
-                  placeholder="N/A"
+                  placeholder="Enter search key"
                   value={searchKey}
                   onChangeText={setSearchKey}
                   placeholderTextColor="#777"
@@ -698,18 +453,9 @@ const LeadsDetails = ({route}) => {
                 <Text style={styles.label}>Company Name</Text>
                 <TextInput
                   style={styles.inputWrapper}
-                  placeholder="N/A"
+                  placeholder="Enter company name"
                   value={companyName}
                   onChangeText={setCompanyName}
-                  placeholderTextColor="#777"
-                />
-
-                <Text style={styles.label}>Company Address</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={companyAddress}
-                  onChangeText={setCompanyAddress}
                   placeholderTextColor="#777"
                 />
               </View>
@@ -725,155 +471,277 @@ const LeadsDetails = ({route}) => {
             />
             {showOtherInfo && (
               <View>
-                <Text style={styles.label}>Campaign</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
-                  value={compaign}
-                  onChangeText={setCompaign}
-                  placeholderTextColor="#777"
-                />
                 <Text style={styles.label}>Lead Source</Text>
-                {/* <Provider>
-                  <Menu
-                    visible={leadSourceMenuVisible}
-                    onDismiss={() => setLeadSourceMenuVisible(false)}
-                    anchor={
-                      <TouchableOpacity
-                        onPress={() => setLeadSourceMenuVisible(true)}
-                        style={[
-                          styles.inputWrapper,
-                          {
-                            flexDirection: 'row',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            paddingVertical: 14,
-                          },
-                        ]}>
-                        <Text style={{color: '#ccc'}}>
-                          {leadSource || 'select lead source'}
-                        </Text>
-                        <MaterialCommunityIcons
-                          name="chevron-down"
-                          size={22}
-                          color="#666"
-                        />
-                      </TouchableOpacity>
-                    }>
-                    {leadSourceOptions.map(item => (
-                      <Menu.Item
-                        key={item.id}
-                        onPress={() => {
-                          setLeadSource(item.label);
-                          setLeadSourceID(item.id);
-                          setLeadSourceMenuVisible(false);
-                        }}
-                        title={item.label}
-                      />
-                    ))}
-                  </Menu>
-                </Provider> */}
-                <Provider>
-                  <TouchableOpacity
-                    onPress={() => setLeadSourceModalVisible(true)}
-                    style={[
-                      styles.inputWrapper,
-                      {
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        paddingVertical: 14,
-                      },
-                    ]}>
-                    <Text style={{color: '#555'}}>
-                      {leadSource || 'select lead source'}
-                    </Text>
+                <TouchableOpacity
+                  onPress={() => setLeadSourceModalVisible(true)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: leadSourceLabel ? '#000' : '#777'}}>
+                    {leadSourceLabel || 'Select Lead Source'}
+                  </Text>
                     <MaterialCommunityIcons
                       name="chevron-down"
                       size={22}
                       color="#666"
                     />
-                  </TouchableOpacity>
-
-                  <Modal
-                    visible={leadSourceModalVisible}
-                    onDismiss={() => setLeadSourceModalVisible(false)}
-                    transparent={true}
-                    animationType="fade">
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalBox}>
-                        <Text style={styles.modalTitle}>
-                          Select Lead Source
-                        </Text>
-
-                        {leadSourceOptions.map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.optionItem}
-                            onPress={() => {
-                              setLeadSource(item.label);
-                              setLeadSourceID(item.id);
-                              setLeadSourceModalVisible(false);
-                            }}>
-                            <Text
-                              style={{
-                                color: '#555',
-                                fontSize: 13,
-                                fontFamily: 'K2D-Medium',
-                              }}>
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-
-                        <TouchableOpacity
-                          style={styles.cancelBtn}
-                          onPress={() => setLeadSourceModalVisible(false)}>
-                          <Text style={styles.cancelBtnTxt}>Cancel</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                </Provider>
+                </TouchableOpacity>
 
                 <Text style={styles.label}>Lead Source Description</Text>
                 <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
+                  style={[styles.inputWrapper, styles.textArea]}
+                  placeholder="Enter lead source description"
                   value={leadSourceDesc}
                   onChangeText={setLeadSourceDesc}
                   placeholderTextColor="#777"
                   multiline={true}
+                  numberOfLines={2}
                 />
+
+                <Text style={styles.label}>Lead Status</Text>
+                <TouchableOpacity
+                  onPress={() => setStatusMenuVisible(true)}
+                  style={[
+                    styles.inputWrapper,
+                    styles.dropdownInput,
+                  ]}>
+                  <Text style={{color: statusLabel ? '#000' : '#777'}}>
+                    {statusLabel || 'Select Lead Status'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-down"
+                    size={22}
+                    color="#666"
+                  />
+                </TouchableOpacity>
+
                 <Text style={styles.label}>Lead Status Description</Text>
                 <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
+                  style={[styles.inputWrapper, styles.textArea]}
+                  placeholder="Enter lead status description"
                   value={leadStatusDesc}
                   onChangeText={setLeadStatusDesc}
                   placeholderTextColor="#777"
                   multiline={true}
+                  numberOfLines={2}
                 />
 
                 <Text style={styles.label}>Comments</Text>
                 <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="N/A"
+                  style={[styles.inputWrapper, styles.textArea]}
+                  placeholder="Enter comments"
                   value={comments}
                   onChangeText={setComments}
                   placeholderTextColor="#777"
                   multiline={true}
+                  numberOfLines={3}
                 />
               </View>
             )}
           </View>
 
           {/* SAVE BUTTON */}
-          <TouchableOpacity style={styles.saveBtn} onPress={LeadDetailApi}>
-            <Text style={styles.saveBtnTxt}>Save</Text>
+          <TouchableOpacity 
+            style={[
+              styles.saveBtn,
+              updateLeadMutation.isLoading && styles.saveBtnDisabled
+            ]} 
+            onPress={handleSave}
+            disabled={updateLeadMutation.isLoading}
+          >
+            <Text style={styles.saveBtnTxt}>
+              {updateLeadMutation.isLoading ? 'Saving...' : 'Save Changes'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* MODALS */}
+      {/* Business Partner Modal */}
+      <Modal
+        visible={bpMenuVisible}
+        onDismiss={() => setBpMenuVisible(false)}
+        transparent={true}
+        animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Select Business Partner</Text>
+            <ScrollView style={styles.modalScroll}>
+              {businessPartnerOptions.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.optionItem,
+                    businessPartnerId === item.id && styles.optionItemSelected
+                  ]}
+                  onPress={() => {
+                    setBusinessPartnerId(item.id);
+                    setBusinessPartnerLabel(item.identifier);
+                    setBpMenuVisible(false);
+                  }}>
+                  <Text style={styles.optionText}>
+                    {item.identifier}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setBpMenuVisible(false)}>
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sales Rep Modal */}
+      <Modal
+        visible={salesRepMenuVisible}
+        onDismiss={() => setSalesRepMenuVisible(false)}
+        transparent={true}
+        animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Select Sales Representative</Text>
+            <ScrollView style={styles.modalScroll}>
+              {salesRepOptions.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.optionItem,
+                    salesRepId === item.id && styles.optionItemSelected
+                  ]}
+                  onPress={() => {
+                    setSalesRepId(item.id);
+                    setSalesRepLabel(item.identifier);
+                    setSalesRepMenuVisible(false);
+                  }}>
+                  <Text style={styles.optionText}>
+                    {item.identifier}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setSalesRepMenuVisible(false)}>
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Organization Modal */}
+      <Modal
+        visible={orgMenuVisible}
+        onDismiss={() => setOrgMenuVisible(false)}
+        transparent={true}
+        animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Select Organization</Text>
+            <ScrollView style={styles.modalScroll}>
+              {organizationOptions.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.optionItem,
+                    organizationId === item.id && styles.optionItemSelected
+                  ]}
+                  onPress={() => {
+                    setOrganizationId(item.id);
+                    setOrganizationLabel(item.identifier);
+                    setOrgMenuVisible(false);
+                  }}>
+                  <Text style={styles.optionText}>
+                    {item.identifier}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setOrgMenuVisible(false)}>
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Lead Status Modal */}
+      <Modal
+        visible={statusMenuVisible}
+        onDismiss={() => setStatusMenuVisible(false)}
+        transparent={true}
+        animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Select Lead Status</Text>
+            <ScrollView style={styles.modalScroll}>
+              {leadStatusOptions.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.optionItem,
+                    statusId === item.id && styles.optionItemSelected
+                  ]}
+                  onPress={() => {
+                    setStatusId(item.id);
+                    setStatusLabel(item.identifier);
+                    setStatusMenuVisible(false);
+                  }}>
+                  <Text style={styles.optionText}>
+                    {item.identifier}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setStatusMenuVisible(false)}>
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Lead Source Modal */}
+      <Modal
+        visible={leadSourceModalVisible}
+        onDismiss={() => setLeadSourceModalVisible(false)}
+        transparent={true}
+        animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Select Lead Source</Text>
+            <ScrollView style={styles.modalScroll}>
+              {leadSourceOptions.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.optionItem,
+                    leadSourceId === item.id && styles.optionItemSelected
+                  ]}
+                  onPress={() => {
+                    setLeadSourceId(item.id);
+                    setLeadSourceLabel(item.identifier);
+                    setLeadSourceModalVisible(false);
+                  }}>
+                  <Text style={styles.optionText}>
+                    {item.identifier}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => setLeadSourceModalVisible(false)}>
+              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -882,115 +750,135 @@ export default LeadsDetails;
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f4f2f8'},
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f4f2f8',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#555',
+  },
   card: {
     backgroundColor: '#fff',
     padding: 15,
-    borderRadius: 2,
+    borderRadius: 8,
     marginBottom: 14,
-    elevation: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  cardTitle: {
-    fontSize: 15,
-    fontFamily: 'K2D-Bold',
-    marginBottom: 10,
-    color: '#000',
-  },
-  row: {marginBottom: 8},
   label: {
     fontSize: 13,
-    color: '#000',
-    marginVertical: '2%',
-    fontFamily: 'K2D-Bold',
-  },
-  value: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#555',
-    paddingHorizontal: '4%',
-    fontFamily: 'K2D-Medium',
+    color: '#333',
+    marginVertical: 8,
+    fontFamily: 'K2D-SemiBold',
   },
   SectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  sectionTitle: {fontSize: 15, fontFamily: 'K2D-SemiBold', color: '#000'},
+  sectionTitle: {
+    fontSize: 16, 
+    fontFamily: 'K2D-SemiBold', 
+    color: '#000'
+  },
   inputWrapper: {
-    backgroundColor: '#fff',
-    elevation: 2,
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 6,
     color: '#000',
-    paddingHorizontal: '5%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+  },
+  dropdownInput: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   saveBtn: {
-    flex: 1,
-    width: '85%',
+    width: '100%',
     backgroundColor: '#2F4FE3',
     height: 50,
-    marginTop: 10,
+    marginTop: 20,
     marginBottom: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 6,
-    alignSelf: 'center',
+    borderRadius: 8,
   },
-  saveBtnTxt: {color: '#fff', fontFamily: 'K2D-SemiBold', fontSize: 15},
+  saveBtnDisabled: {
+    backgroundColor: '#9aa7e3',
+  },
+  saveBtnTxt: {
+    color: '#fff', 
+    fontFamily: 'K2D-SemiBold', 
+    fontSize: 16
+  },
   modalOverlay: {
     flex: 1,
-    // backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 999,
-    position: 'absolute',
-    padding: 20,
-    // height: 100,
-    // width: '110%',
-    // marginTop: '-30%',
-    bottom: 15,
-    // left: 5
-    right: -20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-
   modalBox: {
-    width: 100,
     backgroundColor: '#fff',
-    borderRadius: 2,
-    padding: 10,
-    elevation: 10,
-    zIndex: 999,
-    // marginTop: '-205%',
-    // marginRight:'10%'
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    maxHeight: '70%',
   },
-
   modalTitle: {
-    fontSize: 12,
+    fontSize: 18,
     fontFamily: 'K2D-Bold',
-    alignItems: 'center',
-    // paddingHorizontal: '1%',
-    marginBottom: 2,
-    color: '#555',
+    color: '#333',
+    marginBottom: 15,
+    textAlign: 'center',
   },
-
+  modalScroll: {
+    maxHeight: 300,
+  },
   optionItem: {
-    paddingVertical: '0%',
-    paddingHorizontal: '2%',
-    // borderBottomWidth: 1,
-    // borderBottomColor: '#ddd',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-
+  optionItemSelected: {
+    backgroundColor: '#f0f7ff',
+  },
+  optionText: {
+    color: '#333',
+    fontSize: 15,
+    fontFamily: 'K2D-Medium',
+  },
+  noOptionsText: {
+    textAlign: 'center',
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+    paddingVertical: 20,
+  },
   cancelBtn: {
-    marginTop: 5,
-    backgroundColor: '#555',
-    paddingVertical: 2,
-    // width: 60,
-    borderRadius: 4,
+    marginTop: 15,
+    backgroundColor: '#6c757d',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    // paddingHorizontal:'5%'
-    marginLeft: '1%',
   },
   cancelBtnTxt: {
     color: '#fff',
-    fontFamily: 'K2D-Medium',
-    fontSize: 10,
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 15,
   },
 });

@@ -7,240 +7,360 @@ import {
   TextInput,
   TouchableOpacity,
   BackHandler,
-  ScrollView,
   StatusBar,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import React, {useState, useEffect} from 'react';
-import {Picker} from '@react-native-picker/picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState, useEffect, useRef } from 'react'; // Added useRef
+import { Picker } from '@react-native-picker/picker';
+import { useAuthStore } from '../../store/authStore';
+import colors from '../../constants/Colors';
 
-const {height, width} = Dimensions.get('window');
-const WelcomeScreen = ({navigation}) => {
-  const [selectedValue, setSelectedValue] = useState('Select a host');
-  const [IpAddress, setIpAddress] = useState('');
+const { height, width } = Dimensions.get('window');
+
+const WelcomeScreen = ({ navigation }) => {
+  const [selectedValue, setSelectedValue] = useState('http');
+  const [ipAddress, setIpAddress] = useState('');
   const [portNum, setPortNum] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false); // Prevent double navigation
+  const navigationRef = useRef(false); // Track if we've already navigated
+  
+  const setServerConfig = useAuthStore(state => state.setServerConfig);
+  const serverConfig = useAuthStore(state => state.serverConfig);
+
   const options = [
-    {label: 'Select a Host', value: 'select a Host'},
-    {label: 'http', value: 'http'},
-    {label: 'https', value: 'https'},
+    { label: 'HTTP', value: 'http' },
+    { label: 'HTTPS', value: 'https' },
   ];
 
-  const handleBackButton = () => {
-    BackHandler.exitApp();
-    return true;
-  };
+  // Responsive scaling factors
+  const scaleWidth = (size) => (width / 375) * size;
+  const scaleHeight = (size) => (height / 812) * size;
+  
+  // Determine device orientation
+  const isLandscape = width > height;
+  const isTablet = width >= 768;
 
   useEffect(() => {
-    BackHandler.addEventListener('hardwareBackPress', handleBackButton);
+    console.log('🌐 WelcomeScreen: Mounted');
+    navigationRef.current = false;
+    
+    // Load saved config on mount
+    if (serverConfig.protocol) setSelectedValue(serverConfig.protocol);
+    if (serverConfig.host) setIpAddress(serverConfig.host);
+    if (serverConfig.port) setPortNum(serverConfig.port);
 
-    return () =>
-      BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
-  }, []);
-
-  const navigateToSignIn = async () => {
-    if (selectedValue === 'select a Host') {
-      alert('Please select host');
-    } else if (IpAddress.trim() === '') {
-      alert('Please enter your IP address');
-    } else if (portNum.trim() === '') {
-      alert('Please enter your Port Number');
-    } else {
-      await AsyncStorage.setItem('protocol', selectedValue).then(async () => {
-        await AsyncStorage.setItem('host', IpAddress).then(async () => {
-          await AsyncStorage.setItem('port', portNum).then(() => {
-            navigation.navigate('SignIn');
-          });
-        });
-      });
-    }
-  };
-
-  useEffect(() => {
-    const loadServerConfig = async () => {
-      const savedProtocol = await AsyncStorage.getItem('protocol');
-      const savedHost = await AsyncStorage.getItem('host');
-      const savedPort = await AsyncStorage.getItem('port');
-
-      if (savedProtocol) setSelectedValue(savedProtocol);
-      if (savedHost) setIpAddress(savedHost);
-      if (savedPort) setPortNum(savedPort);
+    const handleBackButton = () => {
+      BackHandler.exitApp();
+      return true;
     };
 
-    loadServerConfig();
-
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
-    return () =>
+    return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
+      console.log('🌐 WelcomeScreen: Unmounted');
+    };
   }, []);
 
+  const navigateToSignIn = () => {
+    // Prevent double navigation
+    if (isNavigating || navigationRef.current) {
+      console.log('⚠️ WelcomeScreen: Navigation already in progress, ignoring');
+      return;
+    }
+    
+    if (!selectedValue) {
+      alert('Please select host protocol');
+      return;
+    } else if (ipAddress.trim() === '') {
+      alert('Please enter your IP address');
+      return;
+    } else if (portNum.trim() === '') {
+      alert('Please enter your Port Number');
+      return;
+    }
+
+    // Set navigating flag
+    setIsNavigating(true);
+    navigationRef.current = true;
+    
+    console.log('🌐 WelcomeScreen: Saving config and navigating...');
+
+    // Save to Zustand store
+    setServerConfig({
+      protocol: selectedValue,
+      host: ipAddress,
+      port: portNum,
+    });
+
+    // Use setTimeout to ensure state update
+    setTimeout(() => {
+      console.log('🌐 WelcomeScreen: Navigating to SignIn');
+      navigation.navigate('SignIn');
+      
+      // Reset flag after navigation
+      setTimeout(() => {
+        setIsNavigating(false);
+      }, 1000);
+    }, 100);
+  };
+
   return (
-    <View
-      style={{
-        flex: 1,
-        // backgroundColor:'#0050C0'
-        backgroundColor: '#fff',
-      }}>
-      <StatusBar translucent={true} backgroundColor="white" />
-      {/* First image */}
-      <View style={[styles.imageCon, {backgroundColor: ''}]}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+      <ScrollView 
+        contentContainerStyle={[
+          styles.content,
+          isLandscape && styles.contentLandscape
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Illustration */}
         <Image
-          // source={require('../../asserts/WelcomeSrn/icon-erp167.png')}
           source={require('../../asserts/WelcomeSrn/icons...41.png')}
-          style={{height: height / 2.5, width: width / 1.2, marginTop: '20%'}}
+          style={[
+            styles.illustration,
+            isLandscape && styles.illustrationLandscape,
+            isTablet && styles.illustrationTablet
+          ]}
+          resizeMode="contain"
         />
-      </View>
 
-      <View style={styles.inputContainer}>
-        {/* Txt View */}
-        <View>
-          <Text style={styles.serverConfigurationTxt}>
-            Server Configuration
-          </Text>
-        </View>
-        {/* All center View */}
-        <View style={styles.pickerStyle}>
-          <Picker
-            selectedValue={selectedValue}
-            onValueChange={(itemValue, itemIndex) =>
-              setSelectedValue(itemValue)
-            }
-            style={styles.pickerItem}
-            dropdownIconColor={'black'}>
-            {options.map(option => (
-              <Picker.Item
-                key={option.value}
-                label={option.label}
-                value={option.value}
-              />
-            ))}
-          </Picker>
-        </View>
+        {/* Title */}
+        <Text style={[
+          styles.title,
+          isLandscape && styles.titleLandscape,
+          isTablet && styles.titleTablet
+        ]}>
+          Server Configuration
+        </Text>
 
-        <View style={{marginTop: 12, alignContent: 'center'}}>
+        {/* Card */}
+        <View style={[
+          styles.card,
+          isLandscape && styles.cardLandscape,
+          isTablet && styles.cardTablet
+        ]}>
+          {/* Protocol */}
+          <View style={styles.inputWrapper}>
+            <Picker
+              selectedValue={selectedValue}
+              onValueChange={setSelectedValue}
+              style={styles.picker}
+            >
+              <Picker.Item label="Select Host" value="" />
+              <Picker.Item label="HTTP" value="http" />
+              <Picker.Item label="HTTPS" value="https" />
+            </Picker>
+          </View>
+
+          {/* Domain */}
           <TextInput
-            onChangeText={text => setIpAddress(text)}
-            value={IpAddress}
-            placeholder="Enter your Domain / IP Adress"
-            placeholderTextColor="black"
             style={styles.input}
+            placeholder="Domain/IP Address"
+            placeholderTextColor="#999"
+            value={ipAddress}
+            onChangeText={setIpAddress}
+            autoCapitalize="none"
           />
-        </View>
-        <View style={{marginTop: 12}}>
+
+          {/* Port */}
           <TextInput
-            onChangeText={text => setPortNum(text)}
+            style={styles.input}
+            placeholder="Port Number"
+            placeholderTextColor="#999"
             value={portNum}
-            placeholder="Enter your Port Number"
-            placeholderTextColor="black"
-            style={styles.input}
+            onChangeText={setPortNum}
+            keyboardType="numeric"
           />
-        </View>
 
-        {/* Button */}
-        <View style={styles.btnCotainer}>
-          <TouchableOpacity
-            style={styles.btn}
-            onPress={() => navigateToSignIn()}>
-            <Text style={styles.btnTxt}>Save Changes</Text>
+          {/* Save Button */}
+          <TouchableOpacity 
+            style={[
+              styles.button,
+              isLandscape && styles.buttonLandscape,
+              isTablet && styles.buttonTablet,
+              isNavigating && styles.buttonDisabled
+            ]} 
+            onPress={navigateToSignIn}
+            disabled={isNavigating}
+          >
+            <Text style={[
+              styles.buttonText,
+              isTablet && styles.buttonTextTablet
+            ]}>
+              {isNavigating ? 'Saving...' : 'Save'}
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 export default WelcomeScreen;
 
 const styles = StyleSheet.create({
-  imageCon: {
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  content: {
+    flexGrow: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    height: height / 4.2,
-    width: width,
+    paddingTop: height * 0.05,
+    paddingBottom: height * 0.05,
+    paddingHorizontal: width * 0.05,
+    backgroundColor: colors.background,
   },
-  middleContainer: {
-    alignItems: 'center',
-  },
-  txt: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: 'white',
-    textShadowColor: 'black',
-    textShadowOffset: {width: 2, height: 2},
-    textShadowRadius: 4,
-  },
-  txt2: {
-    fontSize: 32,
-    fontFamily: 'K2D-Bold',
-    color: 'white',
-    textShadowColor: 'black',
-    textShadowOffset: {width: 2, height: 2},
-    textShadowRadius: 4,
-  },
-  topMiddleText: {
+
+  contentLandscape: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingTop: height * 0.02,
+    paddingBottom: height * 0.02,
   },
-  inputContainer: {
-    marginTop: height / 8,
-    // backgroundColor:"gray"
-    backgroundColor: '#f1f1f1',
-    width: '95%',
-    alignSelf: 'center',
-    borderRadius: 10,
+
+  illustration: {
+    height: height * 0.35,
+    width: width * 0.85,
+    maxHeight: 350,
+    maxWidth: 350,
+    marginBottom: height * 0.02,
   },
-  pickerStyle: {
-    width: width / 1.1,
-    // borderBottomColor: 'white',
-    // borderWidth: 1,
-    alignSelf: 'center',
-    borderRadius: 10,
-    backgroundColor: '#DCDADA',
-    marginTop: '4%',
+
+  illustrationLandscape: {
+    height: height * 0.6,
+    width: width * 0.4,
+    marginBottom: 0,
+    marginRight: width * 0.05,
   },
-  pickerItem: {
-    color: 'black',
-    fontFamily: 'K2D',
+
+  illustrationTablet: {
+    height: height * 0.4,
+    width: width * 0.5,
+    maxHeight: 400,
+    maxWidth: 400,
   },
+
+  title: {
+    fontSize: width * 0.05,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: height * 0.03,
+    textAlign: 'center',
+    minWidth: width * 0.6,
+  },
+
+  titleLandscape: {
+    fontSize: width * 0.04,
+    marginBottom: height * 0.02,
+  },
+
+  titleTablet: {
+    fontSize: width * 0.045,
+    marginBottom: height * 0.04,
+  },
+
+  card: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: width * 0.04,
+    elevation: 4,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+
+  cardLandscape: {
+    width: width * 0.45,
+    maxWidth: 400,
+    padding: width * 0.03,
+  },
+
+  cardTablet: {
+    width: width * 0.6,
+    maxWidth: 600,
+    padding: width * 0.05,
+  },
+
+  inputWrapper: {
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 8,
+    marginBottom: height * 0.015,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+  },
+
+  picker: {
+    height: height * 0.06,
+    minHeight: 50,
+    color: colors.textPrimary,
+  },
+
   input: {
-    width: width / 1.1,
-    backgroundColor: '#DCDADA',
-    // borderBottomWidth: 1,
-    color: 'black',
-    fontFamily: 'K2D-Regular',
-    alignSelf: 'center',
-    borderRadius: 10,
+    height: height * 0.06,
+    minHeight: 50,
+    backgroundColor: colors.backgroundGray,
+    borderRadius: 8,
+    paddingHorizontal: width * 0.04,
+    marginBottom: height * 0.015,
+    fontSize: width * 0.035,
+    color: colors.inputText,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
   },
-  btn: {
-    // backgroundColor: "#00B0F0",
-    backgroundColor: '#002E62',
-    width: width / 1.5,
+
+  button: {
+    height: height * 0.06,
+    minHeight: 48,
+    backgroundColor: colors.authButton,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    height: height / 16,
-    borderRadius: 10,
-    marginBottom: '20%',
-    marginTop: '-5%',
+    marginTop: height * 0.02,
+    elevation: 4,
+    marginHorizontal: width * 0.15,
+    shadowColor: colors.primaryDark,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  btnCotainer: {
-    alignItems: 'center',
-    marginTop: height / 8,
+
+  buttonDisabled: {
+    backgroundColor: '#cccccc',
   },
-  btnTxt: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'K2D',
+
+  buttonLandscape: {
+    marginHorizontal: width * 0.1,
+    height: height * 0.07,
   },
-  bottomContainer: {
-    alignItems: 'center',
-    marginTop: height / 28,
+
+  buttonTablet: {
+    marginHorizontal: width * 0.2,
+    height: height * 0.07,
+    minHeight: 56,
   },
-  txtBottom: {
-    flexDirection: 'row',
+
+  buttonText: {
+    color: colors.textInverse,
+    fontSize: width * 0.04,
+    fontWeight: '600',
   },
-  serverConfigurationTxt: {
-    marginTop: '5%',
-    fontSize: 20,
-    fontWeight: '800',
-    color: 'black',
-    paddingLeft: '3%',
+
+  buttonTextTablet: {
+    fontSize: width * 0.045,
   },
 });

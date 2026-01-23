@@ -1,172 +1,121 @@
+// src/screens/EmployeePortal/EmployeePortal.js
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   Image,
   TouchableOpacity,
-  FlatList,
   ScrollView,
   StatusBar,
+  BackHandler,
+  Alert,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-
-import {Picker} from '@react-native-picker/picker';
-import Loader from '../../components/Loader';
-import {
-  Menu,
-  MenuOptions,
-  MenuOption,
-  MenuTrigger,
-} from 'react-native-popup-menu';
-
-import CustomHeader from '../../components/CustomHeader';
-import PortalCards from '../../components/EmployeePortalComponents/PortalCards';
-import AntDesign from 'react-native-vector-icons/AntDesign';
-import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import LeaveStatus from './LeaveStatusScreen/LeaveStatus';
-import UpperCard from '../../components/LeaveStatusComponents/UpperCard';
+import { useAuthStore } from '../../store/authStore';
+import {
+  useUserInfo,
+  useTodayAttendance,
+  useLeaveBalance,
+  useActivities,
+} from '../../hooks/useEmployeePortal';
+import Loader from '../../components/Loader';
 
-const EmployeePortal = ({navigation}) => {
-  const [partnerId, setPartnerId] = useState(null);
-  const [requestInfo, setRequestInfo] = useState([]);
-  const [applyFilter, setApplyFilter] = useState();
-  const [isLoading, setIsLoading] = useState(false);
-  const [refreshData, setRefreshData] = useState(false);
+const EmployeePortal = ({ navigation, route }) => {
+  // Get user info from auth store
+  const userName = useAuthStore(state => state.userName);
+  const roleName = useAuthStore(state => state.roleName);
+  
+  // Fetch user info
+  const { 
+    data: userInfo, 
+    isLoading: userInfoLoading 
+  } = useUserInfo();
+  
+  // Fetch data
+  const { 
+    data: todayAttendance, 
+    isLoading: attendanceLoading 
+  } = useTodayAttendance(true);
+  
+  const { 
+    data: leaveBalance, 
+    isLoading: balanceLoading 
+  } = useLeaveBalance(true);
+  
+  const { 
+    data: activities = [], 
+    isLoading: activitiesLoading 
+  } = useActivities(true);
+  
+  const isLoading = userInfoLoading || attendanceLoading || 
+                    balanceLoading || activitiesLoading;
 
-  const FindBusinessPrtId = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const Id = await AsyncStorage.getItem('userId');
+  // Handle back button press
+  useEffect(() => {
+    const backAction = () => {
+      // Check if we can go back in navigation stack
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+        return true;
+      } else {
+        // If this is the first screen, ask user if they want to exit
+        Alert.alert(
+          'Exit App',
+          'Do you want to exit the application?',
+          [
+            {
+              text: 'Cancel',
+              onPress: () => null,
+              style: 'cancel',
+            },
+            {
+              text: 'Exit',
+              onPress: () => BackHandler.exitApp(),
+            },
+          ],
+          { cancelable: false }
+        );
+        return true;
+      }
+    };
 
-    try {
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=AD_User_ID eq ${Id}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-      setPartnerId(response?.data?.records[0]?.C_BPartner_ID?.id);
-    } catch (error) {
-      console.error('Error :', error);
-    }
-  };
+    // Add event listener for hardware back button
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
 
-  const LeaveRequestInfo = async () => {
-    setIsLoading(true);
-    const token = await AsyncStorage.getItem('token');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
+    // Clean up the event listener
+    return () => backHandler.remove();
+  }, [navigation]);
 
-    let startDate = new Date();
-    let endDate = new Date();
-
-    if (applyFilter === 'Last 7 Days') {
-      startDate.setDate(endDate.getDate() - 7);
-    } else if (applyFilter === 'Last month') {
-      startDate.setMonth(endDate.getMonth() - 1);
+  // Function to handle back navigation
+  const handleBackPress = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
     } else {
-      startDate = new Date('2000-01-01');
-    }
-
-    const formattedStartDate = startDate.toISOString().split('T')[0];
-    // console.log(formattedStartDate,'formattedStartDate')
-    const formattedEndDate = endDate.toISOString().split('T')[0];
-    // console.log(formattedEndDate,'formattedEndDate')
-
-    const filter = `startdate ge ${formattedStartDate} and enddate le ${formattedEndDate}`;
-
-    const orderby = `EndDate desc`;
-    // console.log(filter,'filterInLeaveStatus')
-
-    try {
-      const urlInLeaveStatusShow = `${protocol}://${host}:${port}/api/v1/models/HR_EmpLev_Posting?$filter=C_BPartner_ID eq ${partnerId} and ${filter}&$orderby=${orderby}`;
-      console.log(urlInLeaveStatusShow, 'jkdfvkj');
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/HR_EmpLev_Posting?$filter=C_BPartner_ID eq ${partnerId}&$orderby=${orderby}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      // console.log(response?.data?.records,'LeaveStatusListShow')
-
-      const displayReverse = response?.data?.records;
-      const extratReverse = displayReverse;
-      // const extratReverse = displayReverse.reverse();
-      setRequestInfo(extratReverse);
-    } catch (error) {
-      console.error('Error :', error);
-    } finally {
-      setIsLoading(false);
+      // If no previous screen, navigate to home or dashboard
+      // You can change this to wherever your app's home screen is
+      navigation.navigate('Dashboard'); // Or 'Home', 'Main', etc.
     }
   };
-
-  const refreshLeaveRequestInfo = async () => {
-    setIsLoading(true);
-    await LeaveRequestInfo();
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    FindBusinessPrtId();
-  }, []);
-  useEffect(() => {
-    if (partnerId) {
-      LeaveRequestInfo();
-    }
-  }, [applyFilter, partnerId]);
-
-  const activityList = [
-    {
-      id: 1,
-      title: 'Activity name',
-      type: 'Activity Type',
-      description: 'No Descriprtion Provided',
-    },
-    {
-      id: 2,
-      title: 'Activity name',
-      type: 'Activity Type',
-      description: 'No Descriprtion Provided',
-    },
-    {
-      id: 3,
-      title: 'Activity name',
-      type: 'Activity Type',
-      description: 'No Descriprtion Provided',
-    },
-  ];
 
   return (
-    <View style={{flex: 1, justifyContent: 'center', paddingHorizontal: '3%'}}>
+    <View style={{flex: 1, backgroundColor: '#fff', paddingHorizontal: '3%'}}>
       <StatusBar barStyle={'dark-content'} translucent={true} />
-      {/* <CustomHeader
-        title="Employee Portal"
-        RightIcon="account"
-        RightPress={() => navigation.navigate('EmployeeProfileTopNavigation')}
-      /> */}
-      <View style={{top: '6%', height: 50}}>
+      
+      {/* Back Button */}
+      <View style={{height: 50, justifyContent: 'center', marginTop: 30}}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={handleBackPress}
           style={{paddingHorizontal: '5%'}}>
           <Icon name="arrow-back" size={25} color={'#000'} />
         </TouchableOpacity>
       </View>
+      
+      {/* Profile Header */}
       <View style={styles.header}>
         <View style={{flexDirection: 'row', alignItems: 'center'}}>
           <Image
@@ -177,22 +126,15 @@ const EmployeePortal = ({navigation}) => {
           />
           <View>
             <View style={{flexDirection: 'row', marginTop: 0}}>
-              {/* <Text style={styles.name}>Name:</Text> */}
-              <Text style={styles.name}>Muhammad Anwar</Text>
-              {/* <Text style={{color: 'gray', marginLeft: 20}}>{id}</Text> */}
+              <Text style={styles.name}>{userInfo?.Name || userName || 'Muhammad Anwar'}</Text>
             </View>
             <View style={{flexDirection: 'row', marginTop: -5}}>
-              {/* <Text style={{color: 'black'}}>Company:</Text> */}
-              <Text style={styles.company}>Hr Manager</Text>
+              <Text style={styles.company}>{userInfo?.Title?.identifier || roleName || 'Hr Manager'}</Text>
             </View>
-
-            {/* <View style={{flexDirection: 'row', marginTop: -5}}>
-              
-              <Text style={styles.company}>2 leaves</Text>
-            </View> */}
           </View>
         </View>
-        {/* notification */}
+        
+        {/* Notification Bell */}
         <View style={{position: 'relative'}}>
           <TouchableOpacity
             style={styles.notificationBellViewStyle}
@@ -204,11 +146,11 @@ const EmployeePortal = ({navigation}) => {
               style={{alignSelf: 'center'}}
             />
           </TouchableOpacity>
-
-          {/* {notificationCount > 0 && <View style={styles.redDot} />} */}
         </View>
       </View>
-      <View style={{height: 150}}>
+      
+      {/* Quick Actions Grid */}
+      <View style={{marginBottom: 10}}>
         <View style={styles.bottomGrid}>
           <TouchableOpacity
             style={[styles.gridBox, {backgroundColor: 'rgb(253, 242, 248)'}]}
@@ -222,6 +164,7 @@ const EmployeePortal = ({navigation}) => {
             </View>
             <Text style={styles.gridLabel}>Salary {'\n'}Slip</Text>
           </TouchableOpacity>
+          
           <TouchableOpacity
             style={[styles.gridBox, {backgroundColor: 'rgb(253, 254, 240)'}]}
             onPress={() => navigation.navigate('AttendenceStatus')}>
@@ -234,6 +177,7 @@ const EmployeePortal = ({navigation}) => {
             </View>
             <Text style={styles.gridLabel}>Attandence Status</Text>
           </TouchableOpacity>
+          
           <TouchableOpacity
             style={[styles.gridBox, {backgroundColor: 'rgb(229, 241, 254)'}]}
             onPress={() => navigation.navigate('StaffAttendance')}>
@@ -249,308 +193,112 @@ const EmployeePortal = ({navigation}) => {
         </View>
       </View>
 
-      <View>
-        <Text
-          style={[
-            styles.sectionTitle,
-            {paddingHorizontal: '5%', marginBottom: '5%'},
-          ]}>
+      {/* Today's Activity Header */}
+      <View style={{marginBottom: 10}}>
+        <Text style={[styles.sectionTitle, {paddingHorizontal: '5%'}]}>
           Today's Activity
         </Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{}}>
-        <View
-          style={{
-            flexDirection: 'row',
-            paddingHorizontal: 10,
-            alignItems: 'center',
-            // backgroundColor: 'gray',
-            height: 120,
-            // marginTop: '40%',
-          }}>
-          {activityList.map(item => (
-            <View
-              key={item.id}
-              style={{
-                width: 180,
-                height: 120,
-                padding: 12,
-                backgroundColor: '#fff',
-                elevation: 4,
-                borderRadius: 10,
-                marginRight: 10,
-                justifyContent: 'center',
-              }}>
-              <Text
-                style={[
-                  styles.activityCardTxt,
-                  {fontFamily: 'K2D-Bold', color: '#333'},
-                ]}>
-                {item.title}
-              </Text>
-              <Text style={styles.activityCardTxt}>{item.type}</Text>
-              <Text style={[styles.activityCardTxt]}>{item.description}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-      <View style={styles.leaveBalance}>
+      
+      {/* Activities Scroll */}
+      <View style={{height: 140, marginBottom: 15}}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{flexDirection: 'row', paddingHorizontal: 10}}>
+            {activities.map((item, index) => (
+              <View
+                key={index}
+                style={styles.activityCard}>
+                <Text style={[styles.activityCardTxt, {fontFamily: 'K2D-Bold', color: '#333'}]}>
+                  {item.title}
+                </Text>
+                <Text style={styles.activityCardTxt}>{item.type}</Text>
+                <Text style={[styles.activityCardTxt]}>{item.description}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+      
+      {/* Leave Balance */}
+      <View style={[styles.leaveBalance, {marginHorizontal: '5%', marginBottom: 15}]}>
         <View>
           <Text style={styles.leaveBalanceTxt}>Current Leave Balance</Text>
         </View>
-        <View
-          style={{
-            height: 25,
-            width: 25,
-            borderRadius: 15,
-            backgroundColor: '#2F4FE3',
-            // elevation: 6,
-            // shadowColor: '#000',
-            justifyContent: 'center',
-          }}>
-          <Text
-            style={[
-              styles.leaveBalanceTxt,
-              {
-                color: '#fff',
-                textAlign: 'center',
-                fontSize: 12,
-                fontFamily: 'K2D-Bold',
-              },
-            ]}>
-            02
+        <View style={styles.leaveBalanceBadge}>
+          <Text style={styles.leaveBalanceBadgeText}>
+            {leaveBalance?.balance || 2}
           </Text>
         </View>
-
-        {/* <Text style={styles.sectionTitle}>Current Leave Balance : </Text> */}
       </View>
 
-      {/* Attendense Status section */}
-      <View style={{padding: 10, top: '-5%'}}>
+      {/* Today's Attendance - In Cards Side by Side (No Scroll) */}
+      <View style={{paddingHorizontal: '5%', marginBottom: 20}}>
         <Text style={styles.sectionTitle}>Today Attendance</Text>
-
-        <View style={styles.attendenceStatusWrapper}>
-          <View style={styles.attendenceStatusCard}>
-            <View
-              style={{
-                flexDirection: 'row',
-                paddingTop: '6%',
-                paddingHorizontal: '10%',
-              }}>
-             <View
-                style={{
-                  backgroundColor: 'rgb(229, 241, 254)',
-                  padding: 4,
-                  borderRadius: 4,
-                }}>
+        <View style={styles.attendanceCardsContainer}>
+          {/* Check In Card */}
+          <View style={styles.attendanceCard}>
+            <View style={styles.attendanceCardHeader}>
+              <View style={styles.attendanceCardIcon}>
                 <Icon
-                  name="exit-outline"
+                  name="enter-outline"
                   size={18}
                   color={'#rgba(43, 135, 234, 1)'}
                 />
               </View>
-              <Text style={styles.attendenseHeader}>CheckIn</Text>
+              <Text style={[styles.attendanceCardTitle, {fontFamily: 'K2D-Bold', color: '#333'}]}>
+                Check In
+              </Text>
             </View>
-            <View style={{paddingHorizontal: '10%', paddingVertical: '3%'}}>
-              <Text style={styles.attendenseTxt}>09:05:56 am</Text>
-              <Text style={[styles.checkTime, {paddingTop: '2%'}]}>
+            
+            {/* Card Content */}
+            <View style={styles.attendanceCardContent}>
+              <Text style={styles.attendanceCardTime}>
+                {todayAttendance?.checkInTime || '09:05:56 am'}
+              </Text>
+              <Text style={styles.attendanceCardStatus}>
                 On Time
               </Text>
             </View>
           </View>
-          <View style={styles.attendenceStatusCard}>
-            <View
-              style={{
-                flexDirection: 'row',
-                paddingTop: '6%',
-                paddingHorizontal: '10%',
-              }}>
-              <View
-                style={{
-                  backgroundColor: 'rgb(229, 241, 254)',
-                  padding: 4,
-                  borderRadius: 4,
-                }}>
+          
+          {/* Check Out Card */}
+          <View style={styles.attendanceCard}>
+            <View style={styles.attendanceCardHeader}>
+              <View style={styles.attendanceCardIcon}>
                 <Icon
                   name="exit-outline"
                   size={18}
                   color={'#rgba(43, 135, 234, 1)'}
                 />
               </View>
-              <Text style={styles.attendenseHeader}>Check Out</Text>
+              <Text style={[styles.attendanceCardTitle, {fontFamily: 'K2D-Bold', color: '#333'}]}>
+                Check Out
+              </Text>
             </View>
-            <View style={{paddingHorizontal: '10%', paddingVertical: '3%'}}>
-              <Text style={styles.attendenseTxt}>09:05:56 am</Text>
-              <Text style={[styles.checkTime, {paddingTop: '2%'}]}>
+            
+            {/* Card Content */}
+            <View style={styles.attendanceCardContent}>
+              <Text style={styles.attendanceCardTime}>
+                {todayAttendance?.checkOutTime || '--:--:--'}
+              </Text>
+              <Text style={styles.attendanceCardStatus}>
                 Go Home
               </Text>
             </View>
           </View>
         </View>
       </View>
-      {/* <View style={styles.portalCardWrapper}>
-        <PortalCards
-          onPress={() => navigation.navigate('SalarySlip')} 1
-          text="Salary Slip"
-          image={require('../../asserts/EmployePortal/saleryslip.png')}
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-        <PortalCards
-          onPress={() => navigation.navigate('AttendenceStatus')} x
-          text="Attendence Status"
-          image={require('../../asserts/EmployePortal/attendenceStatus.png')}
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-        <PortalCards
-          onPress={() => navigation.navigate('StaffAttendance')} 2
-          text="Staff Attendence"
-          image={require('../../asserts/EmployePortal/staffAttendence.png')}
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-        <PortalCards
-          onPress={() => navigation.navigate('LeaveStatus')} render below
-          text="Leave Status"
-          image={require('../../asserts/EmployePortal/leaveStatus.png')}
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-        <PortalCards
-          text="Score Card"
-          image={require('../../asserts/EmployePortal/scoreCard.png')} 3
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-        <PortalCards
-          onPress={() => navigation.navigate('EmployeeProfileTopNavigation')} on header
-          text="Profile"
-          image={require('../../asserts/EmployePortal/profile.png')}
-          // icon={<AntDesign name="right" size={20} color="#000" />}
-        />
-      </View> */}
-
-      {/* leave status */}
-
-      {/* <View
-        style={{
-          marginTop: '-5%',
-          bottom: 20,
-          position: 'relative',
-          alignItems: 'center',
-        }}> */}
-      {/* <View style={styles.TopView}>
-          <Text style={styles.TopTxt}>Leave Request Info</Text> */}
-      {/* this piccker is change in filter */}
-      {/* <View style={styles.PickerContainer}>
-          <Picker
-            style={styles.PickerContent}
-            selectedValue={applyFilter}
-            dropdownIconColor={'#000'}
-            onValueChange={(itemValue, itemIndex) => setApplyFilter(itemValue)}>
-            <Picker.Item label="All" value="All" />
-            <Picker.Item label="Last month" value="Last month" />
-            <Picker.Item label="Last 7 Days" value="Last 7 Days" />
-          </Picker>
-        </View> */}
-      {/* <Menu>
-            <MenuTrigger>
-              <MaterialIcons name="filter-alt" size={28} color="#2F4FE3" />
-            </MenuTrigger>
-
-            <MenuOptions>
-              <MenuOption onSelect={() => setApplyFilter('All')}>
-                <Text style={{padding: 8, color: '#000'}}>All</Text>
-              </MenuOption>
-
-              <MenuOption onSelect={() => setApplyFilter('Last month')}>
-                <Text style={{padding: 8, color: '#000'}}>Last month</Text>
-              </MenuOption>
-
-              <MenuOption onSelect={() => setApplyFilter('Last 7 Days')}>
-                <Text style={{padding: 8, color: '#000'}}>Last 7 Days</Text>
-              </MenuOption>
-            </MenuOptions>
-          </Menu>
-        </View> */}
-
-      {/* <View style={styles.BottomContainer}>
-          <View style={styles.BottomHeader}>
-            <View style={{width: '27%', alignItems: 'center'}}>
-              <Text style={styles.HeaderTxt}>From</Text>
-            </View>
-            <View style={{width: '27%', alignItems: 'center'}}>
-              <Text style={styles.HeaderTxt}>To</Text>
-            </View>
-            <View style={{width: '22%', alignItems: 'center'}}>
-              <Text style={styles.HeaderTxt}>Type</Text>
-            </View>
-            <View style={{width: '20%', alignItems: 'center'}}>
-              <Text style={styles.HeaderTxt}>Status</Text>
-            </View>
-          </View>
-          <View style={{height: '73%'}}>
-            <FlatList
-              data={requestInfo}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({item}) => (
-                <View style={styles.RowTxt}>
-                  <Text style={[styles.respTxt, {width: '27%'}]}>
-                    {item.StartDate}
-                  </Text>
-                  <Text style={[styles.respTxt, {width: '27%'}]}>
-                    {item.EndDate}
-                  </Text>
-                  <Text style={[styles.respTxt, {width: '22%'}]}>
-                    {item.HR_LevTypes_ID?.identifier}
-                  </Text>
-                  <Text style={[styles.respTxt, {width: '20%'}]}>
-                    {item.DocStatus?.identifier}
-                  </Text>
-
-                  <Menu style={{justifyContent: 'center'}}>
-                    <MenuTrigger>
-                      <MaterialCommunityIcons
-                        name="dots-vertical"
-                        size={23}
-                        color="#000"
-                      />
-                    </MenuTrigger>
-
-                    <MenuOptions style={styles.popupContainer}>
-                      {item.DocStatus?.identifier === 'Drafted' ? (
-                        <MenuOption
-                          onSelect={() =>
-                            navigation.navigate('AnnualLeave', {
-                              record: item,
-                              isEdit: true,
-                              refreshLeaveRequestInfo,
-                            })
-                          }>
-                          <Text style={styles.PopupTxt}>Edit</Text>
-                        </MenuOption>
-                      ) : (
-                        <MenuOption
-                          onSelect={() =>
-                            navigation.navigate('DetailedLeave', {record: item})
-                          }>
-                          <Text style={styles.PopupTxt}>Details</Text>
-                        </MenuOption>
-                      )}
-                    </MenuOptions>
-                  </Menu>
-                </View>
-              )}
-            />
-          </View>
-        </View> */}
-      {/* </View> */}
-
+      
+      {/* Floating Action Button */}
       <TouchableOpacity
         onPress={() =>
-          navigation.navigate('AnnualLeave', {refreshLeaveRequestInfo})
+          navigation.navigate('AnnualLeave')
         }
         style={styles.floatingButton}>
         <MaterialCommunityIcons name="plus" size={15} color="#fff" />
       </TouchableOpacity>
 
-      {isLoading ? <Loader /> : null}
+      {isLoading && <Loader />}
     </View>
   );
 };
@@ -558,18 +306,12 @@ const EmployeePortal = ({navigation}) => {
 export default EmployeePortal;
 
 const styles = StyleSheet.create({
-  portalCardWrapper: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 15,
     paddingHorizontal: '5%',
     justifyContent: 'space-between',
-    marginTop: '10%',
   },
   avatar: {
     width: 40,
@@ -604,6 +346,17 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     fontSize: 15,
     color: '#000',
+    marginBottom: 10,
+  },
+  activityCard: {
+    width: 180,
+    height: 120,
+    padding: 12,
+    backgroundColor: '#fff',
+    elevation: 4,
+    borderRadius: 10,
+    marginRight: 10,
+    justifyContent: 'center',
   },
   activityCardTxt: {
     fontFamily: 'K2D-Regular',
@@ -612,12 +365,7 @@ const styles = StyleSheet.create({
   },
   bottomGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginTop: 16,
-    marginBottom: '40%',
-    // width: '90%',
-    gap: 10,
     paddingHorizontal: '3%',
     backgroundColor: 'white',
   },
@@ -628,7 +376,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 120,
-    marginBottom: '2%',
     elevation: 5,
   },
   gridIconWrapper: {
@@ -638,7 +385,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
     elevation: 6,
     shadowColor: '#333',
   },
@@ -650,132 +396,84 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   leaveBalance: {
-    // backgroundColor:'#ccc',
     flexDirection: 'row',
     height: 50,
-    top: '-15%',
-    paddingHorizontal: '5%',
     borderWidth: 1,
     borderColor: '#ccc',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderRadius: 6,
-    width: '95%',
-    left: 10,
+    paddingHorizontal: 15,
   },
   leaveBalanceTxt: {
     fontFamily: 'K2D-Medium',
     fontSize: 15,
     color: 'rgba(60, 60, 60, 1)',
-    alignItems: 'center',
   },
-
-  // attendese status
-  attendenseStatusTitle: {
-    // top: 10,
-    color: '#000',
-    paddingBottom: 5,
-  },
-  attendenseHeader: {
-    color: '#333',
-    paddingHorizontal: '10%',
-    fontFamily: 'K2D-Bold',
-    textAlignVertical: 'center',
-    letterSpacing:1,
-    fontSize: 13,
-  },
-  attendenseTxt: {
-    color: '#000',
-    fontFamily: 'K2D-Bold',
-    fontSize: 16,
-  },
-  checkTime: {
-    color: '#333',
-    fontFamily: 'K2D-Bold',
-    fontSize: 13,
-  },
-  attendenceStatusWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingVertical: '3%',
-  },
-  attendenceStatusCard: {
-    width: '48%',
-    height: 100,
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    // elevation: 1,
-    shadowColor: '#000',
-    // padding: '5%'
-  },
-
-  TopView: {
-    width: '90%',
-    height: 50,
-    alignSelf: 'center',
-    marginTop: '-0%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '3%',
-  },
-  TopTxt: {
-    color: '#000',
-    fontFamily: 'K2D-Bold',
-    fontSize: 15,
-  },
-  PickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    width: '40%',
-    height: 40,
-    borderRadius: 6,
-  },
-  PickerContent: {
-    height: '20%',
-    color: '#000',
-    // fontSize: 12
-  },
-  BottomContainer: {
-    width: '90%',
-    alignSelf: 'center',
-    backgroundColor: '#fff',
-    elevation: 6,
-    shadowColor: '#000',
-    borderRadius: 6,
-    height: 250,
-  },
-  BottomHeader: {
-    flexDirection: 'row',
-    height: '20%',
-    backgroundColor: '#fff',
-    marginTop: '-2%',
-    elevation: 2,
+  leaveBalanceBadge: {
+    height: 25,
+    width: 25,
+    borderRadius: 15,
+    backgroundColor: '#2F4FE3',
     justifyContent: 'center',
     alignItems: 'center',
-    borderTopRightRadius: 6,
-    borderTopLeftRadius: 6,
   },
-  HeaderTxt: {
+  leaveBalanceBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'K2D-Bold',
+  },
+
+  // Attendance Cards Container
+  attendanceCardsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  
+  // Attendance Card
+  attendanceCard: {
+    width: '48%',
+    height: 120,
+    padding: 12,
+    backgroundColor: '#fff',
+    elevation: 4,
+    borderRadius: 10,
+    justifyContent: 'space-between',
+  },
+  attendanceCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  attendanceCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: 'rgb(229, 241, 254)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  attendanceCardTitle: {
+    fontSize: 14,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
+  },
+  attendanceCardContent: {
+    // Empty for styling structure
+  },
+  attendanceCardTime: {
+    fontSize: 16,
     fontFamily: 'K2D-Bold',
     color: '#000',
-    fontSize: 16,
-    paddingLeft: 4,
+    marginBottom: 4,
   },
-  respTxt: {
-    color: '#000',
-    fontFamily: 'K2D-Regular',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingTop: 10,
-    textAlignVertical: 'center',
+  attendanceCardStatus: {
+    fontSize: 13,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
   },
-  RowTxt: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-  },
+
   floatingButton: {
     position: 'absolute',
     bottom: 30,
@@ -788,19 +486,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     elevation: 6,
     shadowColor: '#000',
-  },
-  popupContainer: {
-    // paddingLeft: 10,
-    position: 'absolute',
-    top: 25,
-    right: 18,
-    backgroundColor: '#e1e2e3',
-    borderRadius: 5,
-  },
-  PopupTxt: {
-    color: '#000',
-    fontFamily: 'K2D-Regular',
-    fontSize: 16,
-    paddingHorizontal: 15,
   },
 });

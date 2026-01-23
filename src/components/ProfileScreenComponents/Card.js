@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
         width: '77%'
     },
     txt: {
-        fontSize: 18,
+        fontSize: 15,
         fontFamily: 'K2D-Regular',
         color: 'black'
     },

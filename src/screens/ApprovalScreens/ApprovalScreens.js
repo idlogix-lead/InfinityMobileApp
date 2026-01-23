@@ -10,10 +10,17 @@ import React, {useEffect, useState} from 'react';
 import TopHeader from '../../components/ApprocalScreenComponents/TopHeader';
 import HomeNotifyCard from '../../components/HomeScreenComponents/HomeNotifyCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CustomHeader from '../../components/CustomHeader';
 
 const ApprovalScreens = ({route, navigation}) => {
-  const {filteredArrayAccount, filteredArraySupply, token, tokenOk, roleId} =
-    route.params;
+  const {
+    filteredArrayAccount = [],
+    filteredArraySupply = [],
+    token = null,
+    tokenOk = null,
+    roleId = null,
+  } = route.params || {};
+
   //   let financial = filteredArrayAccount.length;
   //   let supply = filteredArraySupply.length;
   const [isLoading, setIsLoading] = useState(false);
@@ -138,12 +145,13 @@ const ApprovalScreens = ({route, navigation}) => {
       )}
       {!isLoading && (
         <View style={{flex: 1, backgroundColor: 'white'}}>
-          <TopHeader
+          {/* <TopHeader
             txt="Department Approvals"
             handlePress={() =>
               navigation.navigate('BottomTab', {tokenOk, token, roleId})
             }
-          />
+          /> */}
+          <CustomHeader title={'Approvals'} />
           <View style={styles.card}>
             <View
               style={{

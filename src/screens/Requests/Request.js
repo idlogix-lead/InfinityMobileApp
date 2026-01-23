@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useRef, useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,19 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import axios from 'axios';
 import {useNavigation} from '@react-navigation/native';
 import dayjs from 'dayjs';
+import Comments from './Comments';
+import AddTask from './AddTask';
+import {Modalize} from 'react-native-modalize';
+import ReqHeader from '../../components/ReqHeader';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useRequestStore} from '../../store/requestStore';
+import {useMyRequests, useMyProjects} from '../../hooks/useRequests';
+import {useAuthStore} from '../../store/authStore';
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C', icon: 'priority-high'},
@@ -26,29 +33,149 @@ const PRIORITIES = [
   {id: '4', label: 'Minor', color: '#95A5A6', icon: 'low-priority'},
 ];
 
+const PROJECT_COLORS = [
+  '#E74C3C',
+  '#8E44AD',
+  '#3498DB',
+  '#16A085',
+  '#F39C12',
+  '#2ECC71',
+  '#D35400',
+];
+
+const SECTIONS = [
+  {key: 'overdue', label: 'Overdue', icon: 'schedule'},
+  {key: 'today', label: 'Today', icon: 'today'},
+  {key: 'upcoming', label: 'Upcoming', icon: 'calendar-today'},
+  {key: 'later', label: 'Later', icon: 'event'},
+];
+
 const Requests = () => {
-  const [loading, setLoading] = useState(true);
-  const [allRequests, setAllRequests] = useState([]);
-  const [userName, setUserName] = useState('');
-  const [currentTime, setCurrentTime] = useState('');
-  const [dueTasks, setDueTasks] = useState([]);
-  const today = dayjs().startOf('day');
-  const [activeSection, setActiveSection] = useState('today');
-  const [sectionModal, setSectionModal] = useState(false);
   const navigation = useNavigation();
-  const SECTIONS = [
-    {key: 'overdue', label: 'Overdue', icon: 'warning'},
-    {key: 'today', label: 'Today', icon: 'today'},
-    {key: 'upcoming', label: 'Upcoming', icon: 'event'},
-    {key: 'later', label: 'Later', icon: 'schedule'},
-  ];
+  const {userId, userName} = useAuthStore();
 
-  useEffect(() => {
-    fetchMyRequests();
-    getUserName();
-  }, []);
+  const today = dayjs().startOf('day');
+  const tomorrow = dayjs().add(1, 'day').startOf('day');
+  const todayDate = dayjs().format('ddd, DD MMMM');
 
-  /* ⏰ Clock */
+  const createTaskModalRef = useRef(null);
+
+  const {
+    activeSection,
+    setActiveSection,
+    selectedProject,
+    setSelectedProject,
+    sectionModal,
+    projectPickerVisible,
+    openSectionModal,
+    closeSectionModal,
+  } = useRequestStore();
+
+  const [projectModal, setProjectModal] = useState(false);
+  const openProjectModal = () => setProjectModal(true);
+  const closeProjectModal = () => setProjectModal(false);
+
+  // const [userName, setUserName] = useState('');
+  const [currentTime, setCurrentTime] = useState('');
+  const [projectFilter, setProjectFilter] = useState('recents');
+  const [essentialProjectModal, setEssentialProjectModal] = useState(false);
+
+  const openEssentialProjectModal = () => setEssentialProjectModal(true);
+  const closeEssentialProjectModal = () => setEssentialProjectModal(false);
+
+  const {
+    data: allRequests = [],
+    isLoading,
+    refetch: refetchRequests,
+  } = useMyRequests();
+  const {data: projects = [], isLoading: projectLoading} = useMyProjects();
+
+  const starredProjects = projects.filter(p => p.isStarred);
+
+  /* ------------------- HELPER FUNCTIONS ------------------- */
+  const buildMyTasksPayload = allRequests => {
+    const today = dayjs().startOf('day');
+    const active = allRequests.filter(
+      t => t.R_Status_ID?.identifier !== '9_Final Close',
+    );
+
+    return {
+      todayTasks: active.filter(
+        t =>
+          t.DateCompletePlan && dayjs(t.DateCompletePlan).isSame(today, 'day'),
+      ),
+      nextWeekTasks: active.filter(
+        t =>
+          t.DateCompletePlan &&
+          dayjs(t.DateCompletePlan).isAfter(today) &&
+          dayjs(t.DateCompletePlan).isBefore(today.add(7, 'day')),
+      ),
+      laterTasks: active.filter(t => !t.DateCompletePlan),
+    };
+  };
+
+  const activeTask =
+    allRequests?.filter(t => t.R_Status_ID?.identifier !== '9_Final Close') ||
+    [];
+
+  const recentLimitDays = 7;
+
+  const recents = activeTask
+    .filter(t => {
+      const activityDate = t.Updated || t.Created || t.DateLastAction;
+      if (!activityDate) return false;
+
+      return dayjs(activityDate).isAfter(
+        dayjs().subtract(recentLimitDays, 'day'),
+        'day',
+      );
+    })
+    .sort((a, b) => {
+      const aDate = dayjs(a.Updated || a.Created || a.DateLastAction);
+      const bDate = dayjs(b.Updated || b.Created || b.DateLastAction);
+      return bDate.diff(aDate);
+    });
+
+  // const {recentlyAssigned: recents} = buildMyTasksPayload(allRequests);
+
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Morning';
+    if (h < 17) return 'Afternoon';
+    if (h < 21) return 'Evening';
+    return 'Night';
+  };
+
+  const getPriorityCount = id =>
+    allRequests.filter(i => i?.Priority?.id === id).length;
+
+  const getProjectColor = id => {
+    if (!id) return PROJECT_COLORS[0];
+    let hash = 0;
+    for (let i = 0; i < id.length; i++)
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    return PROJECT_COLORS[Math.abs(hash) % PROJECT_COLORS.length];
+  };
+
+  // const openCreateTaskModal = () => createTaskModalRef.current?.open();
+  // const closeCreateTaskModal = () => createTaskModalRef.current?.close();
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+
+  const openCreateTaskModal = () => {
+    setIsCreateTaskOpen(true);
+    createTaskModalRef.current?.open();
+  };
+
+  const closeCreateTaskModal = () => {
+    setIsCreateTaskOpen(false);
+    createTaskModalRef.current?.close();
+  };
+
+  /* ------------------- USER & CLOCK ------------------- */
+  // useEffect(() => {
+  //   AsyncStorage.getItem('userName').then(name => setUserName(name || ''));
+  // }, []);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -61,112 +188,122 @@ const Requests = () => {
         }),
       );
     }, 1000);
-
     return () => clearInterval(interval);
   }, []);
 
-  /* 🔔 Due tasks */
-  useEffect(() => {
-    const today = new Date();
-    const due = allRequests.filter(item => {
-      if (!item.EndTime) return false;
-      return new Date(item.EndTime) >= today;
-    });
-    setDueTasks(due);
-  }, [allRequests]);
-
-  const getUserName = async () => {
-    const name = await AsyncStorage.getItem('userName');
-    setUserName(name || '');
-  };
-
-  const getGreeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Morning';
-    if (h < 17) return 'Afternoon';
-    if (h < 21) return 'Evening';
-    return 'Night';
-  };
-
-  const fetchMyRequests = async () => {
-    try {
-      setLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      const protocol = await AsyncStorage.getItem('protocol');
-      const host = await AsyncStorage.getItem('host');
-      const port = await AsyncStorage.getItem('port');
-      const userId = Number(await AsyncStorage.getItem('userId'));
-
-      const res = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/R_Request`,
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
-
-      const my = res?.data?.records?.filter(r => r?.SalesRep_ID?.id === userId);
-
-      setAllRequests(my || []);
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getPriorityCount = id =>
-    allRequests.filter(i => i?.PriorityUser?.id === id).length;
-
-  if (loading) {
-    return (
-      <ActivityIndicator
-        size="large"
-        color="#2F4FE3"
-        style={{flex: 1, justifyContent: 'center'}}
-      />
-    );
-  }
-  /* ---------------- ASANA STYLE LOGIC ---------------- */
-
+  /* ------------------- TASK FILTERS ------------------- */
   const activeTasks = allRequests.filter(
     t => t.R_Status_ID?.identifier !== '9_Final Close',
   );
-
   const overdue = activeTasks.filter(
-    t => t.DateCompletePlan && dayjs(t.DateCompletePlan).isBefore(today),
+    t => t.StartDate && dayjs(t.StartDate).isBefore(today, 'day'),
   );
-
   const todayTasks = activeTasks.filter(
-    t => t.DateCompletePlan && dayjs(t.DateCompletePlan).isSame(today, 'day'),
+    t => t.StartDate && dayjs(t.StartDate).isSame(today, 'day'),
   );
-
   const upcoming = activeTasks.filter(
-    t => t.DateCompletePlan && dayjs(t.DateCompletePlan).isAfter(today),
+    t => t.StartDate && dayjs(t.StartDate).isSame(tomorrow, 'day'),
+  );
+  const later = activeTasks.filter(
+    t => !t.StartDate || dayjs(t.StartDate).isAfter(tomorrow, 'day'),
   );
 
-  const later = activeTasks.filter(t => !t.DateCompletePlan);
-
-  const recents = [...allRequests]
-    .sort(
-      (a, b) =>
-        new Date(b.Updated || b.DateLastAction) -
-        new Date(a.Updated || a.DateLastAction),
-    )
-    .slice(0, 5);
-
-  const sectionDataMap = {
-    overdue,
-    today: todayTasks,
-    upcoming,
-    later,
-  };
-
+  const sectionDataMap = {overdue, today: todayTasks, upcoming, later};
   const activeData = sectionDataMap[activeSection] || [];
 
-  /* ---------------- UI HELPERS ---------------- */
+  const dueTasks = allRequests.filter(
+    item => item.EndTime && dayjs(item.EndTime).isSame(tomorrow, 'day'),
+  );
 
+  const projectTasks = selectedProject
+    ? allRequests.filter(t => t.C_Project_ID?.id === selectedProject.id)
+    : [];
+
+  const todayProjectIds = allRequests
+    .filter(t => {
+      const activityDate = t.Updated || t.Created || t.DateLastAction;
+      return activityDate && dayjs(activityDate).isSame(today, 'day');
+    })
+    .map(t => t.C_Project_ID?.id)
+    .filter(Boolean);
+
+  const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
+
+  const categorizeProjectTasks = (tasks, projectId) => {
+    // Filter tasks for this project only
+    const projectTasks = tasks.filter(t => t.C_Project_ID?.id === projectId);
+
+    const today = dayjs().startOf('day');
+
+    const counts = {
+      Completed: 0,
+      Overdue: 0,
+      Due: 0,
+    };
+
+    projectTasks.forEach(t => {
+      if (t.R_Status_ID?.identifier === '9_Final Close') {
+        counts.Completed += 1;
+      } else if (t.DueType?.identifier === 'Due') {
+        counts.Due += 1;
+      } else if (t.StartDate && dayjs(t.StartDate).isBefore(today, 'day')) {
+        counts.Overdue += 1;
+      }
+    });
+
+    return counts;
+  };
+
+  const getProjectTasksByStatus = (tasks, projectId) => {
+    const today = dayjs().startOf('day');
+
+    const projectTasks = tasks.filter(t => t.C_Project_ID?.id === projectId);
+
+    return {
+      Completed: projectTasks.filter(
+        t => t.R_Status_ID?.identifier === '9_Final Close',
+      ),
+      Overdue: projectTasks.filter(t => t.DueType?.identifier === 'Overdue'),
+
+      Due: projectTasks.filter(t => t.DueType?.identifier === 'Due'),
+
+      // Overdue: projectTasks.filter(
+      //   t =>
+      //     t.R_Status_ID?.identifier !== '9_Final Close' &&
+      //     t.StartDate &&
+      //     dayjs(t.StartDate).isBefore(today, 'day'),
+      // ),
+    };
+  };
+
+  const getGlobalTasksByStatus = tasks => {
+    const today = dayjs().startOf('day');
+
+    return {
+      Completed: tasks.filter(
+        t => t.R_Status_ID?.identifier === '9_Final Close',
+      ),
+      Due: tasks.filter(
+        t =>
+          t.R_Status_ID?.identifier !== '9_Final Close' &&
+          t.DueType?.identifier === 'Due',
+      ),
+
+      Overdue: tasks.filter(
+        t =>
+          t.R_Status_ID?.identifier !== '9_Final Close' &&
+          t.DueType?.identifier === 'Overdue',
+      ),
+    };
+  };
+
+  /* ------------------- ITEM COMPONENTS ------------------- */
   const TaskItem = ({item, showStatus}) => (
-    <TouchableOpacity style={styles.taskItem}>
+    <TouchableOpacity
+      style={styles.taskItem}
+      onPress={() => navigation.navigate('TaskDetail', {task: item})}>
       <View style={styles.left}>
-        <View style={styles.checkbox} />
+        <MaterialIcons name="check-circle-outline" color={'#777'} size={20} />
         <Text style={styles.taskTitle} numberOfLines={2}>
           {item.Summary}
         </Text>
@@ -184,66 +321,132 @@ const Requests = () => {
     </TouchableOpacity>
   );
 
-  const Section = ({title, data}) => {
-    if (!data.length) return null;
+  const ProjectItem = ({item}) => {
+    const bgColor = getProjectColor(item.id);
     return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {data.map(item => (
-          <TaskItem key={item.uid} item={item} />
-        ))}
-      </View>
+      <TouchableOpacity
+        style={styles.projectItem}
+        onPress={() => Alert.alert('under development')}>
+        <View
+          style={[
+            styles.projectIconWrapper,
+            {backgroundColor: bgColor + '22'},
+          ]}>
+          <MaterialIcons name="list" size={20} color={bgColor} />
+        </View>
+        <Text style={styles.projectTitle}>{item.name}</Text>
+        {/* <MaterialIcons name="chevron-right" size={22} color="#000" /> */}
+      </TouchableOpacity>
     );
   };
 
   const EmptyState = ({title, subtitle, buttonText}) => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="assignment" size={56} color="#E74C3C77" />
+      {/* <MaterialIcons name="assignment" size={56} color="#E74C3C77" /> */}
+      <View
+        style={{
+          height: 50,
+          width: 50,
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Image
+          source={require('../../asserts/RequestAsserts/emptyTask.png')}
+          style={{height: 150, width: 150}}
+        />
+      </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySubtitle}>{subtitle}</Text>
-
-      <TouchableOpacity style={styles.emptyBtn}>
+      <TouchableOpacity
+        style={styles.emptyBtn}
+        onPress={() => navigation.navigate('AddTask')}>
         <Text style={styles.emptyBtnText}>{buttonText}</Text>
       </TouchableOpacity>
     </View>
   );
 
+  const ProjectEmptyState = ({title, subtitle}) => (
+    <View style={styles.emptyContainer}>
+      {/* <MaterialIcons name="folder-open" size={56} color="#2F4FE355" /> */}
+      <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+        <Image
+          source={require('../../asserts/RequestAsserts/emptyProject.png')}
+          style={{height: 150, width: 150}}
+        />
+      </View>
+      <Text style={[styles.emptyTitle, {marginTop: '-10%'}]}>{title}</Text>
+      <Text style={styles.emptySubtitle}>{subtitle}</Text>
+    </View>
+  );
+
+  /* ------------------- LOADING ------------------- */
+  if (isLoading)
+    return (
+      <ActivityIndicator
+        size="large"
+        color="#2F4FE3"
+        style={{flex: 1, justifyContent: 'center'}}
+      />
+    );
+
   return (
     <>
+      <ReqHeader title={'Requests'} />
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="dark-content" />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back-ios" size={20} color={'#000'} />
-          </TouchableOpacity>
-          <Text style={styles.requestTitle}>My Requests </Text>
-          <View style={{width: '10%'}} />
-          {/* <View style={{marginTop: '5%'}}>
-          <Text style={styles.requestTitle}>My Requests </Text>
-          <Text style={styles.requestSubitle}>
-            Track and manage your assigned requests
-          </Text>
-        </View> */}
+        {/* HEADER */}
+        <View>
+          {/* <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems:'center'}}>
+            <Text style={styles.dateText}>{todayDate}</Text>
+            
+
+          </View> */}
+
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <View style={{paddingRight: '2%'}}>
+              <Image
+                source={{
+                  uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+                }}
+                style={styles.profileImage}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ProfileScreen')}>
+              <Text style={styles.userName}>
+                Good {getGreeting()}
+                <Text style={styles.userName}>
+                  , {'\n'}
+                  {userName}
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {/* <View style={{flexDirection: 'row', justifyContent: 'flex-end'}}>
+            <TouchableOpacity style={{}} onPress={() => navigation.navigate('Create')}>
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: 13,
+                  fontFamily: 'K2D-Medium',
+
+                  backgroundColor: '#2F4FE3',
+                  // width: '25%',
+                  textAlign: 'center',
+                  paddingHorizontal: '2%',
+                }}>
+                Create Task
+              </Text>
+            </TouchableOpacity>
+          </View> */}
         </View>
 
-        {/* Top Card */}
+        {/* PRIORITY TASKS */}
+        {/* 
         <View style={styles.topCard}>
-          <View style={styles.profileBorder}>
-            <Image
-              source={{
-                uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-              }}
-              style={styles.profileImage}
-            />
-          </View>
-          <Text style={styles.userName}>
-            Good {getGreeting()}
-            <Text style={styles.userName}>, {userName}</Text>
-          </Text>
-          {/* <Text style={styles.userName}>{userName}</Text> */}
-
+          <Text style={styles.mainHeader}>Priority Tasks</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -256,7 +459,7 @@ const Requests = () => {
                   navigation.navigate('PriorityRequests', {
                     priorityId: p.id,
                     priorityLabel: p.label,
-                    data: allRequests.filter(i => i?.PriorityUser?.id === p.id),
+                    data: allRequests.filter(i => i?.Priority?.id === p.id),
                   })
                 }>
                 <View
@@ -265,7 +468,6 @@ const Requests = () => {
                     {backgroundColor: p.color + '25'},
                   ]}>
                   <MaterialIcons name={p.icon} size={30} color={p.color} />
-
                   {getPriorityCount(p.id) > 0 && (
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
@@ -274,14 +476,13 @@ const Requests = () => {
                     </View>
                   )}
                 </View>
-
                 <Text style={styles.actionText}>{p.label}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
+        </View> */}
 
-        {/* Time Card */}
+        {/* TIME CARD */}
         <View style={styles.timeCard}>
           <View>
             <Text style={styles.shiftTitle}>Ongoing Shift</Text>
@@ -303,13 +504,13 @@ const Requests = () => {
             </Text>
           </View>
           <View>
-            <Text style={styles.shiftTitle}>Started at 09:00 am </Text>
+            <Text style={styles.shiftTitle}>Started at 09:00 am</Text>
             <Text style={styles.timeNow}>{currentTime}</Text>
           </View>
         </View>
 
-        {/* Due Tasks */}
-        <TouchableOpacity
+        {/* DUE TASKS */}
+        {/* <TouchableOpacity
           style={styles.dueCard}
           onPress={() => navigation.navigate('DueTasks', {data: dueTasks})}>
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -320,59 +521,32 @@ const Requests = () => {
                 color={'#2F4FE3'}
               />
             </View>
-
-            {/* <View style={styles.dueCircle}>
-            <Text style={styles.dueCount}>{dueTasks.length}</Text>
-          </View> */}
-            <View style={{marginLeft: 14}}>
-              <Text style={styles.dueTitle}>
-                {dueTasks.length} Tasks are due Tomorrow
-              </Text>
-              {/* <Text style={styles.dueSubtitle}>are due Tomorrow</Text> */}
-            </View>
+            <Text style={[styles.dueTitle, {marginLeft: 12}]}>
+              {dueTasks.length} Tasks are due Tomorrow
+            </Text>
           </View>
           <MaterialIcons name="arrow-forward-ios" size={18} color={'#2F4FE3'} />
-        </TouchableOpacity>
-
-        {/* All Requests */}
-        {/* <FlatList
-        data={allRequests}
-        keyExtractor={i => i.id.toString()}
-        showsVerticalScrollIndicator={false}
-        renderItem={({item}) => (
-          <View style={styles.card}>
-            <Text style={styles.title}>{item.Summary}</Text>
-            <Text style={styles.label}>
-              Priority: {item.PriorityUser?.identifier}
-            </Text>
-            <Text style={styles.label}>
-              Status: {item.R_Status_ID?.identifier}
-            </Text>
-            <Text style={styles.label}>Doc: {item.DocumentNo}</Text>
-          </View>
-        )}
-      /> */}
-        {/* ---------------- MY TASKS ---------------- */}
-        {/* <View style={styles.sectionWrapper}>
-        <Text style={styles.mainHeader}>My Tasks</Text>
-        <Section title="Overdue" data={overdue} />
-        <Section title="Today" data={todayTasks} />
-        <Section title="Upcoming" data={upcoming} />
-        <Section title="Later" data={later} />
-      </View> */}
+        </TouchableOpacity> */}
+        {/* MY TASKS */}
         <View style={styles.sectionWrapper}>
           <View style={styles.myTasksHeader}>
-            <Text style={styles.mainHeader}>My Tasks</Text>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('MyTasks', buildMyTasksPayload(allRequests))
+              }>
+              <Text style={styles.mainHeader}>My Tasks</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.sectionPicker}
-              onPress={() => setSectionModal(true)}>
+              onPress={openSectionModal}>
               <Text style={styles.sectionPickerText}>
                 {SECTIONS.find(s => s.key === activeSection)?.label}
               </Text>
               <MaterialIcons name="expand-more" size={22} color="#555" />
             </TouchableOpacity>
           </View>
+
           {activeData.length === 0 ? (
             <EmptyState
               title={`No ${
@@ -382,87 +556,333 @@ const Requests = () => {
               buttonText="Create a task"
             />
           ) : (
-            activeData.map(item => <TaskItem key={item.uid} item={item} />)
+            <FlatList
+              data={activeData}
+              keyExtractor={item => item.uid}
+              renderItem={({item}) => <TaskItem item={item} />}
+              scrollEnabled={false}
+            />
           )}
         </View>
 
-        {/* ---------------- RECENTS ---------------- */}
+        {/* GLOBAL BY STATUS CARD */}
         <View style={styles.sectionWrapper}>
-          <Text style={styles.mainHeader}>Recents</Text>
-          {/* {recents.map(item => (
-            <TaskItem key={item.uid + '_r'} item={item} showStatus />
-          ))} */}
-          {recents.map(item => (
-            <TouchableOpacity
-              key={item.uid + '_r'}
-              onPress={() =>
-                navigation.navigate('PriorityRequests', {
-                  priorityLabel: item?.PriorityUser?.identifier || '—',
-                  data: allRequests.filter(i => i.uid === item.uid), // single item
-                  scrollToTaskId: item.uid,
-                })
-              }>
-              <TaskItem item={item} showStatus />
-            </TouchableOpacity>
-          ))}
+          <View style={styles.myTasksHeader}>
+            <Text style={styles.mainHeader}>By Status</Text>
+          </View>
+
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              paddingVertical: '3%',
+            }}>
+            {Object.entries(getGlobalTasksByStatus(allRequests)).map(
+              ([label, tasks]) => (
+                <TouchableOpacity
+                  key={label}
+                  style={styles.essentialRow}
+                  onPress={() =>
+                    navigation.navigate('TaskStatus', {
+                      title: label,
+                      tasks,
+                    })
+                  }>
+                  <Text style={styles.essentialText}>{label}</Text>
+                  <Text style={styles.essentialTxtLen}>{tasks.length}</Text>
+                </TouchableOpacity>
+              ),
+            )}
+          </View>
         </View>
 
+        {/* ESSENTIALS & BY STATUS */}
         {/* <View style={styles.sectionWrapper}>
-  <Text style={styles.mainHeader}>Recents</Text>
+          {!selectedProject ? (
+            // When no project is selected
+            <>
+              <View style={styles.myTasksHeader}>
+                <Text style={styles.mainHeader}>Essentials</Text>
+                <TouchableOpacity onPress={openEssentialProjectModal}>
+                  <MaterialIcons name="more-horiz" size={20} color="#999" />
+                </TouchableOpacity>
+              </View>
+              <ProjectEmptyState
+                title="No project selected"
+                subtitle="Select a project to view its tasks and essentials."
+              />
+            </>
+          ) : (
+            // When a project IS selected
+            <>
+              <View style={styles.myTasksHeader}>
+                <Text style={styles.mainHeader}>Essentials</Text>
+                <TouchableOpacity onPress={openEssentialProjectModal}>
+                  <MaterialIcons name="more-horiz" size={22} color="#555" />
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.mainHeader, {fontSize: 15}]}>
+                {selectedProject?.name}
+              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  paddingVertical: '3%',
+                }}>
+                {Object.entries(
+                  getProjectTasksByStatus(allRequests, selectedProject?.id),
+                ).map(([label, tasks]) => (
+                  <TouchableOpacity
+                    key={label}
+                    style={styles.essentialRow}
+                    onPress={() =>
+                      navigation.navigate('TaskStatus', {
+                        title: label,
+                        project: selectedProject,
+                        tasks,
+                      })
+                    }>
+                    <Text style={styles.essentialText}>{label}</Text>
+                    <Text style={styles.essentialTxtLen}>{tasks.length}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-  {recents.length > 0 ? (
-    recents.map(item => (
-      <TaskItem key={item.uid + '_r'} item={item} showStatus />
-    ))
-  ) : (
-    <EmptyState
-      message="No recent tasks yet"
-      buttonText="Create Task"
-      onPress={() => navigation.navigate('CreateRequest')} // or wherever you want
-    />
-  )}
-</View> */}
+              {projectTasks?.length === 0 && (
+                <ProjectEmptyState
+                  title="No tasks in this project"
+                  subtitle="Tasks related to this project will appear here."
+                />
+              )}
+            </>
+          )}
+        </View> */}
+
+        {/* RECENTS */}
+        <View style={styles.sectionWrapper}>
+          <Text style={styles.mainHeader}>Recents</Text>
+          {recents.length === 0 ? (
+            <EmptyState
+              title="No recent tasks"
+              subtitle="Tasks with activity in the past 7 days will appear here."
+              buttonText="Create a task"
+            />
+          ) : (
+            <FlatList
+              data={recents}
+              keyExtractor={item => item.uid + '_r'}
+              renderItem={({item}) => <TaskItem item={item} />}
+              scrollEnabled={false}
+            />
+          )}
+        </View>
+
+        {/* PROJECTS */}
+        <View style={styles.sectionWrapper}>
+          <View style={styles.myTasksHeader}>
+            <Text style={styles.mainHeader}>Projects</Text>
+            <TouchableOpacity
+              style={styles.sectionPicker}
+              onPress={openProjectModal}>
+              <Text style={styles.sectionPickerText}>
+                {projectFilter === 'recents' ? 'Recents' : 'Starred'}
+              </Text>
+              <MaterialIcons name="expand-more" size={22} color="#555" />
+            </TouchableOpacity>
+          </View>
+
+          {projectLoading ? (
+            <ActivityIndicator size="small" color="#2F4FE3" />
+          ) : projectFilter === 'recents' ? (
+            recentProjects.length === 0 ? (
+              <ProjectEmptyState
+                title="No recent projects today"
+                subtitle="Projects with activity today will appear here."
+              />
+            ) : (
+              recentProjects.map(p => (
+                <View key={p.id} style={{paddingRight: '5%'}}>
+                  <ProjectItem item={p} />
+                </View>
+              ))
+            )
+          ) : starredProjects.length === 0 ? (
+            <ProjectEmptyState
+              title="No starred projects"
+              subtitle="Star projects to access them quickly from here."
+            />
+          ) : (
+            starredProjects.map(p => (
+              <View key={p.id} style={{paddingRight: '5%'}}>
+                <ProjectItem item={p} />
+              </View>
+            ))
+          )}
+
+          <TouchableOpacity
+            style={[styles.emptyBtn, {marginBottom: '5%'}]}
+            onPress={() => navigation.navigate('AllProjects')}>
+            <Text style={styles.emptyBtnText}>See all projects</Text>
+          </TouchableOpacity>
+        </View>
+        {/* COMMENTS */}
+        <View style={[styles.sectionWrapper, {marginBottom: '15%'}]}>
+          <Text style={styles.mainHeader}>Comments mentioning me</Text>
+          <Comments />
+        </View>
       </ScrollView>
+
+      <TouchableOpacity
+        // onPress={() => navigation.navigate('AddTask')}
+        onPress={openCreateTaskModal}
+        style={styles.floatingButton}>
+        <Text
+          style={{
+            color: '#fff',
+            fontFamily: 'K2D-Bold',
+            fontSize: 20,
+          }}>
+          +
+        </Text>
+      </TouchableOpacity>
+
+      {/* MODALS */}
+      {/* SECTION MODAL */}
       <Modal
         visible={sectionModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setSectionModal(false)}>
-        {/* Overlay */}
+        onRequestClose={closeSectionModal}>
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setSectionModal(false)}>
-          {/* Bottom Sheet */}
+          onPress={closeSectionModal}>
           <Pressable style={styles.modalBox}>
-            {/* Drag Indicator */}
             <View style={styles.dragIndicator} />
-
+            <Text
+              style={[
+                styles.sectionTitle,
+                {fontSize: 17, paddingHorizontal: '5%'},
+              ]}>
+              My Task
+            </Text>
             {SECTIONS.map(sec => (
               <TouchableOpacity
                 key={sec.key}
                 style={styles.modalItem}
                 onPress={() => {
                   setActiveSection(sec.key);
-                  setSectionModal(false);
+                  closeSectionModal();
                 }}>
-                <MaterialIcons name={sec.icon} size={20} color="#2F4FE3" />
+                <MaterialIcons name={sec.icon} size={20} color="#555" />
                 <Text style={styles.modalText}>{sec.label}</Text>
               </TouchableOpacity>
             ))}
           </Pressable>
         </TouchableOpacity>
       </Modal>
+
+      {/* PROJECT MODAL */}
+      <Modal
+        visible={projectModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeProjectModal}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeProjectModal}>
+          <Pressable style={styles.modalBox}>
+            <View style={styles.dragIndicator} />
+            <Text
+              style={[
+                styles.sectionTitle,
+                {fontSize: 17, paddingHorizontal: '5%'},
+              ]}>
+              Projects
+            </Text>
+            {['recents', 'starred'].map(type => (
+              <TouchableOpacity
+                key={type}
+                style={styles.modalItem}
+                onPress={() => {
+                  setProjectFilter(type);
+                  closeProjectModal();
+                }}>
+                <Text style={styles.modalText}>
+                  {type === 'recents' ? 'Recents' : 'Starred'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </TouchableOpacity>
+      </Modal>
+      {/* Essential Modal */}
+      <Modal
+        visible={essentialProjectModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEssentialProjectModal}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeEssentialProjectModal}>
+          <Pressable style={styles.modalBox}>
+            <View style={styles.dragIndicator} />
+            <Text
+              style={[
+                styles.sectionTitle,
+                {fontSize: 17, paddingHorizontal: '5%'},
+              ]}>
+              Select Project
+            </Text>
+            <ScrollView>
+              {projects.map(project => (
+                <TouchableOpacity
+                  key={project.id}
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedProject(project);
+                    closeEssentialProjectModal();
+                  }}>
+                  <Text style={styles.modalText}>{project.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* CREATE TASK MODAL */}
+      <Modalize
+        ref={createTaskModalRef}
+        modalHeight={500}
+        withHandle
+        scrollViewProps={{
+          nestedScrollEnabled: true,
+          keyboardShouldPersistTaps: 'handled',
+        }}>
+        <AddTask
+          isModal
+          visible={isCreateTaskOpen}
+          onClose={closeCreateTaskModal}
+        />
+      </Modalize>
     </>
   );
 };
 
-export default Requests;
-
+/* ------------------- STYLES ------------------- */
 const styles = StyleSheet.create({
-  container: {flex: 1, padding: '5%', backgroundColor: '#F5F7FA'},
+  container: {
+    flex: 1,
+    padding: '5%',
+    backgroundColor: '#F9F8F6',
+    marginBottom: 5,
+  },
   header: {
-    paddingVertical: '8%',
+    paddingTop: '8%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -473,6 +893,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginBottom: 15,
     fontFamily: 'K2D-Medium',
+  },
+  createBtn: {
+    backgroundColor: '#2F4FE3',
+    paddingHorizontal: '2%',
+    paddingVertical: '1%',
+    borderRadius: 8,
+  },
+  createBtnTxt: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'K2D-SemiBold',
   },
   // topCard: {
   //   // backgroundColor: '#fff',
@@ -500,12 +931,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     // padding: 16,
     marginBottom: 16,
-    alignItems: 'center',
-    paddingVertical: '10%',
+    // alignItems: 'center',
+    paddingHorizontal: '3%',
+    // paddingVertical: '10%',
     borderWidth: 1,
     borderColor: '#ccc',
     position: 'relative',
-    marginTop: '5%',
+    marginTop: '2%',
+    backgroundColor: '#fff',
   },
 
   profileBorder: {
@@ -516,31 +949,45 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     position: 'absolute',
     top: '-18%',
-    backgroundColor: '#fff', // IMPORTANT → card se clean cut
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   profileImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    bottom: '1%',
+  },
+  dateText: {
+    fontSize: 15,
+    color: '#555',
+    marginTop: 4,
+    fontFamily: 'K2D-Medium',
+    paddingHorizontal: '15%',
   },
 
   greeting: {
-    fontSize: 14,
+    fontSize: 20,
     color: '#777',
     paddingTop: '5%',
     fontFamily: 'K2D-SemiBold',
   },
   userName: {
-    fontSize: 18,
+    fontSize: 20,
+    letterSpacing: 2,
     fontFamily: 'K2D-Bold',
-    marginTop: '5%',
+    marginTop: '-3%',
     color: '#333',
   },
   actionsRow: {flexDirection: 'row', paddingTop: '5%'},
-  actionItem: {minWidth: 60, alignItems: 'center', marginVertical: 6},
+  actionItem: {
+    minWidth: 60,
+    alignItems: 'center',
+    marginVertical: 6,
+    color: '#555',
+  },
   iconWrapper: {
     width: 40,
     height: 40,
@@ -569,7 +1016,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {color: '#fff', fontSize: 10},
   timeCard: {
-    // backgroundColor: '#fff',
+    backgroundColor: '#fff',
     paddingHorizontal: '8%',
     paddingVertical: '7%',
     borderRadius: 20,
@@ -583,7 +1030,7 @@ const styles = StyleSheet.create({
   shiftTitle: {color: '#777', fontFamily: 'K2D-SemiBold'},
   timeNow: {fontSize: 18, fontFamily: 'K2D-Bold', color: '#333'},
   dueCard: {
-    // backgroundColor: '#fff',
+    backgroundColor: '#fff',
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
@@ -613,14 +1060,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
   },
-  title: {fontSize: 15, fontWeight: '600'},
+  title: {fontSize: 15, fontWeight: '600', color: '#333'},
   label: {fontSize: 13, color: '#555'},
   mainHeader: {
     fontSize: 20,
     // fontWeight: '600',
-    fontFamily: 'K2D-SemiBold',
-    marginVertical: '3%',
-    color: '#333',
+    fontFamily: 'K2D-Medium',
+    marginTop: '3%',
+    color: '#000',
   },
 
   sectionWrapper: {
@@ -630,9 +1077,10 @@ const styles = StyleSheet.create({
     paddingVertical: '2%',
     paddingHorizontal: '5%',
     borderRadius: 20,
-    marginBottom: 14,
+    marginBottom: '5%',
     borderWidth: 1,
     borderColor: '#ccc',
+    backgroundColor: '#fff',
     // elevation: 2,
     // alignItems: 'center',
   },
@@ -648,12 +1096,14 @@ const styles = StyleSheet.create({
   taskItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderColor: '#ddd',
+    paddingVertical: '2%',
+    // borderBottomWidth: 0.5,
+    // borderColor: '#ddd',
+    // color: '#000',
+    alignItems: 'center',
   },
 
-  left: {flexDirection: 'row', flex: 1, gap: 10},
+  left: {flexDirection: 'row', flex: 1, gap: 15, alignItems: 'center'},
 
   checkbox: {
     width: 18,
@@ -663,9 +1113,9 @@ const styles = StyleSheet.create({
     borderColor: '#aaa',
   },
 
-  taskTitle: {flex: 1, fontSize: 14},
+  taskTitle: {flex: 1, fontSize: 14, color: '#000', fontFamily: 'K2D-Medium'},
 
-  right: {alignItems: 'flex-end'},
+  right: {alignItems: 'flex-end', paddingHorizontal: '4%'},
 
   date: {fontSize: 12, color: '#777'},
 
@@ -675,9 +1125,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 10,
     marginTop: 10,
+    color: '#555',
   },
 
-  priorityText: {fontSize: 12},
+  priorityText: {fontSize: 12, color: '#555'},
   myTasksHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -722,9 +1173,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 8,
-    // backgroundColor: '#2F4FE3',
-    backgroundColor: '#eee',
+    backgroundColor: '#fff',
     width: '100%',
+    borderWidth: 1,
+    borderColor: '#ccc',
   },
 
   emptyBtnText: {
@@ -751,7 +1203,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    width: '100%', // 👈 Asana style
+    width: '100%',
     paddingVertical: 12,
     paddingBottom: 24,
   },
@@ -766,14 +1218,103 @@ const styles = StyleSheet.create({
   modalText: {
     fontSize: 14,
     fontFamily: 'K2D-Medium',
+    color: '#000',
   },
 
   dragIndicator: {
     width: 40,
+
     height: 4,
     borderRadius: 2,
     backgroundColor: '#D0D0D0',
     alignSelf: 'center',
     marginBottom: 10,
   },
+
+  projectIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  projectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: '2%',
+    // borderBottomWidth: 0.5,
+    // borderColor: '#E5E5E5',
+  },
+
+  projectTitle: {
+    fontSize: 15,
+    fontFamily: 'K2D-Medium',
+    color: '#000',
+  },
+
+  projectMeta: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 2,
+  },
+  projectEssentialsLabel: {
+    fontSize: 13,
+    fontFamily: 'K2D-SemiBold',
+    color: '#777',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+
+  essentialRow: {
+    // flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: '5%',
+    gap: 5,
+    backgroundColor: '#eee',
+    // paddingHorizontal: '5%',
+    borderRadius: 12,
+    width: '32%',
+  },
+
+  essentialText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#000',
+  },
+  essentialTxtLen: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#555',
+  },
+  createTaskBtn: {
+    backgroundColor: '#2F4FE3',
+    alignItems: 'center',
+    marginTop: '5%',
+    marginBottom: '5%',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    borderRadius: 8,
+    width: '25%',
+  },
+  floatingButton: {
+    position: 'absolute',
+    bottom: 20, // distance from bottom
+    right: 20, // distance from right
+    backgroundColor: '#2F4FE3',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5, // shadow on Android
+    shadowColor: '#000', // shadow on iOS
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
 });
+
+export default Requests;

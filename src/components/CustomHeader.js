@@ -4,6 +4,7 @@ import {
   StyleSheet,
   BackHandler,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import React, {useEffect} from 'react';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
@@ -40,15 +41,34 @@ const CustomHeader = ({
     navigation.goBack();
   };
 
+  // Choose the appropriate back icon based on platform
+  const getBackIcon = () => {
+    if (Platform.OS === 'ios') {
+      return (
+        <TouchableOpacity 
+          style={styles.iosBackButton}
+          onPress={handleBackPress}
+        >
+          <Ionicons name="chevron-back" size={28} color="#fff" />
+          {Platform.OS === 'ios' && (
+            <Text style={styles.iosBackText}>Back</Text>
+          )}
+        </TouchableOpacity>
+      );
+    } else {
+      return (
+        <TouchableOpacity onPress={handleBackPress}>
+          <Ionicons name="chevron-back" size={30} color="#fff" />
+        </TouchableOpacity>
+      );
+    }
+  };
+
   return (
     <View style={[styles.container, style]}>
       <View style={styles.header}>
-        <Ionicons
-          name="arrow-back"
-          size={30}
-          color="#fff"
-          onPress={handleBackPress}
-        />
+        {getBackIcon()}
+        
         <Text style={styles.title}>{title}</Text>
        
         {RightIcon ? (
@@ -64,10 +84,10 @@ const CustomHeader = ({
           <Text> {''}</Text>
         )}
         {/* {MessageNameIcon ? (
-                    <TouchableOpacity>
-                    <Entypo name={MessageNameIcon} size={34} color='#fff' onPress={MessageOnPress} />
-                    </TouchableOpacity>
-                ) : (<Text > {""}</Text>)} */}
+          <TouchableOpacity>
+            <Entypo name={MessageNameIcon} size={34} color='#fff' onPress={MessageOnPress} />
+          </TouchableOpacity>
+        ) : (<Text > {""}</Text>)} */}
       </View>
     </View>
   );
@@ -75,14 +95,13 @@ const CustomHeader = ({
 
 const styles = StyleSheet.create({
   container: {
-    // backgroundColor: '#0050C0',
-    // backgroundColor: "#002E62",
     backgroundColor: '#2F4FE3',
     borderBottomRightRadius: 10,
     borderBottomLeftRadius: 10,
     justifyContent: 'center',
     height: 90,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'ios' ? 40 : 10,
+    paddingHorizontal: Platform.OS === 'ios' ? 10 : 0,
   },
   header: {
     flexDirection: 'row',
@@ -94,6 +113,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: 'white',
     fontFamily: 'K2D-Regular',
+    flex: 1,
+    textAlign: 'center',
+    marginLeft: Platform.OS === 'ios' ? -40 : 0, // Compensate for iOS back button width
+  },
+  iosBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingRight: 10,
+    minWidth: 80,
+  },
+  iosBackText: {
+    color: 'white',
+    fontSize: 17,
+    fontWeight: '400',
+    marginLeft: 2,
   },
 });
 
