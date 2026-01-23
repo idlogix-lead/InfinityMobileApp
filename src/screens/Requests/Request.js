@@ -157,8 +157,19 @@ const Requests = () => {
     return PROJECT_COLORS[Math.abs(hash) % PROJECT_COLORS.length];
   };
 
-  const openCreateTaskModal = () => createTaskModalRef.current?.open();
-  const closeCreateTaskModal = () => createTaskModalRef.current?.close();
+  // const openCreateTaskModal = () => createTaskModalRef.current?.open();
+  // const closeCreateTaskModal = () => createTaskModalRef.current?.close();
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+
+  const openCreateTaskModal = () => {
+    setIsCreateTaskOpen(true);
+    createTaskModalRef.current?.open();
+  };
+
+  const closeCreateTaskModal = () => {
+    setIsCreateTaskOpen(false);
+    createTaskModalRef.current?.close();
+  };
 
   /* ------------------- USER & CLOCK ------------------- */
   // useEffect(() => {
@@ -207,6 +218,16 @@ const Requests = () => {
   const projectTasks = selectedProject
     ? allRequests.filter(t => t.C_Project_ID?.id === selectedProject.id)
     : [];
+
+  const todayProjectIds = allRequests
+    .filter(t => {
+      const activityDate = t.Updated || t.Created || t.DateLastAction;
+      return activityDate && dayjs(activityDate).isSame(today, 'day');
+    })
+    .map(t => t.C_Project_ID?.id)
+    .filter(Boolean);
+
+  const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
 
   const categorizeProjectTasks = (tasks, projectId) => {
     // Filter tasks for this project only
@@ -674,13 +695,13 @@ const Requests = () => {
           {projectLoading ? (
             <ActivityIndicator size="small" color="#2F4FE3" />
           ) : projectFilter === 'recents' ? (
-            projects.length === 0 ? (
+            recentProjects.length === 0 ? (
               <ProjectEmptyState
-                title="No projects found"
-                subtitle="Projects created by you will appear here."
+                title="No recent projects today"
+                subtitle="Projects with activity today will appear here."
               />
             ) : (
-              projects.map(p => (
+              recentProjects.map(p => (
                 <View key={p.id} style={{paddingRight: '5%'}}>
                   <ProjectItem item={p} />
                 </View>
@@ -842,7 +863,11 @@ const Requests = () => {
           nestedScrollEnabled: true,
           keyboardShouldPersistTaps: 'handled',
         }}>
-        <AddTask closeModal={closeCreateTaskModal} />
+        <AddTask
+          isModal
+          visible={isCreateTaskOpen}
+          onClose={closeCreateTaskModal}
+        />
       </Modalize>
     </>
   );

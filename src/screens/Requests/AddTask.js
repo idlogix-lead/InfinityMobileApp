@@ -21,6 +21,7 @@ import {
   createTask,
 } from '../../api/requests.api';
 import {useAuthStore} from '../../store/authStore';
+import moment from 'moment';
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C'},
@@ -36,10 +37,16 @@ const projectColor = id => {
   return colors[id % colors.length];
 };
 
-const AddTask = ({navigation, isModal = false, onClose}) => {
+const AddTask = ({navigation, isModal = false, onClose, visible}) => {
   const queryClient = useQueryClient();
 
   const {userId, userName} = useAuthStore();
+
+  useEffect(() => {
+    if (isModal && visible) {
+      resetForm();
+    }
+  }, [visible]);
 
   const [summary, setSummary] = useState('');
   const [selectedRequestType, setSelectedRequestType] = useState(null);
@@ -66,6 +73,9 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showGroupDropdown, setShowGroupDropdown] = useState(false);
   const [showRequestTypeDropdown, setShowRequestTypeDropdown] = useState(false);
+
+  const [pickerMode, setPickerMode] = useState(null);
+  // 'startDate' | 'endDate' | 'startTime'
 
   // ==============================
   // FETCH DROPDOWNS USING REACT QUERY
@@ -125,6 +135,15 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
     return list;
   }, [projects, projectSearch, selectedProject]);
 
+  const formatDate = date => {
+    if (!date) return 'Please select';
+    return new Date(date).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
   // ==============================
   // CREATE TASK MUTATION
   // ==============================
@@ -154,9 +173,11 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
     const payload = {
       Summary: summary,
       SalesRep_ID: {id: selectedSalesRep.id, identifier: selectedSalesRep.Name},
-      StartDate: startDate.toISOString().split('T')[0] + 'T00:00:00Z',
+      // StartDate: startDate.toISOString().split('T')[0] + 'T00:00:00Z',
+      StartDate: moment(startDate).format('YYYY-MM-DD[T]00:00:00[Z]'),
       StartTime: combineDateAndTime(startDate, startTime),
-      EndTime: endDate.toISOString(),
+      // EndTime: endDate.toISOString(),
+      EndTime: moment(endDate).format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
       R_RequestType_ID: {id: selectedRequestType.id},
       R_Category_ID: {id: selectedCategory.id},
       R_Group_ID: {id: selectedGroup.id},
@@ -197,10 +218,12 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
   return (
     <>
       {/* <ReqHeader title={'Create Request'} /> */}
+      {!isModal && <ReqHeader title={'Create Request'} />}
       <ScrollView
         style={styles.container}
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled">
+
         {/* PRIORITY */}
         <View
           style={[
@@ -285,7 +308,7 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
               style={styles.dropdownHeaderPro}
               onPress={() => setShowSalesRepDropdown(!showSalesRepDropdown)}>
               <View style={styles.iconWrapper}>
-                <MaterialIcons name="person-outline" size={24} color="#555" />
+                <MaterialIcons name="person-outline" size={20} color="#000" />
               </View>
               <View>
                 <Text style={styles.rowLabel}>Assigned to</Text>
@@ -329,20 +352,22 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
           </View>
 
           <TouchableOpacity
-            onPress={() => setShowEndDatePicker(true)}
+            // onPress={() => setShowEndDatePicker(true)}
+            onPress={() => setPickerMode('endDate')}
             style={styles.row}>
             <View style={styles.iconWrapper}>
-              <MaterialIcons name="calendar-today" size={15} color="#777" />
+              <MaterialIcons name="calendar-today" size={18} color="#000" />
             </View>
             <View style={{}}>
               <Text style={styles.rowLabel}> End Date</Text>
               <Text style={styles.rowValue}>
-                {endDate ? endDate.toDateString() : 'Please select'}
+                {/* {endDate ? endDate.toDateString() : 'Please select'} */}
+                {formatDate(endDate)}
               </Text>
             </View>
           </TouchableOpacity>
 
-          {showEndDatePicker && (
+          {/* {showEndDatePicker && (
             <DateTimePicker
               value={endDate}
               mode="date"
@@ -353,24 +378,26 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
                 setShowEndDatePicker(false);
               }}
             />
-          )}
+          )} */}
         </View>
         <View style={[styles.row, {paddingHorizontal: '2%'}]}>
           <TouchableOpacity
-            onPress={() => setShowStartDatePicker(true)}
+            // onPress={() => setShowStartDatePicker(true)}
+            onPress={() => setPickerMode('startDate')}
             style={styles.row}>
             <View style={styles.iconWrapper}>
-              <MaterialIcons name="calendar-today" size={15} color="#777" />
+              <MaterialIcons name="calendar-today" size={18} color="#000" />
             </View>
             <View style={{}}>
               <Text style={styles.rowLabel}>Start Date</Text>
               <Text style={styles.rowValue}>
                 {' '}
-                {startDate ? startDate.toDateString() : 'Please select'}
+                {/* {startDate ? startDate.toDateString() : 'Please select'} */}
+                {formatDate(startDate)}
               </Text>
             </View>
           </TouchableOpacity>
-          {showStartDatePicker && (
+          {/* {showStartDatePicker && (
             <DateTimePicker
               value={startDate}
               mode="date"
@@ -381,12 +408,13 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
                 setShowStartDatePicker(false);
               }}
             />
-          )}
+          )} */}
           <TouchableOpacity
-            onPress={() => setShowStartTimePicker(true)}
+            // onPress={() => setShowStartTimePicker(true)}
+            onPress={() => setPickerMode('startTime')}
             style={styles.row}>
-            <View style={styles.iconWrapper}>
-              <MaterialIcons name="schedule" size={24} color="#555" />
+            <View style={[styles.iconWrapper, {marginRight: '4%'}]}>
+              <MaterialIcons name="schedule" size={20} color="#000" />
             </View>
             <View>
               <Text style={styles.rowLabel}>Start Time</Text>
@@ -400,7 +428,7 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
               </Text>
             </View>
           </TouchableOpacity>
-          {showStartTimePicker && (
+          {/* {showStartTimePicker && (
             <DateTimePicker
               value={startTime}
               mode="time"
@@ -412,7 +440,7 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
                 setShowStartTimePicker(false);
               }}
             />
-          )}
+          )} */}
         </View>
 
         {/* PROJECT */}
@@ -559,6 +587,28 @@ const AddTask = ({navigation, isModal = false, onClose}) => {
             ))}
         </View>
 
+        {pickerMode && (
+          <DateTimePicker
+            value={
+              pickerMode === 'startDate'
+                ? startDate
+                : pickerMode === 'endDate'
+                ? endDate
+                : startTime
+            }
+            mode={pickerMode === 'startTime' ? 'time' : 'date'}
+            display="default"
+            onChange={(event, selectedDate) => {
+              if (event.type === 'set' && selectedDate) {
+                if (pickerMode === 'startDate') setStartDate(selectedDate);
+                if (pickerMode === 'endDate') setEndDate(selectedDate);
+                if (pickerMode === 'startTime') setStartTime(selectedDate);
+              }
+              setPickerMode(null);
+            }}
+          />
+        )}
+
         {/* SUBMIT */}
         <TouchableOpacity style={styles.button} onPress={handleCreateTask}>
           <Text style={styles.buttonText}>
@@ -623,15 +673,20 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   iconWrapper: {
-    height: 30,
-    width: 30,
-    borderRadius: 15,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#777',
-    justifyContent: 'center',
-    alignItems: 'center',
-    right: 7,
+    // height: 30,
+    // width: 30,
+    // borderRadius: 15,
+    // borderStyle: 'dashed',
+    // borderWidth: 1,
+    // borderColor: '#777',
+    // justifyContent: 'center',
+    // alignItems: 'center',
+    // right: 7,
+    padding: 8,
+    backgroundColor:'#fff',
+    elevation: 4,
+    borderRadius: 20,
+    // gap: 5
   },
   projectDot: {width: 10, height: 10, borderRadius: 5},
   button: {

@@ -4,6 +4,7 @@ import {
   StyleSheet,
   BackHandler,
   TouchableOpacity,
+  StatusBar,
 } from 'react-native';
 import React, {useEffect} from 'react';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
@@ -43,6 +44,7 @@ const ReqHeader = ({
 
   return (
     <View style={[styles.container, style]}>
+      <StatusBar translucent={true} barStyle={'dark-content'}/>
       <View style={styles.header}>
         <MaterialIcons
           name="chevron-left"

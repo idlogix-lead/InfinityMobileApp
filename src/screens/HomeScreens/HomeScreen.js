@@ -2,6 +2,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import {useWFAct} from '../../hooks/ApprovalHooks/useApproval';
+import {useAuthStore} from '../../store/authStore';
 import {
   FlatList,
   StyleSheet,
@@ -36,7 +38,6 @@ import {
   useNavigation,
 } from '@react-navigation/native';
 import ApprovalScreens from '../ApprovalScreens/ApprovalScreens';
-import { useAuthStore } from '../../store/authStore';
 
 const transactions = [
   {
@@ -62,12 +63,27 @@ const transactions = [
 const HomeScreen = ({route}) => {
   const navigation = useNavigation();
 
+  const {data: wfActivity = []} = useWFAct();
+  const {roleId, userId} = useAuthStore();
+
+  const myApprovals = wfActivity.filter(
+    r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),
+  );
+
+  const completedList = myApprovals.filter(item => item.WFState?.id === 'CC');
+
+  const suspendedList = myApprovals.filter(item => item.WFState?.id === 'OS');
+
+  console.log('WF RAW:', wfActivity.length);
+  console.log('User ID:', userId);
+  console.log('MY APPROVALS:', myApprovals.length);
+
   // Get auth data from Zustand store
   const token = useAuthStore(state => state.token);
   const tokenOk = useAuthStore(state => state.tokenOk);
-  const roleId = useAuthStore(state => state.roleId);
-  const userId = useAuthStore(state => state.userId);
-  
+  // const roleId = useAuthStore(state => state.roleId);
+  // const userId = useAuthStore(state => state.userId);
+
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [approvalNum, setApprovalNum] = useState();
@@ -84,20 +100,20 @@ const HomeScreen = ({route}) => {
   const [notificationCount, setNotificationCount] = useState();
 
   // Get user info from Zustand store
-  const { 
-    userName: storeUserName, 
+  const {
+    userName: storeUserName,
     clientName: storeClientName,
     clientId: storeClientId,
     roleName: storeRoleName,
     organizationName: storeOrgName,
-    warehouseName: storeWarehouseName
+    warehouseName: storeWarehouseName,
   } = useAuthStore(state => ({
     userName: state.userName,
     clientName: state.clientName,
     clientId: state.clientId,
     roleName: state.roleName,
     organizationName: state.organizationName,
-    warehouseName: state.warehouseName
+    warehouseName: state.warehouseName,
   }));
 
   const categories = [
@@ -141,12 +157,15 @@ const HomeScreen = ({route}) => {
     const port = await AsyncStorage.getItem('port');
     const storedUserId = userId;
     const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log('Token for notifications:', storedToken ? 'Present' : 'Missing');
+    console.log(
+      'Token for notifications:',
+      storedToken ? 'Present' : 'Missing',
+    );
 
     try {
       setIsLoading(true);
       const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${storedUserId}`;
-      
+
       const response = await axios.get(URL, {
         headers: {
           'Content-Type': 'application/json',
@@ -163,7 +182,6 @@ const HomeScreen = ({route}) => {
       ).length;
       setNotificationCount(unprocessedCount);
       console.log(unprocessedCount, 'Unprocessed Notification Count');
-
     } catch (error) {
       console.log(error, 'NotificationAPIGETAllData');
     } finally {
@@ -197,7 +215,7 @@ const HomeScreen = ({route}) => {
       console.error('Missing token or roleId for approval API');
       return;
     }
-    
+
     setIsLoading(true);
     await fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
@@ -225,7 +243,7 @@ const HomeScreen = ({route}) => {
       console.error('Missing token for request API');
       return;
     }
-    
+
     fetch(
       `${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=CreatedBy eq ${userId}`,
       {
@@ -251,7 +269,7 @@ const HomeScreen = ({route}) => {
       console.error('Missing token for ATS API');
       return;
     }
-    
+
     fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`,
       {
@@ -281,7 +299,7 @@ const HomeScreen = ({route}) => {
       console.error('Missing token or roleId for approval navigation');
       return;
     }
-    
+
     setIsLoading(true);
     await fetch(
       `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
@@ -325,7 +343,7 @@ const HomeScreen = ({route}) => {
         setIsLoading(false);
       });
   };
-  
+
   const FindBusinessPrtId = async () => {
     const storedToken = token;
     const protocol = await AsyncStorage.getItem('protocol');
@@ -409,7 +427,7 @@ const HomeScreen = ({route}) => {
       .slice(-2)}`;
     return data.find(item => item.label === currentYearLabel);
   };
-  
+
   const getYearId = async () => {
     setIsLoading(true);
     const storedToken = token;
@@ -470,7 +488,7 @@ const HomeScreen = ({route}) => {
       FindBusinessPrtId();
       getYearId();
     }
-    
+
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
     return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
@@ -496,7 +514,9 @@ const HomeScreen = ({route}) => {
   // Header Current Date
   const currentDate = new Date();
   const day = currentDate.getDate();
-  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(currentDate);
+  const weekday = new Intl.DateTimeFormat('en-US', {weekday: 'long'}).format(
+    currentDate,
+  );
 
   const monthDayYear = currentDate.toLocaleDateString('en-US', {
     month: 'short',
@@ -521,40 +541,38 @@ const HomeScreen = ({route}) => {
 
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-      <StatusBar translucent={true} backgroundColor="transparent" />
-      
+      <StatusBar
+        translucent={true}
+        backgroundColor="transparent"
+        barStyle={'dark-content'}
+      />
+
       {/* COMPACT HEADER - Username and Notification in same row */}
       <View style={styles.header}>
         {/* Single Row with Username and Notification */}
         <View style={styles.headerRow}>
           {/* Username with Profile Navigation */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.usernameContainer}
             onPress={() => navigation.navigate('ProfileScreen')}
-            activeOpacity={0.7}
-          >
+            activeOpacity={0.7}>
             <Text style={styles.username}>
               {storeUserName || name || 'User'}
             </Text>
-            <Icon 
-              name="chevron-forward-outline" 
-              size={16} 
-              color="#666" 
+            <Icon
+              name="chevron-forward-outline"
+              size={16}
+              color="#666"
               style={styles.chevronIcon}
             />
           </TouchableOpacity>
-          
+
           {/* Notification Bell */}
           <View style={styles.notificationContainer}>
             <TouchableOpacity
               style={styles.notificationBell}
-              onPress={() => navigation.navigate('NotificationSrn')}
-            >
-              <Icon
-                name="notifications-outline"
-                size={24}
-                color="#000"
-              />
+              onPress={() => navigation.navigate('NotificationSrn')}>
+              <Icon name="notifications-outline" size={24} color="#000" />
               {notificationCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.badgeText}>
@@ -593,11 +611,7 @@ const HomeScreen = ({route}) => {
       <View style={styles.topRow}>
         <View style={styles.iconBox}>
           <View style={styles.iconWrapper}>
-            <MaterialIcons
-              name="sync"
-              size={18}
-              color="rgba(59, 99, 125, 1)"
-            />
+            <MaterialIcons name="sync" size={18} color="rgba(59, 99, 125, 1)" />
           </View>
           <Text style={styles.iconLabel}>Analytics</Text>
         </View>
@@ -651,7 +665,7 @@ const HomeScreen = ({route}) => {
           <Text style={styles.iconLabel}>Accounts</Text>
         </View>
       </View>
-      
+
       {/* Categories Section */}
       <View>
         <Text style={styles.sectionTitle}>Categories</Text>
@@ -671,13 +685,15 @@ const HomeScreen = ({route}) => {
           </View>
           <Text style={styles.gridLabel}>CRM</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity
+
+        {/* <TouchableOpacity
           style={styles.gridBox}
-          onPress={async () => {
-            const approvalData = await getApprovalNum();
-            navigation.navigate('AllApprovalList', {data: approvalData});
-          }}>
+          // onPress={async () => {
+          //   const approvalData = await getApprovalNum();
+          //   navigation.navigate('AllApprovalList', {data: approvalData});
+          
+          // }}
+          onPress={() => navigation.navigate('WFStatusList', {title:'Suspended})}>
           <View style={styles.gridIconWrapper}>
             <MaterialIcons
               name="task-alt"
@@ -686,8 +702,31 @@ const HomeScreen = ({route}) => {
             />
           </View>
           <Text style={styles.gridLabel}>Approval</Text>
+        </TouchableOpacity> */}
+
+        <TouchableOpacity
+          style={styles.gridBox}
+          onPress={() =>
+            navigation.navigate('WFStatusList', {
+              title: 'Suspended',
+              data: suspendedList,
+            })
+          }>
+          <View style={styles.gridIconWrapper}>
+            <MaterialIcons
+              name="task-alt"
+              size={33}
+              color="rgba(43, 135, 234, 1)"
+            />
+            {suspendedList.length > 0 && (
+              <View style={styles.badgeHome}>
+                <Text style={styles.badgeTextHome}>{suspendedList.length}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.gridLabel}>Approval</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={styles.gridBox}
           onPress={() => navigation.navigate('Requests')}>
@@ -727,7 +766,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  
+
   // COMPACT HEADER STYLES
   header: {
     paddingTop: 60,
@@ -796,7 +835,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontFamily: 'K2D-Bold',
   },
-  
+
   // BLUE CARD - Positioned closer to header
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
@@ -816,8 +855,8 @@ const styles = StyleSheet.create({
   },
   cardBackground: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
+    // width: '100%',
+    // height: '100%',
     resizeMode: 'cover',
   },
   cardTitle: {
@@ -831,11 +870,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   cardTitleMain: {
-    color: '#fff', 
+    color: '#fff',
     fontFamily: 'K2D-SemiBold',
   },
   cardTitleSub: {
-    color: '#cce1ff', 
+    color: '#cce1ff',
     fontFamily: 'K2D-Light',
   },
   cardBottomRow: {
@@ -865,7 +904,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0.5,
   },
-  
+
   // Quick Stats Row
   topRow: {
     backgroundColor: '#fff',
@@ -903,7 +942,7 @@ const styles = StyleSheet.create({
     color: 'rgba(106, 106, 106, 1)',
     fontFamily: 'K2D-Medium',
   },
-  
+
   // Categories Section
   sectionTitle: {
     color: 'black',
@@ -914,7 +953,7 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     marginBottom: 15,
   },
-  
+
   // Grid Layout
   bottomGrid: {
     flexDirection: 'row',
@@ -951,6 +990,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
+  },
+  badgeHome: {
+    position: 'absolute',
+    top: -2,
+    right: 5,
+    backgroundColor: 'red',
+    borderRadius: 10,
+    paddingHorizontal: '10%',
+    paddingVertical: '3%',
+    minWidth: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTextHome: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
 

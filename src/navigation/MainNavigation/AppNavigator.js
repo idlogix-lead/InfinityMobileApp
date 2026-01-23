@@ -70,6 +70,10 @@ import TaskDetail from '../../screens/Requests/TaskDetail';
 import TaskStatus from '../../screens/Requests/TaskStatus';
 import AllProjects from '../../screens/Requests/AllProjects';
 import AddTask from '../../screens/Requests/AddTask';
+import Approvals from '../../screens/Approvals/Approvals';
+import WFStatusList from '../../screens/Approvals/WFStatusList';
+import MyTasks from '../../screens/Requests/MyTasks';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -153,9 +157,15 @@ const AppNavigator = () => {
       <Stack.Screen name="TaskStatus" component={TaskStatus} />
       <Stack.Screen name="AllProjects" component={AllProjects} />
       <Stack.Screen name="AddTask" component={AddTask} />
+      <Stack.Screen name="MyTasks" component={MyTasks} />
 
+      {/* APPROVAL SCREEN BY FZA */}
 
+      <Stack.Screen name="approvals" component={Approvals} />
+      <Stack.Screen name="WFStatusList" component={WFStatusList} />
 
+      {/* JUST FOR PRACTICE */}
+      
     </Stack.Navigator>
   );
 };

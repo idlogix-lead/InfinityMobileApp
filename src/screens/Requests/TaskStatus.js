@@ -177,6 +177,15 @@ const TaskStatus = ({route}) => {
                     <Text style={[styles.value, {color: '#1A73E8'}]}>
                       {status}
                     </Text>
+                    <MaterialIcons
+                      name={
+                        openStatusFor === item.uid
+                          ? 'keyboard-arrow-up'
+                          : 'keyboard-arrow-down'
+                      }
+                      size={18}
+                      color={'#1A73E8'}
+                    />
                   </TouchableOpacity>
 
                   {openStatusFor === item.uid && (
@@ -194,6 +203,8 @@ const TaskStatus = ({route}) => {
                     </View>
                   )}
                 </View>
+
+                
 
                 <View
                   style={[styles.valueHolder, {backgroundColor: '#FFF4CC'}]}>
@@ -337,6 +348,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   value: {
     fontSize: 13,

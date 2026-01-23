@@ -90,6 +90,7 @@ const TaskDetail = ({route}) => {
   // ---------------- BUSINESS PARTNER SEARCHABLE ----------------
   const [bpSearch, setBpSearch] = useState(''); // typed text
   const [filteredBPs, setFilteredBPs] = useState([]);
+
   // ---------------- User SEARCHABLE ----------------
 
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -274,7 +275,8 @@ const TaskDetail = ({route}) => {
     LastResult: '',
     Organization: '',
     Client: '',
-    BussinessPartner: '',
+    BussinessPartner: null,
+    BussinessPartnerName: '',
     UserContact: '',
     Project: '',
     Asset: '',
@@ -318,7 +320,10 @@ const TaskDetail = ({route}) => {
         LastResult: fetchedTask.LastResult || '',
         Organization: fetchedTask.AD_Org_ID?.identifier || 'N/A',
         Client: fetchedTask.AD_Client_ID?.identifier || 'N/A',
-        BussinessPartner: fetchedTask.C_BPartner_ID?.identifier || 'N/A',
+        // BussinessPartner: fetchedTask.C_BPartner_ID?.identifier || 'N/A',
+        BussinessPartner: fetchedTask.C_BPartner_ID?.id || null,
+        BussinessPartnerName: fetchedTask.C_BPartner_ID?.identifier || '',
+
         UserContact: fetchedTask.AD_User_ID?.identifier || 'N/A',
         Project: fetchedTask.C_Project_ID?.identifier || 'N/A',
         Asset: fetchedTask.A_Asset_ID?.identifier || 'N/A',
@@ -350,40 +355,51 @@ const TaskDetail = ({route}) => {
   }, [fetchedTask, fetchedUpdates, fetchedResponses, bpartner]);
 
   // Sync filter whenever user types or bpartner list changes
-  useEffect(() => {
-    if (!bpartner) return;
+  // useEffect(() => {
+  //   if (!bpartner) return;
 
-    const text = bpSearch.trim().toLowerCase();
+  //   const text = bpSearch.trim().toLowerCase();
 
-    if (!text) {
-      setFilteredBPs(bpartner);
-      return;
-    }
+  //   if (!text) {
+  //     setFilteredBPs(bpartner);
+  //     return;
+  //   }
 
-    const startsWithMatches = [];
-    const includesMatches = [];
+  //   const startsWithMatches = [];
+  //   const includesMatches = [];
 
-    bpartner.forEach(bp => {
-      const name = (bp.identifier || '').toLowerCase();
+  //   bpartner.forEach(bp => {
+  //     const name = (bp.identifier || '').toLowerCase();
 
-      if (name.startsWith(text)) {
-        startsWithMatches.push(bp);
-      } else if (name.includes(text)) {
-        includesMatches.push(bp);
-      }
-    });
+  //     if (name.startsWith(text)) {
+  //       startsWithMatches.push(bp);
+  //     } else if (name.includes(text)) {
+  //       includesMatches.push(bp);
+  //     }
+  //   });
 
-    // 🔥 START matches first, phir includes
-    setFilteredBPs([...startsWithMatches, ...includesMatches]);
-  }, [bpSearch, bpartner]);
+  //   // 🔥 START matches first, phir includes
+  //   setFilteredBPs([...startsWithMatches, ...includesMatches]);
+  // }, [bpSearch, bpartner]);
 
   // Set initial selected BP
+  // useEffect(() => {
+  //   if (bpartner && editableTask.BussinessPartner) {
+  //     const selectedBP = bpartner.find(
+  //       bp => bp.id === editableTask.BussinessPartner,
+  //     );
+  //     if (selectedBP) setBpSearch(selectedBP.identifier);
+  //   }
+  // }, [bpartner, editableTask.BussinessPartner]);
   useEffect(() => {
-    if (bpartner && editableTask.BussinessPartner) {
-      const selectedBP = bpartner.find(
-        bp => bp.id === editableTask.BussinessPartner,
-      );
-      if (selectedBP) setBpSearch(selectedBP.identifier);
+    if (!bpartner || !editableTask.BussinessPartner) return;
+
+    const selectedBP = bpartner.find(
+      bp => bp.id === editableTask.BussinessPartner,
+    );
+
+    if (selectedBP) {
+      setBpSearch(selectedBP.identifier);
     }
   }, [bpartner, editableTask.BussinessPartner]);
 
@@ -479,56 +495,68 @@ const TaskDetail = ({route}) => {
           {/* CREATOR & DUE */}
           <View style={styles.betweenRow}>
             <View>
-              <View style={styles.iconLabelRow}>
-                <MaterialIcons name="person" size={16} color="#3498DB" />
-                <Text style={styles.label}> Created By</Text>
+              <View style={[styles.iconLabelRow, {}]}>
+                <View style={styles.iconWrapper}>
+                  <MaterialIcons name="person" size={16} color="#000" />
+                </View>
+                <View>
+                  <Text style={styles.label}> Created By</Text>
+                  <Text style={[styles.value, {bottom: 5}]}>
+                    {editableTask.CreatedBy}
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.value}>{editableTask.CreatedBy}</Text>
             </View>
             <View>
               <View style={styles.iconLabelRow}>
-                <MaterialIcons name="event" size={16} color="#E67E22" />
-                <Text style={styles.label}> Due Date</Text>
+                <View style={styles.iconWrapper}>
+                  <MaterialIcons name="event" size={16} color="#000" />
+                </View>
+                <View>
+                  <Text style={styles.label}> Due Date</Text>
+                  <TouchableOpacity onPress={() => setShowDueDatePicker(true)}>
+                    <Text style={[styles.value, {bottom: 5}]}>
+                      {editableTask.EndTime
+                        ? new Date(editableTask.EndTime).toLocaleDateString(
+                            'en-GB',
+                            {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            },
+                          )
+                        : '—'}
+                    </Text>
+
+                    {showDueDatePicker && (
+                      <DateTimePicker
+                        value={
+                          editableTask.EndTime
+                            ? new Date(editableTask.EndTime)
+                            : new Date()
+                        }
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                        onChange={async (event, selectedDate) => {
+                          setShowDueDatePicker(false);
+                          if (!selectedDate) return;
+
+                          const isoDate = selectedDate.toISOString();
+
+                          // 1️⃣ Update local UI immediately
+                          setEditableTask(prev => ({
+                            ...prev,
+                            EndTime: isoDate,
+                          }));
+
+                          // 2️⃣ Auto-save to backend
+                          await autoSaveTask();
+                        }}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              <TouchableOpacity onPress={() => setShowDueDatePicker(true)}>
-                <Text style={styles.value}>
-                  {editableTask.EndTime
-                    ? new Date(editableTask.EndTime).toLocaleDateString(
-                        'en-GB',
-                        {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        },
-                      )
-                    : '—'}
-                </Text>
-
-                {showDueDatePicker && (
-                  <DateTimePicker
-                    value={
-                      editableTask.EndTime
-                        ? new Date(editableTask.EndTime)
-                        : new Date()
-                    }
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={async (event, selectedDate) => {
-                      setShowDueDatePicker(false);
-                      if (!selectedDate) return;
-
-                      const isoDate = selectedDate.toISOString();
-
-                      // 1️⃣ Update local UI immediately
-                      setEditableTask(prev => ({...prev, EndTime: isoDate}));
-
-                      // 2️⃣ Auto-save to backend
-                      await autoSaveTask();
-                    }}
-                  />
-                )}
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -537,11 +565,18 @@ const TaskDetail = ({route}) => {
             style={{
               flexDirection: 'row',
               paddingHorizontal: '5%',
-              paddingTop: '3%',
+              paddingVertical: '3%',
               alignItems: 'center',
             }}>
             <View style={styles.iconLabelRow}>
-              <MaterialIcons name="corporate-fare" size={16} color="#3498DB" />
+              <View style={styles.iconWrapper}>
+                <MaterialIcons
+                  name="corporate-fare"
+                  size={16}
+                  // color="#3498DB"
+                  color={'#000'}
+                />
+              </View>
               <Text style={styles.value}> Organization: </Text>
             </View>
             <Text style={styles.label}>{editableTask.Organization}</Text>
@@ -553,7 +588,9 @@ const TaskDetail = ({route}) => {
               alignItems: 'center',
             }}>
             <View style={styles.iconLabelRow}>
-              <MaterialIcons name="group" size={16} color="#E67E22" />
+              <View style={styles.iconWrapper}>
+                <MaterialIcons name="group" size={16} color="#000" />
+              </View>
               <Text style={styles.value}> Client: </Text>
             </View>
             <Text style={styles.label}>{editableTask.Client}</Text>
@@ -598,7 +635,7 @@ const TaskDetail = ({route}) => {
                 <View style={styles.referenceContainer}>
                   <Text style={styles.referenceLabel}>Business Partner</Text>
 
-                  <TextInput
+                  {/* <TextInput
                     value={bpSearch}
                     placeholder={
                       editableTask.BussinessPartner || 'Select Business Partner'
@@ -623,25 +660,88 @@ const TaskDetail = ({route}) => {
 
                       setFilteredBPs(filtered);
                     }}
+                  /> */}
+
+                  <TextInput
+                    value={bpSearch || ''} // ✅ NEVER undefined
+                    placeholder={
+                      editableTask.BussinessPartnerName ||
+                      'Select Business Partner'
+                    }
+                    placeholderTextColor="#333"
+                    style={styles.bpInput}
+                    onFocus={() => {
+                      setOpenDropdown('bp');
+                      setFilteredBPs(bpartner || []);
+                    }}
+                    onChangeText={text => {
+                      const safeText = text || '';
+                      setBpSearch(safeText);
+                      setOpenDropdown('bp');
+
+                      const filtered = !safeText
+                        ? bpartner || []
+                        : bpartner.filter(bp =>
+                            (bp.identifier || '')
+                              .toLowerCase()
+                              .includes(safeText.toLowerCase()),
+                          );
+
+                      setFilteredBPs(filtered);
+                    }}
                   />
 
                   {openDropdown === 'bp' && filteredBPs.length > 0 && (
                     <FlatList
                       data={filteredBPs}
                       keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdown}
+                      style={styles.bpDropdownFix}
+                      nestedScrollEnabled={true}
                       keyboardShouldPersistTaps="handled"
                       renderItem={({item}) => (
                         <TouchableOpacity
                           style={styles.bpDropdownItem}
+                          // onPress={async () => {
+                          //   // ✅ UI
+                          //   setBpSearch(item.identifier);
+                          //   setOpenDropdown(null); // ✅ close on select
+
+                          //   setEditableTask(prev => ({
+                          //     ...prev,
+                          //     BussinessPartner: item.id,
+                          //   }));
+
+                          //   try {
+                          //     await updateTask({
+                          //       taskId: task.id,
+                          //       payload: {C_BPartner_ID: item.id},
+                          //     });
+
+                          //     setTask(prev => ({
+                          //       ...prev,
+                          //       C_BPartner_ID: {
+                          //         id: item.id,
+                          //         identifier: item.identifier,
+                          //       },
+                          //     }));
+
+                          //     refetchTask();
+                          //   } catch (err) {
+                          //     Alert.alert(
+                          //       'Error',
+                          //       'Failed to update Business Partner',
+                          //     );
+                          //   }
+                          // }}
                           onPress={async () => {
-                            // ✅ UI
+                            // ✅ UI FIRST
                             setBpSearch(item.identifier);
-                            setOpenDropdown(null); // ✅ close on select
+                            setOpenDropdown(null);
 
                             setEditableTask(prev => ({
                               ...prev,
-                              BussinessPartner: item.id,
+                              BussinessPartner: item.id, // ✅ ID ONLY
+                              BussinessPartnerName: item.identifier, // ✅ display
                             }));
 
                             try {
@@ -1488,7 +1588,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: '4%',
   },
-  headerTitle:{
+  headerTitle: {
     fontSize: 20,
     fontFamily: 'K2D-Regular',
     color: '#222',
@@ -1548,6 +1648,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     // marginBottom: 2,
+  },
+
+  iconWrapper: {
+    padding: 8,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    elevation: 4,
+    right: 10,
   },
 
   label: {
@@ -2285,6 +2393,14 @@ const styles = StyleSheet.create({
     zIndex: 1000, // ensure it's on top
     color: '#555',
   },
+  bpDropdownFix: {
+    maxHeight: 220, // ✅ REQUIRED
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginTop: 6,
+    elevation: 5,
+  },
+
   bpDropdownItem: {
     paddingVertical: 10,
     paddingHorizontal: 12,
