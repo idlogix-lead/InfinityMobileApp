@@ -15,7 +15,10 @@ import {useAuthStore} from '../../store/authStore';
 const Approvals = () => {
   const navigation = useNavigation();
   const {data: wfActivity = []} = useWFAct();
-  const {roleId, userId} = useAuthStore();
+  // const {roleId, userId} = useAuthStore();
+  const userName = useAuthStore(state => state.userName);
+  const roleId = useAuthStore(state => state.roleId);
+  const userId = useAuthStore(state => state.userId);
 
   const myApprovals = wfActivity.filter(
     r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),

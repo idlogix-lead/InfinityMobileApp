@@ -1,8 +1,5 @@
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import {useWFAct} from '../../hooks/ApprovalHooks/useApproval';
-import {useAuthStore} from '../../store/authStore';
 import {
   StyleSheet,
   Text,
@@ -20,144 +17,39 @@ import {
   SafeAreaView,
 } from 'react-native';
 import React, {useEffect, useState} from 'react';
-import { useQuery, useQueryClient } from 'react-query';
+import {useQuery, useQueryClient} from 'react-query';
 import axios from 'axios';
-import moment from 'moment';
-import TopNavigationATS from '../../navigation/TopNavigation/TopNavigationATS';
-import NotificationSrn from '../NotificationSrn/NotificationSrn';
-import {
-  useFocusEffect,
-  useIsFocused,
-  useNavigation,
-} from '@react-navigation/native';
-import ApprovalScreens from '../ApprovalScreens/ApprovalScreens';
+import {useIsFocused, useNavigation} from '@react-navigation/native';
+import {useAuthStore} from '../../store/authStore';
+import {useWFAct} from '../../hooks/ApprovalHooks/useApproval';
 
-const transactions = [
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Pending',
-  },
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Complete',
-  },
-  {
-    amount: '$54.67',
-    name: 'Sharlin Jason',
-    date: '1-2-2025',
-    status: 'Complete',
-  },
-];
+const {width: SCREEN_WIDTH, height: SCREEN_HEIGHT} = Dimensions.get('window');
 
-const HomeScreen = ({route}) => {
-  const navigation = useNavigation();
+// Calculate responsive values based on screen dimensions
+const getResponsiveSize = size => {
+  return (SCREEN_WIDTH / 375) * size;
+};
 
-  const {data: wfActivity = []} = useWFAct();
-  const {roleId, userId} = useAuthStore();
+const getResponsiveHeight = size => {
+  return (SCREEN_HEIGHT / 812) * size;
+};
 
-  const myApprovals = wfActivity.filter(
-    r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),
-  );
+// Create a separate function for API calls
+const createApiFunctions = (token, serverConfig) => {
+  if (
+    !token ||
+    !serverConfig?.protocol ||
+    !serverConfig?.host ||
+    !serverConfig?.port
+  ) {
+    throw new Error('Missing authentication or server configuration');
+  }
 
-  const completedList = myApprovals.filter(item => item.WFState?.id === 'CC');
+  const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
 
-  const suspendedList = myApprovals.filter(item => item.WFState?.id === 'OS');
-
-  console.log('WF RAW:', wfActivity.length);
-  console.log('User ID:', userId);
-  console.log('MY APPROVALS:', myApprovals.length);
-
-  // Get auth data from Zustand store
-  const token = useAuthStore(state => state.token);
-  const tokenOk = useAuthStore(state => state.tokenOk);
-  // const roleId = useAuthStore(state => state.roleId);
-  // const userId = useAuthStore(state => state.userId);
-
-  const [name, setName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [approvalNum, setApprovalNum] = useState();
-  const [protocol, setProtocol] = useState();
-  const [reqNum, setReqNum] = useState();
-  const [host, setHost] = useState();
-  const [clientName, setClientName] = useState('');
-  const [port, setPort] = useState();
-  const [checkinout, setCheckinout] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [partnerId, setPartnerId] = useState(null);
-  const [years, setYears] = useState([]);
-  const [Status, setStatus] = useState(null);
-  const [notificationCount, setNotificationCount] = useState();
-
-  // Get user info from Zustand store
-  const {
-    userName: storeUserName,
-    clientName: storeClientName,
-    clientId: storeClientId,
-    roleName: storeRoleName,
-    organizationName: storeOrgName,
-    warehouseName: storeWarehouseName,
-  } = useAuthStore(state => ({
-    userName: state.userName,
-    clientName: state.clientName,
-    clientId: state.clientId,
-    roleName: state.roleName,
-    organizationName: state.organizationName,
-    warehouseName: state.warehouseName,
-  }));
-
-  const categories = [
-    {
-      title: 'CRM',
-      icon: 'all-inclusive',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('CrmScreen'),
-    },
-    {
-      title: 'Approval',
-      icon: 'check-decagram',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: async () => {
-        const approvalData = await getApprovalNum();
-        navigation.navigate('AllApprovalList', {data: approvalData});
-      },
-    },
-    {
-      title: 'Employee Portal',
-      icon: 'account-group',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('EmployeePortal'),
-    },
-    {
-      title: 'Request',
-      icon: 'file-send',
-      color: 'rgba(43, 135, 234, 1)',
-      backgroundcolor: 'rgba(90, 141, 238, 0.1)',
-      onPress: () => navigation.navigate('TopNavigationATS', {token}),
-    },
-  ];
-
-  const notificationAllDataGet = async () => {
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    const organizationId = await AsyncStorage.getItem('organizationId');
-    console.log(
-      'Token for notifications:',
-      storedToken ? 'Present' : 'Missing',
-    );
-
-    try {
-      setIsLoading(true);
-      const URL = `${protocol}://${host}:${port}/api/v1/models/AD_Note?$filter=AD_User_ID eq ${storedUserId}`;
+  return {
+    fetchNotificationCount: async userId => {
+      const URL = `${baseUrl}/models/AD_Note?$filter=AD_User_ID eq ${userId}`;
 
       const response = await axios.get(URL, {
         headers: {
@@ -174,314 +66,227 @@ const HomeScreen = ({route}) => {
       const unprocessedCount = sortedData?.filter(
         item => item.Processed === false,
       ).length;
-      setNotificationCount(unprocessedCount);
-      console.log(unprocessedCount, 'Unprocessed Notification Count');
-    } catch (error) {
-      console.log(error, 'NotificationAPIGETAllData');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const getName = async () => {
-    const value = await AsyncStorage.getItem('userName');
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    console.log('UserID for API calls:', storedUserId);
-    setProtocol(protocol);
-    setHost(host);
-    setPort(port);
-    setName(value);
-    getApprovalNum(protocol, host, port);
-    getReqNum(protocol, host, port, storedUserId);
-    getAtsNum(protocol, host, port, storedUserId);
-  };
+      return unprocessedCount || 0;
+    },
 
-  const handleBackButton = () => {
-    BackHandler.exitApp();
-    return true;
-  };
+    fetchApprovalCount: async roleId => {
+      const url = `${baseUrl}/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`;
 
-  const getApprovalNum = async (protocol, host, port) => {
-    if (!token || !roleId) {
-      console.error('Missing token or roleId for approval API');
-      return;
-    }
-
-    setIsLoading(true);
-    await fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        setApprovalNum(data['array-count']);
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error(error);
-        setIsLoading(false);
-      });
-  };
-
-  const getReqNum = async (protocol, host, port, userId) => {
-    if (!token) {
-      console.error('Missing token for request API');
-      return;
-    }
-
-    fetch(
-      `${protocol}://${host}:${port}/api/v1/models/R_Request?$filter=CreatedBy eq ${userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => response.json())
-      .then(data => {
-        let record = data.records;
-        const filteredData = record.filter(
-          record => record.R_Status_ID.id !== 1000003,
-        );
-      })
-      .catch(error => console.error(error));
-  };
-
-  const getAtsNum = async (protocol, host, port, userId) => {
-    if (!token) {
-      console.error('Missing token for ATS API');
-      return;
-    }
-
-    fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    )
-      .then(response => {
-        return response.json();
-      })
-      .then(data => {
-        let record = data.records;
-        setReqNum(record?.length);
-      })
-      .catch(error => {
-        console.log(error);
-        setIsLoading(false);
-      });
-    setIsLoading(false);
-  };
-
-  const Approval = async () => {
-    if (!token || !roleId) {
-      console.error('Missing token or roleId for approval navigation');
-      return;
-    }
-
-    setIsLoading(true);
-    await fetch(
-      `${protocol}://${host}:${port}/api/v1/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`,
-      {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
-      
+
+      const data = await response.json();
+      return data['array-count'] || 0;
+    },
+
+    fetchRequestCount: async userId => {
+      const url = `${baseUrl}/models/mbl_request_view_v?$filter= SalesRep_ID eq ${userId} and R_Status_ID eq 1000001`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.records?.length || 0;
+    },
+
+    fetchApprovalData: async roleId => {
+      const url = `${baseUrl}/models/mbl_workflow_v?$filter= AD_Role_ID eq ${roleId}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
       const data = await response.json();
       const dataArray = data.records || [];
-      
+
       const tableIdsToSupplyChain = [702, 259, 319];
       const filteredArraySupply = dataArray.filter(obj =>
         tableIdsToSupplyChain.includes(obj.AD_Table_ID?.id),
       );
 
-        const tableIdsAccount = [335, 318, 224];
-        const filteredArrayAccount = dataArray.filter(obj =>
-          tableIdsAccount.includes(obj.AD_Table_ID.id),
-        );
-        navigation.navigate('AllApprovalList');
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error(error);
-        // navigation.navigate('ApprovalScreens');
-        navigation.navigate('Approval', {
-          screen: 'ApprovalScreens',
-          params: {
-            filteredArraySupply: [],
-            filteredArrayAccount: [],
-            token,
-            tokenOk,
-            roleId,
-          },
-        });
-
-        setIsLoading(false);
-      });
-  };
-
-  const FindBusinessPrtId = async () => {
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-
-    try {
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/AD_User?$filter=AD_User_ID eq ${storedUserId}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
-        },
+      const tableIdsAccount = [335, 318, 224];
+      const filteredArrayAccount = dataArray.filter(obj =>
+        tableIdsAccount.includes(obj.AD_Table_ID?.id),
       );
-      setPartnerId(response?.data?.records[0]?.C_BPartner_ID?.id);
-    } catch (error) {
-      console.error('Error fetching business partner ID:', error);
+
+      return {
+        filteredArraySupply,
+        filteredArrayAccount,
+        count: data['array-count'] || 0,
+      };
+    },
+  };
+};
+
+const HomeScreen = ({route}) => {
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+
+  // Get auth data from Zustand store
+  const {
+    token,
+    userId,
+    roleId,
+    userName,
+    serverConfig,
+    isCompleteAuthenticated,
+  } = useAuthStore(state => ({
+    token: state.token,
+    userId: state.userId,
+    roleId: state.roleId,
+    userName: state.userName,
+    serverConfig: state.serverConfig,
+    isCompleteAuthenticated: state.isCompleteAuthenticated,
+  }));
+
+  // Check if we have all required authentication
+  const isAuthenticated =
+    isCompleteAuthenticated &&
+    !!token &&
+    !!userId &&
+    !!roleId &&
+    !!serverConfig?.protocol;
+
+  // Create API functions only when authenticated
+  const apiFunctions = React.useMemo(() => {
+    if (isAuthenticated) {
+      return createApiFunctions(token, serverConfig);
+    }
+    return null;
+  }, [isAuthenticated, token, serverConfig]);
+
+  // React Query hooks for data fetching
+  const {
+    data: notificationCount = 0,
+    isLoading: isNotificationsLoading,
+    isError: isNotificationsError,
+    refetch: refetchNotifications,
+  } = useQuery({
+    queryKey: ['notifications', userId],
+    queryFn: () => apiFunctions?.fetchNotificationCount(userId),
+    enabled: !!apiFunctions && !!userId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  const {
+    data: approvalCount = 0,
+    isLoading: isApprovalsLoading,
+    isError: isApprovalsError,
+    refetch: refetchApprovals,
+  } = useQuery({
+    queryKey: ['approvals', roleId],
+    queryFn: () => apiFunctions?.fetchApprovalCount(roleId),
+    enabled: !!apiFunctions && !!roleId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  const {
+    data: requestCount = 0,
+    isLoading: isRequestsLoading,
+    isError: isRequestsError,
+    refetch: refetchRequests,
+  } = useQuery({
+    queryKey: ['requests', userId],
+    queryFn: () => apiFunctions?.fetchRequestCount(userId),
+    enabled: !!apiFunctions && !!userId,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
+    cacheTime: 60000,
+  });
+
+  // Combined loading state
+  const isLoading =
+    isNotificationsLoading || isApprovalsLoading || isRequestsLoading;
+
+  // Refresh all data
+  const handleRefresh = () => {
+    if (queryClient) {
+      refetchNotifications();
+      refetchApprovals();
+      refetchRequests();
     }
   };
 
-  const handleGetAttendance = async () => {
-    const date = new Date();
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const storedUserId = userId;
-    const clientid = await AsyncStorage.getItem('clientId');
-    const org_id = await AsyncStorage.getItem('organizationId');
+  // Grid modules data - 2 per row
+  const gridModules = React.useMemo(
+    () => [
+      {
+        id: 1,
+        title: 'CRM',
+        icon: 'all-inclusive',
+        color: 'rgba(43, 135, 234, 1)',
+        onPress: () => navigation.navigate('CrmScreen'),
+      },
+      {
+        id: 2,
+        title: 'Approval',
+        icon: 'task-alt',
+        color: 'rgba(43, 135, 234, 1)',
+        count: approvalCount,
+        onPress: () => navigation.navigate('approvals'),
+      },
 
-    try {
-      const filterQuery = `$filter=AD_Client_ID eq ${clientid} and AD_Org_ID eq ${org_id} and C_BPartner_ID eq ${partnerId}`;
-      setIsLoading(true);
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/HR_Daily_Attend?$orderby=Created desc&$top=1&${filterQuery}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
-        },
-      );
-      const attendanceRecord = response?.data?.records[0];
+      {
+        id: 3,
+        title: 'Requests',
+        icon: 'git-pull-request-outline',
+        color: 'rgba(43, 135, 234, 1)',
+        count: requestCount,
+        onPress: () => navigation.navigate('Requests'),
+      },
+      {
+        id: 4,
+        title: 'Employee Portal',
+        icon: 'polyline',
+        color: 'rgba(43, 135, 234, 1)',
+        onPress: () => navigation.navigate('EmployeePortal'),
+      },
+    ],
+    [approvalCount, requestCount, navigation],
+  );
 
-      const [year, month, day] =
-        attendanceRecord?.AttDate.split('-').map(Number);
+  
 
-      const [hour, minute, second] =
-        attendanceRecord?.AttTime.split(':').map(Number);
-
-      const lastAttDate = new Date(
-        Date.UTC(year, month - 1, day, hour, minute),
-      );
-
-      const currentTime = new Date();
-      const hoursPassed = (currentTime - lastAttDate) / 1000 / 60 / 60;
-
-      if (response?.data?.records[0]?.AttStatus?.identifier === 'IN') {
-        if (hoursPassed >= 23) {
-          await requestLocationPermission('OUT');
-          return;
-        }
-        setCheckinout(false);
-      } else {
-        setCheckinout(true);
-      }
-    } catch (error) {
-      console.log('Error in get', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const extractCurrentYearData = (data, currentYear) => {
-    const currentYearLabel = `${currentYear - 1}/${currentYear
-      .toString()
-      .slice(-2)}`;
-    return data.find(item => item.label === currentYearLabel);
-  };
-
-  const getYearId = async () => {
-    setIsLoading(true);
-    const storedToken = token;
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    try {
-      const response = await axios.get(
-        `${protocol}://${host}:${port}/api/v1/models/C_Year`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${storedToken}`,
-          },
-        },
-      );
-      const extractedData = response?.data?.records.map(item => ({
-        label: item?.FiscalYear,
-        value: item?.id,
-      }));
-      const reversedData = extractedData.reverse();
-      const current_year = new Date().getFullYear();
-      const currentYearData = extractCurrentYearData(
-        reversedData,
-        current_year,
-      );
-      setYears(currentYearData);
-    } catch (error) {
-      console.error('Approval navigation error:', error.message);
-      
-      navigation.navigate('AllApprovalList', {
-        filteredArraySupply: [],
-        filteredArrayAccount: [],
-        token,
-        roleId,
-      });
-    }
-  }, [apiFunctions, roleId, token, navigation, queryClient]);
-
-  const navigateBack = () => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      getName();
-    });
-
-    return unsubscribe;
-  };
-
+  // Back handler
   useEffect(() => {
-    if (token && userId) {
-      getName();
-      FindBusinessPrtId();
-      getYearId();
-    }
+    const handleBackButton = () => {
+      BackHandler.exitApp();
+      return true;
+    };
 
     BackHandler.addEventListener('hardwareBackPress', handleBackButton);
-    
+
     return () => {
       BackHandler.removeEventListener('hardwareBackPress', handleBackButton);
     };
@@ -489,83 +294,112 @@ const HomeScreen = ({route}) => {
 
   // Refresh data when screen is focused
   const isFocused = useIsFocused();
-  
+
   useEffect(() => {
-    if (isFocused && token && userId) {
-      console.log('pressedMe');
-      notificationAllDataGet();
+    if (isFocused && isAuthenticated && queryClient) {
+      // Invalidate and refetch all queries
+      queryClient.invalidateQueries(['notifications', userId]);
+      queryClient.invalidateQueries(['approvals', roleId]);
+      queryClient.invalidateQueries(['requests', userId]);
     }
-  }, [isFocused, token, userId]);
-
-  // Header Current Date
-  const currentDate = new Date();
-  const day = currentDate.getDate();
-  const weekday = new Intl.DateTimeFormat('en-US', {weekday: 'long'}).format(
-    currentDate,
-  );
-
-  const monthDayYear = currentDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  }, [isFocused, isAuthenticated, queryClient, userId, roleId]);
 
   // If QueryClient is not available, show a loading state
   if (!queryClient) {
     return (
       <View style={styles.container}>
-        <StatusBar 
+        <StatusBar
           barStyle="dark-content"
           backgroundColor="#ffffff"
           translucent={false}
         />
-        <ActivityIndicator size="large" color="#2B87EA" style={styles.loadingContainer} />
+        <ActivityIndicator
+          size="large"
+          color="#2B87EA"
+          style={styles.loadingContainer}
+        />
         <Text style={styles.loadingText}>Initializing...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar
-        translucent={true}
-        backgroundColor="transparent"
-        barStyle={'dark-content'}
+        barStyle="dark-content" // Light icons (dark-content for light background)
+        backgroundColor="#ffffff" // White background
+        translucent={false} // Not translucent
       />
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={handleRefresh}
+            colors={['#2B87EA']}
+            tintColor="#2B87EA"
+            enabled={isAuthenticated}
+          />
+        }>
+        {/* Loading Overlay - only show if manually refreshing */}
+        {isLoading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#2B87EA" />
+          </View>
+        )}
 
-      {/* COMPACT HEADER - Username and Notification in same row */}
-      <View style={styles.header}>
-        {/* Single Row with Username and Notification */}
-        <View style={styles.headerRow}>
-          {/* Username with Profile Navigation */}
-          <TouchableOpacity
-            style={styles.usernameContainer}
-            onPress={() => navigation.navigate('ProfileScreen')}
-            activeOpacity={0.7}>
-            <Text style={styles.username}>
-              {storeUserName || name || 'User'}
-            </Text>
-            <Icon
-              name="chevron-forward-outline"
-              size={16}
-              color="#666"
-              style={styles.chevronIcon}
-            />
-          </TouchableOpacity>
-
-          {/* Notification Bell */}
-          <View style={styles.notificationContainer}>
+        {/* Header Section */}
+        <View style={[styles.header, {paddingTop: getResponsiveHeight(20)}]}>
+          <View style={styles.headerRow}>
+            {/* Username */}
             <TouchableOpacity
-              style={styles.notificationBell}
+              style={styles.usernameContainer}
+              onPress={() => navigation.navigate('ProfileScreen')}
+              activeOpacity={0.7}>
+              <Text
+                style={[styles.username, {fontSize: getResponsiveSize(26)}]}>
+                {userName || 'User'}
+              </Text>
+              <Icon
+                name="chevron-forward-outline"
+                size={getResponsiveSize(16)}
+                color="#666"
+                style={styles.chevronIcon}
+              />
+            </TouchableOpacity>
+
+            {/* Notification Bell */}
+            <TouchableOpacity
+              style={[
+                styles.notificationBell,
+                {
+                  width: getResponsiveSize(45),
+                  height: getResponsiveSize(45),
+                  borderRadius: getResponsiveSize(22.5),
+                },
+              ]}
               onPress={() => navigation.navigate('NotificationSrn')}>
-              <Icon name="notifications-outline" size={24} color="#000" />
+              <Icon
+                name="notifications-outline"
+                size={getResponsiveSize(24)}
+                color="#000"
+              />
               {notificationCount > 0 && (
-                <View style={[styles.notificationBadge, {
-                  minWidth: getResponsiveSize(20),
-                  height: getResponsiveSize(20),
-                  borderRadius: getResponsiveSize(10)
-                }]}>
-                  <Text style={[styles.badgeText, {fontSize: getResponsiveSize(11)}]}>
+                <View
+                  style={[
+                    styles.notificationBadge,
+                    {
+                      minWidth: getResponsiveSize(20),
+                      height: getResponsiveSize(20),
+                      borderRadius: getResponsiveSize(10),
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      styles.badgeText,
+                      {fontSize: getResponsiveSize(11)},
+                    ]}>
                     {notificationCount > 9 ? '9+' : notificationCount}
                   </Text>
                 </View>
@@ -575,190 +409,379 @@ const HomeScreen = ({route}) => {
         </View>
 
         {/* Blue Card */}
-        <View style={[styles.blueCard, {
-          borderRadius: getResponsiveSize(15),
-          marginTop: getResponsiveHeight(15),
-          padding: getResponsiveSize(20),
-          height: getResponsiveHeight(145),
-          width: SCREEN_WIDTH * 0.9,
-          alignSelf: 'center',
-        }]}>
+        <View
+          style={[
+            styles.blueCard,
+            {
+              borderRadius: getResponsiveSize(15),
+              marginTop: getResponsiveHeight(15),
+              padding: getResponsiveSize(20),
+              height: getResponsiveHeight(145),
+              width: SCREEN_WIDTH * 0.9,
+              alignSelf: 'center',
+            },
+          ]}>
           <Image
             source={require('../../asserts/HomeScreenAssets/CardAssets/card.png')}
             style={styles.cardBackground}
           />
-          <Text style={[styles.cardTitle, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(30)}]}>
+          <Text
+            style={[
+              styles.cardTitle,
+              {
+                fontSize: getResponsiveSize(17),
+                lineHeight: getResponsiveHeight(30),
+              },
+            ]}>
             <Text style={styles.cardTitleMain}>Sales </Text>
             <Text style={styles.cardTitleSub}>Performance</Text>
           </Text>
-          <Text style={[styles.cardTitle2, {fontSize: getResponsiveSize(17), lineHeight: getResponsiveHeight(20)}]}>
+          <Text
+            style={[
+              styles.cardTitle2,
+              {
+                fontSize: getResponsiveSize(17),
+                lineHeight: getResponsiveHeight(20),
+              },
+            ]}>
             <Text style={styles.cardTitleMain}>Command </Text>
             <Text style={styles.cardTitleSub}>Center</Text>
           </Text>
           <View style={styles.cardBottomRow}>
-            <Text style={[styles.cardSubtitle, {fontSize: getResponsiveSize(13), marginTop: getResponsiveHeight(10)}]}>
+            <Text
+              style={[
+                styles.cardSubtitle,
+                {
+                  fontSize: getResponsiveSize(13),
+                  marginTop: getResponsiveHeight(10),
+                },
+              ]}>
               Track Operations in Real-Time
             </Text>
-            <TouchableOpacity style={[styles.analyticsBtn, {
-              borderRadius: getResponsiveSize(20),
-              marginTop: getResponsiveHeight(12),
-              paddingHorizontal: getResponsiveSize(15),
-              paddingVertical: getResponsiveHeight(8)
-            }]}>
-              <Text style={[styles.analyticsBtnTxt, {fontSize: getResponsiveSize(13)}]}>
+            <TouchableOpacity
+              style={[
+                styles.analyticsBtn,
+                {
+                  borderRadius: getResponsiveSize(20),
+                  marginTop: getResponsiveHeight(12),
+                  paddingHorizontal: getResponsiveSize(15),
+                  paddingVertical: getResponsiveHeight(8),
+                },
+              ]}>
+              <Text
+                style={[
+                  styles.analyticsBtnTxt,
+                  {fontSize: getResponsiveSize(13)},
+                ]}>
                 View Analytics
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-      {/* Quick Stats Row */}
-      <View style={styles.topRow}>
-        <View style={styles.iconBox}>
-          <View style={styles.iconWrapper}>
-            <MaterialIcons name="sync" size={18} color="rgba(59, 99, 125, 1)" />
-          </View>
-          <Text style={styles.iconLabel}>Analytics</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(248, 233, 229, 1)'},
-            ]}>
-            <MaterialIcons
-              name="assignment"
-              size={18}
-              color="rgba(183, 113, 85, 1)"
-            />
-          </View>
-          <Text style={styles.iconLabel}>Sales</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(252, 238, 255, 1)'},
-            ]}>
-            <MaterialIcons
-              name="gpp-maybe"
-              size={22}
-              color="rgba(185, 139, 184, 1)"
-            />
-          </View>
-          <Text style={styles.iconLabel}>Reports</Text>
-        </View>
-        <View style={styles.iconBox}>
-          <View
-            style={[
-              styles.iconWrapper,
-              {backgroundColor: 'rgba(239, 254, 233, 1)'},
-            ]}>
+        {/* Quick Stats Row */}
+        <View
+          style={[
+            styles.topRow,
+            {
+              borderRadius: getResponsiveSize(12),
+              marginTop: getResponsiveHeight(20),
+              paddingVertical: getResponsiveHeight(18),
+              width: SCREEN_WIDTH * 0.9,
+              alignSelf: 'center',
+            },
+          ]}>
+          <View style={styles.iconBox}>
             <View
               style={[
-                styles.circle,
+                styles.iconWrapper,
                 {
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  borderColor: 'rgba(91, 159, 70, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24),
                 },
               ]}>
-              <Icon name="pencil" size={12} color="rgba(91, 159, 70, 1)" />
+              <MaterialIcons
+                name="sync"
+                size={getResponsiveSize(18)}
+                color="rgba(59, 99, 125, 1)"
+              />
             </View>
+            <Text
+              style={[
+                styles.iconLabel,
+                {
+                  fontSize: getResponsiveSize(13),
+                  marginTop: getResponsiveHeight(10),
+                },
+              ]}>
+              Analytics
+            </Text>
           </View>
-          <Text style={styles.iconLabel}>Accounts</Text>
-        </View>
-      </View>
-
-      {/* Categories Section */}
-      <View>
-        <Text style={styles.sectionTitle}>Categories</Text>
-      </View>
-
-      {/* Grid Layout for Categories */}
-      <View style={styles.bottomGrid}>
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('CrmScreen')}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="all-inclusive"
-              size={33}
-              color="rgba(43, 135, 234, 1)"
-            />
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: 'rgba(248, 233, 229, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24),
+                },
+              ]}>
+              <MaterialIcons
+                name="assignment"
+                size={getResponsiveSize(18)}
+                color="rgba(183, 113, 85, 1)"
+              />
+            </View>
+            <Text
+              style={[
+                styles.iconLabel,
+                {
+                  fontSize: getResponsiveSize(13),
+                  marginTop: getResponsiveHeight(10),
+                },
+              ]}>
+              Sales
+            </Text>
           </View>
-          <Text style={styles.gridLabel}>CRM</Text>
-        </TouchableOpacity>
-
-        {/* <TouchableOpacity
-          style={styles.gridBox}
-          // onPress={async () => {
-          //   const approvalData = await getApprovalNum();
-          //   navigation.navigate('AllApprovalList', {data: approvalData});
-          
-          // }}
-          onPress={() => navigation.navigate('WFStatusList', {title:'Suspended})}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="task-alt"
-              size={33}
-              color="rgba(43, 135, 234, 1)"
-            />
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: 'rgba(252, 238, 255, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24),
+                },
+              ]}>
+              <MaterialIcons
+                name="gpp-maybe"
+                size={getResponsiveSize(22)}
+                color="rgba(185, 139, 184, 1)"
+              />
+            </View>
+            <Text
+              style={[
+                styles.iconLabel,
+                {
+                  fontSize: getResponsiveSize(13),
+                  marginTop: getResponsiveHeight(10),
+                },
+              ]}>
+              Reports
+            </Text>
           </View>
-          <Text style={styles.gridLabel}>Approval</Text>
-        </TouchableOpacity> */}
-
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() =>
-            navigation.navigate('WFStatusList', {
-              title: 'Suspended',
-              data: suspendedList,
-            })
-          }>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="task-alt"
-              size={33}
-              color="rgba(43, 135, 234, 1)"
-            />
-            {suspendedList.length > 0 && (
-              <View style={styles.badgeHome}>
-                <Text style={styles.badgeTextHome}>{suspendedList.length}</Text>
+          <View style={styles.iconBox}>
+            <View
+              style={[
+                styles.iconWrapper,
+                {
+                  backgroundColor: 'rgba(239, 254, 233, 1)',
+                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(48),
+                  borderRadius: getResponsiveSize(24),
+                },
+              ]}>
+              <View
+                style={[
+                  styles.circle,
+                  {
+                    width: getResponsiveSize(20),
+                    height: getResponsiveSize(20),
+                    borderRadius: getResponsiveSize(10),
+                    borderColor: 'rgba(91, 159, 70, 1)',
+                  },
+                ]}>
+                <Icon
+                  name="pencil"
+                  size={getResponsiveSize(12)}
+                  color="rgba(91, 159, 70, 1)"
+                />
               </View>
-            )}
+            </View>
+            <Text
+              style={[
+                styles.iconLabel,
+                {
+                  fontSize: getResponsiveSize(13),
+                  marginTop: getResponsiveHeight(10),
+                },
+              ]}>
+              Accounts
+            </Text>
           </View>
-          <Text style={styles.gridLabel}>Approval</Text>
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('Requests')}>
-          <View style={styles.gridIconWrapper}>
-            <Icon
-              name="git-pull-request-outline"
-              size={28}
-              color="rgba(43, 135, 234, 1)"
-            />
-          </View>
-          <Text style={styles.gridLabel}>Requests</Text>
-        </TouchableOpacity>
+        {/* Categories Section */}
+        <View style={styles.sectionTitleContainer}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                fontSize: getResponsiveSize(22),
+                marginBottom: getResponsiveHeight(15),
+              },
+            ]}>
+            Categories
+          </Text>
+        </View>
 
-        <TouchableOpacity
-          style={styles.gridBox}
-          onPress={() => navigation.navigate('EmployeePortal')}>
-          <View style={styles.gridIconWrapper}>
-            <MaterialIcons
-              name="polyline"
-              size={28}
-              color="rgba(43, 135, 234, 1)"
-            />
+        {/* Grid Layout - 2 modules per row */}
+        <View
+          style={[
+            styles.gridContainer,
+            {
+              paddingHorizontal: getResponsiveSize(15),
+              marginBottom: getResponsiveHeight(40),
+            },
+          ]}>
+          {/* First Row */}
+          <View style={styles.gridRow}>
+            {gridModules.slice(0, 2).map(module => (
+              <TouchableOpacity
+                key={module.id}
+                style={[
+                  styles.gridBox,
+                  {
+                    width: (SCREEN_WIDTH - getResponsiveSize(45)) / 2,
+                    height: getResponsiveHeight(150),
+                    borderRadius: getResponsiveSize(12),
+                  },
+                ]}
+                onPress={module.onPress}>
+                <View
+                  style={[
+                    styles.gridIconWrapper,
+                    {
+                      height: getResponsiveSize(70),
+                      width: getResponsiveSize(70),
+                      borderRadius: getResponsiveSize(35),
+                      backgroundColor: 'rgba(90, 141, 238, 0.1)',
+                    },
+                  ]}>
+                  {module.icon.includes('git-pull-request-outline') ? (
+                    <Icon
+                      name={module.icon}
+                      size={getResponsiveSize(28)}
+                      color={module.color}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={module.icon}
+                      size={getResponsiveSize(33)}
+                      color={module.color}
+                    />
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.gridLabel,
+                    {
+                      fontSize: getResponsiveSize(16),
+                      marginTop: getResponsiveHeight(8),
+                    },
+                  ]}>
+                  {module.title}
+                </Text>
+                {module.count > 0 && (
+                  <View
+                    style={[
+                      styles.gridBadge,
+                      {
+                        minWidth: getResponsiveSize(22),
+                        height: getResponsiveSize(22),
+                        borderRadius: getResponsiveSize(11),
+                      },
+                    ]}>
+                    <Text
+                      style={[
+                        styles.gridBadgeText,
+                        {fontSize: getResponsiveSize(12)},
+                      ]}>
+                      {module.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text style={styles.gridLabel}>Employee Portal</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+
+          {/* Second Row */}
+          <View style={[styles.gridRow, {marginTop: getResponsiveHeight(15)}]}>
+            {gridModules.slice(2, 4).map(module => (
+              <TouchableOpacity
+                key={module.id}
+                style={[
+                  styles.gridBox,
+                  {
+                    width: (SCREEN_WIDTH - getResponsiveSize(45)) / 2,
+                    height: getResponsiveHeight(150),
+                    borderRadius: getResponsiveSize(12),
+                  },
+                ]}
+                onPress={module.onPress}>
+                <View
+                  style={[
+                    styles.gridIconWrapper,
+                    {
+                      height: getResponsiveSize(70),
+                      width: getResponsiveSize(70),
+                      borderRadius: getResponsiveSize(35),
+                      backgroundColor: 'rgba(90, 141, 238, 0.1)',
+                    },
+                  ]}>
+                  {module.icon.includes('git-pull-request-outline') ? (
+                    <Icon
+                      name={module.icon}
+                      size={getResponsiveSize(28)}
+                      color={module.color}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={module.icon}
+                      size={getResponsiveSize(33)}
+                      color={module.color}
+                    />
+                  )}
+                </View>
+                <Text
+                  style={[
+                    styles.gridLabel,
+                    {
+                      fontSize: getResponsiveSize(16),
+                      marginTop: getResponsiveHeight(8),
+                    },
+                  ]}>
+                  {module.title}
+                </Text>
+                {module.count > 0 && (
+                  <View
+                    style={[
+                      styles.gridBadge,
+                      {
+                        minWidth: getResponsiveSize(22),
+                        height: getResponsiveSize(22),
+                        borderRadius: getResponsiveSize(11),
+                      },
+                    ]}>
+                    <Text
+                      style={[
+                        styles.gridBadgeText,
+                        {fontSize: getResponsiveSize(12)},
+                      ]}>
+                      {module.count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -767,13 +790,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  
+
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
 
-  // COMPACT HEADER STYLES
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
+  },
+
+  // Loading Overlay
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+
+  // Header Styles
   header: {
     paddingHorizontal: SCREEN_WIDTH * 0.05,
     paddingBottom: SCREEN_HEIGHT * 0.02,
@@ -828,7 +876,7 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
   },
 
-  // BLUE CARD - Positioned closer to header
+  // Blue Card
   blueCard: {
     backgroundColor: 'rgba(43, 135, 234, 1)',
     shadowColor: '#000',
@@ -913,8 +961,11 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
   },
 
-  // Grid Layout
-  bottomGrid: {
+  // Grid Layout - 2 per row
+  gridContainer: {
+    width: '100%',
+  },
+  gridRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
@@ -935,24 +986,22 @@ const styles = StyleSheet.create({
   gridLabel: {
     fontFamily: 'K2D-SemiBold',
     color: '#333',
+    textAlign: 'center',
   },
-  badgeHome: {
+  gridBadge: {
     position: 'absolute',
-    top: -2,
-    right: 5,
-    backgroundColor: 'red',
-    borderRadius: 10,
-    paddingHorizontal: '10%',
-    paddingVertical: '3%',
-    minWidth: 16,
+    top: getResponsiveSize(10),
+    right: getResponsiveSize(10),
+    backgroundColor: '#FF3B30',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  badgeTextHome: {
-    color: 'white',
-    fontSize: 11,
+  gridBadgeText: {
+    color: '#fff',
     fontWeight: 'bold',
-    textAlign: 'center',
+    fontFamily: 'K2D-Bold',
   },
 });
 
