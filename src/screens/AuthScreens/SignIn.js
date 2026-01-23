@@ -176,7 +176,7 @@ const SignIn = ({ navigation }) => {
             // Navigate directly to HomeScreen (main app)
             console.log('🏠 Navigating directly to HomeScreen');
             setLoading(false);
-            navigation.replace('HomeScreen');
+            navigation.goBack();
             
           } catch (error) {
             console.log('❌ Saved role login failed:', error.message);

@@ -413,7 +413,7 @@ const CrmScreen = ({ navigation }) => {
                   disabled={isRefreshing}>
                   <View style={styles.leadContent}>
                     <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="update" size={15} color={isRefreshing ? '#999' : '#000'} />
+                      <MaterialIcons name="update" size={18} color={isRefreshing ? '#999' : '#000'} />
                     </View>
                     <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
                       Working Leads
@@ -436,7 +436,7 @@ const CrmScreen = ({ navigation }) => {
                   disabled={isRefreshing}>
                   <View style={styles.leadContent}>
                     <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="gps-not-fixed" size={15} color={isRefreshing ? '#999' : '#000'} />
+                      <MaterialIcons name="gps-not-fixed" size={18} color={isRefreshing ? '#999' : '#000'} />
                     </View>
                     <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
                       New Leads
@@ -459,7 +459,7 @@ const CrmScreen = ({ navigation }) => {
                   disabled={isRefreshing}>
                   <View style={styles.leadContent}>
                     <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="sync" size={15} color={isRefreshing ? '#999' : '#000'} />
+                      <MaterialIcons name="sync" size={18} color={isRefreshing ? '#999' : '#000'} />
                     </View>
                     <Text style={[styles.leadTitle, { fontSize: 13 }, isRefreshing && styles.disabledText]}>
                       Converted Leads
@@ -696,21 +696,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   leadIconWrapper: {
+    padding: 4,
     backgroundColor: '#fff',
-    height: 25,
-    width: 25,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    elevation: 3,
-    marginRight: 10,
+    borderRadius: 20,
+    elevation: 4,
+    borderColor:'#000',
+    borderWidth:0.5,
   },
   leadTitle: {
     fontSize: 15,
     color: '#000',
     fontFamily: 'K2D-SemiBold',
     flex: 1,
+    marginLeft:5,
   },
   badge: {
     borderRadius: 20,
