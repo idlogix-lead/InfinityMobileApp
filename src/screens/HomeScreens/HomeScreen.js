@@ -149,6 +149,8 @@ const HomeScreen = ({route}) => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
+  const {data: wfActivity = []} = useWFAct();
+
   // Get auth data from Zustand store
   const {
     token,
@@ -165,6 +167,13 @@ const HomeScreen = ({route}) => {
     serverConfig: state.serverConfig,
     isCompleteAuthenticated: state.isCompleteAuthenticated,
   }));
+
+  // APPROVAL FROM WFAct
+  const myApprovals = wfActivity.filter(
+    r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),
+  );
+  const suspendedList = myApprovals.filter(item => item.WFState?.id === 'OS');
+  const OSCount = suspendedList.length;
 
   // Check if we have all required authentication
   const isAuthenticated =
@@ -253,8 +262,12 @@ const HomeScreen = ({route}) => {
         title: 'Approval',
         icon: 'task-alt',
         color: 'rgba(43, 135, 234, 1)',
-        count: approvalCount,
-        onPress: () => navigation.navigate('approvals'),
+        count: OSCount,
+        onPress: () =>
+          navigation.navigate('WFStatusList', {
+            title: 'Suspended',
+            data: suspendedList,
+          }),
       },
 
       {
@@ -275,8 +288,6 @@ const HomeScreen = ({route}) => {
     ],
     [approvalCount, requestCount, navigation],
   );
-
-  
 
   // Back handler
   useEffect(() => {
@@ -991,7 +1002,7 @@ const styles = StyleSheet.create({
   gridBadge: {
     position: 'absolute',
     top: getResponsiveSize(10),
-    right: getResponsiveSize(10),
+    right: getResponsiveSize(50),
     backgroundColor: '#FF3B30',
     alignItems: 'center',
     justifyContent: 'center',
