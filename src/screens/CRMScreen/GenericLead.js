@@ -134,7 +134,15 @@ const GenericLead = ({
     
     return (
       <View style={{ marginHorizontal: 10, marginVertical: 5 }}>
+         <TouchableOpacity 
+    style={{ marginHorizontal: 10, marginVertical: 5 }}
+    onPress={() => {
+      navigation.navigate('LeadsDetail', { data: item });
+    }}
+    activeOpacity={0.7}
+  >
         <CRMCard
+         leadId={item.id}
           header={item.AD_Org_ID?.identifier || item.AD_Client_ID?.identifier}
           name={item?.Name}
           email={item?.EMail}
@@ -154,9 +162,10 @@ const GenericLead = ({
             });
           }}
           onPress={() => {
-            navigation.navigate('LeadsDetails', { data: item });
+            navigation.navigate('LeadEdit', { data: item });
           }}
         />
+        </TouchableOpacity>
       </View>
     );
   };

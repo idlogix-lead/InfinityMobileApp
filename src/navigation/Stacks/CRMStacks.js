@@ -11,7 +11,7 @@ import CrmConverted from '../../screens/CRMScreen/CrmConverted';
 import CrmExpire from '../../screens/CRMScreen/CrmExpire';
 import ActivityList from '../../screens/CRMActivity/ActivityList';
 import AddActivity from '../../screens/CRMActivity/AddActivity';
-import LeadsDetails from '../../screens/CRMLeadDetail/LeadsDetails';
+import LeadsDetails from '../../screens/CRMLeadDetail/Leadedit';
 import AddLeads from '../../screens/CRMAddLeads/AddLeads';
 import CRMGraph from '../../screens/CRMGraphScreen/CRMGraph';
 import TodayFollowUp from '../../screens/CRMFollowupsScreen/TodayFollowup';

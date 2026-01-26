@@ -246,42 +246,7 @@ const CrmScreen = ({ navigation }) => {
     Linking.openURL(`tel:${phone}`);
   };
 
-  // Render lead card for main screen
-  const renderLeadCard = (item) => {
-    const userActivity = followups.filter(act => act?.AD_User_ID?.id === item?.id);
-    const lastActivity = [...userActivity].sort(
-      (a, b) => new Date(b.Created) - new Date(a.Created)
-    )[0];
-    const lastActivityType = lastActivity?.ContactActivityType?.identifier || 'N/A';
-    const activityCount = userActivity.length;
 
-    return (
-      <View style={{ marginHorizontal: 10, marginVertical: 5 }}>
-        <CRMCard
-          name={item.Name}
-          header={item.AD_Client_ID?.identifier}
-          status={item?.LeadStatus?.identifier}
-          email={item?.EMail}
-          count={activityCount}
-          cellNo={item?.Phone}
-          Description={item?.Description}
-          interactionType={lastActivityType}
-          mail={() => handleMail(item?.EMail)}
-          phone={() => handlePhone(item?.Phone)}
-          dateText={item?.Updated}
-          actOnPress={() => {
-            navigation.navigate('ActivityList', {
-              data: item,
-              mode: 'create',
-            });
-          }}
-          onPress={() => {
-            navigation.navigate('LeadsDetails', { data: item });
-          }}
-        />
-      </View>
-    );
-  };
 
   // Loading state
   const isLoading = leadsLoading || followupsLoading || salesLoading;

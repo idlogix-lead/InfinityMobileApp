@@ -25,7 +25,7 @@ const CRMCard = ({
   dateText,
   actOnPress,
   Description,
-  id,
+  leadId,
   status,
   count,
   interactionType,
@@ -47,7 +47,7 @@ const CRMCard = ({
     
     // Update lead status via API
     updateLeadStatusMutation.mutate({
-      id,
+      leadId,
       status: newStatus,
     });
   };
@@ -206,7 +206,7 @@ const CRMCard = ({
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onPress} style={styles.button}>
-          <Text style={styles.buttonText}>Details</Text>
+          <Text style={styles.buttonText}>Edit Lead</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -20,7 +20,7 @@ import crmApiService from '../../services/CRMAPI/crmApiService';
 
 const {width} = Dimensions.get('window');
 
-const LeadsDetails = ({route, navigation}) => {
+const LeadEdit = ({route, navigation}) => {
   const {data: leadData} = route.params;
   const queryClient = useQueryClient();
 
@@ -251,7 +251,7 @@ const LeadsDetails = ({route, navigation}) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView style={styles.container}>
         <CustomHeader 
-          title={'Leads Details'}
+          title={'Lead Editor'}
           onBack={() => navigation.goBack()}
         />
         
@@ -746,7 +746,7 @@ const LeadsDetails = ({route, navigation}) => {
   );
 };
 
-export default LeadsDetails;
+export default LeadEdit;
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f4f2f8'},

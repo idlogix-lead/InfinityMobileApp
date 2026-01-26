@@ -1,3 +1,5 @@
+// screens/CRM/AddActivity.js
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,318 +13,417 @@ import {
   Keyboard,
   Alert,
 } from 'react-native';
-import React, {useEffect, useRef, useState} from 'react';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMutation, useQueryClient } from 'react-query';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import {TextInput} from 'react-native-paper';
-import {useFocusEffect} from '@react-navigation/native';
+import { TextInput } from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
+import { 
+  useCreateFollowup, 
+  useUpdateFollowup,
+  useDeleteFollowup 
+} from '../../hooks/CRMhooks/useCRM';
+import { useCRMStore } from '../../store/crmStore';
 
-const CrmActivitySrn = ({route, navigation}) => {
-  const {data, mode} = route.params;
-  console.log(data, mode, 'data and mode in CrmActivitySrn\\\\\\\\,,;....');
-
+const AddActivity = ({ route, navigation }) => {
+  const { data, mode } = route.params;
+  const queryClient = useQueryClient();
+  
+  // State
   const [fromDate, setFromDate] = useState(new Date());
   const [toDate, setToDate] = useState(new Date());
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [activityCollapsed, setActivityCollapsed] = useState(true);
-  const [selectedActivity, setSelectedActivity] = useState('Selected Activity');
+  const [selectedActivity, setSelectedActivity] = useState('Select Activity Type');
   const [description, setDescription] = useState('');
 
-  const activityAnim = useRef(new Animated.Value(0)).current;
+  // Animations
+  const activityAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Mapping of activity labels to backend IDs
+  // Mutations
+  const createFollowupMutation = useCreateFollowup();
+  const updateFollowupMutation = useUpdateFollowup();
+  const deleteFollowupMutation = useDeleteFollowup();
+
+  // Activity type mapping
   const activityTypeMap = {
-    Email: 'EM',
-    Phone: 'PC',
-    Meeting: 'ME',
-    Task: 'TA',
+    'Email': 'EM',
+    'Phone': 'PC', 
+    'Meeting': 'ME',
+    'Task': 'TA',
   };
 
-  const formatDate = date => {
-    return date.toISOString().split('.')[0] + 'Z'; // remove milliseconds
+  // Reverse mapping for display
+  const activityLabelMap = {
+    'EM': 'Email',
+    'PC': 'Phone',
+    'ME': 'Meeting',
+    'TA': 'Task',
   };
 
-  const handleSave = async () => {
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const token = await AsyncStorage.getItem('token');
-
-    const selectedActivityId = activityTypeMap[selectedActivity];
-
-    const basePayload = {
-      StartDate: formatDate(fromDate),
-      EndDate: formatDate(toDate),
-      Description: description.trim() || 'No description provided',
-      IsComplete: isComplete,
-    };
-
-    // Only include ContactActivityType when creating (not editing)
-    const payload =
-      mode === 'edit'
-        ? basePayload
-        : {
-            ...basePayload,
-            ContactActivityType: {id: selectedActivityId},
-            AD_User_ID: data,
-          };
-    // console.log(AD_User_ID, 'AD_User_ID data check ;/////');
-
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    };
-
-    try {
-      if (mode === 'edit') {
-        const URL = `${protocol}://${host}:${port}/api/v1/models/C_ContactActivity/${data.id}`;
-        await axios.put(URL, payload, {headers});
-        Alert.alert(
-          'Updated',
-          'Activity updated successfully',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ],
-          {cancelable: false},
-        );
-      } else {
-        const URL = `${protocol}://${host}:${port}/api/v1/models/C_ContactActivity`;
-        await axios.post(URL, payload, {headers});
-        Alert.alert(
-          'Saved',
-          'Activity saved successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ],
-          {cancelable: false},
-        );
-        console.log(payload, 'payload in CrmActivitySrn////////////');
-      }
-
-      // Reset form after save
-      setFromDate(new Date());
-      setToDate(new Date());
-      setShowFromDatePicker(false);
-      setShowToDatePicker(false);
-      setIsComplete(false);
-      setActivityCollapsed(true);
-      setSelectedActivity('Selected Activity');
-      setDescription('');
-    } catch (error) {
-      console.log('Save error:', error.response?.data || error.message);
-      Alert.alert('Error', 'Something went wrong while saving.');
-    }
-  };
-
-  useFocusEffect(
-    React.useCallback(() => {
-      // useEffect(() => {
-      if (mode === 'edit' && data) {
-        console.log('useEffect called with:', mode, data);
-        setSelectedActivity(getActivityLabel(data.ContactActivityType?.id));
-        setFromDate(new Date(data.StartDate));
-        setToDate(new Date(data.EndDate));
-        setDescription(data.Description);
-        setIsComplete(data.IsComplete);
-      }
-    }, [mode, data]),
-  );
-
+  // Initialize form for edit mode
   useEffect(() => {
     if (mode === 'edit' && data) {
-      const start = new Date(data.StartDate);
-      const end = new Date(data.EndDate);
-      console.log('Setting from edit data:', start, end);
-      setFromDate(start);
-      setToDate(end);
+      console.log('Initializing edit mode with data:', data);
+      
+      // Set activity type
+      const activityId = data?.ContactActivityType?.id;
+      setSelectedActivity(activityLabelMap[activityId] || 'Select Activity Type');
+      
+      // Set dates
+      if (data.StartDate) {
+        setFromDate(new Date(data.StartDate));
+      }
+      if (data.EndDate) {
+        setToDate(new Date(data.EndDate));
+      }
+      
+      // Set other fields
+      setDescription(data.Description || '');
+      setIsComplete(data.IsComplete || false);
+    } else if (mode === 'create' && data?.id) {
+      console.log('Initializing create mode for lead:', data.id);
+      // Reset form for create mode
+      setSelectedActivity('Select Activity Type');
+      setFromDate(new Date());
+      setToDate(new Date());
+      setDescription('');
+      setIsComplete(false);
     }
   }, [mode, data]);
 
-  const getActivityLabel = id => {
-    const entry = Object.entries(activityTypeMap).find(
-      ([, value]) => value === id,
-    );
-    return entry?.[0] || 'Selected Activity';
+  // Format date for API
+  const formatDate = (date) => {
+    return date.toISOString().split('.')[0] + 'Z';
   };
 
-  const toggleSection = (collapsed, setCollapsed, anim) => {
-    setCollapsed(!collapsed);
-    Animated.timing(anim, {
-      toValue: collapsed ? 1 : 0,
+  // Handle save
+  const handleSave = async () => {
+    // Validation
+    if (selectedActivity === 'Select Activity Type' && mode === 'create') {
+      Alert.alert('Validation Error', 'Please select an activity type.');
+      return;
+    }
+
+    if (!description.trim()) {
+      Alert.alert('Validation Error', 'Please enter a description.');
+      return;
+    }
+
+    const activityId = activityTypeMap[selectedActivity];
+
+    // Prepare payload
+    const payload = {
+      StartDate: formatDate(fromDate),
+      EndDate: formatDate(toDate),
+      Description: description.trim(),
+      IsComplete: isComplete,
+    };
+
+    // For create mode, add activity type and lead ID
+    if (mode === 'create') {
+      payload.ContactActivityType = { id: activityId };
+      payload.AD_User_ID = data; // This should be the lead object or just ID
+    }
+
+    console.log('Saving activity with payload:', payload);
+
+    try {
+      if (mode === 'edit') {
+        // Update existing activity
+        await updateFollowupMutation.mutateAsync({
+          id: data.id,
+          updates: payload,
+        });
+        
+        Alert.alert(
+          'Success',
+          'Activity updated successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      } else {
+        // Create new activity
+        await createFollowupMutation.mutateAsync(payload);
+        
+        Alert.alert(
+          'Success',
+          'Activity created successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      Alert.alert(
+        'Error',
+        `Failed to save activity: ${error.message || 'Unknown error'}`
+      );
+    }
+  };
+
+  // Handle delete
+  const handleDelete = () => {
+    if (mode !== 'edit' || !data?.id) return;
+
+    Alert.alert(
+      'Delete Activity',
+      'Are you sure you want to delete this activity?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteFollowupMutation.mutateAsync(data.id);
+              Alert.alert(
+                'Success',
+                'Activity deleted successfully!',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+              );
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete activity.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Animation helpers
+  const toggleActivitySection = () => {
+    setActivityCollapsed(!activityCollapsed);
+    Animated.timing(activityAnim, {
+      toValue: activityCollapsed ? 1 : 0,
       duration: 300,
       useNativeDriver: true,
     }).start();
   };
 
-  const getRotation = anim =>
+  const getRotation = (anim) =>
     anim.interpolate({
       inputRange: [0, 1],
       outputRange: ['0deg', '180deg'],
     });
+
+  // Date handlers
+  const handleFromDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowFromDatePicker(false);
+    }
+
+    if (selectedDate) {
+      setFromDate(selectedDate);
+    }
+  };
 
   const handleToDateChange = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowToDatePicker(false);
     }
 
-    if (event?.type === 'set' || selectedDate) {
-      const currentDate = selectedDate || toDate;
-      setToDate(currentDate);
+    if (selectedDate) {
+      setToDate(selectedDate);
     }
   };
 
-  const handleFromDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
-      setShowFromDatePicker(false);
-    }
-
-    if (event?.type === 'set' || selectedDate) {
-      const currentDate = selectedDate || fromDate;
-      setFromDate(currentDate);
-    }
-  };
-
-  const selectActivity = type => {
+  const selectActivity = (type) => {
     setSelectedActivity(type);
     setActivityCollapsed(true);
   };
-  console.log('Selected Activity:', selectedActivity);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{flex: 1}}
-      keyboardVerticalOffset={80}>
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={80}
+    >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
-          contentContainerStyle={{flexGrow: 1, paddingBottom: 20}}
-          keyboardShouldPersistTaps="handled">
-          <View style={{flex: 1}}>
-            <CustomHeader title={'Activity'} />
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ flex: 1 }}>
+            <CustomHeader 
+              title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
+              onBackPress={() => navigation.goBack()}
+            />
 
-            {/* Activity */}
-            <View style={styles.activityWrapper}>
-              <View style={styles.activity}>
-                <Text style={{fontFamily:'K2D-SemiBold',color:'#000'}}>
-                  Activity Type
-                </Text>
-              </View>
+            {/* Form Container */}
+            <View style={styles.formContainer}>
+              {/* Activity Type (only for create mode) */}
+              {mode === 'create' && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Activity Type *</Text>
+                  </View>
 
-              <TouchableOpacity
-                onPress={() =>
-                  toggleSection(
-                    activityCollapsed,
-                    setActivityCollapsed,
-                    activityAnim,
-                  )
-                }
-                style={styles.dateInput}>
-                <Text style={{color: 'gray',fontFamily:'K2D-Regular'}}>
-                  {selectedActivity === 'Selected Activity'
-                    ? 'Selected Activity'
-                    : selectedActivity}
-                </Text>
-                <Animated.View
-                  style={{transform: [{rotate: getRotation(activityAnim)}]}}>
-                  <AntDesign name="down" size={15} color={'#000'} />
-                </Animated.View>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={toggleActivitySection}
+                    style={styles.dropdown}
+                  >
+                    <Text style={[
+                      styles.dropdownText,
+                      selectedActivity === 'Select Activity Type' && styles.placeholderText
+                    ]}>
+                      {selectedActivity}
+                    </Text>
+                    <Animated.View
+                      style={{ transform: [{ rotate: getRotation(activityAnim) }] }}
+                    >
+                      <AntDesign name="down" size={16} color={'#2F4FE3'} />
+                    </Animated.View>
+                  </TouchableOpacity>
 
-              {!activityCollapsed && (
-                <View style={styles.activityContainer}>
-                  {Object.keys(activityTypeMap).map(type => (
-                    <TouchableOpacity
-                      key={type}
-                      onPress={() => selectActivity(type)}
-                      style={styles.activityButton}>
-                      <Text style={styles.activityButtonText}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                  {!activityCollapsed && (
+                    <View style={styles.activityOptions}>
+                      {Object.keys(activityTypeMap).map((type) => (
+                        <TouchableOpacity
+                          key={type}
+                          onPress={() => selectActivity(type)}
+                          style={styles.activityOption}
+                        >
+                          <Text style={styles.activityOptionText}>{type}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
 
               {/* Start Date */}
-              <Text style={styles.sectionTitle}>Start Date *</Text>
-              <View style={styles.dateInput}>
-                <Text style={{color: 'black'}}>{fromDate.toDateString()}</Text>
-                <TouchableOpacity onPress={() => setShowFromDatePicker(true)}>
-                  <EvilIcons name="calendar" size={25} color={'#2F4FE3'} />
-                </TouchableOpacity>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Start Date *</Text>
               </View>
+              <TouchableOpacity
+                onPress={() => setShowFromDatePicker(true)}
+                style={styles.dateInput}
+              >
+                <Text style={styles.dateText}>
+                  {fromDate.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </Text>
+                <EvilIcons name="calendar" size={24} color={'#2F4FE3'} />
+              </TouchableOpacity>
               {showFromDatePicker && (
                 <DateTimePicker
-                  key={fromDate.toString()}
-                  value={fromDate || new Date()}
+                  value={fromDate}
                   mode="date"
-                  display="default"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={handleFromDateChange}
+                  maximumDate={toDate}
                 />
               )}
 
               {/* End Date */}
-              <Text style={styles.sectionTitle}>End Date *</Text>
-              <View style={styles.dateInput}>
-                <Text style={{color: 'black'}}>{toDate.toDateString()}</Text>
-                <TouchableOpacity onPress={() => setShowToDatePicker(true)}>
-                  <EvilIcons name="calendar" size={25} color={'#2F4FE3'} />
-                </TouchableOpacity>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>End Date *</Text>
               </View>
+              <TouchableOpacity
+                onPress={() => setShowToDatePicker(true)}
+                style={styles.dateInput}
+              >
+                <Text style={styles.dateText}>
+                  {toDate.toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </Text>
+                <EvilIcons name="calendar" size={24} color={'#2F4FE3'} />
+              </TouchableOpacity>
               {showToDatePicker && (
                 <DateTimePicker
-                  key={toDate.toString()}
-                  value={toDate || new Date()}
+                  value={toDate}
                   mode="date"
-                  display="default"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={handleToDateChange}
+                  minimumDate={fromDate}
                 />
               )}
 
               {/* Description */}
-              <Text style={styles.sectionTitle}>Description:</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Description *</Text>
+              </View>
               <TextInput
+                mode="outlined"
                 multiline
-                placeholder="Enter description...."
-                style={styles.description}
+                numberOfLines={4}
+                placeholder="Enter activity description..."
+                style={styles.descriptionInput}
                 value={description}
                 onChangeText={setDescription}
+                theme={{
+                  colors: {
+                    primary: '#2F4FE3',
+                    background: '#FFFFFF',
+                  },
+                }}
+                outlineColor="#E0E0E0"
+                activeOutlineColor="#2F4FE3"
               />
 
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  marginTop: 18,
-                }}>
-                {/* Complete Checkbox */}
-                <TouchableOpacity
-                  onPress={() => setIsComplete(!isComplete)}
-                  style={styles.checkboxRow}>
-                  <Icon
-                    name={isComplete ? 'check-box' : 'check-box-outline-blank'}
-                    size={24}
-                    color="#000"
-                  />
-                  <Text style={styles.completeText}>Complete</Text>
-                </TouchableOpacity>
+              {/* Complete Checkbox */}
+              <TouchableOpacity
+                onPress={() => setIsComplete(!isComplete)}
+                style={styles.checkboxContainer}
+              >
+                <Icon
+                  name={isComplete ? 'check-box' : 'check-box-outline-blank'}
+                  size={24}
+                  color={isComplete ? '#2F4FE3' : '#666'}
+                />
+                <Text style={[
+                  styles.checkboxLabel,
+                  isComplete && styles.checkboxLabelChecked
+                ]}>
+                  Mark as Complete
+                </Text>
+              </TouchableOpacity>
 
-                {/* Save Button */}
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                {mode === 'edit' && (
+                  <TouchableOpacity
+                    onPress={handleDelete}
+                    style={[styles.button, styles.deleteButton]}
+                    disabled={deleteFollowupMutation.isLoading}
+                  >
+                    <Text style={styles.deleteButtonText}>
+                      {deleteFollowupMutation.isLoading ? 'Deleting...' : 'Delete'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   onPress={handleSave}
-                  style={styles.saveButton}>
-                  <Text style={styles.saveText}>Save</Text>
+                  style={[styles.button, styles.saveButton]}
+                  disabled={createFollowupMutation.isLoading || updateFollowupMutation.isLoading}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {createFollowupMutation.isLoading || updateFollowupMutation.isLoading
+                      ? 'Saving...'
+                      : mode === 'edit' ? 'Update' : 'Save'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -333,70 +434,129 @@ const CrmActivitySrn = ({route, navigation}) => {
   );
 };
 
-export default CrmActivitySrn;
-
 const styles = StyleSheet.create({
-  activity: {padding: 10},
-  activityWrapper:{
-    backgroundColor:'#fff',
-    marginTop:'15%',
-    paddingVertical:'10%',
-    paddingHorizontal:'5%',
-    width:'90%',
-    marginLeft:'5%',
-    borderRadius: 6,
-    elevation:6,
-    shadowColor: '#000'
+  formContainer: {
+    backgroundColor: '#FFFFFF',
+    marginTop: 20,
+    marginHorizontal: 16,
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  activityContainer: {paddingHorizontal: 20, marginBottom: 10},
-  activityButton: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+  sectionHeader: {
+    marginBottom: 8,
   },
-  activityButtonText: {color: '#000'},
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'K2D-SemiBold',
-    color: '#000',
-    paddingHorizontal: 10,
-    marginTop: 15,
+    color: '#333',
+  },
+  dropdown: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
+  },
+  placeholderText: {
+    color: '#999',
+  },
+  activityOptions: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  activityOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  activityOptionText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
   },
   dateInput: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 6,
-    marginHorizontal: 10,
-    marginTop: 8,
-    backgroundColor: '#fff',
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
   },
-  description: {
-    margin: 10,
-    backgroundColor: '#fff',
+  dateText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
   },
-  checkboxRow: {
+  descriptionInput: {
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    marginBottom: 24,
   },
-  completeText: {
-    color: '#000',
-    marginLeft: 8,
-    fontFamily:'K2D-SemiBold'
+  checkboxLabel: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
+    marginLeft: 12,
+  },
+  checkboxLabelChecked: {
+    color: '#2F4FE3',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  button: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
   },
   saveButton: {
     backgroundColor: '#2F4FE3',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 6,
-    marginRight: 10,
   },
-  saveText: {
-    color: '#fff',
-    fontFamily: 'K2D-Bold',
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
   },
 });
+
+export default AddActivity;

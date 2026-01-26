@@ -198,30 +198,59 @@ export const useUpdateLead = () => {
   });
 };
 
-// Mutation for updating lead status
+
+
+// Mutation for updating lead status 
 export const useUpdateLeadStatus = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ leadId, status }) => crmApiService.updateLeadStatus(leadId, status),
-    onSuccess: (updatedLead) => {
+    mutationFn: async ({ leadId, status }) => {
+      console.log('🔄 useUpdateLeadStatus mutationFn called with:', { leadId, status });
+      
+      if (!leadId) {
+        throw new Error('Lead ID is required to update status');
+      }
+      
+      try {
+        const response = await crmApiService.updateLeadStatus(leadId, status);
+        console.log('✅ useUpdateLeadStatus success:', response);
+        return { ...response, leadId, status };
+      } catch (error) {
+        console.error('❌ useUpdateLeadStatus mutation error:', error);
+        throw error;
+      }
+    },
+    onSuccess: (data, variables) => {
+      console.log('✅ useUpdateLeadStatus onSuccess:', { data, variables });
+      
       // Update leads cache
       queryClient.setQueryData(['leads'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
         
-        return oldData.map(lead => 
-          lead.id === updatedLead.id ? { 
-            ...lead, 
-            LeadStatus: { id: updatedLead.status } 
-          } : lead
-        );
+        return oldData.map(lead => {
+          if (lead.id === variables.leadId || lead.AD_User_ID?.id === variables.leadId) {
+            return { 
+              ...lead, 
+              LeadStatus: { 
+                id: variables.status === 'New' ? 'N' : 
+                     variables.status === 'Working' ? 'W' : 
+                     variables.status === 'Converted' ? 'C' : 
+                     variables.status === 'Expired' ? 'E' : 'N',
+                identifier: variables.status
+              } 
+            };
+          }
+          return lead;
+        });
       });
       
       // Invalidate statistics
       queryClient.invalidateQueries(['lead-statistics']);
     },
-    onError: (error) => {
-      handleApiError(error, 'useUpdateLeadStatus');
+    onError: (error, variables) => {
+      console.error('❌ useUpdateLeadStatus onError:', { error, variables });
+      Alert.alert('Error', `Failed to update status: ${error.message}`);
     },
   });
 };
@@ -318,21 +347,41 @@ export const useSearchLeads = (searchTerm, enabled = true) => {
   });
 };
 
-// Hook for fetching lead activities
+// Hook for fetching activities for a specific lead
 export const useLeadActivities = (leadId, enabled = true) => {
   return useQuery({
     queryKey: ['lead-activities', leadId],
     queryFn: async () => {
       try {
-        return await crmApiService.getLeadActivities(leadId);
+        if (!leadId) return [];
+        const activities = await crmApiService.getFollowups({ userId: leadId });
+        return Array.isArray(activities) ? activities : [];
       } catch (error) {
-        handleApiError(error, 'useLeadActivities');
+        console.error('Get lead activities failed:', error.message);
         return [];
       }
     },
     enabled: enabled && !!leadId,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 1000 * 60 * 2, // 2 minutes
   });
+};
+
+// Hook for activity statistics
+export const useActivityStatistics = (leadId) => {
+  const { data: activities = [] } = useLeadActivities(leadId);
+  
+  return React.useMemo(() => {
+    const total = activities.length;
+    const completed = activities.filter(a => a.IsComplete).length;
+    const pending = total - completed;
+    
+    return {
+      total,
+      completed,
+      pending,
+      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+    };
+  }, [activities]);
 };
 
 // Hook for refreshing all CRM data
