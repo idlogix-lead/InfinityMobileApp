@@ -1,6 +1,6 @@
 import {useQuery, useMutation, useQueryClient} from 'react-query';
 
-import {fetchPayment, fetchWFAct} from '../../api/approvalsAPI/approvalApi';
+import {fetchPayment, fetchWFAct} from '../../services/api/approvalsAPI/approvalApi';
 
 export const useWFAct = () => useQuery('wfActivity', fetchWFAct);
 export const usePayment = () => useQuery('payment', fetchPayment);

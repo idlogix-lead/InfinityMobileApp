@@ -211,7 +211,7 @@ const getAuthStore = () => {
   if (authStore) return authStore;
 
   try {
-    authStore = require('../store/authStore');
+    authStore = require('../../store/authStore');
     return authStore;
   } catch (error) {
     console.error('Failed to load auth store:', error);
@@ -234,7 +234,7 @@ const getAuthState = () => {
 // BASE URL HELPER
 // ============================================
 const getBaseURL = () => {
-  const store = require('../store/authStore');
+  const store = require('../../store/authStore');
   const {serverConfig} = store.useAuthStore.getState();
 
   if (!serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
@@ -251,7 +251,7 @@ const getBaseURL = () => {
 const makeRequest = async (url, options = {}) => {
   let authState;
   try {
-    const store = require('../store/authStore');
+    const store = require('../../store/authStore');
     authState = store.useAuthStore.getState();
   } catch (e) {
     console.error('Failed to get auth state:', e);
@@ -278,7 +278,7 @@ const makeRequest = async (url, options = {}) => {
 const makeAddRequest = async (url, options = {}) => {
   let authState;
   try {
-    const store = require('../store/authStore');
+    const store = require('../../store/authStore');
     authState = store.useAuthStore.getState();
   } catch (e) {
     console.error('Failed to get auth state:', e);

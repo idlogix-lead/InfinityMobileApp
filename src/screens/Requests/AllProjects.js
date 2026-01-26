@@ -6,11 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import {useMyProjects, useMyRequests} from '../../hooks/useRequests';
 import {useNavigation} from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import ReqHeader from '../../components/ReqHeader';
+import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+
+dayjs.extend(isBetween);
 
 const TABS = ['All', 'Recents', 'Starred'];
 const isToday = dateString => {
@@ -41,17 +46,53 @@ const AllProjects = () => {
     );
   }
 
+  // const filteredProjects = React.useMemo(() => {
+  //   if (activeTab === 'All') {
+  //     return projects;
+  //   }
+
+  //   if (activeTab === 'Recents') {
+  //     // projects jinke andar aaj ki request ho
+  //     return projects.filter(project =>
+  //       allRequests.some(
+  //         req => req.C_Project_ID?.id === project.id && isToday(req.Created),
+  //       ),
+  //     );
+  //   }
+
+  //   if (activeTab === 'Starred') {
+  //     // future use
+  //     return [];
+  //   }
+
+  //   return projects;
+  // }, [activeTab, projects, allRequests]);
+
+  const isWithinLast7Days = date => {
+    if (!date) return false;
+
+    const startDate = dayjs().subtract(6, 'day').startOf('day');
+    const endDate = dayjs().endOf('day');
+
+    return dayjs(date).isBetween(startDate, endDate, 'day', '[]');
+  };
+
   const filteredProjects = React.useMemo(() => {
     if (activeTab === 'All') {
       return projects;
     }
 
     if (activeTab === 'Recents') {
-      // projects jinke andar aaj ki request ho
+      // projects jinke andar last 7 days me koi request ho
       return projects.filter(project =>
-        allRequests.some(
-          req => req.C_Project_ID?.id === project.id && isToday(req.Created),
-        ),
+        allRequests.some(req => {
+          const activityDate = req.Updated || req.Created || req.DateLastAction;
+
+          return (
+            req.C_Project_ID?.id === project.id &&
+            isWithinLast7Days(activityDate)
+          );
+        }),
       );
     }
 
@@ -105,7 +146,9 @@ const AllProjects = () => {
           renderItem={({item}) => (
             <TouchableOpacity
               style={styles.projectRow}
-              onPress={() => handleProjectPress(item)}>
+              // onPress={() => handleProjectPress(item)}
+              onPress={() => Alert.alert('Will be implemented in future updates')}
+              >
               <View style={styles.projectIcon}>
                 <Ionicons name="list" size={18} color="#2F4FE3" />
               </View>
@@ -169,7 +212,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#ccc',
     // marginVertical: 10,
-    top: -10
+    top: -10,
   },
 
   /* TABS */
@@ -177,8 +220,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     // borderBottomWidth: 1,
     // borderBottomColor: '#eee',
-    width:'60%',
-  
+    width: '60%',
   },
   tabItem: {
     flex: 1,
@@ -188,7 +230,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     color: '#555',
-    fontFamily:'K2D-Medium'
+    fontFamily: 'K2D-Medium',
   },
   activeTabText: {
     color: '#111',
@@ -210,16 +252,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     // borderBottomColor: '#f0f0f0',
-    borderBottomColor:'#f0e0f0',
+    borderBottomColor: '#f0e0f0',
     // width: '90%',
-    left:5
+    left: 5,
   },
   projectIcon: {
     height: 34,
     width: 34,
     borderRadius: 10,
     // backgroundColor: '#D9A7EB',
-    backgroundColor:'#B9C4FF',
+    backgroundColor: '#B9C4FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -227,8 +269,8 @@ const styles = StyleSheet.create({
   projectTitle: {
     fontSize: 16,
     color: '#111',
-    marginRight:'12%',
-    lineHeight:25
+    marginRight: '12%',
+    lineHeight: 25,
   },
 
   /* FAB */

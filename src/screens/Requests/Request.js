@@ -219,15 +219,29 @@ const Requests = () => {
     ? allRequests.filter(t => t.C_Project_ID?.id === selectedProject.id)
     : [];
 
-  const todayProjectIds = allRequests
+  // const todayProjectIds = allRequests
+  //   .filter(t => {
+  //     const activityDate = t.Updated || t.Created || t.DateLastAction;
+  //     return activityDate && dayjs(activityDate).isSame(today, 'day');
+  //   })
+  //   .map(t => t.C_Project_ID?.id)
+  //   .filter(Boolean);
+
+  // const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
+  const last7DaysProjectIds = allRequests
     .filter(t => {
       const activityDate = t.Updated || t.Created || t.DateLastAction;
-      return activityDate && dayjs(activityDate).isSame(today, 'day');
+      return (
+        activityDate &&
+        dayjs(activityDate).isAfter(dayjs().subtract(7, 'day'), 'day')
+      );
     })
     .map(t => t.C_Project_ID?.id)
     .filter(Boolean);
 
-  const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
+  const recentProjects = projects.filter(p =>
+    last7DaysProjectIds.includes(p.id),
+  );
 
   const categorizeProjectTasks = (tasks, projectId) => {
     // Filter tasks for this project only

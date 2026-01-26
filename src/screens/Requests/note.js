@@ -2345,7 +2345,7 @@ import {
   fetchProjects,
   fetchSalesUsers,
   createTask,
-} from '../../api/requests.api';
+} from '../../services/api/requests.api';
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C'},
