@@ -612,32 +612,82 @@ createLocation: async (locationData) => {
   /**
    * Search leads by name, email, or phone
    */
-  searchLeads: async (searchTerm) => {
+ searchLeads: async (searchTerm) => {
+  try {
+    const authState = getAuthState();
+    const userId = authState.userId;
+    
+    if (!searchTerm || searchTerm.trim() === '') {
+      return await crmApiService.getLeads();
+    }
+    
+    // Clean and prepare search term
+    const cleanSearchTerm = searchTerm.trim();
+    
+    // DEBUG: Log what we're searching for
+    console.log('🔍 Searching for term:', cleanSearchTerm);
+    
+    // Build search filter - Use tolower for case-insensitive search
+    // Option 1: Using tolower() for case-insensitive search
+    const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
+      contains(tolower(Name), tolower('${cleanSearchTerm}')) or 
+      contains(tolower(EMail), tolower('${cleanSearchTerm}')) or 
+      contains(tolower(Phone), tolower('${cleanSearchTerm}'))
+    )`;
+    
+    // Option 2: If tolower() doesn't work with your API, try substringof
+    // const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
+    //   substringof('${cleanSearchTerm}', Name) ne false or 
+    //   substringof('${cleanSearchTerm}', EMail) ne false or 
+    //   substringof('${cleanSearchTerm}', Phone) ne false
+    // )`;
+    
+    const url = buildUrl('models/AD_User', {}, searchFilter);
+    console.log('🔍 Search leads URL:', url);
+    
+    const data = await makeRequest(url);
+    
+    const records = Array.isArray(data.records) ? data.records : [];
+    console.log(`✅ Found ${records.length} leads matching search for "${cleanSearchTerm}"`);
+    
+    // DEBUG: Log the names of found records to verify
+    if (records.length > 0) {
+      console.log('📋 Found leads:', records.map(r => r.Name));
+    }
+    
+    return records;
+  } catch (error) {
+    console.error('Search leads failed:', error.message);
+    
+    // If the first approach fails, try a simpler search
     try {
+      console.log('🔄 Trying alternative search method...');
       const authState = getAuthState();
       const userId = authState.userId;
+      const cleanSearchTerm = searchTerm.trim().toLowerCase();
       
-      if (!searchTerm || searchTerm.trim() === '') {
-        return await crmApiService.getLeads();
-      }
+      // Get all leads and filter locally
+      const allLeads = await crmApiService.getLeads();
       
-      // Build search filter
-      const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (contains(Name, '${searchTerm}') or contains(EMail, '${searchTerm}') or contains(Phone, '${searchTerm}'))`;
+      const filteredLeads = allLeads.filter(lead => {
+        const name = (lead.Name || '').toLowerCase();
+        const email = (lead.EMail || '').toLowerCase();
+        const phone = (lead.Phone || '').toLowerCase();
+        
+        return name.includes(cleanSearchTerm) || 
+               email.includes(cleanSearchTerm) || 
+               phone.includes(cleanSearchTerm);
+      });
       
-      const url = buildUrl('models/AD_User', {}, searchFilter);
-      console.log('🔍 Search leads URL:', url);
+      console.log(`✅ Local filtering found ${filteredLeads.length} leads for "${searchTerm}"`);
       
-      const data = await makeRequest(url);
-      
-      const records = Array.isArray(data.records) ? data.records : [];
-      console.log(`✅ Found ${records.length} leads matching search`);
-      
-      return records;
-    } catch (error) {
-      console.error('Search leads failed:', error.message);
+      return filteredLeads;
+    } catch (fallbackError) {
+      console.error('Fallback search also failed:', fallbackError.message);
       return [];
     }
-  },
+  }
+},
   /**
  * Get campaigns
  */

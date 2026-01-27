@@ -10,11 +10,12 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useFollowups } from '../../hooks/CRMhooks/useCRM';
+import { useLeadActivities } from '../../hooks/CRMhooks/useCRM';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 import moment from 'moment';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
@@ -26,28 +27,32 @@ const LeadDetailsScreen = ({ navigation, route }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateField, setDateField] = useState(null);
   const [showAllActivities, setShowAllActivities] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   const queryClient = useQueryClient();
 
   // Fetch lead details using getLeadById
-  const { data: leadDetails, isLoading: isLoadingLead, error: leadError } = useQuery(
+  const { 
+    data: leadDetails, 
+    isLoading: isLoadingLead, 
+    error: leadError,
+    refetch: refetchLead 
+  } = useQuery(
     ['lead', lead?.id],
     () => crmApiService.getLeadById(lead?.id),
     {
       enabled: !!lead?.id,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
     }
   );
 
-  // Fetch all activities for this specific lead using getFollowups with userId filter
-  const { data: leadActivities = [], isLoading: isLoadingActivities, error: activitiesError } = useQuery(
-    ['lead-activities', lead?.id],
-    () => crmApiService.getFollowups({ userId: lead?.id }),
-    {
-      enabled: !!lead?.id,
-      staleTime: 1000 * 60 * 2, // 2 minutes
-    }
-  );
+  // Fetch activities using hook
+  const { 
+    data: leadActivities = [], 
+    isLoading: isLoadingActivities, 
+    error: activitiesError,
+    refetch: refetchActivities 
+  } = useLeadActivities(lead?.id, true);
 
   // Use detailed lead data if available, otherwise use passed data
   const displayLead = leadDetails || lead;
@@ -60,7 +65,7 @@ const LeadDetailsScreen = ({ navigation, route }) => {
   // Activities to display based on showAllActivities state
   const displayedActivities = showAllActivities 
     ? sortedActivities 
-    : sortedActivities.slice(0, 5); // Show first 5 activities by default
+    : sortedActivities.slice(0, 5);
 
   // Initialize edited data
   useEffect(() => {
@@ -94,6 +99,21 @@ const LeadDetailsScreen = ({ navigation, route }) => {
       },
     }
   );
+
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchLead(),
+        refetchActivities()
+      ]);
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleUpdate = () => {
     if (!displayLead?.id) return;
@@ -346,10 +366,19 @@ const LeadDetailsScreen = ({ navigation, route }) => {
         title="Lead Details"
         LeftIcon="arrow-left"
         LeftPress={() => navigation.goBack()}
-       
       />
 
-      <ScrollView style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#2F4FE3']}
+            tintColor="#2F4FE3"
+          />
+        }
+      >
         {/* Lead Info Card */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Lead Information</Text>

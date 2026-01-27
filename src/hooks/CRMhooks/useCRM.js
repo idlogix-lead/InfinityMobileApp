@@ -78,7 +78,27 @@ export const useLeadStatistics = (enabled = true) => {
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
 };
-
+// Add this to your useCRM.js file
+export const useUpdateFollowupStatus = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, isComplete }) => 
+      crmApiService.updateFollowup(id, { IsComplete: isComplete }),
+    onSuccess: (updatedFollowup) => {
+      queryClient.setQueryData(['followups'], (oldData) => {
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.map(followup => 
+          followup.id === updatedFollowup.id ? { ...followup, ...updatedFollowup } : followup
+        );
+      });
+    },
+    onError: (error) => {
+      handleApiError(error, 'useUpdateFollowupStatus');
+    },
+  });
+};
 // Hook for fetching followups
 export const useFollowups = (filters = {}, enabled = true) => {
   return useQuery({

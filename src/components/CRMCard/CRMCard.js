@@ -13,7 +13,7 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
-import { useUpdateLeadStatus } from '../../hooks/CRMhooks/useCRM'; // You'll need to create this hook
+import { useUpdateLeadStatus } from '../../hooks/CRMhooks/useCRM';
 
 const CRMCard = ({
   header,

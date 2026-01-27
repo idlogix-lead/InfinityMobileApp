@@ -9,20 +9,38 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {Modal} from 'react-native-paper';
-import {useMutation, useQueryClient} from 'react-query';
+import {useMutation, useQuery, useQueryClient} from 'react-query';
 import {useAuthStore} from '../../store/authStore';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 
 const {width} = Dimensions.get('window');
 
 const LeadEdit = ({route, navigation}) => {
-  const {data: leadData} = route.params;
+  const { data: leadData } = route.params;
   const queryClient = useQueryClient();
+
+  // Fetch lead details
+  const { 
+    data: leadDetails, 
+    isLoading: isLoadingLead,
+    error: leadError 
+  } = useQuery(
+    ['lead', leadData?.id],
+    () => crmApiService.getLeadById(leadData?.id),
+    {
+      enabled: !!leadData?.id,
+      staleTime: 1000 * 60 * 5,
+    }
+  );
+
+  // Use detailed data if available
+  const displayLead = leadDetails || leadData;
 
   // Dropdown states
   const [showMoreInfo, setShowMoreInfo] = useState(false);
@@ -36,29 +54,29 @@ const LeadEdit = ({route, navigation}) => {
   const [leadSourceModalVisible, setLeadSourceModalVisible] = useState(false);
   const [salesRepMenuVisible, setSalesRepMenuVisible] = useState(false);
 
-  // Form state - Updated based on your API response
-  const [name, setName] = useState(leadData?.Name || '');
-  const [email, setEmail] = useState(leadData?.EMail || '');
-  const [phone, setPhone] = useState(leadData?.Phone || '');
-  const [phone2, setPhone2] = useState(leadData?.Phone2 || '');
-  const [birthday, setBirthday] = useState(leadData?.Birthday || '');
-  const [salesLead, setSalesLead] = useState(leadData?.IsSalesLead || false);
-  const [vendorLead, setVendorLead] = useState(leadData?.IsVendorLead || false);
-  const [businessPartnerId, setBusinessPartnerId] = useState(leadData?.AD_Client_ID?.id || '1000000');
-  const [businessPartnerLabel, setBusinessPartnerLabel] = useState(leadData?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd');
-  const [organizationId, setOrganizationId] = useState(leadData?.AD_Org_ID?.id || '1000000');
-  const [organizationLabel, setOrganizationLabel] = useState(leadData?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd');
-  const [description, setDescription] = useState(leadData?.Description || '');
-  const [active, setActive] = useState(leadData?.IsActive !== undefined ? leadData.IsActive : true);
-  const [searchKey, setSearchKey] = useState(leadData?.Value || '');
-  const [salesRepId, setSalesRepId] = useState(leadData?.SalesRep_ID?.id || '1000117');
-  const [salesRepLabel, setSalesRepLabel] = useState(leadData?.SalesRep_ID?.identifier || 'Muhammad Anwar');
-  const [companyName, setCompanyName] = useState(leadData?.BPName || '');
-  const [leadSourceDesc, setLeadSourceDesc] = useState(leadData?.LeadSourceDescription || '');
-  const [leadStatusDesc, setLeadStatusDesc] = useState(leadData?.LeadStatusDescription || '');
-  const [comments, setComments] = useState(leadData?.Comments || '');
+  // Form state
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [phone2, setPhone2] = useState('');
+  const [birthday, setBirthday] = useState('');
+  const [salesLead, setSalesLead] = useState(false);
+  const [vendorLead, setVendorLead] = useState(false);
+  const [businessPartnerId, setBusinessPartnerId] = useState('1000000');
+  const [businessPartnerLabel, setBusinessPartnerLabel] = useState('Starlet Innovations Pvt Ltd');
+  const [organizationId, setOrganizationId] = useState('1000000');
+  const [organizationLabel, setOrganizationLabel] = useState('Starlet Innovation Pvt Ltd');
+  const [description, setDescription] = useState('');
+  const [active, setActive] = useState(true);
+  const [searchKey, setSearchKey] = useState('');
+  const [salesRepId, setSalesRepId] = useState('1000117');
+  const [salesRepLabel, setSalesRepLabel] = useState('Muhammad Anwar');
+  const [companyName, setCompanyName] = useState('');
+  const [leadSourceDesc, setLeadSourceDesc] = useState('');
+  const [leadStatusDesc, setLeadStatusDesc] = useState('');
+  const [comments, setComments] = useState('');
 
-  // Static dropdown options (since API doesn't have these tables)
+  // Static dropdown options
   const leadStatusOptions = [
     {id: 'N', identifier: 'New'},
     {id: 'W', identifier: 'Working'},
@@ -89,13 +107,36 @@ const LeadEdit = ({route, navigation}) => {
     {id: '1000000', identifier: 'STIAdmin'},
   ];
 
-  // Since your API doesn't have LeadStatus, we need to handle it differently
   const [statusId, setStatusId] = useState('N');
   const [statusLabel, setStatusLabel] = useState('New');
-  
-  // Since your API doesn't have LeadSource, we need to handle it differently
   const [leadSourceId, setLeadSourceId] = useState('CC');
   const [leadSourceLabel, setLeadSourceLabel] = useState('Cold Call');
+
+  // Initialize form data
+  useEffect(() => {
+    if (displayLead) {
+      setName(displayLead?.Name || '');
+      setEmail(displayLead?.EMail || '');
+      setPhone(displayLead?.Phone || '');
+      setPhone2(displayLead?.Phone2 || '');
+      setBirthday(displayLead?.Birthday || '');
+      setSalesLead(displayLead?.IsSalesLead || false);
+      setVendorLead(displayLead?.IsVendorLead || false);
+      setBusinessPartnerId(displayLead?.AD_Client_ID?.id || '1000000');
+      setBusinessPartnerLabel(displayLead?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd');
+      setOrganizationId(displayLead?.AD_Org_ID?.id || '1000000');
+      setOrganizationLabel(displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd');
+      setDescription(displayLead?.Description || '');
+      setActive(displayLead?.IsActive !== undefined ? displayLead.IsActive : true);
+      setSearchKey(displayLead?.Value || '');
+      setSalesRepId(displayLead?.SalesRep_ID?.id || '1000117');
+      setSalesRepLabel(displayLead?.SalesRep_ID?.identifier || 'Muhammad Anwar');
+      setCompanyName(displayLead?.BPName || '');
+      setLeadSourceDesc(displayLead?.LeadSourceDescription || '');
+      setLeadStatusDesc(displayLead?.LeadStatusDescription || '');
+      setComments(displayLead?.Comments || '');
+    }
+  }, [displayLead]);
 
   // Update mutation
   const updateLeadMutation = useMutation({
@@ -103,7 +144,6 @@ const LeadEdit = ({route, navigation}) => {
       console.log('📝 Updating lead with data:', updatedData);
       
       try {
-        // Prepare the payload based on your old working code
         const payload = {
           Name: updatedData.Name,
           EMail: updatedData.EMail,
@@ -128,11 +168,6 @@ const LeadEdit = ({route, navigation}) => {
           Description: updatedData.Description || '',
           IsActive: updatedData.IsActive,
           Value: updatedData.Value || '',
-          // Since API doesn't support LeadStatus table, we'll handle differently
-          // LeadStatus: updatedData.LeadStatus ? {
-          //   id: updatedData.LeadStatus.id,
-          //   identifier: updatedData.LeadStatus.identifier
-          // } : null,
           LeadSourceDescription: updatedData.LeadSourceDescription || '',
           LeadStatusDescription: updatedData.LeadStatusDescription || '',
           Comments: updatedData.Comments || '',
@@ -140,7 +175,7 @@ const LeadEdit = ({route, navigation}) => {
 
         console.log('📦 Sending update payload:', JSON.stringify(payload, null, 2));
         
-        const response = await crmApiService.updateLead(leadData.id, payload);
+        const response = await crmApiService.updateLead(displayLead.id, payload);
         console.log('✅ Lead updated successfully:', response);
         
         return response;
@@ -154,7 +189,7 @@ const LeadEdit = ({route, navigation}) => {
       
       // Invalidate and refetch leads data
       queryClient.invalidateQueries(['leads']);
-      queryClient.invalidateQueries(['lead', leadData.id]);
+      queryClient.invalidateQueries(['lead', displayLead.id]);
       queryClient.invalidateQueries(['lead-statistics']);
       
       // Show success message
@@ -244,6 +279,41 @@ const LeadEdit = ({route, navigation}) => {
       />
     </TouchableOpacity>
   );
+
+  if (isLoadingLead) {
+    return (
+      <View style={styles.loadingContainer}>
+        <CustomHeader 
+          title={'Lead Editor'}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color="#2F4FE3" />
+          <Text style={styles.loadingText}>Loading lead details...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (leadError || !displayLead) {
+    return (
+      <View style={styles.errorContainer}>
+        <CustomHeader 
+          title={'Lead Editor'}
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.errorContent}>
+          <MaterialCommunityIcons name="alert-circle" size={48} color="#F44336" />
+          <Text style={styles.errorText}>Failed to load lead details</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}>
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -752,14 +822,48 @@ const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f4f2f8'},
   loadingContainer: {
     flex: 1,
+    backgroundColor: '#f4f2f8',
+  },
+  loadingContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f4f2f8',
   },
   loadingText: {
     fontSize: 16,
     fontFamily: 'K2D-Medium',
     color: '#555',
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#f4f2f8',
+  },
+  errorContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#000',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#2F4FE3',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 16,
   },
   card: {
     backgroundColor: '#fff',

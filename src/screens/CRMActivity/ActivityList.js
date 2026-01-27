@@ -1,11 +1,12 @@
 // screens/CRM/ActivityList.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   FlatList,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { useQuery } from 'react-query';
 import moment from 'moment';
@@ -15,26 +16,39 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import Loader from '../../components/Loader';
-import { useCRMStore } from '../../store/crmStore';
-import { useFollowups, useLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useLeadActivities } from '../../hooks/CRMhooks/useCRM';
 
 const ActivityList = ({ route, navigation }) => {
   const { data: leadData } = route.params;
+  const [refreshing, setRefreshing] = useState(false);
   
   // Use React Query hook
   const { 
     data: activities = [], 
     isLoading, 
-    refetch 
+    refetch,
+    error 
   } = useLeadActivities(leadData?.id, true);
   
   // Add refetch on focus
-  React.useEffect(() => {
+  useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       refetch();
     });
     return unsubscribe;
   }, [navigation, refetch]);
+
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Filter activities for this lead
   const leadActivities = React.useMemo(() => {
@@ -154,7 +168,7 @@ const ActivityList = ({ route, navigation }) => {
     );
   };
 
-  // Helper function to get activity border color
+  // Helper functions (same as before)
   const getActivityBorderColor = (activityType) => {
     switch (activityType?.toUpperCase()) {
       case 'EMAIL':
@@ -170,7 +184,6 @@ const ActivityList = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to get activity icon color
   const getActivityIconColor = (activityType) => {
     switch (activityType?.toUpperCase()) {
       case 'EMAIL':
@@ -186,7 +199,6 @@ const ActivityList = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to get activity icon
   const getActivityIcon = (activityType) => {
     const iconColor = getActivityIconTextColor(activityType);
     switch (activityType?.toUpperCase()) {
@@ -203,7 +215,6 @@ const ActivityList = ({ route, navigation }) => {
     }
   };
 
-  // Helper function to get icon text color
   const getActivityIconTextColor = (activityType) => {
     switch (activityType?.toUpperCase()) {
       case 'EMAIL':
@@ -218,6 +229,26 @@ const ActivityList = ({ route, navigation }) => {
         return '#6366F1'; // Violet
     }
   };
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader 
+          title={'Activity List'} 
+          onBackPress={() => navigation.goBack()}
+        />
+        <View style={styles.errorContainer}>
+          <MaterialIcons name="error-outline" size={48} color="#F44336" />
+          <Text style={styles.errorText}>Failed to load activities</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={refetch}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -263,8 +294,14 @@ const ActivityList = ({ route, navigation }) => {
           keyExtractor={(item, index) => `${item.id}-${index}`}
           renderItem={({ item }) => renderFollowupCard(item)}
           contentContainerStyle={styles.listContent}
-          refreshing={isLoading}
-          onRefresh={refetch}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#3B82F6']}
+              tintColor="#3B82F6"
+            />
+          }
           showsVerticalScrollIndicator={false}
         />
       ) : (
@@ -281,6 +318,9 @@ const ActivityList = ({ route, navigation }) => {
     </View>
   );
 };
+
+// ... (styles remain the same as your original file)
+// Keep all the existing styles from your original ActivityList.js
 
 const styles = StyleSheet.create({
   headerActions: {
@@ -347,7 +387,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderLeftWidth: 4, // This will be overridden by inline style
+    borderLeftWidth: 4,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -491,6 +531,35 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Regular',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#F44336',
+    marginTop: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 16,
   },
 });
 
