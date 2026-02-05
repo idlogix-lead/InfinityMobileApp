@@ -7,18 +7,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import React, {useMemo} from 'react';
+import React, {useMemo, useState} from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import dayjs from 'dayjs';
 import ReqHeader from '../../components/ReqHeader';
 import {usePayment} from '../../hooks/ApprovalHooks/useApproval';
-import { useNavigation } from '@react-navigation/native';
-
+import {useNavigation} from '@react-navigation/native';
 
 const WFStatusList = ({route}) => {
   const {title, data = []} = route.params;
   const navigation = useNavigation();
-
   const {data: payment = []} = usePayment();
 
   const paymentMap = useMemo(() => {
@@ -28,6 +26,39 @@ const WFStatusList = ({route}) => {
     });
     return map;
   }, [payment]);
+
+  //  NEW: multi-select state
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  const toggleSelect = recordId => {
+    if (selectedIds.includes(recordId)) {
+      setSelectedIds(selectedIds.filter(i => i !== recordId));
+    } else {
+      setSelectedIds([...selectedIds, recordId]);
+    }
+  };
+
+  // multi-select approve
+  const approveSelected = ids => {
+    if (!ids || ids.length === 0) return;
+
+    Alert.alert(
+      'Approved',
+      `Approved ${ids.length} item(s): ${ids.join(', ')}`,
+    );
+
+    // clear selection only if multi-select
+    if (multiSelectMode) {
+      setSelectedIds([]);
+      setMultiSelectMode(false);
+    }
+  };
+
+  // single card approve
+  const approveSingle = recordId => {
+    approveSelected([recordId]);
+  };
 
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -41,15 +72,12 @@ const WFStatusList = ({route}) => {
 
   const getProcessIcon = processName => {
     if (!processName) return 'account-tree';
-
     const name = processName.toLowerCase();
-
     if (name.includes('payment')) return 'payments';
     if (name.includes('invoice')) return 'receipt-long';
     if (name.includes('order')) return 'shopping-cart';
     if (name.includes('request')) return 'assignment';
     if (name.includes('approval')) return 'fact-check';
-
     return 'account-tree';
   };
 
@@ -60,189 +88,158 @@ const WFStatusList = ({route}) => {
 
       <FlatList
         data={data}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={(item, index) => `${item.Record_ID}-${index}`}
         contentContainerStyle={[
           styles.listContainer,
           data.length === 0 && {flex: 1},
         ]}
         ListEmptyComponent={EmptyState}
         renderItem={({item}) => {
-          const isCompleted = title === 'Completed';
           const processName = item.AD_WF_Process_ID?.identifier;
           const recordId = item.Record_ID;
-
           const processIcon = getProcessIcon(processName);
-          // 🔗 MATCH PAYMENT
           const pay = paymentMap[item.Record_ID];
-
-          const createdBy = pay?.CreatedBy?.identifier || '—';
-          const createdOn = pay?.Created
-            ? dayjs(pay.Created).format('DD MMM YYYY')
-            : '—';
-
-          // const trxDate = pay?.DateTrx
-          //   ? dayjs(pay.DateTrx).format('DD MMM YYYY')
-          //   : '—';
           const trxDate = item.docdate
             ? dayjs(item.docdate).format('DD MMM YYYY')
             : '—';
-
-          // const businessPartner = pay?.C_BPartner_ID?.identifier || '—';
           const businessPartner = item.party_name || '—';
-
-          // const amount = pay?.PayAmt ?? item.TotalLines ?? 0;
-          // const amount = Number(pay?.PayAmt ?? item.TotalLines ?? 0);
           const amount = Number(item.TotalLines ?? 0);
-
-          // const trxType = pay?.TrxType?.identifier || '—';
-
           const trxType = item.IsSOTrx ? 'Sales' : 'Purchase';
-
           const trxColor = item.IsSOTrx ? '#2C3E90' : '#2C3E30';
           const barColor = item.IsSOTrx ? '#2C3E90' : '#2C3E50';
 
-          return (
-            <View style={styles.itemCard}>
-              {/* LEFT STATUS BAR */}
-              <View
-                style={[
-                  styles.statusBar,
-                  {backgroundColor: barColor},
-                  //   {backgroundColor: isCompleted ? '#27AE60' : '#F39C12'},
-                ]}
-              />
+          const selected = selectedIds.includes(recordId);
 
-              <View style={styles.cardContent}>
-                {/* HEADER */}
-                <View style={styles.headerRow}>
-                  <View style={styles.headerLeft}>
+          return (
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              {/*  CHECKBOX OUTSIDE CARD */}
+              {multiSelectMode && (
+                <TouchableOpacity
+                  style={styles.checkboxWrapper}
+                  onPress={() => toggleSelect(recordId)}>
+                  <MaterialIcons
+                    name={selected ? 'check-box' : 'check-box-outline-blank'}
+                    size={24}
+                    color={selected ? '#2F4FE3' : '#aaa'}
+                  />
+                </TouchableOpacity>
+              )}
+
+              {/* CARD */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[styles.itemCard, {flex: 1}]}
+                onPress={() => {
+                  if (multiSelectMode) {
+                    // agar already multi-select mode hai, tap pe disable
+                    setMultiSelectMode(false);
+                    setSelectedIds([]);
+                  } else {
+                    // normal single tap → enable multi-select for this card
+                    setMultiSelectMode(true);
+                    toggleSelect(recordId);
+                  }
+                }}>
+                {/* LEFT STATUS BAR */}
+                <View style={[styles.statusBar, {backgroundColor: barColor}]} />
+
+                <View style={styles.cardContent}>
+                  {/* HEADER */}
+                  <View style={styles.headerRow}>
+                    <View style={styles.headerLeft}>
+                      <View style={styles.iconWrapper}>
+                        <MaterialIcons
+                          name={processIcon}
+                          size={16}
+                          color="#000"
+                        />
+                      </View>
+                      <Text
+                        style={styles.process}
+                        numberOfLines={1}
+                        ellipsizeMode="tail">
+                        {processName}
+                      </Text>
+                    </View>
+                    <Text style={styles.amount}>
+                      PKR {amount.toLocaleString()}
+                    </Text>
+                  </View>
+                  <Text style={styles.subText}>
+                    #{recordId}{' '}
+                    <Text style={{color: trxColor, fontWeight: '800'}}>
+                      • {trxType}{' '}
+                    </Text>
+                    • {trxDate}
+                  </Text>
+                  <View style={styles.metaRow}>
+                    <View style={styles.iconWrapper}>
+                      <MaterialIcons name="business" size={16} color="#000" />
+                    </View>
+                    <Text style={styles.metaText}>{businessPartner}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
                     <View style={styles.iconWrapper}>
                       <MaterialIcons
-                        name={processIcon}
-                        size={20}
+                        name="person-outline"
+                        size={16}
                         color="#000"
                       />
                     </View>
-
-                    <Text style={styles.process}>{processName}</Text>
+                    <Text style={styles.metaText}>
+                      {item.CreatedBy?.identifier} •{' '}
+                      {dayjs(item.Created).format('DD MMM YYYY')}
+                    </Text>
                   </View>
-
-                  <Text style={styles.amount}>
-                    PKR {amount.toLocaleString()}
-                  </Text>
-                </View>
-
-                {/* SUB HEADER */}
-                <Text style={styles.subText}>
-                  #{recordId}{' '}
-                  <Text style={{color: trxColor, fontWeight: '800'}}>
-                    • {trxType}{' '}
-                  </Text>
-                  • {trxDate}
-                </Text>
-
-                {/* BUSINESS PARTNER */}
-                <View style={styles.metaRow}>
-                  <View style={styles.iconWrapper}>
-                    <MaterialIcons name="business" size={16} color="#000" />
-                  </View>
-                  <Text style={styles.metaText}>{businessPartner}</Text>
-                </View>
-
-                {/* CREATED INFO */}
-                <View style={styles.metaRow}>
-                  <View style={styles.iconWrapper}>
+                  {/* 🔹 CARD APPROVE BUTTON */}
+                  <TouchableOpacity
+                    style={[
+                      styles.cardApproveBtn,
+                      multiSelectMode && {backgroundColor: '#aaa'},
+                    ]}
+                    disabled={multiSelectMode}
+                    onPress={() => !multiSelectMode && approveSingle(recordId)}>
                     <MaterialIcons
-                      name="person-outline"
+                      name={
+                        multiSelectMode ? 'check-circle-outline' : 'task-alt'
+                      }
                       size={16}
-                      color="#000"
+                      color="#fff"
+                      style={{marginRight: 6}}
                     />
-                  </View>
-
-                  <Text style={styles.metaText}>
-                    {item.CreatedBy?.identifier} •{' '}
-                    {dayjs(item.Created).format('DD MMM YYYY')}
-                  </Text>
+                    <Text style={styles.cardApproveText}>Approve</Text>
+                  </TouchableOpacity>
                 </View>
-
-                {/* ACTION */}
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={styles.actionBtn}
-                  onPress={() => Alert.alert('Under Development')}
-                  >
-                  <MaterialIcons
-                    name={isCompleted ? 'check-circle' : 'pending-actions'}
-                    size={16}
-                    color="#fff"
-                  />
-                  <Text style={styles.actionText}>
-                    {isCompleted ? 'Approved' : 'Approve'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             </View>
           );
         }}
       />
+
+      {/* 🔹 MULTI-SELECT APPROVE BUTTON */}
+      {multiSelectMode && selectedIds.length > 0 && (
+        <TouchableOpacity
+          style={styles.multiApproveBtn}
+          onPress={() => approveSelected(selectedIds)}>
+          <MaterialIcons
+            name="done-all"
+            size={18}
+            color="#fff"
+            style={{marginRight: 6}}
+          />
+          <Text style={styles.multiApproveText}>
+            Approve ({selectedIds.length})
+          </Text>
+        </TouchableOpacity>
+      )}
     </>
   );
 };
 
 export default WFStatusList;
+
 const styles = StyleSheet.create({
-  listContainer: {
-    padding: '5%',
-  },
-
-  rowBet: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-
-  infoText: {
-    marginLeft: 6,
-    fontSize: 15,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-  },
-
-  statusBtn: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginTop: 10,
-  },
-
-  statusText: {
-    marginLeft: 6,
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-  },
-
-  label: {
-    fontSize: 13,
-    color: '#555',
-    fontFamily: 'K2D-Regular',
-  },
-
-  iconWrapper: {
-    padding: 8,
-    backgroundColor: '#fff',
-    elevation: 3,
-    borderRadius: 20,
-  },
-
+  listContainer: {padding: '5%'},
   itemCard: {
     flexDirection: 'row',
     backgroundColor: '#fff',
@@ -250,43 +247,33 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     elevation: 2,
     overflow: 'hidden',
+    alignItems: 'center',
   },
-
-  statusBar: {
-    width: 4,
-    backgroundColor: '#2F4FE3',
-  },
-
-  cardContent: {
-    flex: 1,
-    padding: 14,
-  },
-
+  statusBar: {width: 4, backgroundColor: '#2F4FE3'},
+  cardContent: {flex: 1, padding: 14},
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'nowrap', // make sure content stays in one line
   },
-
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1, // allows text to shrink if needed
   },
-
   process: {
     fontSize: 15,
     fontFamily: 'K2D-SemiBold',
-    // color: '#2C3E50',
     color: '#000',
+    flexShrink: 1, // ensures process name wraps or shrinks
   },
-
   amount: {
     fontSize: 15,
     fontFamily: 'K2D-MediumItalic',
-    // fontStyle:'italic',
     color: '#27AE60',
-    // color: '#2F4FE3',
+    marginLeft: 8, // optional spacing from left content
   },
 
   subText: {
@@ -295,39 +282,8 @@ const styles = StyleSheet.create({
     color: '#777',
     fontFamily: 'K2D-Medium',
   },
-
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-  },
-
-  metaText: {
-    fontSize: 13,
-    color: '#444',
-    fontFamily: 'K2D-Regular',
-  },
-
-  actionBtn: {
-    marginTop: 12,
-    alignSelf: 'flex-end',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: '#2F4FE3',
-  },
-
-  actionText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: '#fff',
-    fontFamily: 'K2D-Medium',
-  },
-
-  /* EMPTY STATE */
+  metaRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6},
+  metaText: {fontSize: 13, color: '#444', fontFamily: 'K2D-Regular'},
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -346,4 +302,46 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
   },
+  checkboxWrapper: {
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8, // space between checkbox and card
+  },
+  iconWrapper: {
+    padding: 8,
+    backgroundColor: '#fff',
+    elevation: 4,
+    borderRadius: 20,
+  },
+  cardApproveBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-end',
+    flexDirection: 'row', // icon + text in row
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: '#2F4FE3',
+    borderRadius: 20,
+    elevation: 2,
+  },
+  cardApproveText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+  },
+  multiApproveBtn: {
+    position: 'absolute',
+    bottom: 20,
+    left: '5%',
+    right: '5%',
+    flexDirection: 'row', // icon + text in row
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2F4FE3',
+    paddingVertical: 12,
+    borderRadius: 25,
+    elevation: 4,
+  },
+  multiApproveText: {color: '#fff', fontSize: 16, fontFamily: 'K2D-Medium'},
 });

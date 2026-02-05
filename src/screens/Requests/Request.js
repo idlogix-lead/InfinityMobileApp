@@ -12,6 +12,7 @@ import {
   Modal,
   Pressable,
   Alert,
+  Platform,
 } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {useNavigation} from '@react-navigation/native';
@@ -24,6 +25,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useRequestStore} from '../../store/requestStore';
 import {useMyRequests, useMyProjects} from '../../hooks/useRequests';
 import {useAuthStore} from '../../store/authStore';
+import BottomSheet from '@gorhom/bottom-sheet';
+import {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
+
+const renderBackdrop = props => (
+  <BottomSheetBackdrop
+    {...props}
+    opacity={0.4} // background dim
+    disappearsOnIndex={-1}
+    appearsOnIndex={0}
+  />
+);
 
 const PRIORITIES = [
   {id: '1', label: 'Urgent', color: '#E74C3C', icon: 'priority-high'},
@@ -44,7 +56,7 @@ const PROJECT_COLORS = [
 ];
 
 const SECTIONS = [
-  {key: 'overdue', label: 'Overdue', icon: 'schedule'},
+  {key: 'pastDue', label: 'Past Due', icon: 'schedule'},
   {key: 'today', label: 'Today', icon: 'today'},
   {key: 'upcoming', label: 'Upcoming', icon: 'calendar-today'},
   {key: 'later', label: 'Later', icon: 'event'},
@@ -171,6 +183,17 @@ const Requests = () => {
     createTaskModalRef.current?.close();
   };
 
+  // BOOTOM SHEET SETUP  //
+  const createTaskSheetRef = useRef(null);
+  const snapPoints = ['50%', '85%']; // adjust as needed
+
+  const openCreateTaskSheet = () => {
+    createTaskSheetRef.current?.expand(); // expand to first snap point
+  };
+  const closeCreateTaskSheet = () => {
+    createTaskSheetRef.current?.close();
+  };
+
   /* ------------------- USER & CLOCK ------------------- */
   // useEffect(() => {
   //   AsyncStorage.getItem('userName').then(name => setUserName(name || ''));
@@ -195,7 +218,7 @@ const Requests = () => {
   const activeTasks = allRequests.filter(
     t => t.R_Status_ID?.identifier !== '9_Final Close',
   );
-  const overdue = activeTasks.filter(
+  const pastDue = activeTasks.filter(
     t => t.StartDate && dayjs(t.StartDate).isBefore(today, 'day'),
   );
   const todayTasks = activeTasks.filter(
@@ -208,7 +231,7 @@ const Requests = () => {
     t => !t.StartDate || dayjs(t.StartDate).isAfter(tomorrow, 'day'),
   );
 
-  const sectionDataMap = {overdue, today: todayTasks, upcoming, later};
+  const sectionDataMap = {pastDue, today: todayTasks, upcoming, later};
   const activeData = sectionDataMap[activeSection] || [];
 
   const dueTasks = allRequests.filter(
@@ -219,15 +242,29 @@ const Requests = () => {
     ? allRequests.filter(t => t.C_Project_ID?.id === selectedProject.id)
     : [];
 
-  const todayProjectIds = allRequests
+  // const todayProjectIds = allRequests
+  //   .filter(t => {
+  //     const activityDate = t.Updated || t.Created || t.DateLastAction;
+  //     return activityDate && dayjs(activityDate).isSame(today, 'day');
+  //   })
+  //   .map(t => t.C_Project_ID?.id)
+  //   .filter(Boolean);
+
+  // const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
+  const last7DaysProjectIds = allRequests
     .filter(t => {
       const activityDate = t.Updated || t.Created || t.DateLastAction;
-      return activityDate && dayjs(activityDate).isSame(today, 'day');
+      return (
+        activityDate &&
+        dayjs(activityDate).isAfter(dayjs().subtract(7, 'day'), 'day')
+      );
     })
     .map(t => t.C_Project_ID?.id)
     .filter(Boolean);
 
-  const recentProjects = projects.filter(p => todayProjectIds.includes(p.id));
+  const recentProjects = projects.filter(p =>
+    last7DaysProjectIds.includes(p.id),
+  );
 
   const categorizeProjectTasks = (tasks, projectId) => {
     // Filter tasks for this project only
@@ -392,39 +429,45 @@ const Requests = () => {
 
   return (
     <>
-      <ReqHeader title={'Requests'} />
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" />
 
-        {/* HEADER */}
-        <View>
-          {/* <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems:'center'}}>
+      <ReqHeader title={'Requests'} />
+      <FlatList
+        data={[]} // main list empty (we only use header)
+        keyExtractor={(item, index) => index.toString()}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <>
+            <View style={styles.container}>
+              {/* HEADER */}
+              <View>
+                {/* <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems:'center'}}>
             <Text style={styles.dateText}>{todayDate}</Text>
             
 
           </View> */}
 
-          <View style={{flexDirection: 'row', alignItems: 'center'}}>
-            <View style={{paddingRight: '2%'}}>
-              <Image
-                source={{
-                  uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-                }}
-                style={styles.profileImage}
-              />
-            </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ProfileScreen')}>
-              <Text style={styles.userName}>
-                Good {getGreeting()}
-                <Text style={styles.userName}>
-                  , {'\n'}
-                  {userName}
-                </Text>
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {/* <View style={{flexDirection: 'row', justifyContent: 'flex-end'}}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                  <View style={{paddingRight: '2%'}}>
+                    <Image
+                      source={{
+                        uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+                      }}
+                      style={styles.profileImage}
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('ProfileScreen')}>
+                    <Text style={styles.userName}>
+                      Good {getGreeting()}
+                      <Text style={styles.userName}>
+                        , {'\n'}
+                        {userName}
+                      </Text>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {/* <View style={{flexDirection: 'row', justifyContent: 'flex-end'}}>
             <TouchableOpacity style={{}} onPress={() => navigation.navigate('Create')}>
               <Text
                 style={{
@@ -441,10 +484,10 @@ const Requests = () => {
               </Text>
             </TouchableOpacity>
           </View> */}
-        </View>
+              </View>
 
-        {/* PRIORITY TASKS */}
-        {/* 
+              {/* PRIORITY TASKS */}
+              {/* 
         <View style={styles.topCard}>
           <Text style={styles.mainHeader}>Priority Tasks</Text>
           <ScrollView
@@ -482,35 +525,35 @@ const Requests = () => {
           </ScrollView>
         </View> */}
 
-        {/* TIME CARD */}
-        <View style={styles.timeCard}>
-          <View>
-            <Text style={styles.shiftTitle}>Ongoing Shift</Text>
-            <Text
-              style={[
-                styles.timeNow,
-                {
-                  backgroundColor: '#2F4FE3',
-                  borderRadius: 22,
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  fontSize: 13,
-                  paddingVertical: 6,
-                  color: '#fff',
-                  marginTop: '3%',
-                },
-              ]}>
-              {getGreeting()}
-            </Text>
-          </View>
-          <View>
-            <Text style={styles.shiftTitle}>Started at 09:00 am</Text>
-            <Text style={styles.timeNow}>{currentTime}</Text>
-          </View>
-        </View>
+              {/* TIME CARD */}
+              <View style={styles.timeCard}>
+                <View>
+                  <Text style={styles.shiftTitle}>Ongoing Shift</Text>
+                  <Text
+                    style={[
+                      styles.timeNow,
+                      {
+                        backgroundColor: '#2F4FE3',
+                        borderRadius: 22,
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        fontSize: 13,
+                        paddingVertical: 6,
+                        color: '#fff',
+                        marginTop: '3%',
+                      },
+                    ]}>
+                    {getGreeting()}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={styles.shiftTitle}>Started at 09:00 am</Text>
+                  <Text style={styles.timeNow}>{currentTime}</Text>
+                </View>
+              </View>
 
-        {/* DUE TASKS */}
-        {/* <TouchableOpacity
+              {/* DUE TASKS */}
+              {/* <TouchableOpacity
           style={styles.dueCard}
           onPress={() => navigation.navigate('DueTasks', {data: dueTasks})}>
           <View style={{flexDirection: 'row', alignItems: 'center'}}>
@@ -527,77 +570,82 @@ const Requests = () => {
           </View>
           <MaterialIcons name="arrow-forward-ios" size={18} color={'#2F4FE3'} />
         </TouchableOpacity> */}
-        {/* MY TASKS */}
-        <View style={styles.sectionWrapper}>
-          <View style={styles.myTasksHeader}>
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate('MyTasks', buildMyTasksPayload(allRequests))
-              }>
-              <Text style={styles.mainHeader}>My Tasks</Text>
-            </TouchableOpacity>
+              {/* MY TASKS */}
+              <View style={styles.sectionWrapper}>
+                <View style={styles.myTasksHeader}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate(
+                        'MyTasks',
+                        buildMyTasksPayload(allRequests),
+                      )
+                    }>
+                    <Text style={styles.mainHeader}>My Tasks</Text>
+                  </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.sectionPicker}
-              onPress={openSectionModal}>
-              <Text style={styles.sectionPickerText}>
-                {SECTIONS.find(s => s.key === activeSection)?.label}
-              </Text>
-              <MaterialIcons name="expand-more" size={22} color="#555" />
-            </TouchableOpacity>
-          </View>
+                  <TouchableOpacity
+                    style={styles.sectionPicker}
+                    onPress={openSectionModal}>
+                    <Text style={styles.sectionPickerText}>
+                      {SECTIONS.find(s => s.key === activeSection)?.label}
+                    </Text>
+                    <MaterialIcons name="expand-more" size={22} color="#555" />
+                  </TouchableOpacity>
+                </View>
 
-          {activeData.length === 0 ? (
-            <EmptyState
-              title={`No ${
-                SECTIONS.find(s => s.key === activeSection)?.label
-              } tasks`}
-              subtitle="You’re all caught up. Tasks with due dates will appear here."
-              buttonText="Create a task"
-            />
-          ) : (
-            <FlatList
-              data={activeData}
-              keyExtractor={item => item.uid}
-              renderItem={({item}) => <TaskItem item={item} />}
-              scrollEnabled={false}
-            />
-          )}
-        </View>
+                {activeData.length === 0 ? (
+                  <EmptyState
+                    title={`No ${
+                      SECTIONS.find(s => s.key === activeSection)?.label
+                    } tasks`}
+                    subtitle="You’re all caught up. Tasks with due dates will appear here."
+                    buttonText="Create a task"
+                  />
+                ) : (
+                  <FlatList
+                    data={activeData}
+                    keyExtractor={item => item.uid}
+                    renderItem={({item}) => <TaskItem item={item} />}
+                    scrollEnabled={false}
+                  />
+                )}
+              </View>
 
-        {/* GLOBAL BY STATUS CARD */}
-        <View style={styles.sectionWrapper}>
-          <View style={styles.myTasksHeader}>
-            <Text style={styles.mainHeader}>By Status</Text>
-          </View>
+              {/* GLOBAL BY STATUS CARD */}
+              <View style={styles.sectionWrapper}>
+                <View style={styles.myTasksHeader}>
+                  <Text style={styles.mainHeader}>By Status</Text>
+                </View>
 
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              paddingVertical: '3%',
-            }}>
-            {Object.entries(getGlobalTasksByStatus(allRequests)).map(
-              ([label, tasks]) => (
-                <TouchableOpacity
-                  key={label}
-                  style={styles.essentialRow}
-                  onPress={() =>
-                    navigation.navigate('TaskStatus', {
-                      title: label,
-                      tasks,
-                    })
-                  }>
-                  <Text style={styles.essentialText}>{label}</Text>
-                  <Text style={styles.essentialTxtLen}>{tasks.length}</Text>
-                </TouchableOpacity>
-              ),
-            )}
-          </View>
-        </View>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingVertical: '3%',
+                  }}>
+                  {Object.entries(getGlobalTasksByStatus(allRequests)).map(
+                    ([label, tasks]) => (
+                      <TouchableOpacity
+                        key={label}
+                        style={styles.essentialRow}
+                        onPress={() =>
+                          navigation.navigate('TaskStatus', {
+                            title: label,
+                            tasks,
+                          })
+                        }>
+                        <Text style={styles.essentialText}>{label}</Text>
+                        <Text style={styles.essentialTxtLen}>
+                          {tasks.length}
+                        </Text>
+                      </TouchableOpacity>
+                    ),
+                  )}
+                </View>
+              </View>
 
-        {/* ESSENTIALS & BY STATUS */}
-        {/* <View style={styles.sectionWrapper}>
+              {/* ESSENTIALS & BY STATUS */}
+              {/* <View style={styles.sectionWrapper}>
           {!selectedProject ? (
             // When no project is selected
             <>
@@ -659,83 +707,85 @@ const Requests = () => {
           )}
         </View> */}
 
-        {/* RECENTS */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.mainHeader}>Recents</Text>
-          {recents.length === 0 ? (
-            <EmptyState
-              title="No recent tasks"
-              subtitle="Tasks with activity in the past 7 days will appear here."
-              buttonText="Create a task"
-            />
-          ) : (
-            <FlatList
-              data={recents}
-              keyExtractor={item => item.uid + '_r'}
-              renderItem={({item}) => <TaskItem item={item} />}
-              scrollEnabled={false}
-            />
-          )}
-        </View>
-
-        {/* PROJECTS */}
-        <View style={styles.sectionWrapper}>
-          <View style={styles.myTasksHeader}>
-            <Text style={styles.mainHeader}>Projects</Text>
-            <TouchableOpacity
-              style={styles.sectionPicker}
-              onPress={openProjectModal}>
-              <Text style={styles.sectionPickerText}>
-                {projectFilter === 'recents' ? 'Recents' : 'Starred'}
-              </Text>
-              <MaterialIcons name="expand-more" size={22} color="#555" />
-            </TouchableOpacity>
-          </View>
-
-          {projectLoading ? (
-            <ActivityIndicator size="small" color="#2F4FE3" />
-          ) : projectFilter === 'recents' ? (
-            recentProjects.length === 0 ? (
-              <ProjectEmptyState
-                title="No recent projects today"
-                subtitle="Projects with activity today will appear here."
-              />
-            ) : (
-              recentProjects.map(p => (
-                <View key={p.id} style={{paddingRight: '5%'}}>
-                  <ProjectItem item={p} />
-                </View>
-              ))
-            )
-          ) : starredProjects.length === 0 ? (
-            <ProjectEmptyState
-              title="No starred projects"
-              subtitle="Star projects to access them quickly from here."
-            />
-          ) : (
-            starredProjects.map(p => (
-              <View key={p.id} style={{paddingRight: '5%'}}>
-                <ProjectItem item={p} />
+              {/* RECENTS */}
+              <View style={styles.sectionWrapper}>
+                <Text style={styles.mainHeader}>Recents</Text>
+                {recents.length === 0 ? (
+                  <EmptyState
+                    title="No recent tasks"
+                    subtitle="Tasks with activity in the past 7 days will appear here."
+                    buttonText="Create a task"
+                  />
+                ) : (
+                  <FlatList
+                    data={recents}
+                    keyExtractor={item => item.uid + '_r'}
+                    renderItem={({item}) => <TaskItem item={item} />}
+                    scrollEnabled={false}
+                  />
+                )}
               </View>
-            ))
-          )}
 
-          <TouchableOpacity
-            style={[styles.emptyBtn, {marginBottom: '5%'}]}
-            onPress={() => navigation.navigate('AllProjects')}>
-            <Text style={styles.emptyBtnText}>See all projects</Text>
-          </TouchableOpacity>
-        </View>
-        {/* COMMENTS */}
-        <View style={[styles.sectionWrapper, {marginBottom: '15%'}]}>
-          <Text style={styles.mainHeader}>Comments mentioning me</Text>
-          <Comments />
-        </View>
-      </ScrollView>
+              {/* PROJECTS */}
+              <View style={styles.sectionWrapper}>
+                <View style={styles.myTasksHeader}>
+                  <Text style={styles.mainHeader}>Projects</Text>
+                  <TouchableOpacity
+                    style={styles.sectionPicker}
+                    onPress={openProjectModal}>
+                    <Text style={styles.sectionPickerText}>
+                      {projectFilter === 'recents' ? 'Recents' : 'Starred'}
+                    </Text>
+                    <MaterialIcons name="expand-more" size={22} color="#555" />
+                  </TouchableOpacity>
+                </View>
+
+                {projectLoading ? (
+                  <ActivityIndicator size="small" color="#2F4FE3" />
+                ) : projectFilter === 'recents' ? (
+                  recentProjects.length === 0 ? (
+                    <ProjectEmptyState
+                      title="No recent projects today"
+                      subtitle="Projects with activity today will appear here."
+                    />
+                  ) : (
+                    recentProjects.map(p => (
+                      <View key={p.id} style={{paddingRight: '5%'}}>
+                        <ProjectItem item={p} />
+                      </View>
+                    ))
+                  )
+                ) : starredProjects.length === 0 ? (
+                  <ProjectEmptyState
+                    title="No starred projects"
+                    subtitle="Star projects to access them quickly from here."
+                  />
+                ) : (
+                  starredProjects.map(p => (
+                    <View key={p.id} style={{paddingRight: '5%'}}>
+                      <ProjectItem item={p} />
+                    </View>
+                  ))
+                )}
+
+                <TouchableOpacity
+                  style={[styles.emptyBtn, {marginBottom: '5%'}]}
+                  onPress={() => navigation.navigate('AllProjects')}>
+                  <Text style={styles.emptyBtnText}>See all projects</Text>
+                </TouchableOpacity>
+              </View>
+              {/* COMMENTS */}
+              <View style={[styles.sectionWrapper, {marginBottom: '5%'}]}>
+                <Text style={styles.mainHeader}>Comments mentioning me</Text>
+                <Comments />
+              </View>
+            </View>
+          </>
+        }
+      />
 
       <TouchableOpacity
-        // onPress={() => navigation.navigate('AddTask')}
-        onPress={openCreateTaskModal}
+        onPress={() => navigation.navigate('AddTask')}
         style={styles.floatingButton}>
         <Text
           style={{
@@ -855,20 +905,6 @@ const Requests = () => {
       </Modal>
 
       {/* CREATE TASK MODAL */}
-      <Modalize
-        ref={createTaskModalRef}
-        modalHeight={500}
-        withHandle
-        scrollViewProps={{
-          nestedScrollEnabled: true,
-          keyboardShouldPersistTaps: 'handled',
-        }}>
-        <AddTask
-          isModal
-          visible={isCreateTaskOpen}
-          onClose={closeCreateTaskModal}
-        />
-      </Modalize>
     </>
   );
 };
@@ -879,7 +915,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: '5%',
     backgroundColor: '#F9F8F6',
-    marginBottom: 5,
+    // marginBottom: 5,
   },
   header: {
     paddingTop: '8%',
@@ -1166,6 +1202,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 8,
     maxWidth: 240,
+    fontFamily: 'K2D-Medium',
   },
 
   emptyBtn: {

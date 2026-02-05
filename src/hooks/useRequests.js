@@ -113,7 +113,8 @@ import {
   fetchRequestGrp,
   fetchRequestpro,
   fetchReqStatus,
-} from '../api/requests.api';
+  fetchMyComments,
+} from '../services/api/requests.api';
 
 // Queries
 export const useMyRequests = () => useQuery('my-requests', fetchMyRequests);
@@ -122,6 +123,11 @@ export const useMyProjects = () => useQuery('my-projects', fetchMyProjects);
 
 export const useTaskUpdates = taskId =>
   useQuery(['task-updates', taskId], () => fetchTaskUpdates(taskId), {
+    refetchInterval: 5000, // optional: auto-refresh every 5s
+  });
+
+export const useMyComments = userName =>
+  useQuery(['task-updates', userName], () => fetchMyComments(userName), {
     refetchInterval: 5000, // optional: auto-refresh every 5s
   });
 
@@ -163,7 +169,7 @@ export const useProjectsForAddTask = () =>
 
 export const useCreateTask = () =>
   useMutation(payload => {
-    const {createTask} = require('../api/requests.api');
+    const {createTask} = require('../services/api/requests.api');
     return createTask(payload);
   });
 

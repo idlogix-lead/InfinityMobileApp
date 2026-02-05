@@ -551,8 +551,8 @@ const ProfileScreen = ({navigation}) => {
             <TouchableOpacity
               style={styles.backBtn}
               onPress={() => navigation.goBack()}>
-              <MaterialCommunityIcons
-                name="keyboard-backspace"
+              <MaterialIcons
+                name="keyboard-arrow-left"
                 color="#000"
                 size={30}
               />
@@ -575,13 +575,13 @@ const ProfileScreen = ({navigation}) => {
         </View>
         
         <Card
-          Icon={<MaterialIcons name="add-circle-outline" size={25} color="#000000" />}
+          Icon={<MaterialIcons name="add" size={20} color="#000" />}
           txt="Add New Account"
           handlePress={addNewAccount}
         />
         
         <Card
-          Icon={<MaterialIcons name="swap-horiz" size={25} color="#000000" />}
+          Icon={<MaterialIcons name="swap-horiz" size={20} color="#000" />}
           txt="Switch Account"
           handlePress={() => setShowSwitchAccountModal(true)}
         />
@@ -592,7 +592,7 @@ const ProfileScreen = ({navigation}) => {
         </View>
         
         <Card
-          Icon={<FontAwesome name="building" size={25} color="#000000" />}
+          Icon={<FontAwesome name="building-o" size={18} color="#000" />}
           txt="View Company Details"
           handlePress={toggleCompanyInfo}
           chevron={
@@ -612,7 +612,7 @@ const ProfileScreen = ({navigation}) => {
         </View>
         
         <Card
-          Icon={<MaterialIcons name="co-present" size={25} color="#000000" />}
+          Icon={<MaterialCommunityIcons name="account-box-outline" size={20} color="#000" />}
           txt="Preferences"
           handlePress={() => {/* Navigate to preferences */}}
         />
@@ -621,8 +621,8 @@ const ProfileScreen = ({navigation}) => {
           Icon={
             <MaterialIcons
               name="published-with-changes"
-              size={25}
-              color="#000000"
+              size={20}
+              color="#000"
             />
           }
           txt="Change Role"
@@ -630,7 +630,7 @@ const ProfileScreen = ({navigation}) => {
         />
         
         <Card
-          Icon={<MaterialIcons name="feedback" size={25} color="#000000" />}
+          Icon={<MaterialIcons name="chat-bubble-outline" size={20} color="#000" />}
           txt="Feedback"
           handlePress={() => {/* Navigate to feedback */}}
         />
@@ -640,7 +640,7 @@ const ProfileScreen = ({navigation}) => {
         </View>
 
         <Card
-          Icon={<MaterialIcons name="help" size={23} color="#000000" />}
+          Icon={<MaterialIcons name="help-outline" size={20} color="#000" />}
           txt="Help & Support"
           handlePress={() => {/* Navigate to help */}}
         />
@@ -650,7 +650,7 @@ const ProfileScreen = ({navigation}) => {
         </View>
 
         <Card
-          Icon={<FontAwesome name="language" color="#000000" size={23} />}
+          Icon={<FontAwesome name="language" color="#000" size={20} />}
           txt="English"
           handlePress={() => {/* Open language selector */}}
         />

@@ -161,7 +161,15 @@ const AppNavigator = () => {
       <Stack.Screen name="TaskDetail" component={TaskDetail} />
       <Stack.Screen name="TaskStatus" component={TaskStatus} />
       <Stack.Screen name="AllProjects" component={AllProjects} />
-      <Stack.Screen name="AddTask" component={AddTask} />
+      <Stack.Screen
+        name="AddTask"
+        component={AddTask}
+        options={{
+          headerShown: false,
+          presentation: 'transparentModal',
+          animation: 'slide_from_bottom',
+        }}
+      />
       <Stack.Screen name="MyTasks" component={MyTasks} />
       
 
@@ -169,9 +177,7 @@ const AppNavigator = () => {
 
       <Stack.Screen name="approvals" component={Approvals} />
       <Stack.Screen name="WFStatusList" component={WFStatusList} />
-
       {/* JUST FOR PRACTICE */}
-      
     </Stack.Navigator>
   );
 };
