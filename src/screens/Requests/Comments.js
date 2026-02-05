@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -9,94 +9,116 @@ import {
   ActivityIndicator,
   Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-
-import axios from 'axios';
 import dayjs from 'dayjs';
 
-const Comments = ({requestId}) => {
-  const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(true);
+import {useSendTaskMessage, useMyComments} from '../../hooks/useRequests';
+import {useAuthStore} from '../../store/authStore';
+
+const Comments = () => {
+  const userName = useAuthStore(state => state.userName);
+
   const [replyText, setReplyText] = useState('');
-  const [replyingTo, setReplyingTo] = useState(null);
-  const [userName, setUserName] = useState('');
+  const [replyingToTask, setReplyingToTask] = useState(null);
 
-  useEffect(() => {
-    getUserName();
-    fetchComments();
-  }, []);
+  // ✅ Fetch mentioned comments directly
+  const {data: comments = [], isLoading, refetch} = useMyComments(userName);
+  const {mutateAsync: sendTaskMessageApi} = useSendTaskMessage();
 
-  const getUserName = async () => {
-    const name = await AsyncStorage.getItem('userName');
-    setUserName(name || '');
-  };
-
-  const fetchComments = async () => {
-    try {
-      setLoading(true);
-      const token = await AsyncStorage.getItem('token');
-      const res = await axios.get(
-        `http://116.58.53.114:9999/api/v1/models/R_RequestUpdate`,
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
-
-      // Filter comments where current user is mentioned
-      //   const filtered = res.data.records.filter(c =>
-      //     c.Result?.toLowerCase().includes(userName.toLowerCase()),
-      //   );
-      const filtered = res.data.records.filter(c =>
-        c.Result?.match(new RegExp(`@${userName}\\b`, 'i')),
-      );
-
-      setComments(filtered);
-    } catch (e) {
-      console.log('Fetch Comments Error:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const postReply = async () => {
-    if (!replyText) return;
+  // ================= SEND REPLY =================
+  const handleSendReply = async taskId => {
+    if (!replyText.trim()) return;
 
     try {
-      const token = await AsyncStorage.getItem('token');
-      const payload = {
-        R_Request_ID: requestId,
-        Result: replyText,
-        Parent_ID: replyingTo?.id || null,
-      };
-
-      await axios.post(
-        `http://116.58.53.114:9999/api/v1/models/R_RequestUpdate`,
-        payload,
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
+      await sendTaskMessageApi({
+        taskId,
+        message: replyText,
+      });
 
       setReplyText('');
-      setReplyingTo(null);
-      fetchComments();
-    } catch (e) {
-      console.log('Post Reply Error:', e);
+      setReplyingToTask(null);
+      refetch();
+    } catch (err) {
+      console.log('Reply Error:', err);
     }
   };
 
-  const renderItem = ({item}) => (
-    <View style={styles.commentItem}>
-      <Text style={styles.commentText}>{item.Result}</Text>
-      <Text style={styles.commentTime}>
-        {dayjs(item.Created).format('DD MMM YYYY, hh:mm A')}
-      </Text>
-      <TouchableOpacity
-        onPress={() => setReplyingTo(item)}
-        style={styles.replyBtn}>
-        <Text style={styles.replyBtnText}>Reply</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  // ================= HIGHLIGHT @USERNAME =================
+  const renderCommentText = text => {
+    const regex = /@\w+/g;
+    const parts = text.split(regex);
+    const matches = text.match(regex);
 
-  if (loading) return <ActivityIndicator size="large" color="#2F4FE3" />;
+    return (
+      <Text style={styles.commentText}>
+        {parts.map((part, i) => (
+          <React.Fragment key={i}>
+            {part}
+            {matches?.[i] && (
+              <Text style={styles.mentionText}>{matches[i]}</Text>
+            )}
+          </React.Fragment>
+        ))}
+      </Text>
+    );
+  };
+
+  // ================= RENDER COMMENT =================
+  const renderItem = ({item}) => {
+    const taskId = item.R_Request_ID?.id;
+
+    return (
+      <View style={styles.commentCard}>
+        <View style={styles.commentHeader}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {item.CreatedBy?.identifier?.[0] || 'U'}
+            </Text>
+          </View>
+
+          <View style={{flex: 1, marginLeft: 10}}>
+            <Text style={styles.commentUser}>
+              {item.CreatedBy?.identifier || 'User'}
+            </Text>
+            <Text style={styles.commentTime}>
+              {dayjs(item.Created).format('DD MMM YYYY, hh:mm A')}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() =>
+              setReplyingToTask(replyingToTask === taskId ? null : taskId)
+            }>
+            <MaterialIcons name="reply" size={20} color="#2F4FE3" />
+          </TouchableOpacity>
+        </View>
+
+        {renderCommentText(item.Result)}
+
+        {/* ================= Reply Box ================= */}
+        {replyingToTask === taskId && (
+          <View style={styles.replyBox}>
+            <TextInput
+              style={styles.replyInput}
+              placeholder="Reply..."
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+            />
+            <TouchableOpacity onPress={() => handleSendReply(taskId)}>
+              <MaterialIcons name="send" size={22} color="#2F4FE3" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // ================= LOADING =================
+  if (isLoading)
+    return (
+      <ActivityIndicator size="large" color="#2F4FE3" style={{marginTop: 50}} />
+    );
 
   return (
     <View style={styles.container}>
@@ -106,48 +128,16 @@ const Comments = ({requestId}) => {
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            {/* <MaterialIcons
-              name="comments-disabled"
-              color={'#E74C3C77'}
-              size={60}
-            /> */}
-            <View
-              style={{flex: 1, alignItems: 'center', justifyContent: 'center', marginTop:'-30%'}}>
-              <Image
-                source={require('../../asserts/RequestAsserts/emptyComments.jpeg')}
-                style={{height: 250, width: 250}}
-              />
-            </View>
-            {/* <Text style={styles.emptyTitle}>No comments mentioning you</Text> */}
-           <View style={{marginTop: '-20%'}}>
-             <Text style={styles.emptySubtitle}>
-              Comments where you are mentioned with @username will appear here.
+            <Image
+              source={require('../../asserts/RequestAsserts/emptyComments.jpeg')}
+              style={{height: 200, width: 200}}
+            />
+            <Text style={styles.emptySubtitle}>
+              @username mentions will appear here
             </Text>
-            
-           </View>
-           <TouchableOpacity style={styles.emptyBtn}>
-              <Text style={styles.emptyBtnText}>Go To Inbox</Text>
-            </TouchableOpacity>
           </View>
         }
       />
-
-      {/* <View style={styles.inputWrapper}>
-        {replyingTo && (
-          <Text style={styles.replyingToText}>
-            Replying to: {replyingTo.Result}
-          </Text>
-        )}
-        <TextInput
-          style={styles.input}
-          value={replyText}
-          onChangeText={setReplyText}
-          placeholder="Write a reply..."
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={postReply}>
-          <Text style={styles.sendText}>Send</Text>
-        </TouchableOpacity>
-      </View> */}
     </View>
   );
 };
@@ -155,71 +145,73 @@ const Comments = ({requestId}) => {
 export default Comments;
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  commentItem: {
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
+  container: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    // backgroundColor: '#f9f9f9',
   },
-  commentText: {fontSize: 14, color: '#333', marginBottom: 6},
+  commentCard: {
+    backgroundColor: '#F9F8F6',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  commentHeader: {flexDirection: 'row', alignItems: 'center', marginBottom: 6},
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#2F4FE3',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {color: '#fff', fontWeight: 'bold', fontSize: 14},
+  commentUser: {fontWeight: '600', fontSize: 14, color: '#333'},
   commentTime: {fontSize: 11, color: '#999'},
-  replyBtn: {marginTop: 6},
-  replyBtnText: {color: '#2F4FE3', fontSize: 12},
-  inputWrapper: {
+  commentText: {fontSize: 14, color: '#333', marginTop: 4, lineHeight: 20},
+  mentionText: {color: '#2F4FE3', fontWeight: '600'},
+  replyBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     paddingHorizontal: 8,
+    paddingVertical: 4,
   },
-  input: {flex: 1, paddingVertical: 8, fontSize: 14},
+  replyInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+    color: '#333',
+    fontFamily: 'K2D-Medium',
+  },
   sendBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#2F4FE3',
-    borderRadius: 6,
+    // backgroundColor: '#2F4FE3',
+    paddingVertical: 6,
+    // paddingHorizontal: 14,
+    // borderRadius: 6,
+    // marginLeft: 6,
   },
-  sendText: {color: '#fff', fontSize: 14},
-  replyingToText: {fontSize: 12, color: '#555', marginBottom: 4},
+  sendText: {color: '#fff', fontWeight: '600'},
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: '15%', // optional: move it a bit down
+    marginTop: '20%',
     paddingHorizontal: 20,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 16,
-    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 13,
     color: '#777',
-    marginTop: '3%',
-    marginBottom: '5%',
-    textAlign: 'center',
-  },
-  emptyBtn: {
-    marginTop: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-
-  emptyBtnText: {
-    color: '#333',
-    fontSize: 13,
-    fontFamily: 'K2D-Medium',
+    marginTop: 10,
     textAlign: 'center',
   },
 });

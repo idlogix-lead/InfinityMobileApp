@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo} from 'react';
 import {
   View,
   Text,
@@ -77,7 +77,7 @@ const AllProjects = () => {
     return dayjs(date).isBetween(startDate, endDate, 'day', '[]');
   };
 
-  const filteredProjects = React.useMemo(() => {
+  const filteredProjects = useMemo(() => {
     if (activeTab === 'All') {
       return projects;
     }
@@ -147,8 +147,9 @@ const AllProjects = () => {
             <TouchableOpacity
               style={styles.projectRow}
               // onPress={() => handleProjectPress(item)}
-              onPress={() => Alert.alert('Will be implemented in future updates')}
-              >
+              onPress={() =>
+                Alert.alert('Will be implemented in future updates')
+              }>
               <View style={styles.projectIcon}>
                 <Ionicons name="list" size={18} color="#2F4FE3" />
               </View>

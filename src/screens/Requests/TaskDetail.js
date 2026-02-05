@@ -13,6 +13,7 @@ import {
   FlatList,
   BackHandler,
   TouchableWithoutFeedback,
+  Image,
 } from 'react-native';
 import React, {useEffect, useRef, useState} from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -63,6 +64,10 @@ const TaskDetail = ({route}) => {
   );
 
   // LOCAL STATES
+  const [localReaction, setLocalReaction] = useState({});
+  const [bottomReactionFor, setBottomReactionFor] = useState(null);
+
+  const [showActivity, setShowActivity] = useState(true);
   const [showDueDatePicker, setShowDueDatePicker] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [message, setMessage] = useState('');
@@ -258,6 +263,21 @@ const TaskDetail = ({route}) => {
         <Text style={styles.referenceValueText}>{value ?? '—'}</Text>
       </View>
     </View>
+  );
+
+  const handleReaction = (updateId, emoji) => {
+    setLocalReaction(prev => ({
+      ...prev,
+      [updateId]: emoji, // one reaction per message
+    }));
+    setReactionPickerFor(null);
+  };
+
+  useEffect(() => {
+    setUpdates([]); // 💥 reset old comments
+  }, [task?.id]);
+  const safeUpdates = updates.filter(
+    u => u?.R_Request_ID?.id === task?.id || u?.taskId === task?.id,
   );
 
   // ✅ SAFE INITIAL STATE (FIXED)
@@ -474,7 +494,8 @@ const TaskDetail = ({route}) => {
         <ScrollView
           style={styles.container}
           contentContainerStyle={{paddingBottom: 120}}
-          keyboardShouldPersistTaps="handled">
+          // keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always">
           <View style={styles.descRow}>
             <TextInput
               value={editableTask.Summary}
@@ -1375,95 +1396,131 @@ const TaskDetail = ({route}) => {
 
           {/* ACTIVITY */}
           <View style={styles.activityContainer}>
-            <View style={styles.activityHeader}>
+            <TouchableOpacity
+              style={styles.activityHeader}
+              onPress={() => setShowActivity(prev => !prev)}>
               <Text style={styles.activityTitle}>All activity</Text>
               <MaterialIcons
-                name="keyboard-arrow-down"
+                // name="keyboard-arrow-down"
+                name={
+                  showActivity ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
+                }
                 size={20}
                 color="#555"
               />
-            </View>
-            {updates.map(item => (
-              <View key={item.id} style={styles.activityItem}>
-                <View
-                  style={[
-                    styles.avatar,
-                    {
-                      backgroundColor: getAvatarColor(
-                        item.CreatedBy?.identifier,
-                        item.CreatedBy?.id,
-                      ),
-                    },
-                  ]}>
-                  <Text style={styles.avatarText}>
-                    {item.CreatedBy?.identifier
-                      ?.split(' ')
-                      .map(w => w[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase() || 'FN'}
-                  </Text>
-                </View>
+            </TouchableOpacity>
 
-                <View style={styles.activityContent}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.userName}>
-                      {item.CreatedBy?.identifier || 'User'}
+            {showActivity && (
+              <>
+                {safeUpdates.length === 0 ? (
+                  // ✅ Empty state
+                  <View style={styles.emptyState}>
+                    <Image
+                      source={require('../../asserts/RequestAsserts/emptyComments.jpeg')}
+                      style={{height: 200, width: 200}}
+                    />
+                    <Text style={styles.emptyText}>
+                      No activity yet. All updates will {'\n'} appear here.
                     </Text>
-                    <Text style={styles.actionText}> added a comment</Text>
                   </View>
+                ) : (
+                  safeUpdates.map(item => (
+                    <View key={item.id} style={styles.activityItem}>
+                      <View
+                        style={[
+                          styles.avatar,
+                          {
+                            backgroundColor: getAvatarColor(
+                              item.CreatedBy?.identifier,
+                              item.CreatedBy?.id,
+                            ),
+                          },
+                        ]}>
+                        <Text style={styles.avatarText}>
+                          {item.CreatedBy?.identifier
+                            ?.split(' ')
+                            .map(w => w[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase() || 'FN'}
+                        </Text>
+                      </View>
 
-                  <Text style={styles.timeText}>
-                    {new Date(item.Created).toLocaleString()}
-                  </Text>
+                      <View style={styles.activityContent}>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.userName}>
+                            {item.CreatedBy?.identifier || 'User'}
+                          </Text>
+                          <Text style={styles.actionText}>
+                            {' '}
+                            added a comment
+                          </Text>
+                        </View>
 
-                  {item.Result && (
-                    <View style={styles.messageBubble}>
-                      <Text style={styles.messageText}>{item.Result}</Text>
+                        <Text style={styles.timeText}>
+                          {new Date(item.Created).toLocaleString()}
+                        </Text>
+                        {item.Result && (
+                          <View style={styles.messageRow}>
+                            {/* MESSAGE */}
+                            <View style={styles.messageBubble}>
+                              <Text style={styles.messageText}>
+                                {item.Result}
+                              </Text>
+
+                              {/* Reaction emoji attached */}
+                              {localReaction[item.id] && (
+                                <View style={styles.reactionBubble}>
+                                  <Text style={styles.reactionBubbleTxt}>
+                                    {localReaction[item.id]}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+
+                            {/* REACT BUTTON */}
+                            <TouchableOpacity
+                              style={styles.reactInlineBtn}
+                              onPress={() => setBottomReactionFor(item.id)}>
+                              <Text style={styles.reactionText}>🙂</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                      {bottomReactionFor && (
+                        <View style={styles.bottomReactionBar}>
+                          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                            <TouchableOpacity
+                              key={emoji}
+                              onPress={() => {
+                                handleReaction(bottomReactionFor, emoji);
+                                setBottomReactionFor(null);
+                              }}>
+                              <Text style={styles.bottomEmoji}>{emoji}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedActivity(item);
+                          setShowOptionsModal(true);
+                        }}>
+                        <MaterialIcons
+                          name="more-horiz"
+                          size={20}
+                          color="#999"
+                          style={{marginTop: 4}}
+                        />
+                      </TouchableOpacity>
                     </View>
-                  )}
-
-                  <View style={styles.reactionChip}>
-                    <TouchableOpacity
-                      onPress={() =>
-                        setReactionPickerFor(
-                          reactionPickerFor === item.id ? null : item.id,
-                        )
-                      }>
-                      <Text style={styles.reactionText}>🙂 React</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {reactionPickerFor === item.id && (
-                    <View style={styles.reactionPopup}>
-                      {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                        <TouchableOpacity
-                          key={emoji}
-                          onPress={() => {
-                            console.log('Reacted', emoji, 'to', item.id);
-                            setReactionPickerFor(null);
-                          }}>
-                          <Text style={styles.emoji}>{emoji}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setSelectedActivity(item);
-                    setShowOptionsModal(true);
-                  }}>
-                  <MaterialIcons
-                    name="more-horiz"
-                    size={20}
-                    color="#999"
-                    style={{marginTop: 4}}
-                  />
-                </TouchableOpacity>
-              </View>
-            ))}
+                  ))
+                )}
+              </>
+            )}
           </View>
+
           {/* HISTORY MODAL */}
           <Modal
             visible={historyModalVisible}
@@ -1535,6 +1592,7 @@ const TaskDetail = ({route}) => {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="always"
               style={styles.standardInlineContainer}
               contentContainerStyle={{paddingHorizontal: 24, gap: 8}}>
               {standardResponses.map(item => (
@@ -1603,18 +1661,14 @@ const styles = StyleSheet.create({
   updatesHeader: {
     fontSize: 16,
     fontFamily: 'K2D-Bold',
-    // marginBottom: 8,
     color: '#555',
     paddingVertical: '5%',
   },
   noUpdate: {textAlign: 'center', color: '#777', paddingVertical: '10%'},
   updateCard: {
-    // backgroundColor: '#fff',
-    // borderRadius: 16,
     padding: 12,
     marginBottom: 4,
     width: '100%',
-    // elevation: 1,
   },
 
   updateHeader: {
@@ -1647,7 +1701,6 @@ const styles = StyleSheet.create({
   iconLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    // marginBottom: 2,
   },
 
   iconWrapper: {
@@ -1682,16 +1735,10 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     lineHeight: 20,
   },
-  standardChipText: {
-    fontSize: 13,
-    color: '#2F4FE3',
-    fontWeight: '600',
-  },
 
   betweenRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    // marginTop: 12,
     paddingHorizontal: '5%',
   },
   descRow: {
@@ -1712,7 +1759,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'K2D-Bold',
     color: '#333',
-    // marginLeft: 6,
   },
 
   attachmentCard: {
@@ -1734,22 +1780,9 @@ const styles = StyleSheet.create({
   },
 
   addAttachmentBox: {
-    // borderWidth: 1,
-    // borderStyle: 'dashed',
-    // borderColor: '#2F4FE3',
-    // borderRadius: 10,
-    // paddingVertical: '3%',
-    // alignItems: 'center',
-    // justifyContent: 'center',
-    // marginVertical: 10,
-    // backgroundColor: '#eee',
-    // flexDirection:'row'
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    // borderWidth: 1,
-    // borderStyle: 'dashed',
-    // borderColor: '#2ECC71',
     borderRadius: 10,
     paddingVertical: '3%',
     backgroundColor: '#eee',
@@ -1779,9 +1812,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    // borderWidth: 1,
-    // borderStyle: 'dashed',
-    // borderColor: '#2ECC71',
     borderRadius: 10,
     paddingVertical: '3%',
     backgroundColor: '#eee',
@@ -1791,7 +1821,6 @@ const styles = StyleSheet.create({
   addSubtaskText: {
     marginLeft: 6,
     fontSize: 13,
-    // color: '#2ECC71',
     color: '#555',
     fontFamily: 'K2D-Bold',
   },
@@ -1799,11 +1828,9 @@ const styles = StyleSheet.create({
   subtaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: '#fff',
     borderRadius: 10,
     padding: 12,
     marginTop: 6,
-    // elevation: 2,
   },
 
   subtaskText: {
@@ -1816,14 +1843,11 @@ const styles = StyleSheet.create({
   chatInputRow: {
     position: 'absolute',
     bottom: 2,
-    // top:10,
     left: '5%',
-    // right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fff',
-    // borderRadius: 30,
     paddingHorizontal: '5%',
     width: '97%',
     elevation: 5,
@@ -1835,12 +1859,11 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   updatesContainer: {
-    minHeight: 200, // 🔒 fixed height
+    minHeight: 200, // fixed height
     marginVertical: 10,
     borderRadius: 12,
     backgroundColor: '#F8F8F8',
     padding: 6,
-    // marginBottom: 20
     bottom: 10,
   },
   inlineInputBox: {
@@ -1904,11 +1927,8 @@ const styles = StyleSheet.create({
   asanaSubtaskRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: '#fff',
     borderRadius: 10,
     padding: '1%',
-    // marginTop: 6,
-    // elevation: 1,
   },
 
   asanaSubtaskText: {
@@ -1959,12 +1979,6 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     fontSize: 14,
   },
-  fixedChatWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
 
   chatShadow: {
     height: 3,
@@ -1975,14 +1989,10 @@ const styles = StyleSheet.create({
   fixedChatInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: '#fff',
     paddingHorizontal: '5%',
     paddingVertical: '4%',
-    // bottom: 15,
-    width: '100%',
 
-    // borderTopWidth: 1,
-    // borderTopColor: '#e0e0e0',
+    width: '100%',
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -2001,23 +2011,15 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     color: '#333',
     paddingRight: 10,
-    // backgroundColor: '#fff',
-    // elevation: 3,
-    // borderRadius: 30,
-    // paddingHorizontal: '10%',
   },
   actionRow: {
     flexDirection: 'row',
-    // justifyContent: 'space-around',
     gap: 20,
     alignItems: 'flex-start',
     backgroundColor: '#fff',
     paddingHorizontal: '10%',
     marginTop: '-5%',
     paddingVertical: '5%',
-    // paddingVertical: 8,
-    // borderTopWidth: 1,
-    // borderColor: '#eee',
   },
 
   actionBtn: {
@@ -2025,12 +2027,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // actionText: {
-  //   marginLeft: 6,
-  //   fontSize: 12,
-  //   color: '#555',
-  //   fontFamily: 'K2D-Medium',
-  // },
   activityContainer: {
     paddingVertical: 10,
   },
@@ -2038,7 +2034,7 @@ const styles = StyleSheet.create({
   activityHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: '7%',
   },
 
   activityTitle: {
@@ -2071,6 +2067,7 @@ const styles = StyleSheet.create({
 
   activityContent: {
     flex: 1,
+    marginBottom: '15%',
   },
 
   nameRow: {
@@ -2096,15 +2093,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  messageBubble: {
-    backgroundColor: '#F2F3F5',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginTop: 6,
-    maxWidth: '90%',
-  },
-
   messageText: {
     fontSize: 14,
     color: '#333',
@@ -2112,7 +2100,7 @@ const styles = StyleSheet.create({
   },
 
   reactionChip: {
-    backgroundColor: '#F2F3F5',
+    // backgroundColor: '#F2F3F5',
     alignSelf: 'flex-start',
     borderRadius: 16,
     paddingHorizontal: 10,
@@ -2125,14 +2113,6 @@ const styles = StyleSheet.create({
     color: '#555',
     fontFamily: 'K2D-Medium',
   },
-  // avatar: {
-  //   width: 40,
-  //   height: 40,
-  //   borderRadius: 20,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  // },
-  // avatarText: {color: '#fff', fontWeight: 'bold'},
 
   optionsModal: {
     position: 'absolute',
@@ -2145,19 +2125,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
   },
-  optionBtn: {padding: 10},
-  reactionPopup: {
-    flexDirection: 'row',
-    position: 'absolute',
-    bottom: 25,
-    backgroundColor: '#fff',
-    padding: 5,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-  },
-  emoji: {fontSize: 20, marginHorizontal: 5},
+
   bottomOptionsModal: {
     position: 'absolute',
     bottom: 0,
@@ -2244,9 +2212,11 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     backgroundColor: '#eee',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 4,
+    padding: '5%',
+    borderRadius: 10,
+    // marginTop: 4,
+    maxWidth: '85%',
+    position: 'relative',
   },
 
   fixedChatWrapper: {
@@ -2411,5 +2381,106 @@ const styles = StyleSheet.create({
   bpDropdownItemText: {
     fontSize: 16,
     color: '#555',
+  },
+  emptyState: {
+    // paddingVertical: '5%',
+    // bottom: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginBottom: '10%',
+    borderRadius: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#777',
+    // marginTop: '3%',
+    top: '-15%',
+    marginBottom: '5%',
+    textAlign: 'center',
+    fontFamily: 'K2D-Medium',
+  },
+  // REACTION STYLING
+
+  reactionBubbleTxt: {
+    fontSize: 16,
+    color: '#000',
+    fontFamily: 'K2D-Medium',
+  },
+  messageWrapper: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+
+  reactionPopup: {
+    position: 'absolute',
+    top: -40,
+    left: 0,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: 6,
+    borderRadius: 20,
+    elevation: 6,
+    zIndex: 999,
+  },
+  emoji: {fontSize: 20, marginHorizontal: 6},
+  bottomReactionBar: {
+    position: 'absolute',
+    bottom: 70,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    padding: 10,
+    borderTopWidth: 1,
+    borderColor: '#ddd',
+    elevation: 3,
+  },
+
+  bottomEmoji: {
+    fontSize: 28,
+    marginHorizontal: 10,
+  },
+
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: '5%',
+  },
+
+  // messageBubble: {
+  //   backgroundColor: '#F2F2F2',
+  //   padding: 10,
+  //   borderRadius: 12,
+  //   maxWidth: '75%',
+  //   position: 'relative',
+  // },
+
+  reactInlineBtn: {
+    marginLeft: 6,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    elevation: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  reactionBubble: {
+    position: 'absolute',
+    bottom: -20,
+    left: 15,
+    backgroundColor: '#fff',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 18,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
 });

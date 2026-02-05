@@ -3,6 +3,7 @@ import {QueryClient, QueryClientProvider} from 'react-query';
 import {MenuProvider} from 'react-native-popup-menu';
 import Navigation from './src/navigation/Navigation';
 import {Platform} from 'react-native';
+import {Provider as PaperProvder} from 'react-native-paper';
 import keychainService from './src/services/KeyChainService';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
@@ -44,11 +45,13 @@ function App() {
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
-    <QueryClientProvider client={queryClient}>
-      <MenuProvider>
-        <Navigation />
-      </MenuProvider>
-    </QueryClientProvider>
+      <PaperProvder>
+        <QueryClientProvider client={queryClient}>
+          <MenuProvider>
+            <Navigation />
+          </MenuProvider>
+        </QueryClientProvider>
+      </PaperProvder>
     </GestureHandlerRootView>
   );
 }

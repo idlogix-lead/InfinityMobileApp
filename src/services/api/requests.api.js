@@ -340,14 +340,32 @@ export const fetchMyProjects = async () => {
 };
 
 // Fetch Task Updates
+// export const fetchTaskUpdates = async taskId => {
+//   const {userId} = getAuthState();
+//   const baseURL = getBaseURL();
+
+//   const res = await makeRequest(
+//     `${baseURL}/models/R_RequestUpdate?filter=[["R_Request_ID.id","=",${taskId}],"and",["CreatedBy.id","=",${userId}]]`,
+//   );
+
+//   return res.records || [];
+// };
+
 export const fetchTaskUpdates = async taskId => {
-  const {userId} = getAuthState();
   const baseURL = getBaseURL();
 
   const res = await makeRequest(
-    `${baseURL}/models/R_RequestUpdate?filter=[["R_Request_ID.id","=",${taskId}],"and",["CreatedBy.id","=",${userId}]]`,
+    `${baseURL}/models/R_RequestUpdate?$filter=R_Request_ID eq ${taskId}`,
   );
 
+  return res.records || [];
+};
+
+export const fetchMyComments = async userName => {
+  const baseURL = getBaseURL();
+  const res = await makeRequest(
+    `${baseURL}/models/R_RequestUpdate?$filter=contains(tolower(Result),'@${userName.toLowerCase()}')`,
+  );
   return res.records || [];
 };
 

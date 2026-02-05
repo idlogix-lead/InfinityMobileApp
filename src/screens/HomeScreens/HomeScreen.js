@@ -286,7 +286,7 @@ const HomeScreen = ({route}) => {
         onPress: () => navigation.navigate('EmployeePortal'),
       },
     ],
-    [approvalCount, requestCount, navigation],
+    [requestCount, OSCount, navigation],
   );
 
   // Back handler
