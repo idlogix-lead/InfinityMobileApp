@@ -1,5 +1,5 @@
-// screens/CrmScreen.js - Simplified without manual refresh button
-import React, { useRef, useMemo, useCallback, useEffect } from 'react';
+// screens/CrmScreen.js - Simplified with custom SalesTab component
+import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,11 @@ import {
   Alert,
   Linking,
   RefreshControl,
-  BackHandler
+  BackHandler,
+  FlatList,
+  Platform
 } from 'react-native';
+import { Provider } from 'react-native-paper';
 import { useQueryClient } from 'react-query';
 import { useAuthStore } from '../../store/authStore';
 import { useCRMStore } from '../../store/crmStore';
@@ -23,12 +26,12 @@ import {
 } from '../../hooks/CRMhooks/useCRM';
 import Loader from '../../components/Loader';
 import EarningChart from '../../components/CRMSearch/CRMChart/EarningChart';
-import SalesOpper from '../SalesOppertunity/SalesOpper';
-import CRMCard from '../../components/CRMCard/CRMCard';
-import { Provider } from 'react-native-paper';
+import SalesTab from '../../screens/SalesOppertunity/SalesTab';
+import FollowupScreen from '../CRMFollowupsScreen/FollowupScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import moment from 'moment';
+import CustomHeader from '../../components/CustomHeader'; 
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -39,12 +42,10 @@ const CrmScreen = ({ navigation }) => {
   // Add this useEffect to handle Android back button
   useEffect(() => {
     const backAction = () => {
-      // If there's a screen in stack to go back to
       if (navigation.canGoBack()) {
         navigation.goBack();
         return true;
       } else {
-        // Show confirmation before exiting app
         Alert.alert(
           'Exit App',
           'Do you want to exit the application?',
@@ -73,6 +74,7 @@ const CrmScreen = ({ navigation }) => {
 
     return () => backHandler.remove();
   }, [navigation]);
+
   // Get UI states from CRM store
   const {
     activeTab,
@@ -121,14 +123,12 @@ const CrmScreen = ({ navigation }) => {
     setManualRefreshing(true);
     
     try {
-      // Refresh all data in parallel
       await Promise.all([
         refetchLeads(),
         refetchFollowups(),
         refetchSales(),
       ]);
       
-      // Also invalidate queries for good measure
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['followups']);
       queryClient.invalidateQueries(['salesOpportunities']);
@@ -140,7 +140,7 @@ const CrmScreen = ({ navigation }) => {
     }
   }, [refetchLeads, refetchFollowups, refetchSales, queryClient]);
 
-  // Memoized lead calculations
+  // Memoized lead calculations based on displayed leads
   const {
     newLeads,
     convertedLeads,
@@ -161,6 +161,35 @@ const CrmScreen = ({ navigation }) => {
       totalLeads: leads.length,
     };
   }, [leads]);
+
+  // Memoized sales opportunity calculations
+  const salesSummary = useMemo(() => {
+    const totalSales = salesOpportunities.length;
+    const wonSales = salesOpportunities.filter(sale => 
+      sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('won')
+    ).length;
+    const lostSales = salesOpportunities.filter(sale => 
+      sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('lost')
+    ).length;
+    const inProgressSales = salesOpportunities.filter(sale => 
+      sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('progress') ||
+      sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('open')
+    ).length;
+
+    // Calculate total opportunity value
+    const totalValue = salesOpportunities.reduce((sum, sale) => {
+      const value = parseFloat(sale.OpportunityAmt || sale.Amount || 0);
+      return sum + (isNaN(value) ? 0 : value);
+    }, 0);
+
+    return {
+      totalSales,
+      wonSales,
+      lostSales,
+      inProgressSales,
+      totalValue
+    };
+  }, [salesOpportunities]);
 
   // Memoized followup calculations
   const { todayFollowups, futureFollowups, missedFollowups } = useMemo(() => {
@@ -209,7 +238,7 @@ const CrmScreen = ({ navigation }) => {
         setShowSalesCard(true);
         setShowOverviewCard(false);
         break;
-      case 'Overview':
+      case 'FollowUps':
         setShowCRMCard(false);
         setShowSalesCard(false);
         setShowOverviewCard(true);
@@ -221,32 +250,181 @@ const CrmScreen = ({ navigation }) => {
     }
   };
 
-  // Handle lead navigation
-  const handleLeadNavigation = (type, leadsData) => {
-    navigation.navigate(`Crm${type}`, {
-      leads: leadsData,
-      activities: followups,
+  // Handle lead summary card press
+  const handleLeadSummaryPress = (type) => {
+    let filteredLeads = [];
+    let screenTitle = "";
+    let screenName = "GenericLead";
+    
+    switch(type) {
+      case 'total':
+        filteredLeads = leads;
+        screenTitle = "All Leads";
+        screenName = "CrmTotal";
+        break;
+      case 'converted':
+        filteredLeads = convertedLeads;
+        screenTitle = "Converted Leads";
+        screenName = "CrmConverted";
+        break;
+      case 'working':
+        filteredLeads = workingLeads;
+        screenTitle = "Working Leads";
+        screenName = "CrmWorking";
+        break;
+      case 'new':
+        filteredLeads = newLeads;
+        screenTitle = "New Leads";
+        screenName = "CrmNew";
+        break;
+      default:
+        filteredLeads = leads;
+        screenTitle = "Leads";
+        screenName = "GenericLead";
+    }
+    
+    navigation.navigate(screenName, { 
+      leads: filteredLeads,
+      screenTitle: screenTitle
     });
   };
 
-  // Handle lead actions
-  const handleMail = (email) => {
-    if (!email) {
-      Alert.alert('Error', 'Email address not found.');
-      return;
+  // Handle sales summary card press
+  const handleSalesSummaryPress = (type) => {
+    let filteredSales = [];
+    let screenTitle = "";
+    
+    switch(type) {
+      case 'total':
+        filteredSales = salesOpportunities;
+        screenTitle = "All Opportunities";
+        break;
+      case 'won':
+        filteredSales = salesOpportunities.filter(sale => 
+          sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('won')
+        );
+        screenTitle = "Won Opportunities";
+        break;
+      case 'progress':
+        filteredSales = salesOpportunities.filter(sale => 
+          sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('progress') ||
+          sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('open')
+        );
+        screenTitle = "In Progress Opportunities";
+        break;
+      default:
+        filteredSales = salesOpportunities;
+        screenTitle = "Sales Opportunities";
     }
-    Linking.openURL(`mailto:${email}`);
+    
+    // Navigate to sales opportunities screen
+    navigation.navigate('SalesOpportunitiesList', { 
+      sales: filteredSales,
+      screenTitle: screenTitle
+    });
   };
 
-  const handlePhone = (phone) => {
-    if (!phone) {
-      Alert.alert('Error', 'Phone number not found.');
-      return;
-    }
-    Linking.openURL(`tel:${phone}`);
+  // Handle sales blue card press
+  const handleSalesBlueCardPress = () => {
+    navigation.navigate('SalesOpportunitiesList', { 
+      sales: salesOpportunities,
+      screenTitle: "All Opportunities"
+    });
   };
 
+  // Render lead summary cards with uniform design
+  const renderLeadSummaryCards = () => {
+    return (
+      <View style={styles.leadCardsContainer}>
+        {/* Total Leads Card */}
+        <TouchableOpacity 
+          style={styles.leadCard}
+          onPress={() => handleLeadSummaryPress('total')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.cardLeft}>
+              <View style={styles.cardIconContainer}>
+                <MaterialIcons name="web" size={20} color="#111111" />
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardCount}>Total Leads</Text>
+                <Text style={styles.cardNumber}>{totalLeads}</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#111111" />
+          </View>
+        </TouchableOpacity>
 
+        {/* Converted Leads Card */}
+        <TouchableOpacity 
+          style={styles.leadCard}
+          onPress={() => handleLeadSummaryPress('converted')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.cardLeft}>
+              <View style={styles.cardIconContainer}>
+                <MaterialIcons name="swap-horiz" size={20} color="#111111" />
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardCount}>Converted</Text>
+                <Text style={styles.cardNumber}>{convertedLeads.length}</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#111111" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Working Leads Card */}
+        <TouchableOpacity 
+          style={styles.leadCard}
+          onPress={() => handleLeadSummaryPress('working')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.cardLeft}>
+              <View style={styles.cardIconContainer}>
+                <Ionicons name="time" size={20} color="#111111" />
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardCount}>Working</Text>
+                <Text style={styles.cardNumber}>{workingLeads.length}</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#111111" />
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Render minimal blue card with rectangular white button
+  const renderBlueCard = () => {
+    return (
+      <View style={styles.blueCardContainer}>
+        <View style={styles.blueCard}>
+          <View style={styles.blueCardContent}>
+            <View style={styles.blueCardTextContainer}>
+              <Text style={styles.blueCardTitle}>Quick Tip</Text>
+              <Text style={styles.blueCardDescription}>
+                Follow up within 24 hours for better conversion
+              </Text>
+            </View>
+            
+            {/* Rectangular white button */}
+            <TouchableOpacity 
+              style={styles.rectangularButton}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('FollowUps')}
+            >
+              <Text style={styles.rectangularButtonText}>View</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   // Loading state
   const isLoading = leadsLoading || followupsLoading || salesLoading;
@@ -271,56 +449,19 @@ const CrmScreen = ({ navigation }) => {
     );
   }
 
+  // Data for circular chart
+  const circularChartData = [salesSummary.wonSales, salesSummary.inProgressSales, salesSummary.lostSales];
+  const circularChartLabels = ['Won', 'In Progress', 'Lost'];
+
   return (
     <Provider>
-      <ScrollView 
-        ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={['#2F4FE3']}
-            tintColor="#2F4FE3"
-          />
-        }
-      >
-        <StatusBar barStyle={'dark-content'} />
+      <>
+        {/* Custom Header */}
+        <CustomHeader title="CRM Board" />
+        
+        {/* Content */}
         <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.userInfo}>
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={{ marginRight: 5 }}>
-                <Ionicons name="chevron-back" size={25} color={'#000'} />
-              </TouchableOpacity>
-            </View>
-
-            {showCRMCard && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('AddLeads')}
-                style={styles.addButton}>
-                <Text style={styles.addButtonText}>Add Lead</Text>
-              </TouchableOpacity>
-            )}
-
-            {showSalesCard && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('AddSaleOppor')}
-                style={styles.addButton}>
-                <Text style={styles.addButtonText}>Add Opportunity</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Title */}
-          <Text style={styles.chartTitle}>CRM Board</Text>
-          <Text style={styles.chartSubtitle}>
-            Manage leads and opportunities to drive business growth.
-          </Text>
-
-          {/* Tabs */}
+          {/* Updated Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
               onPress={() => handleTabPress('Leads')}
@@ -339,264 +480,122 @@ const CrmScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => handleTabPress('Overview')}
-              style={[styles.tab, activeTab === 'Overview' && styles.activeTab]}>
-              <Text style={[styles.tabText, activeTab === 'Overview' && styles.activeTabText]}>
-                Overview
+              onPress={() => handleTabPress('FollowUps')}
+              style={[styles.tab, activeTab === 'FollowUps' && styles.activeTab]}>
+              <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]}>
+                Follow ups
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Content based on active tab */}
           {showSalesCard && (
-            <SalesOpper
-              todayFollowups={todayFollowups}
-              futureFollowups={futureFollowups}
-              missedFollowups={missedFollowups}
-              salesCall={salesOpportunities}
-              isRefreshing={isRefreshing}
-            />
+            <ScrollView 
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                  colors={['#2F4FE3']}
+                  tintColor="#2F4FE3"
+                />
+              }
+            >
+              {/* Custom Sales Tab Component */}
+              <SalesTab
+                navigation={navigation}
+                salesSummary={salesSummary}
+                salesOpportunities={salesOpportunities}
+                circularChartData={circularChartData}
+                circularChartLabels={circularChartLabels}
+                isRefreshing={isRefreshing}
+                handleSalesSummaryPress={handleSalesSummaryPress}
+                handleSalesBlueCardPress={handleSalesBlueCardPress}
+              />
+            </ScrollView>
           )}
 
           {showCRMCard && (
-            <View style={{ marginVertical: '4%' }}>
-              <EarningChart
-                data={[1950, 2089, 3267, 5789, 4234, 3000, 2200]}
-                days={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']}
-                isRefreshing={isRefreshing}
-              />
+            <ScrollView 
+              ref={scrollViewRef}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={handleRefresh}
+                  colors={['#2F4FE3']}
+                  tintColor="#2F4FE3"
+                />
+              }
+            >
+              <View style={styles.contentContainer}>
+                <View style={{ marginVertical: '4%' }}>
+                  {/* Earning Chart */}
+                  <EarningChart
+                    data={[1950, 2089, 3267, 5789, 4234, 3000, 2200]}
+                    days={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']}
+                    isRefreshing={isRefreshing}
+                  />
 
-              <Text style={[styles.sectionTitle, { paddingVertical: '2%' }]}>
-                Leads Summary
-              </Text>
+                  {/* Blue Card with Rectangular Button */}
+                  {renderBlueCard()}
 
-              <View style={styles.leadsContainer}>
-                {/* Working Leads */}
-                <TouchableOpacity
-                  style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Working', workingLeads)}
-                  disabled={isRefreshing}>
-                  <View style={styles.leadContent}>
-                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="update" size={18} color={isRefreshing ? '#999' : '#000'} />
-                    </View>
-                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
-                      Working Leads
-                    </Text>
-                    <View style={[styles.badge, { backgroundColor: '#DBEAFE' }, isRefreshing && styles.disabledBadge]}>
-                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
-                        {workingLeads.length.toString().padStart(2, '0')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
-                    Open leads
-                  </Text>
-                </TouchableOpacity>
-
-                {/* New Leads */}
-                <TouchableOpacity
-                  style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('New', newLeads)}
-                  disabled={isRefreshing}>
-                  <View style={styles.leadContent}>
-                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="gps-not-fixed" size={18} color={isRefreshing ? '#999' : '#000'} />
-                    </View>
-                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
-                      New Leads
-                    </Text>
-                    <View style={[styles.badge, { backgroundColor: 'rgb(245, 225, 250)' }, isRefreshing && styles.disabledBadge]}>
-                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
-                        {newLeads.length.toString().padStart(2, '0')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
-                    Open leads
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Converted Leads */}
-                <TouchableOpacity
-                  style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Converted', convertedLeads)}
-                  disabled={isRefreshing}>
-                  <View style={styles.leadContent}>
-                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="sync" size={18} color={isRefreshing ? '#999' : '#000'} />
-                    </View>
-                    <Text style={[styles.leadTitle, { fontSize: 13 }, isRefreshing && styles.disabledText]}>
-                      Converted Leads
-                    </Text>
-                    <View style={[styles.badge, { backgroundColor: '#DCFCE7' }, isRefreshing && styles.disabledBadge]}>
-                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
-                        {convertedLeads.length.toString().padStart(2, '0')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
-                    Total converted
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Total Leads */}
-                <TouchableOpacity
-                  style={styles.leadCard}
-                  onPress={() => handleLeadNavigation('Total', leads)}
-                  disabled={isRefreshing}>
-                  <View style={styles.leadContent}>
-                    <View style={[styles.leadIconWrapper, isRefreshing && styles.disabledIcon]}>
-                      <MaterialIcons name="diversity-2" size={15} color={isRefreshing ? '#999' : '#000'} />
-                    </View>
-                    <Text style={[styles.leadTitle, isRefreshing && styles.disabledText]}>
-                      Total Leads
-                    </Text>
-                    <View style={[styles.badge, { backgroundColor: '#FEF3C7' }, isRefreshing && styles.disabledBadge]}>
-                      <Text style={[styles.badgeText, isRefreshing && styles.disabledText]}>
-                        {totalLeads.toString().padStart(2, '0')}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.leadSubtitle, isRefreshing && styles.disabledText]}>
-                    All leads
-                  </Text>
-                </TouchableOpacity>
+                  {/* Lead Summary Cards */}
+                  {renderLeadSummaryCards()}
+                </View>
               </View>
-            </View>
+            </ScrollView>
           )}
 
-          {/* Followups Section */}
-          {!showOverviewCard && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Followups</Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('AllFollowups', {
-                    data: followups,
-                    activities: followups,
-                    activeTab: 'all'
-                  })}
-                  style={styles.viewAllButton}
-                  disabled={isRefreshing}>
-                  <Text style={[styles.viewAllButtonText, isRefreshing && styles.disabledText]}>
-                    All Activities
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.followupsContainer}>
-                {/* Today's Followups */}
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('AllFollowups', {
-                    data: todayFollowups,
-                    activities: followups,
-                    activeTab: 'today',
-                  })}
-                  style={styles.followupItem}
-                  disabled={isRefreshing}>
-                  <View style={[styles.followupBadge, { backgroundColor: '#FEF3C7' }, isRefreshing && styles.disabledBadge]}>
-                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
-                      {todayFollowups.length.toString().padStart(2, '0')}
-                    </Text>
-                  </View>
-                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
-                    Today's Followup
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
-                </TouchableOpacity>
-
-                {/* Future Followups */}
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('AllFollowups', {
-                    data: futureFollowups,
-                    activities: followups,
-                    activeTab: 'future',
-                  })}
-                  style={styles.followupItem}
-                  disabled={isRefreshing}>
-                  <View style={[styles.followupBadge, { backgroundColor: '#DBEAFE' }, isRefreshing && styles.disabledBadge]}>
-                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
-                      {futureFollowups.length.toString().padStart(2, '0')}
-                    </Text>
-                  </View>
-                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
-                    Future Followup
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
-                </TouchableOpacity>
-
-                {/* Missed Followups */}
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('AllFollowups', {
-                    data: missedFollowups,
-                    activities: followups,
-                    activeTab: 'missed',
-                  })}
-                  style={styles.followupItem}
-                  disabled={isRefreshing}>
-                  <View style={[styles.followupBadge, { backgroundColor: 'rgb(245, 225, 250)' }, isRefreshing && styles.disabledBadge]}>
-                    <Text style={[styles.followupBadgeText, isRefreshing && styles.disabledText]}>
-                      {missedFollowups.length.toString().padStart(2, '0')}
-                    </Text>
-                  </View>
-                  <Text style={[styles.followupText, isRefreshing && styles.disabledText]}>
-                    Missed Followup
-                  </Text>
-                  <Ionicons name="chevron-forward" size={18} color={isRefreshing ? '#999' : '#000'} />
-                </TouchableOpacity>
-              </View>
-            </>
+          {/* Show FollowupScreen when FollowUps tab is active */}
+          {showOverviewCard && (
+            <View style={styles.followupsContainer}>
+              <FollowupScreen navigation={navigation} />
+            </View>
           )}
         </View>
 
         {isLoading && <Loader />}
-      </ScrollView>
 
-      {/* Floating Action Button */}
-      {showCRMCard && (
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CreateActivity')}
-          style={styles.floatingButton}
-          disabled={isRefreshing}>
-          <Text style={styles.floatingButtonText}>+</Text>
-        </TouchableOpacity>
-      )}
+        {/* Floating Action Button for Add Lead - Only show in Leads tab */}
+        {showCRMCard && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddLeads')}
+            style={styles.floatingButton}
+            disabled={isRefreshing}>
+            <Text style={styles.floatingButtonText}>+</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Floating Action Button for Add Opportunity - Only show in Sales tab */}
+        {showSalesCard && (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('AddSaleOppor')}
+            style={[styles.floatingButton, {backgroundColor: '#2F4FE3'}]}
+            disabled={isRefreshing}>
+            <Text style={styles.floatingButtonText}>+</Text>
+          </TouchableOpacity>
+        )}
+      </>
     </Provider>
   );
 };
 
-// Simplified Styles
+// Updated Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'rgba(240, 241, 245, 1)',
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: 10,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: '8%',
-    marginBottom: 20,
+  contentContainer: {
+    flex: 1,
   },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  followupsContainer: {
+    flex: 1,
   },
-  chartTitle: {
-    fontSize: 20,
-    color: '#000',
-    fontFamily: 'K2D-Medium',
-    marginBottom: 5,
-  },
-  chartSubtitle: {
-    color: 'rgba(48, 48, 48, 1)',
-    fontSize: 11,
-    marginBottom: 15,
-    fontFamily: 'K2D-Medium',
-  },
+  // Updated Tabs
   tabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -604,151 +603,143 @@ const styles = StyleSheet.create({
     backgroundColor: '#2F4FE3',
     padding: 4,
     borderRadius: 6,
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 10,
     height: 40,
+    marginHorizontal: 15,
   },
   tab: {
     backgroundColor: 'transparent',
     height: 25,
-    paddingHorizontal: 15,
+    paddingHorizontal: 5,
     borderRadius: 6,
     justifyContent: 'center',
+    flex: 1,
+    alignItems: 'center',
   },
   activeTab: {
     backgroundColor: '#fff',
   },
   tabText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'K2D-Regular',
+    textAlign: 'center',
   },
   activeTabText: {
     color: '#000',
     fontFamily: 'K2D-SemiBold',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'K2D-Medium',
-    color: '#000',
+  // Blue Card with Rectangular Button Styles
+  blueCardContainer: {
+    marginTop: 10,
+    marginBottom: 12,
   },
-  sectionHeader: {
+  blueCard: {
+    backgroundColor: '#2F4FE3',
+    borderRadius: 8,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  blueCardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
-  leadsContainer: {
-    flexDirection: 'row',
-    gap: 10,
-    width: '100%',
-    flexWrap: 'wrap',
+  blueCardTextContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  blueCardTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'K2D-Bold',
+    marginBottom: 2,
+  },
+  blueCardDescription: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    fontFamily: 'K2D-Regular',
+    lineHeight: 16,
+  },
+  rectangularButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  rectangularButtonText: {
+    color: '#2F4FE3',
+    fontSize: 12,
+    fontFamily: 'K2D-SemiBold',
+  },
+  // Lead Summary Cards - Uniform Design
+  leadCardsContainer: {
+    marginTop: 8,
   },
   leadCard: {
     backgroundColor: '#fff',
-    width: '48%',
-    borderRadius: 6,
-    padding: 10,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 3,
-    height: 105,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  leadContent: {
+  cardContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
-  },
-  leadIconWrapper: {
-    padding: 4,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    elevation: 4,
-    borderColor:'#000',
-    borderWidth:0.5,
-  },
-  leadTitle: {
-    fontSize: 15,
-    color: '#000',
-    fontFamily: 'K2D-SemiBold',
     flex: 1,
-    marginLeft:5,
   },
-  badge: {
-    borderRadius: 20,
-    width: 25,
-    height: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#555',
-    fontSize: 12,
-    fontFamily: 'K2D-SemiBold',
-  },
-  leadSubtitle: {
-    fontSize: 13,
-    color: '#666',
-    fontFamily: 'K2D-Regular',
-  },
-  followupsContainer: {
-    backgroundColor: 'rgba(246, 246, 246, 1)',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 20,
-  },
-  followupItem: {
+  cardLeft: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
     alignItems: 'center',
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 6,
+    flex: 1,
   },
-  followupBadge: {
-    width: 25,
-    height: 25,
-    borderRadius: 6,
-    elevation: 3,
-    alignItems: 'center',
+  cardIconContainer: {
+    width: 30,
+    height: 30,
+    borderRadius: 20,
     justifyContent: 'center',
-    marginRight: 10,
+    alignItems: 'center',
+    marginRight: 12,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#000000',
   },
-  followupBadgeText: {
-    color: "#555",
-    fontFamily: "K2D-SemiBold",
-    fontSize: 12,
+  cardTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
   },
-  followupText: {
-    fontSize: 15,
+  cardCount: {
+    fontSize: 16,
     fontFamily: 'K2D-Medium',
-    color: '#000',
-    flex: 1,
+    color: '#333',
   },
-  viewAllButton: {
-    backgroundColor: '#000',
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  cardNumber: {
+    fontSize: 18,
+    fontFamily: 'K2D-Bold',
+    color: '#2F4FE3',
   },
-  viewAllButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 13,
-  },
-  addButton: {
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    elevation: 3,
-    backgroundColor: '#000000',
-    borderRadius: 4,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 13,
-  },
+  // Floating Action Button
   floatingButton: {
     position: 'absolute',
     bottom: 20,
@@ -793,16 +784,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'K2D-SemiBold',
     fontSize: 16,
-  },
-  disabledText: {
-    color: '#999',
-  },
-  disabledIcon: {
-    backgroundColor: '#f0f0f0',
-    shadowOpacity: 0.1,
-  },
-  disabledBadge: {
-    opacity: 0.7,
   },
 });
 

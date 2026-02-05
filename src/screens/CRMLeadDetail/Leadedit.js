@@ -24,12 +24,16 @@ const {width} = Dimensions.get('window');
 const LeadEdit = ({route, navigation}) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
+  
+  // Add edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Fetch lead details
   const { 
     data: leadDetails, 
     isLoading: isLoadingLead,
-    error: leadError 
+    error: leadError,
+    refetch: refetchLead
   } = useQuery(
     ['lead', leadData?.id],
     () => crmApiService.getLeadById(leadData?.id),
@@ -135,6 +139,16 @@ const LeadEdit = ({route, navigation}) => {
       setLeadSourceDesc(displayLead?.LeadSourceDescription || '');
       setLeadStatusDesc(displayLead?.LeadStatusDescription || '');
       setComments(displayLead?.Comments || '');
+      
+      // Set status and lead source from lead data
+      if (displayLead?.LeadStatus?.id) {
+        setStatusId(displayLead.LeadStatus.id);
+        setStatusLabel(displayLead.LeadStatus.identifier || 'New');
+      }
+      if (displayLead?.LeadSource?.id) {
+        setLeadSourceId(displayLead.LeadSource.id);
+        setLeadSourceLabel(displayLead.LeadSource.identifier || 'Cold Call');
+      }
     }
   }, [displayLead]);
 
@@ -171,6 +185,14 @@ const LeadEdit = ({route, navigation}) => {
           LeadSourceDescription: updatedData.LeadSourceDescription || '',
           LeadStatusDescription: updatedData.LeadStatusDescription || '',
           Comments: updatedData.Comments || '',
+          LeadStatus: {
+            id: statusId,
+            identifier: statusLabel
+          },
+          LeadSource: {
+            id: leadSourceId,
+            identifier: leadSourceLabel
+          }
         };
 
         console.log('📦 Sending update payload:', JSON.stringify(payload, null, 2));
@@ -195,10 +217,11 @@ const LeadEdit = ({route, navigation}) => {
       // Show success message
       Alert.alert('Success', 'Lead updated successfully!');
       
-      // Navigate back
-      if (navigation) {
-        navigation.goBack();
-      }
+      // Exit edit mode
+      setIsEditMode(false);
+      
+      // Refresh lead data
+      refetchLead();
     },
     onError: (error) => {
       console.error('❌ Lead update failed:', error);
@@ -268,6 +291,17 @@ const LeadEdit = ({route, navigation}) => {
     updateLeadMutation.mutate(updateData);
   };
 
+  // Handle edit toggle
+  const handleEditToggle = () => {
+    if (isEditMode) {
+      // If currently in edit mode, save first then toggle
+      handleSave();
+    } else {
+      // If in view mode, just toggle to edit mode
+      setIsEditMode(true);
+    }
+  };
+
   // Section Header with dropdown
   const SectionHeader = ({title, expanded, toggle}) => (
     <TouchableOpacity onPress={toggle} style={styles.SectionHeader}>
@@ -280,12 +314,36 @@ const LeadEdit = ({route, navigation}) => {
     </TouchableOpacity>
   );
 
+  // Helper component for displaying/viewing data
+  const DataField = ({label, value, isEditMode, children}) => {
+    if (isEditMode) {
+      return (
+        <View>
+          <Text style={styles.label}>{label}</Text>
+          {children}
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.viewField}>
+          <Text style={styles.viewLabel}>{label}:</Text>
+          <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+        </View>
+      );
+    }
+  };
+
   if (isLoadingLead) {
     return (
       <View style={styles.loadingContainer}>
         <CustomHeader 
-          title={'Lead Editor'}
-          onBack={() => navigation.goBack()}
+          title={displayLead?.Name || 'Lead Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+          RightIcon={null}
+          RightPress={null}
+          MessageNameIcon={null}
+          MessageOnPress={null}
         />
         <View style={styles.loadingContent}>
           <ActivityIndicator size="large" color="#2F4FE3" />
@@ -299,8 +357,13 @@ const LeadEdit = ({route, navigation}) => {
     return (
       <View style={styles.errorContainer}>
         <CustomHeader 
-          title={'Lead Editor'}
-          onBack={() => navigation.goBack()}
+          title={'Lead Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+          RightIcon={null}
+          RightPress={null}
+          MessageNameIcon={null}
+          MessageOnPress={null}
         />
         <View style={styles.errorContent}>
           <MaterialCommunityIcons name="alert-circle" size={48} color="#F44336" />
@@ -319,12 +382,20 @@ const LeadEdit = ({route, navigation}) => {
     <KeyboardAvoidingView
       style={{flex: 1}}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      
+      {/* Custom Header with Edit Button on Right */}
+      <CustomHeader
+        title={'Lead Details'}
+        LeftIcon="arrow-left"
+        LeftPress={() => navigation.goBack()}
+        RightIcon={isEditMode ? "content-save" : "pencil"} // Pencil in view mode, Save in edit mode
+        RightPress={handleEditToggle}
+        MessageNameIcon={null}
+        MessageOnPress={null}
+      />
+      
+
       <ScrollView style={styles.container}>
-        <CustomHeader 
-          title={'Lead Editor'}
-          onBack={() => navigation.goBack()}
-        />
-        
         <View style={{padding: '5%'}}>
           
           {/* BASIC INFO CARD */}
@@ -336,33 +407,53 @@ const LeadEdit = ({route, navigation}) => {
             />
             {showBasicInfo && (
               <View>
-                <Text style={styles.label}>Name *</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Enter Name"
+                <DataField 
+                  label="Name *" 
                   value={name}
-                  onChangeText={setName}
-                  placeholderTextColor="#777"
-                />
-                <Text style={styles.label}>Email *</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Enter Email"
+                  isEditMode={isEditMode}
+                >
+                  <TextInput
+                    style={styles.inputWrapper}
+                    placeholder="Enter Name"
+                    value={name}
+                    onChangeText={setName}
+                    placeholderTextColor="#777"
+                    editable={isEditMode}
+                  />
+                </DataField>
+
+                <DataField 
+                  label="Email *" 
                   value={email}
-                  onChangeText={setEmail}
-                  placeholderTextColor="#777"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-                <Text style={styles.label}>Phone</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Enter Phone"
+                  isEditMode={isEditMode}
+                >
+                  <TextInput
+                    style={styles.inputWrapper}
+                    placeholder="Enter Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholderTextColor="#777"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={isEditMode}
+                  />
+                </DataField>
+
+                <DataField 
+                  label="Phone" 
                   value={phone}
-                  onChangeText={setPhone}
-                  placeholderTextColor="#777"
-                  keyboardType="phone-pad"
-                />
+                  isEditMode={isEditMode}
+                >
+                  <TextInput
+                    style={styles.inputWrapper}
+                    placeholder="Enter Phone"
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholderTextColor="#777"
+                    keyboardType="phone-pad"
+                    editable={isEditMode}
+                  />
+                </DataField>
               </View>
             )}
           </View>
@@ -376,137 +467,201 @@ const LeadEdit = ({route, navigation}) => {
             />
             {showMoreInfo && (
               <View>
-                <Text style={styles.label}>Phone 2</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Secondary Phone"
+                <DataField 
+                  label="Phone 2" 
                   value={phone2}
-                  onChangeText={setPhone2}
-                  placeholderTextColor="#777"
-                  keyboardType="phone-pad"
-                />
-                
-                <Text style={styles.label}>Sales Lead</Text>
-                <TouchableOpacity
-                  onPress={() => setSalesLead(!salesLead)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: '#000'}}>
-                    {salesLead ? 'Yes' : 'No'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
+                  isEditMode={isEditMode}
+                >
+                  <TextInput
+                    style={styles.inputWrapper}
+                    placeholder="Secondary Phone"
+                    value={phone2}
+                    onChangeText={setPhone2}
+                    placeholderTextColor="#777"
+                    keyboardType="phone-pad"
+                    editable={isEditMode}
                   />
-                </TouchableOpacity>
+                </DataField>
 
-                <Text style={styles.label}>Vendor Lead</Text>
-                <TouchableOpacity
-                  onPress={() => setVendorLead(!vendorLead)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: '#000'}}>
-                    {vendorLead ? 'Yes' : 'No'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Sales Lead" 
+                  value={salesLead ? 'Yes' : 'No'}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setSalesLead(!salesLead)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: '#000'}}>
+                        {salesLead ? 'Yes' : 'No'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Business Partner</Text>
-                <TouchableOpacity
-                  onPress={() => setBpMenuVisible(true)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: businessPartnerLabel ? '#000' : '#777'}}>
-                    {businessPartnerLabel || 'Select Business Partner'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Vendor Lead" 
+                  value={vendorLead ? 'Yes' : 'No'}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setVendorLead(!vendorLead)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: '#000'}}>
+                        {vendorLead ? 'Yes' : 'No'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Sales Representative</Text>
-                <TouchableOpacity
-                  onPress={() => setSalesRepMenuVisible(true)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: salesRepLabel ? '#000' : '#777'}}>
-                    {salesRepLabel || 'Select Sales Representative'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Business Partner" 
+                  value={businessPartnerLabel}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setBpMenuVisible(true)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: businessPartnerLabel ? '#000' : '#777'}}>
+                        {businessPartnerLabel || 'Select Business Partner'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Organization</Text>
-                <TouchableOpacity
-                  onPress={() => setOrgMenuVisible(true)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: organizationLabel ? '#000' : '#777'}}>
-                    {organizationLabel || 'Select Organization'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Sales Representative" 
+                  value={salesRepLabel}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setSalesRepMenuVisible(true)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: salesRepLabel ? '#000' : '#777'}}>
+                        {salesRepLabel || 'Select Sales Representative'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Active</Text>
-                <TouchableOpacity
-                  onPress={() => setActive(!active)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: '#000'}}>
-                    {active ? 'Yes' : 'No'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Organization" 
+                  value={organizationLabel}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setOrgMenuVisible(true)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: organizationLabel ? '#000' : '#777'}}>
+                        {organizationLabel || 'Select Organization'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Description</Text>
-                <TextInput
-                  style={[styles.inputWrapper, styles.textArea]}
-                  placeholder="Enter description"
+                <DataField 
+                  label="Active" 
+                  value={active ? 'Yes' : 'No'}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setActive(!active)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: '#000'}}>
+                        {active ? 'Yes' : 'No'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
+
+                <DataField 
+                  label="Description" 
                   value={description}
-                  onChangeText={setDescription}
-                  placeholderTextColor="#777"
-                  multiline={true}
-                  numberOfLines={3}
-                />
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TextInput
+                      style={[styles.inputWrapper, styles.textArea]}
+                      placeholder="Enter description"
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholderTextColor="#777"
+                      multiline={true}
+                      numberOfLines={3}
+                      editable={isEditMode}
+                    />
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Search Key</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Enter search key"
+                <DataField 
+                  label="Search Key" 
                   value={searchKey}
-                  onChangeText={setSearchKey}
-                  placeholderTextColor="#777"
-                />
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TextInput
+                      style={styles.inputWrapper}
+                      placeholder="Enter search key"
+                      value={searchKey}
+                      onChangeText={setSearchKey}
+                      placeholderTextColor="#777"
+                      editable={isEditMode}
+                    />
+                  ) : null}
+                </DataField>
               </View>
             )}
           </View>
@@ -520,14 +675,20 @@ const LeadEdit = ({route, navigation}) => {
             />
             {showCompanyInfo && (
               <View>
-                <Text style={styles.label}>Company Name</Text>
-                <TextInput
-                  style={styles.inputWrapper}
-                  placeholder="Enter company name"
+                <DataField 
+                  label="Company Name" 
                   value={companyName}
-                  onChangeText={setCompanyName}
-                  placeholderTextColor="#777"
-                />
+                  isEditMode={isEditMode}
+                >
+                  <TextInput
+                    style={styles.inputWrapper}
+                    placeholder="Enter company name"
+                    value={companyName}
+                    onChangeText={setCompanyName}
+                    placeholderTextColor="#777"
+                    editable={isEditMode}
+                  />
+                </DataField>
               </View>
             )}
           </View>
@@ -541,285 +702,348 @@ const LeadEdit = ({route, navigation}) => {
             />
             {showOtherInfo && (
               <View>
-                <Text style={styles.label}>Lead Source</Text>
-                <TouchableOpacity
-                  onPress={() => setLeadSourceModalVisible(true)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: leadSourceLabel ? '#000' : '#777'}}>
-                    {leadSourceLabel || 'Select Lead Source'}
-                  </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
-                      size={22}
-                      color="#666"
-                    />
-                </TouchableOpacity>
+                <DataField 
+                  label="Lead Source" 
+                  value={leadSourceLabel}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setLeadSourceModalVisible(true)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: leadSourceLabel ? '#000' : '#777'}}>
+                        {leadSourceLabel || 'Select Lead Source'}
+                      </Text>
+                        <MaterialCommunityIcons
+                          name="chevron-down"
+                          size={22}
+                          color="#666"
+                        />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Lead Source Description</Text>
-                <TextInput
-                  style={[styles.inputWrapper, styles.textArea]}
-                  placeholder="Enter lead source description"
+                <DataField 
+                  label="Lead Source Description" 
                   value={leadSourceDesc}
-                  onChangeText={setLeadSourceDesc}
-                  placeholderTextColor="#777"
-                  multiline={true}
-                  numberOfLines={2}
-                />
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TextInput
+                      style={[styles.inputWrapper, styles.textArea]}
+                      placeholder="Enter lead source description"
+                      value={leadSourceDesc}
+                      onChangeText={setLeadSourceDesc}
+                      placeholderTextColor="#777"
+                      multiline={true}
+                      numberOfLines={2}
+                      editable={isEditMode}
+                    />
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Lead Status</Text>
-                <TouchableOpacity
-                  onPress={() => setStatusMenuVisible(true)}
-                  style={[
-                    styles.inputWrapper,
-                    styles.dropdownInput,
-                  ]}>
-                  <Text style={{color: statusLabel ? '#000' : '#777'}}>
-                    {statusLabel || 'Select Lead Status'}
-                  </Text>
-                  <MaterialCommunityIcons
-                    name="chevron-down"
-                    size={22}
-                    color="#666"
-                  />
-                </TouchableOpacity>
+                <DataField 
+                  label="Lead Status" 
+                  value={statusLabel}
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TouchableOpacity
+                      onPress={() => setStatusMenuVisible(true)}
+                      style={[
+                        styles.inputWrapper,
+                        styles.dropdownInput,
+                      ]}>
+                      <Text style={{color: statusLabel ? '#000' : '#777'}}>
+                        {statusLabel || 'Select Lead Status'}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={22}
+                        color="#666"
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Lead Status Description</Text>
-                <TextInput
-                  style={[styles.inputWrapper, styles.textArea]}
-                  placeholder="Enter lead status description"
+                <DataField 
+                  label="Lead Status Description" 
                   value={leadStatusDesc}
-                  onChangeText={setLeadStatusDesc}
-                  placeholderTextColor="#777"
-                  multiline={true}
-                  numberOfLines={2}
-                />
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TextInput
+                      style={[styles.inputWrapper, styles.textArea]}
+                      placeholder="Enter lead status description"
+                      value={leadStatusDesc}
+                      onChangeText={setLeadStatusDesc}
+                      placeholderTextColor="#777"
+                      multiline={true}
+                      numberOfLines={2}
+                      editable={isEditMode}
+                    />
+                  ) : null}
+                </DataField>
 
-                <Text style={styles.label}>Comments</Text>
-                <TextInput
-                  style={[styles.inputWrapper, styles.textArea]}
-                  placeholder="Enter comments"
+                <DataField 
+                  label="Comments" 
                   value={comments}
-                  onChangeText={setComments}
-                  placeholderTextColor="#777"
-                  multiline={true}
-                  numberOfLines={3}
-                />
+                  isEditMode={isEditMode}
+                >
+                  {isEditMode ? (
+                    <TextInput
+                      style={[styles.inputWrapper, styles.textArea]}
+                      placeholder="Enter comments"
+                      value={comments}
+                      onChangeText={setComments}
+                      placeholderTextColor="#777"
+                      multiline={true}
+                      numberOfLines={3}
+                      editable={isEditMode}
+                    />
+                  ) : null}
+                </DataField>
               </View>
             )}
           </View>
 
-          {/* SAVE BUTTON */}
-          <TouchableOpacity 
-            style={[
-              styles.saveBtn,
-              updateLeadMutation.isLoading && styles.saveBtnDisabled
-            ]} 
-            onPress={handleSave}
-            disabled={updateLeadMutation.isLoading}
-          >
-            <Text style={styles.saveBtnTxt}>
-              {updateLeadMutation.isLoading ? 'Saving...' : 'Save Changes'}
-            </Text>
-          </TouchableOpacity>
+          {/* Save button at bottom (only in edit mode) */}
+          {isEditMode && (
+            <TouchableOpacity 
+              style={[
+                styles.saveBtn,
+                updateLeadMutation.isLoading && styles.saveBtnDisabled
+              ]} 
+              onPress={handleSave}
+              disabled={updateLeadMutation.isLoading}
+            >
+              {updateLeadMutation.isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="content-save" size={18} color="#FFFFFF" />
+                  <Text style={styles.saveBtnTxt}>Save Changes</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
-      {/* MODALS */}
-      {/* Business Partner Modal */}
-      <Modal
-        visible={bpMenuVisible}
-        onDismiss={() => setBpMenuVisible(false)}
-        transparent={true}
-        animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Select Business Partner</Text>
-            <ScrollView style={styles.modalScroll}>
-              {businessPartnerOptions.map(item => (
+      {/* MODALS - Only show in edit mode */}
+      {isEditMode && (
+        <>
+          {/* Business Partner Modal */}
+          <Modal
+            visible={bpMenuVisible}
+            onDismiss={() => setBpMenuVisible(false)}
+            transparent={true}
+            animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <Text style={styles.modalTitle}>Select Business Partner</Text>
+                <ScrollView style={styles.modalScroll}>
+                  {businessPartnerOptions.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.optionItem,
+                        businessPartnerId === item.id && styles.optionItemSelected
+                      ]}
+                      onPress={() => {
+                        setBusinessPartnerId(item.id);
+                        setBusinessPartnerLabel(item.identifier);
+                        setBpMenuVisible(false);
+                      }}>
+                      <Text style={styles.optionText}>
+                        {item.identifier}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.optionItem,
-                    businessPartnerId === item.id && styles.optionItemSelected
-                  ]}
-                  onPress={() => {
-                    setBusinessPartnerId(item.id);
-                    setBusinessPartnerLabel(item.identifier);
-                    setBpMenuVisible(false);
-                  }}>
-                  <Text style={styles.optionText}>
-                    {item.identifier}
-                  </Text>
+                  style={styles.cancelBtn}
+                  onPress={() => setBpMenuVisible(false)}>
+                  <Text style={styles.cancelBtnTxt}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setBpMenuVisible(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              </View>
+            </View>
+          </Modal>
 
-      {/* Sales Rep Modal */}
-      <Modal
-        visible={salesRepMenuVisible}
-        onDismiss={() => setSalesRepMenuVisible(false)}
-        transparent={true}
-        animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Select Sales Representative</Text>
-            <ScrollView style={styles.modalScroll}>
-              {salesRepOptions.map(item => (
+          {/* Sales Rep Modal */}
+          <Modal
+            visible={salesRepMenuVisible}
+            onDismiss={() => setSalesRepMenuVisible(false)}
+            transparent={true}
+            animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <Text style={styles.modalTitle}>Select Sales Representative</Text>
+                <ScrollView style={styles.modalScroll}>
+                  {salesRepOptions.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.optionItem,
+                        salesRepId === item.id && styles.optionItemSelected
+                      ]}
+                      onPress={() => {
+                        setSalesRepId(item.id);
+                        setSalesRepLabel(item.identifier);
+                        setSalesRepMenuVisible(false);
+                      }}>
+                      <Text style={styles.optionText}>
+                        {item.identifier}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.optionItem,
-                    salesRepId === item.id && styles.optionItemSelected
-                  ]}
-                  onPress={() => {
-                    setSalesRepId(item.id);
-                    setSalesRepLabel(item.identifier);
-                    setSalesRepMenuVisible(false);
-                  }}>
-                  <Text style={styles.optionText}>
-                    {item.identifier}
-                  </Text>
+                  style={styles.cancelBtn}
+                  onPress={() => setSalesRepMenuVisible(false)}>
+                  <Text style={styles.cancelBtnTxt}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setSalesRepMenuVisible(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              </View>
+            </View>
+          </Modal>
 
-      {/* Organization Modal */}
-      <Modal
-        visible={orgMenuVisible}
-        onDismiss={() => setOrgMenuVisible(false)}
-        transparent={true}
-        animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Select Organization</Text>
-            <ScrollView style={styles.modalScroll}>
-              {organizationOptions.map(item => (
+          {/* Organization Modal */}
+          <Modal
+            visible={orgMenuVisible}
+            onDismiss={() => setOrgMenuVisible(false)}
+            transparent={true}
+            animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <Text style={styles.modalTitle}>Select Organization</Text>
+                <ScrollView style={styles.modalScroll}>
+                  {organizationOptions.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.optionItem,
+                        organizationId === item.id && styles.optionItemSelected
+                      ]}
+                      onPress={() => {
+                        setOrganizationId(item.id);
+                        setOrganizationLabel(item.identifier);
+                        setOrgMenuVisible(false);
+                      }}>
+                      <Text style={styles.optionText}>
+                        {item.identifier}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.optionItem,
-                    organizationId === item.id && styles.optionItemSelected
-                  ]}
-                  onPress={() => {
-                    setOrganizationId(item.id);
-                    setOrganizationLabel(item.identifier);
-                    setOrgMenuVisible(false);
-                  }}>
-                  <Text style={styles.optionText}>
-                    {item.identifier}
-                  </Text>
+                  style={styles.cancelBtn}
+                  onPress={() => setOrgMenuVisible(false)}>
+                  <Text style={styles.cancelBtnTxt}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setOrgMenuVisible(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              </View>
+            </View>
+          </Modal>
 
-      {/* Lead Status Modal */}
-      <Modal
-        visible={statusMenuVisible}
-        onDismiss={() => setStatusMenuVisible(false)}
-        transparent={true}
-        animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Select Lead Status</Text>
-            <ScrollView style={styles.modalScroll}>
-              {leadStatusOptions.map(item => (
+          {/* Lead Status Modal */}
+          <Modal
+            visible={statusMenuVisible}
+            onDismiss={() => setStatusMenuVisible(false)}
+            transparent={true}
+            animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <Text style={styles.modalTitle}>Select Lead Status</Text>
+                <ScrollView style={styles.modalScroll}>
+                  {leadStatusOptions.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.optionItem,
+                        statusId === item.id && styles.optionItemSelected
+                      ]}
+                      onPress={() => {
+                        setStatusId(item.id);
+                        setStatusLabel(item.identifier);
+                        setStatusMenuVisible(false);
+                      }}>
+                      <Text style={styles.optionText}>
+                        {item.identifier}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.optionItem,
-                    statusId === item.id && styles.optionItemSelected
-                  ]}
-                  onPress={() => {
-                    setStatusId(item.id);
-                    setStatusLabel(item.identifier);
-                    setStatusMenuVisible(false);
-                  }}>
-                  <Text style={styles.optionText}>
-                    {item.identifier}
-                  </Text>
+                  style={styles.cancelBtn}
+                  onPress={() => setStatusMenuVisible(false)}>
+                  <Text style={styles.cancelBtnTxt}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setStatusMenuVisible(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              </View>
+            </View>
+          </Modal>
 
-      {/* Lead Source Modal */}
-      <Modal
-        visible={leadSourceModalVisible}
-        onDismiss={() => setLeadSourceModalVisible(false)}
-        transparent={true}
-        animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Select Lead Source</Text>
-            <ScrollView style={styles.modalScroll}>
-              {leadSourceOptions.map(item => (
+          {/* Lead Source Modal */}
+          <Modal
+            visible={leadSourceModalVisible}
+            onDismiss={() => setLeadSourceModalVisible(false)}
+            transparent={true}
+            animationType="slide">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <Text style={styles.modalTitle}>Select Lead Source</Text>
+                <ScrollView style={styles.modalScroll}>
+                  {leadSourceOptions.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.optionItem,
+                        leadSourceId === item.id && styles.optionItemSelected
+                      ]}
+                      onPress={() => {
+                        setLeadSourceId(item.id);
+                        setLeadSourceLabel(item.identifier);
+                        setLeadSourceModalVisible(false);
+                      }}>
+                      <Text style={styles.optionText}>
+                        {item.identifier}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
                 <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.optionItem,
-                    leadSourceId === item.id && styles.optionItemSelected
-                  ]}
-                  onPress={() => {
-                    setLeadSourceId(item.id);
-                    setLeadSourceLabel(item.identifier);
-                    setLeadSourceModalVisible(false);
-                  }}>
-                  <Text style={styles.optionText}>
-                    {item.identifier}
-                  </Text>
+                  style={styles.cancelBtn}
+                  onPress={() => setLeadSourceModalVisible(false)}>
+                  <Text style={styles.cancelBtnTxt}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setLeadSourceModalVisible(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+              </View>
+            </View>
+          </Modal>
+        </>
+      )}
     </KeyboardAvoidingView>
   );
 };
 
-export default LeadEdit;
-
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#f4f2f8'},
+  modeIndicator: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  modeText: {
+    fontSize: 12,
+    fontFamily: 'K2D-SemiBold',
+  },
   loadingContainer: {
     flex: 1,
     backgroundColor: '#f4f2f8',
@@ -828,6 +1052,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingTop: 100,
   },
   loadingText: {
     fontSize: 16,
@@ -844,6 +1069,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    paddingTop: 100,
   },
   errorText: {
     fontSize: 18,
@@ -881,6 +1107,22 @@ const styles = StyleSheet.create({
     color: '#333',
     marginVertical: 8,
     fontFamily: 'K2D-SemiBold',
+  },
+  // View mode styles
+  viewField: {
+    marginBottom: 12,
+    paddingVertical: 6,
+  },
+  viewLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontFamily: 'K2D-Medium',
+    marginBottom: 2,
+  },
+  viewValue: {
+    fontSize: 14,
+    color: '#333',
+    fontFamily: 'K2D-Regular',
   },
   SectionHeader: {
     flexDirection: 'row',
@@ -922,6 +1164,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
+    flexDirection: 'row',
+    gap: 8,
   },
   saveBtnDisabled: {
     backgroundColor: '#9aa7e3',
@@ -986,3 +1230,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
+export default LeadEdit;

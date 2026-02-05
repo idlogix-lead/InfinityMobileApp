@@ -101,9 +101,9 @@ const AddActivity = ({ route, navigation }) => {
     return date.toISOString().split('.')[0] + 'Z';
   };
 
-  // Handle save
+  // Handle save with validation
   const handleSave = async () => {
-    // Validation
+    // Validation - SAME AS PREVIOUS CODE
     if (selectedActivity === 'Select Activity Type' && mode === 'create') {
       Alert.alert('Validation Error', 'Please select an activity type.');
       return;

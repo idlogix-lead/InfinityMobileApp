@@ -75,6 +75,7 @@ import Approvals from '../../screens/Approvals/Approvals';
 import WFStatusList from '../../screens/Approvals/WFStatusList';
 import MyTasks from '../../screens/Requests/MyTasks';
 import LeadEdit from '../../screens/CRMLeadDetail/Leadedit';
+import GenericLead from '../../screens/CRMScreen/GenericLead';
 
 
 const Stack = createNativeStackNavigator();
@@ -137,6 +138,7 @@ const AppNavigator = () => {
       <Stack.Screen name="CrmScreen" component={CrmScreen} />
       <Stack.Screen name="CrmTotal" component={CrmTotal} />
       <Stack.Screen name="CrmNew" component={CrmNew} />
+      <Stack.Screen name="GenericLead" component={GenericLead} />
       <Stack.Screen name="CrmWorking" component={CrmWorking} />
       <Stack.Screen name="CrmConverted" component={CrmConverted} />
       <Stack.Screen name="CrmExpire" component={CrmExpire} />
@@ -161,6 +163,7 @@ const AppNavigator = () => {
       <Stack.Screen name="AllProjects" component={AllProjects} />
       <Stack.Screen name="AddTask" component={AddTask} />
       <Stack.Screen name="MyTasks" component={MyTasks} />
+      
 
       {/* APPROVAL SCREEN BY FZA */}
 

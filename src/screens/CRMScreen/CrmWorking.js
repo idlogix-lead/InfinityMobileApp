@@ -3,7 +3,7 @@ import React from 'react';
 import GenericLead from './GenericLead';
 
 const CrmWorking = ({ route, navigation }) => {
-  const { leads: workingLeads, activities } = route.params || {};
+ 
   
   return (
     <GenericLead

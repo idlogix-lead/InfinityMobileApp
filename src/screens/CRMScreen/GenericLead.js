@@ -1,5 +1,5 @@
-// screens/CRM/GenericLeadScreen.js
-import React, { useState, useMemo, useCallback } from 'react';
+// screens/CRM/GenericLeadScreen.js - UPDATED
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -21,36 +21,41 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import CRMCard from '../../components/CRMCard/CRMCard';
-import { useLeads, useFollowups, useLeadStatistics, useSearchLeads } from '../../hooks/CRMhooks/useCRM';
+import { useFollowups, useLeadStatistics, useSearchLeads } from '../../hooks/CRMhooks/useCRM';
 import { useLeadActions } from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
 import { debounce } from 'lodash';
 
 const GenericLead = ({ 
   navigation, 
-  screenTitle = "Leads",
-  leadFilter = {},
-  showFilterButton = true
+  route
 }) => {
+  // Get pre-filtered leads from navigation params
+  const { leads: preFilteredLeads = [], screenTitle: paramTitle } = route.params || {};
+  
+  // FIX: Use paramTitle from route.params
+  const actualScreenTitle = paramTitle || "Leads";
+  
+  console.log('GenericLead received:', {
+    paramTitle,
+    actualScreenTitle,
+    preFilteredLeadsCount: preFilteredLeads.length,
+    hasParams: !!route.params
+  });
+
   // State
   const [filterVisible, setFilterVisible] = useState(false);
-  const [fromDate, setFromDate] = useState(new Date());
-  const [toDate, setToDate] = useState(new Date());
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [selectStatus, setSelectStatus] = useState('select');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
 
   // Hooks
-  const { 
-    data: leads = [], 
-    isLoading: isLoadingLeads,
-    refetch: refetchLeads,
-    error: leadsError 
-  } = useLeads(leadFilter);
-  
   const { 
     data: followups = [], 
     isLoading: isLoadingFollowups,
@@ -62,7 +67,6 @@ const GenericLead = ({
     refetch: refetchStats
   } = useLeadStatistics();
 
-  // Search hook - enabled when search query has at least 2 characters
   const { 
     data: searchResults = [], 
     isLoading: isLoadingSearch,
@@ -71,19 +75,70 @@ const GenericLead = ({
 
   const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
 
+  // Apply local filtering whenever filters change
+  useEffect(() => {
+    console.log('Applying filters to', preFilteredLeads.length, 'pre-filtered leads');
+    
+    if (!Array.isArray(preFilteredLeads) || preFilteredLeads.length === 0) {
+      setFilteredLeads([]);
+      return;
+    }
+    
+    let filtered = [...preFilteredLeads];
+    
+    // Apply status filter from modal
+    if (selectStatus && selectStatus !== 'select') {
+      const statusMap = {
+        'New': 'N', 'new': 'N',
+        'Working': 'W', 'working': 'W',
+        'Converted': 'C', 'converted': 'C',
+        'Expired': 'E', 'expired': 'E'
+      };
+      
+      const statusId = statusMap[selectStatus] || selectStatus;
+      
+      filtered = filtered.filter(lead => {
+        const leadStatusId = lead?.LeadStatus?.id;
+        return leadStatusId === statusId;
+      });
+      
+      console.log(`Filtered by status ${selectStatus}: ${filtered.length} leads`);
+    }
+    
+    // Apply date filters
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        return leadDate >= start;
+      });
+    }
+    
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        return leadDate <= end;
+      });
+    }
+    
+    setFilteredLeads(filtered);
+  }, [preFilteredLeads, selectStatus, fromDate, toDate]);
+  
   // Apply filter function
   const applyFilter = () => {
     setFilterVisible(false);
-    refetchLeads();
   };
   
   // Reset filter
   const resetFilter = () => {
-    setFromDate(new Date());
-    setToDate(new Date());
+    setFromDate(null);
+    setToDate(null);
     setSelectStatus('select');
+    setFilteredLeads(preFilteredLeads);
     setFilterVisible(false);
-    refetchLeads();
   };
   
   // Handle refresh
@@ -91,7 +146,6 @@ const GenericLead = ({
     setRefreshing(true);
     try {
       await Promise.all([
-        refetchLeads(),
         refetchFollowups(),
         refetchStats()
       ]);
@@ -105,7 +159,7 @@ const GenericLead = ({
     }
   };
 
-  // Handle search with debounce - trigger search after 2+ characters
+  // Handle search with debounce
   const handleSearchInput = useCallback(
     debounce((text) => {
       if (text.length >= 2) {
@@ -117,13 +171,11 @@ const GenericLead = ({
     []
   );
 
-  // Handle text input change
   const handleTextChange = (text) => {
     setSearchQuery(text);
     handleSearchInput(text);
   };
 
-  // Clear search
   const clearSearch = () => {
     setSearchQuery('');
     setIsSearching(false);
@@ -135,15 +187,14 @@ const GenericLead = ({
       return searchResults;
     }
     if (searchQuery.length >= 2 && !isLoadingSearch && searchResults.length === 0) {
-      return []; // Return empty array for "no results" state
+      return [];
     }
-    return leads;
-  }, [leads, searchResults, searchQuery, isLoadingSearch]);
+    return filteredLeads;
+  }, [filteredLeads, searchResults, searchQuery, isLoadingSearch]);
 
-  // Calculate stats based on current leads (excluding search mode)
+  // Calculate stats based on current display data
   const stats = useMemo(() => {
     if (isSearching) {
-      // When searching, show search-specific stats
       return {
         todayLeads: 0,
         monthLeads: 0,
@@ -151,7 +202,7 @@ const GenericLead = ({
       };
     }
 
-    if (!Array.isArray(leads)) {
+    if (!Array.isArray(filteredLeads)) {
       return {
         todayLeads: 0,
         monthLeads: 0,
@@ -159,20 +210,20 @@ const GenericLead = ({
       };
     }
     
-    const todayLeads = leads.filter(lead => 
+    const todayLeads = filteredLeads.filter(lead => 
       moment(lead.Created).isSame(moment(), 'day')
     ).length;
     
-    const monthLeads = leads.filter(lead => 
+    const monthLeads = filteredLeads.filter(lead => 
       moment(lead.Created).isSame(moment(), 'month')
     ).length;
     
     return {
       todayLeads,
       monthLeads,
-      totalLeads: leads.length,
+      totalLeads: filteredLeads.length,
     };
-  }, [leads, displayData, isSearching]);
+  }, [filteredLeads, displayData, isSearching]);
 
   const renderLeadCard = (item) => {
     const userActivity = followups.filter(
@@ -225,38 +276,19 @@ const GenericLead = ({
   };
 
   // Loading state
-  if (isLoadingLeads && !searchQuery) {
+  if (!preFilteredLeads || preFilteredLeads.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <CustomHeader 
-          title={screenTitle}
-          RightIcon={showFilterButton ? "filter" : undefined}
-          RightPress={showFilterButton ? () => setFilterVisible(true) : undefined}
+          title={actualScreenTitle}
+          RightIcon="filter"
+          RightPress={() => setFilterVisible(true)}
         />
         <View style={styles.loadingContent}>
-          <Text style={styles.loadingText}>Loading leads...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Error state
-  if (leadsError && !searchQuery) {
-    return (
-      <View style={styles.errorContainer}>
-        <CustomHeader 
-          title={screenTitle}
-          RightIcon={showFilterButton ? "filter" : undefined}
-          RightPress={showFilterButton ? () => setFilterVisible(true) : undefined}
-        />
-        <View style={styles.errorContent}>
-          <MaterialIcons name="error-outline" size={48} color="#F44336" />
-          <Text style={styles.errorText}>Failed to load leads</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={refetchLeads}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
+          <Text style={styles.loadingText}>No leads found</Text>
+          <Text style={styles.emptySubText}>
+            {actualScreenTitle}
+          </Text>
         </View>
       </View>
     );
@@ -276,7 +308,7 @@ const GenericLead = ({
               <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Filter Leads</Text>
+                    <Text style={styles.modalTitle}>Filter {actualScreenTitle}</Text>
                     <TouchableOpacity
                       onPress={() => setFilterVisible(false)}
                       style={styles.closeButton}>
@@ -285,13 +317,13 @@ const GenericLead = ({
                   </View>
                   
                   {/* Status Picker */}
-                  <Text style={styles.sectionTitle}>Select Status</Text>
+                  <Text style={styles.sectionTitle}>Filter by Status</Text>
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={selectStatus}
                       onValueChange={setSelectStatus}
                       style={styles.picker}>
-                      <Picker.Item label="-- Select --" value="select" />
+                      <Picker.Item label="-- All Statuses --" value="select" />
                       <Picker.Item label="New" value="New" />
                       <Picker.Item label="Working" value="Working" />
                       <Picker.Item label="Converted" value="Converted" />
@@ -300,17 +332,19 @@ const GenericLead = ({
                   </View>
                   
                   {/* From Date */}
-                  <Text style={styles.sectionTitle}>From Date</Text>
+                  <Text style={styles.sectionTitle}>From Date (Optional)</Text>
                   <TouchableOpacity
                     style={styles.dateInput}
                     onPress={() => setShowFromDatePicker(true)}>
-                    <Text style={styles.dateText}>{fromDate.toDateString()}</Text>
+                    <Text style={styles.dateText}>
+                      {fromDate ? fromDate.toDateString() : 'Select start date'}
+                    </Text>
                     <EvilIcons name="calendar" size={25} color="#000" />
                   </TouchableOpacity>
                   
                   {showFromDatePicker && (
                     <DateTimePicker
-                      value={fromDate}
+                      value={fromDate || new Date()}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={(event, date) => {
@@ -321,17 +355,19 @@ const GenericLead = ({
                   )}
                   
                   {/* To Date */}
-                  <Text style={styles.sectionTitle}>To Date</Text>
+                  <Text style={styles.sectionTitle}>To Date (Optional)</Text>
                   <TouchableOpacity
                     style={styles.dateInput}
                     onPress={() => setShowToDatePicker(true)}>
-                    <Text style={styles.dateText}>{toDate.toDateString()}</Text>
+                    <Text style={styles.dateText}>
+                      {toDate ? toDate.toDateString() : 'Select end date'}
+                    </Text>
                     <EvilIcons name="calendar" size={25} color="#000" />
                   </TouchableOpacity>
                   
                   {showToDatePicker && (
                     <DateTimePicker
-                      value={toDate}
+                      value={toDate || new Date()}
                       mode="date"
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={(event, date) => {
@@ -363,25 +399,25 @@ const GenericLead = ({
         
         {/* Custom Header with Filter */}
         <CustomHeader
-          title={screenTitle}
-          RightIcon={showFilterButton ? "filter" : undefined}
-          RightPress={showFilterButton ? () => setFilterVisible(true) : undefined}
+          title={actualScreenTitle}
+          RightIcon="filter"
+          RightPress={() => setFilterVisible(true)}
         />
         
         {/* Main Content */}
         <View style={{ flex: 1 }}>
           <View style={styles.main}>
-            {/* Stats Section - Always visible, above search bar */}
+            {/* Stats Section */}
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <View style={styles.statIconWrapper}>
                   <MaterialIcons
-                    name="article"
+                    name="today"
                     size={20}
                     color="rgba(38, 189, 206, 1)"
                   />
                 </View>
-                <Text style={styles.statLabel}>Today Leads</Text>
+                <Text style={styles.statLabel}>Today</Text>
                 <Text style={styles.statValue}>{stats.todayLeads}</Text>
               </View>
               
@@ -400,23 +436,23 @@ const GenericLead = ({
               <View style={styles.statItem}>
                 <View style={styles.statIconWrapper}>
                   <MaterialCommunityIcons
-                    name="file-account"
+                    name="account-group"
                     size={20}
                     color="rgba(231, 205, 76, 1)"
                   />
                 </View>
-                <Text style={styles.statLabel}>All Leads</Text>
+                <Text style={styles.statLabel}>Total</Text>
                 <Text style={styles.statValue}>{stats.totalLeads}</Text>
               </View>
             </View>
             
-            {/* Search Bar - Below stats cards */}
+            {/* Search Bar */}
             <View style={styles.searchContainer}>
               <View style={styles.searchInputContainer}>
                 <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search leads by name, email, or phone..."
+                  placeholder={`Search ${actualScreenTitle.toLowerCase()}...`}
                   placeholderTextColor="#999"
                   value={searchQuery}
                   onChangeText={handleTextChange}
@@ -435,7 +471,7 @@ const GenericLead = ({
               )}
             </View>
             
-            {/* Search Results Header - Only shows when actively searching */}
+            {/* Search Results Header */}
             {searchQuery.length >= 2 && (
               <View style={styles.searchHeader}>
                 <Text style={styles.searchHeaderText}>
@@ -449,7 +485,7 @@ const GenericLead = ({
               </View>
             )}
             
-            {/* Search Hint - Shows when typing less than 2 characters */}
+            {/* Search Hint */}
             {searchQuery.length > 0 && searchQuery.length < 2 && (
               <View style={styles.searchHint}>
                 <Text style={styles.searchHintText}>
@@ -461,7 +497,7 @@ const GenericLead = ({
             {/* Leads List */}
             <FlatList
               data={displayData}
-              keyExtractor={(item, index) => `${item.id}-${index}`}
+              keyExtractor={(item, index) => `${item.id || index}-${index}`}
               renderItem={({ item }) => renderLeadCard(item)}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -480,19 +516,17 @@ const GenericLead = ({
                         </TouchableOpacity>
                       )}
                     </>
-                  ) : searchQuery.length > 0 ? (
-                    <>
-                      <Ionicons name="search" size={60} color="#ccc" />
-                      <Text style={styles.emptyText}>
-                        Type at least 2 characters to search
-                      </Text>
-                    </>
                   ) : (
                     <>
                       <MaterialIcons name="group" size={60} color="#ccc" />
-                      <Text style={styles.emptyText}>No leads found</Text>
+                      <Text style={styles.emptyText}>
+                        {filteredLeads.length === 0 && selectStatus !== 'select' 
+                          ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
+                          : `No leads found in ${actualScreenTitle}`
+                        }
+                      </Text>
                       <Text style={styles.emptySubText}>
-                        Start by adding your first lead
+                        Try changing your filter settings
                       </Text>
                     </>
                   )}
@@ -528,8 +562,8 @@ const GenericLead = ({
 const styles = StyleSheet.create({
   main: {
     flex: 1,
-    marginTop: -22,
-    borderRadius: 20,
+    marginTop: 10,
+    borderRadius: 10,
     backgroundColor: '#fff',
   },
   loadingContainer: {

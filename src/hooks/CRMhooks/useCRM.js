@@ -350,20 +350,24 @@ export const useCreateSalesOpportunity = () => {
 };
 
 // Hook for searching leads
+// In hooks/useCRM.js - Update useSearchLeads hook
 export const useSearchLeads = (searchTerm, enabled = true) => {
   return useQuery({
     queryKey: ['search-leads', searchTerm],
     queryFn: async () => {
       try {
+        if (!searchTerm || searchTerm.trim() === '') {
+          return [];
+        }
         return await crmApiService.searchLeads(searchTerm);
       } catch (error) {
-        handleApiError(error, 'useSearchLeads');
+        console.error('Search leads failed:', error.message);
         return [];
       }
     },
     enabled: enabled && searchTerm?.length > 2,
     staleTime: 1000 * 60 * 5,
-    retry: false, // Don't retry search queries
+    retry: false,
   });
 };
 

@@ -1,41 +1,24 @@
 // screens/CRM/FollowupScreen.js
 import React, { useState, useMemo } from 'react';
 import {
-  StyleSheet,
-  Text,
   View,
   FlatList,
   TouchableOpacity,
-  Modal,
-  Platform,
+  StyleSheet,
+  Text,
+  ScrollView,
   RefreshControl,
-  TextInput,
+  ActivityIndicator,
+  SafeAreaView,
   Alert,
 } from 'react-native';
-import { Provider, Portal } from 'react-native-paper';
-import CustomHeader from '../../components/CustomHeader';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import FontAwesome from 'react-native-vector-icons/FontAwesome';
-import EvilIcons from 'react-native-vector-icons/EvilIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
-import { useFollowups, useUpdateFollowup } from '../../hooks/useCRM';
+import { useFollowups, useUpdateFollowup } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 
 const FollowupScreen = ({ navigation }) => {
-  // State
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [fromDate, setFromDate] = useState(new Date());
-  const [toDate, setToDate] = useState(new Date());
-  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);
-  const [selectStatus, setSelectStatus] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [tempDescription, setTempDescription] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
 
   // Hooks
   const { 
@@ -56,91 +39,49 @@ const FollowupScreen = ({ navigation }) => {
     TA: 'Task',
   };
 
-  // Filter and sort followups
+  // Filter followups based on selected tab - EXACT SAME LOGIC AS LeadDetailsScreen
   const filteredFollowups = useMemo(() => {
     if (!allFollowups.length) return [];
+    
+    const today = moment().startOf('day');
+    let filtered = [...allFollowups];
 
-    // First filter by status
-    let statusFiltered = allFollowups;
-    if (selectStatus === 'completed') {
-      statusFiltered = allFollowups.filter(item => item.IsComplete);
-    } else if (selectStatus === 'pending') {
-      statusFiltered = allFollowups.filter(item => !item.IsComplete);
-    }
-
-    // Then filter by date range
-    let dateFiltered = statusFiltered;
-    if (fromDate && toDate) {
-      dateFiltered = statusFiltered.filter(item => {
-        const itemDate = moment(item.StartDate);
-        return itemDate.isBetween(
-          moment(fromDate).startOf('day'), 
-          moment(toDate).endOf('day'),
-          null,
-          '[]'
+    // Apply time filter - EXACT SAME LOGIC
+    if (activeFilter === 'today') {
+      filtered = filtered.filter(item => {
+        const start = moment(item.StartDate);
+        const end = item.EndDate ? moment(item.EndDate) : start;
+        return (
+          start.isSameOrBefore(today, 'day') &&
+          end.isSameOrAfter(today, 'day') &&
+          item.IsComplete === false
         );
       });
-    }
-
-    // Then filter by search
-    let searchFiltered = dateFiltered;
-    if (searchQuery.trim()) {
-      const searchTerm = searchQuery.toLowerCase();
-      searchFiltered = dateFiltered.filter(item => {
-        const leadName = item.AD_User_ID?.Name || item.AD_User_ID?.identifier || '';
-        const description = item.Description || '';
-        const activityType = categoryMap[item.ContactActivityType?.identifier] || '';
-        
-        return leadName.toLowerCase().includes(searchTerm) ||
-               description.toLowerCase().includes(searchTerm) ||
-               activityType.toLowerCase().includes(searchTerm);
+    } else if (activeFilter === 'future') {
+      filtered = filtered.filter(item => {
+        const start = moment(item.StartDate);
+        return start.isAfter(today, 'day') && item.IsComplete === false;
       });
+    } else if (activeFilter === 'missed') {
+      filtered = filtered.filter(item => {
+        const end = item.EndDate ? moment(item.EndDate) : moment(item.StartDate);
+        return end.isBefore(today, 'day') && item.IsComplete === false;
+      });
+    } else if (activeFilter === 'completed') {
+      filtered = filtered.filter(item => {
+        return item.IsComplete === true;
+      });
+    } else {
+      // 'all' - show all activities
+      filtered = filtered;
     }
 
-    // Finally sort by date (soonest first)
-    return searchFiltered.sort((a, b) => moment(a.StartDate) - moment(b.StartDate));
-  }, [allFollowups, selectStatus, fromDate, toDate, searchQuery]);
+    // Sort by date (newest first) - EXACT SAME SORTING
+    return filtered.sort((a, b) =>
+      moment(b.StartDate || b.Created) - moment(a.StartDate || a.Created)
+    );
+  }, [allFollowups, activeFilter]);
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    if (!Array.isArray(allFollowups)) {
-      return {
-        todayFollowups: 0,
-        totalFollowups: 0,
-        pendingFollowups: 0,
-      };
-    }
-    
-    const todayFollowups = allFollowups.filter(item => 
-      moment(item.StartDate).isSame(moment(), 'day')
-    ).length;
-    
-    const pendingFollowups = allFollowups.filter(item => 
-      !item.IsComplete
-    ).length;
-    
-    return {
-      todayFollowups,
-      totalFollowups: allFollowups.length,
-      pendingFollowups,
-    };
-  }, [allFollowups]);
-
-  // Apply filter function
-  const applyFilter = () => {
-    setFilterVisible(false);
-    refetchFollowups();
-  };
-  
-  // Reset filter
-  const resetFilter = () => {
-    setFromDate(new Date());
-    setToDate(new Date());
-    setSelectStatus('all');
-    setFilterVisible(false);
-    refetchFollowups();
-  };
-  
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
@@ -153,11 +94,6 @@ const FollowupScreen = ({ navigation }) => {
     }
   };
 
-  // Clear search
-  const clearSearch = () => {
-    setSearchQuery('');
-  };
-
   // Update followup field
   const updateFollowupField = (id, field, value) => {
     updateFollowupMutation.mutate({ 
@@ -166,10 +102,8 @@ const FollowupScreen = ({ navigation }) => {
     });
   };
 
-  // Handle navigation to lead details - SIMPLE VERSION
+  // Handle navigation to lead details
   const handleCardPress = (followup) => {
-    console.log('Card pressed, navigating...');
-    
     const leadId = followup.AD_User_ID?.id || followup.AD_User_ID;
     
     if (!leadId) {
@@ -177,336 +111,353 @@ const FollowupScreen = ({ navigation }) => {
       return;
     }
 
-    // Simple lead data
     const leadData = {
       id: leadId,
       Name: followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || 'Unknown Lead',
     };
     
-    console.log('Navigating with data:', leadData);
-    navigation.navigate('LeadDetails', { data: leadData });
+    navigation.navigate('LeadsDetail', { data: leadData });
   };
 
-  // Simple card render - MINIMAL TOUCHABLE
+  // Helper function to get activity type name
+  const getActivityTypeName = (typeCode) => {
+    return categoryMap[typeCode] || typeCode || 'Task';
+  };
+
+  // Helper function to get activity color
+  const getActivityColor = (type) => {
+    const typeName = getActivityTypeName(type).toUpperCase();
+    switch (typeName) {
+      case 'EMAIL': return '#4F46E5';
+      case 'PHONE CALL': return '#0EA5E9';
+      case 'PHONE': return '#0EA5E9';
+      case 'MEETING': return '#F59E0B';
+      case 'TASK': return '#EC4899';
+      default: return '#6366F1';
+    }
+  };
+
+  const getActivityBgColor = (type) => {
+    const typeName = getActivityTypeName(type).toUpperCase();
+    switch (typeName) {
+      case 'EMAIL': return '#EEF2FF';
+      case 'PHONE CALL': return '#F0F9FF';
+      case 'PHONE': return '#F0F9FF';
+      case 'MEETING': return '#FEF3C7';
+      case 'TASK': return '#FCE7F3';
+      default: return '#F5F3FF';
+    }
+  };
+
+  const getActivityIcon = (type) => {
+    const iconColor = getActivityColor(type);
+    const typeName = getActivityTypeName(type).toUpperCase();
+    switch (typeName) {
+      case 'EMAIL':
+        return <MaterialIcons name="email" size={14} color={iconColor} />;
+      case 'PHONE CALL':
+      case 'PHONE':
+        return <MaterialIcons name="phone" size={14} color={iconColor} />;
+      case 'MEETING':
+        return <MaterialIcons name="people" size={14} color={iconColor} />;
+      case 'TASK':
+        return <MaterialIcons name="task-alt" size={14} color={iconColor} />;
+      default:
+        return <MaterialIcons name="event" size={14} color={iconColor} />;
+    }
+  };
+
+  // Helper function to get follow-up priority - EXACT SAME LOGIC
+  const getFollowupPriority = (item) => {
+    const priorities = ['High', 'Medium', 'Low'];
+    const priorityIndex = item.id % 3; // Using modulo to get consistent priority per item
+    return priorities[priorityIndex];
+  };
+
+  // Helper function to get priority color
+  const getPriorityColor = (priority) => {
+    switch (priority?.toLowerCase()) {
+      case 'high': return '#EA4747';
+      case 'medium': return '#E7CD4C';
+      case 'low': return '#26BDCE';
+      default: return '#EA4747';
+    }
+  };
+
+  // Define tab colors for active state - EXACT SAME
+  const getTabColor = (tabId) => {
+    switch (tabId) {
+      case 'missed':
+        return '#EF4444';
+      case 'today':
+        return '#3B82F6';
+      case 'completed':
+        return '#10B981';
+      case 'future':
+        return '#F59E0B';
+      case 'all':
+      default:
+        return '#8B5CF6';
+    }
+  };
+
+  // Filter tabs with tick icons - EXACT SAME
+  const filterTabs = [
+    { id: 'all', label: 'All' },
+    { id: 'today', label: 'Today' },
+    { id: 'future', label: 'Future' },
+    { id: 'missed', label: 'Missed' },
+    { id: 'completed', label: 'Completed' },
+  ];
+
+  // Filter Tab component - EXACT SAME
+  const FilterTab = ({ tab, active, onPress }) => {
+    const tabColor = getTabColor(tab.id);
+    
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        style={[
+          styles.filterTab,
+          active && styles.filterTabActive,
+        ]}
+      >
+        {/* Tick Icon Container */}
+        <View style={[
+          styles.tickContainer,
+          active ? { backgroundColor: tabColor } : styles.tickContainerInactive
+        ]}>
+          <MaterialIcons 
+            name="check" 
+            size={12} 
+            color="#FFFFFF" 
+          />
+        </View>
+        
+        {/* Tab Text */}
+        <Text style={[
+          styles.filterText,
+          active ? [styles.filterTextActive, { color: tabColor }] : styles.filterTextInactive
+        ]}>
+          {tab.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   const renderFollowupCard = ({ item }) => {
+    const isComplete = item.IsComplete;
+    const activityType = item.ContactActivityType?.identifier || 'Task';
+    const activityIcon = getActivityIcon(activityType);
+    const priority = getFollowupPriority(item);
     const leadName = item.AD_User_ID?.Name || item.AD_User_ID?.identifier || 'Unknown Lead';
-    const date = item.StartDate ? moment(item.StartDate).format('DD MMM YYYY') : '-';
-    const followUpCode = item.ContactActivityType?.identifier;
-    const followUpType = categoryMap[followUpCode] || followUpCode || '-';
 
     return (
-      <View style={styles.cardContainer}>
-        {/* Main touchable area - ONLY THIS TOUCHES FOR NAVIGATION */}
-        <TouchableOpacity
-          onPress={() => handleCardPress(item)}
-          style={styles.cardTouchable}
-          activeOpacity={0.7}>
-          
-          <View style={styles.cardContent}>
-            {/* Row 1 */}
-            <View style={styles.cardRow}>
-              <Text style={styles.leadName}>{leadName}</Text>
+      <TouchableOpacity
+        style={styles.followupCard}
+        activeOpacity={0.9}
+        onPress={() => handleCardPress(item)}
+      >
+        <View style={[
+          styles.cardContent,
+          { 
+            borderLeftWidth: 1, 
+            borderLeftColor: getActivityColor(activityType),
+            borderColor: '#4b4848',
+          }
+        ]}>
+          {/* Header Row - Lead Name and Status */}
+          <View style={styles.cardHeader}>
+            <View style={styles.typeRow}>
+              <View style={[styles.iconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
+                {activityIcon}
+              </View>
+              <View style={styles.leadInfo}>
+                <Text style={styles.leadName} numberOfLines={1}>
+                  {leadName}
+                </Text>
+                <Text style={styles.typeText}>
+                  {getActivityTypeName(activityType)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Right side: Status */}
+            <View style={styles.rightSide}>
               <TouchableOpacity
                 onPress={(e) => {
                   e.stopPropagation();
                   updateFollowupField(item.id, 'IsComplete', !item.IsComplete);
                 }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: item.IsComplete ? '#4CAF50' : '#FF9800' },
+                  { backgroundColor: isComplete ? '#E6F4EA' : '#FDEAEA' }
+                ]}
+              >
+                <Text style={[
+                  styles.statusText,
+                  { color: isComplete ? '#2E7D32' : '#C62828' }
                 ]}>
-                <Text style={styles.statusText}>
-                  {item.IsComplete ? 'Complete' : 'Pending'}
+                  {isComplete ? 'Complete' : 'Pending'}
                 </Text>
               </TouchableOpacity>
             </View>
-            
-            {/* Row 2 */}
-            <View style={styles.cardRow}>
-              <View>
-                <Text style={styles.cardLabel}>Type</Text>
-                <Text style={styles.cardValue}>{followUpType}</Text>
-              </View>
-              <View>
-                <Text style={styles.cardLabel}>Date</Text>
-                <Text style={styles.cardValue}>{date}</Text>
+          </View>
+
+          {/* Description */}
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.descriptionText} numberOfLines={2}>
+              {item.Description || 'No description provided'}
+            </Text>
+          </View>
+
+          {/* Bottom Row: Dates and Priority */}
+          <View style={styles.bottomRow}>
+            {/* Dates on left */}
+            <View style={styles.datesContainer}>
+              <View style={styles.dateRow}>
+                <View style={styles.dateItem}>
+                  <MaterialIcons name="calendar-today" size={12} color="#666" />
+                  <Text style={styles.dateLabel}>Start: </Text>
+                  <Text style={styles.dateValue}>
+                    {moment(item.StartDate).format('DD MMM YY')}
+                  </Text>
+                </View>
+                <Text style={styles.dateSeparator}>|</Text>
+                <View style={styles.dateItem}>
+                  <MaterialIcons name="calendar-today" size={12} color="#666" />
+                  <Text style={styles.dateLabel}>End: </Text>
+                  <Text style={styles.dateValue}>
+                    {item.EndDate ? moment(item.EndDate).format('DD MMM YY') : 'N/A'}
+                  </Text>
+                </View>
               </View>
             </View>
-            
-            {/* Description */}
-            <View style={styles.descriptionSection}>
-              <Text style={styles.cardLabel}>Description</Text>
-              {editingId === item.id ? (
-                <TextInput
-                  value={tempDescription}
-                  onChangeText={setTempDescription}
-                  onBlur={() => {
-                    if (tempDescription !== item.Description) {
-                      updateFollowupField(item.id, 'Description', tempDescription);
-                    }
-                    setEditingId(null);
-                  }}
-                  onSubmitEditing={() => {
-                    if (tempDescription !== item.Description) {
-                      updateFollowupField(item.id, 'Description', tempDescription);
-                    }
-                    setEditingId(null);
-                  }}
-                  autoFocus
-                  multiline
-                  style={styles.descriptionInput}
-                  placeholder="Enter description"
-                  onPressIn={(e) => {
-                    e.stopPropagation(); // Prevent card press when editing
-                  }}
-                />
-              ) : (
-                <TouchableOpacity
-                  onPress={(e) => {
-                    e.stopPropagation(); // Don't navigate when clicking description
-                    setEditingId(item.id);
-                    setTempDescription(item.Description || '');
-                  }}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Text style={styles.descriptionText} numberOfLines={2}>
-                    {item.Description || 'Tap to add description...'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+
+            {/* Priority on right */}
+            <View style={styles.priorityContainer}>
+              <View style={styles.priorityRow}>
+                <View style={[styles.priorityBox, { backgroundColor: getPriorityColor(priority) }]} />
+                <Text style={styles.priorityText}>{priority}</Text>
+              </View>
             </View>
           </View>
-        </TouchableOpacity>
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   // Loading state
-  if (isLoadingFollowups) {
+  if (isLoadingFollowups && !refreshing) {
     return (
-      <View style={styles.container}>
-        <CustomHeader 
-          title="Follow-ups"
-          RightIcon="filter"
-          RightPress={() => setFilterVisible(true)}
-        />
-        <View style={styles.loadingContent}>
-          <Text style={styles.loadingText}>Loading followups...</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {/* Title */}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Follow ups</Text>
+          </View>
+          
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color="#2F4FE3" />
+            <Text style={styles.loadingText}>Loading followups...</Text>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <Provider>
-      <>
-        {/* Filter Modal */}
-        {filterVisible && (
-          <Portal>
-            <Modal
-              visible={filterVisible}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setFilterVisible(false)}>
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Filter Follow-ups</Text>
-                    <TouchableOpacity
-                      onPress={() => setFilterVisible(false)}
-                      style={styles.closeButton}>
-                      <FontAwesome name="times" size={24} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {/* Status Picker */}
-                  <Text style={styles.sectionTitle}>Select Status</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectStatus}
-                      onValueChange={setSelectStatus}
-                      style={styles.picker}>
-                      <Picker.Item label="All Follow-ups" value="all" />
-                      <Picker.Item label="Completed" value="completed" />
-                      <Picker.Item label="Pending" value="pending" />
-                    </Picker>
-                  </View>
-                  
-                  {/* From Date */}
-                  <Text style={styles.sectionTitle}>From Date</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowFromDatePicker(true)}>
-                    <Text style={styles.dateText}>
-                      {moment(fromDate).format('DD MMM YYYY')}
-                    </Text>
-                    <EvilIcons name="calendar" size={25} color="#000" />
-                  </TouchableOpacity>
-                  
-                  {showFromDatePicker && (
-                    <DateTimePicker
-                      value={fromDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowFromDatePicker(false);
-                        if (date) setFromDate(date);
-                      }}
-                    />
-                  )}
-                  
-                  {/* To Date */}
-                  <Text style={styles.sectionTitle}>To Date</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowToDatePicker(true)}>
-                    <Text style={styles.dateText}>
-                      {moment(toDate).format('DD MMM YYYY')}
-                    </Text>
-                    <EvilIcons name="calendar" size={25} color="#000" />
-                  </TouchableOpacity>
-                  
-                  {showToDatePicker && (
-                    <DateTimePicker
-                      value={toDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowToDatePicker(false);
-                        if (date) setToDate(date);
-                      }}
-                    />
-                  )}
-                  
-                  {/* Action Buttons */}
-                  <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.resetButton]}
-                      onPress={resetFilter}>
-                      <Text style={styles.resetButtonText}>Reset</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={[styles.button, styles.applyButton]}
-                      onPress={applyFilter}>
-                      <Text style={styles.applyButtonText}>Apply Filter</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-          </Portal>
-        )}
-        
-        {/* Custom Header */}
-        <CustomHeader
-          title="Follow-ups"
-          RightIcon="filter"
-          RightPress={() => setFilterVisible(true)}
-        />
-        
-        {/* Main Content */}
-        <View style={{ flex: 1 }}>
-          <View style={styles.main}>
-            {/* Stats Section */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(38, 189, 206, 0.2)' }]}>
-                  <MaterialIcons
-                    name="today"
-                    size={20}
-                    color="rgba(38, 189, 206, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>Today</Text>
-                <Text style={styles.statValue}>{stats.todayFollowups}</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(234, 71, 71, 0.2)' }]}>
-                  <MaterialIcons
-                    name="pending-actions"
-                    size={20}
-                    color="rgba(234, 71, 71, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>Pending</Text>
-                <Text style={styles.statValue}>{stats.pendingFollowups}</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={[styles.statIconWrapper, { backgroundColor: 'rgba(231, 205, 76, 0.2)' }]}>
-                  <MaterialCommunityIcons
-                    name="calendar-check"
-                    size={20}
-                    color="rgba(231, 205, 76, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>Total</Text>
-                <Text style={styles.statValue}>{stats.totalFollowups}</Text>
-              </View>
-            </View>
-            
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchInputContainer}>
-                <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search followups..."
-                  placeholderTextColor="#999"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  returnKeyType="search"
-                />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={20} color="#666" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            
-            {/* Followups List */}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Follow ups</Text>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={['#2F4FE3']}
+              tintColor="#2F4FE3"
+            />
+          }
+        >
+          {/* Scrollable Filter Tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabsContainer}
+            contentContainerStyle={styles.tabsContent}
+          >
+            {filterTabs.map((tab) => (
+              <FilterTab
+                key={tab.id}
+                tab={tab}
+                active={activeFilter === tab.id}
+                onPress={() => setActiveFilter(tab.id)}
+              />
+            ))}
+          </ScrollView>
+
+          {/* Active Filter Text */}
+          <Text style={styles.activeFilterText}>
+            {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+          </Text>
+
+          {/* Follow-ups List - MATCH LEADDETAILSSCREEN STRUCTURE */}
+          {filteredFollowups.length > 0 ? (
             <FlatList
               data={filteredFollowups}
-              keyExtractor={(item, index) => `${item.id}-${index}`}
               renderItem={renderFollowupCard}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialIcons name="event-note" size={60} color="#ccc" />
-                  <Text style={styles.emptyText}>
-                    {searchQuery ? 'No followups found' : 'No follow-ups scheduled yet'}
-                  </Text>
-                </View>
-              }
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false} // IMPORTANT: Match LeadDetailsScreen
               contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#2F4FE3']}
-                  tintColor="#2F4FE3"
-                />
-              }
             />
-          </View>
-        </View>
-      </>
-    </Provider>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="event-note" size={40} color="#E5E7EB" />
+              <Text style={styles.emptyText}>
+                No {activeFilter !== 'all' ? activeFilter + ' ' : ''}follow-ups
+              </Text>
+              <Text style={styles.emptySubText}>
+                All follow-ups will appear here
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#EDEBEB',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#EDEBEB',
   },
-  main: {
-    flex: 1,
-    marginTop: -22,
-    borderRadius: 20,
-    backgroundColor: '#fff',
+  scrollContent: {
+    padding: 5,
+    paddingBottom: 20,
+  },
+  // Title Styles
+  titleContainer: {
+    paddingHorizontal: 5,
+    paddingTop: 5,
+    paddingBottom: 8,
+    backgroundColor: '#EDEBEB',
+  },
+  title: {
+    fontSize: 24,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
   },
   loadingContent: {
     flex: 1,
@@ -516,251 +467,210 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+    marginTop: 12,
+    fontFamily: 'K2D-Regular',
   },
-  // Stats Styles
-  statsContainer: {
-    backgroundColor: '#F5F5F5',
-    height: 110,
-    marginTop: '5%',
-    marginHorizontal: 22,
-    marginBottom: 16,
-    flexDirection: 'row',
-    elevation: 10,
-    borderRadius: 3,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#000',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
-  },
-  // Search Styles
-  searchContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  // Tabs Styles
+  tabsContainer: {
     marginBottom: 12,
   },
-  searchInputContainer: {
+  tabsContent: {
+    paddingRight: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 25,
-    paddingHorizontal: 16,
+  },
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    paddingVertical: 0,
-  },
-  clearButton: {
-    padding: 4,
-  },
-  // Card Styles - SIMPLIFIED
-  cardContainer: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    elevation: 2,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
+    minWidth: 120,
+  },
+  filterTabActive: {
+    backgroundColor: '#FFFFFF',
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    shadowRadius: 3,
+    elevation: 3,
   },
-  cardTouchable: {
-    padding: 16,
-  },
-  cardContent: {
-    // Container for card content
-  },
-  cardRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  leadName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  cardLabel: {
-    fontSize: 11,
-    color: '#888',
-    marginBottom: 2,
-  },
-  cardValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#000',
-  },
-  descriptionSection: {
-    marginTop: 8,
-  },
-  descriptionInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#000',
-    minHeight: 60,
-    marginTop: 4,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: '#444',
-    padding: 12,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  // List Styles
-  emptyContainer: {
+  tickContainer: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    minHeight: 300,
+    marginRight: 8,
+  },
+  tickContainerInactive: {
+    backgroundColor: '#6B7280',
+  },
+  filterText: {
+    fontSize: 12,
+    fontFamily: 'K2D-Medium',
+  },
+  filterTextActive: {
+    fontFamily: 'K2D-SemiBold',
+  },
+  filterTextInactive: {
+    color: '#6B7280',
+  },
+  activeFilterText: {
+    fontSize: 14,
+    color: '#333',
+    fontFamily: 'K2D-SemiBold',
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  // List Styles - UPDATED TO MATCH LEADDETAILSSCREEN
+  listContent: {
+    paddingTop: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#999',
+    fontFamily: 'K2D-Medium',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptySubText: {
+    fontSize: 12,
+    color: '#BBB',
+    fontFamily: 'K2D-Regular',
     textAlign: 'center',
-    marginTop: 16,
   },
-  listContent: {
-    paddingBottom: 20,
+  // Card Styles
+  followupCard: {
+    marginBottom: 12,
   },
-  // Filter Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+  cardContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
-  },
-  closeButton: {
-    padding: 5,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#000',
-    marginTop: 15,
-    marginBottom: 8,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  picker: {
-    height: 50,
-  },
-  dateInput: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderRadius: 6,
     padding: 12,
-    marginBottom: 15,
+    borderWidth: 0.5,
+    borderColor: '#807e7e',
+    borderLeftWidth: 1,
   },
-  dateText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  buttonContainer: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
-  button: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 8,
+  typeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 5,
+    flex: 1,
   },
-  resetButton: {
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#ccc',
+  leadInfo: {
+    flex: 1,
+    marginLeft: 8,
   },
-  applyButton: {
-    backgroundColor: '#2F4FE3',
-  },
-  resetButtonText: {
+  leadName: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
     color: '#333',
-    fontWeight: '600',
-    fontSize: 16,
+    marginBottom: 2,
   },
-  applyButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
+  iconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeText: {
+    fontSize: 13,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+  },
+  rightSide: {
+    alignItems: 'flex-end',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusText: {
+    fontSize: 10,
+    fontFamily: 'K2D-SemiBold',
+  },
+  descriptionContainer: {
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 12,
+    color: '#555',
+    fontFamily: 'K2D-Regular',
+    lineHeight: 16,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  datesContainer: {
+    flex: 1,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  dateItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateSeparator: {
+    marginHorizontal: 8,
+    color: '#999',
+    fontSize: 10,
+  },
+  dateLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginLeft: 4,
+    marginRight: 2,
+  },
+  dateValue: {
+    fontSize: 11,
+    color: '#333',
+    fontFamily: 'K2D-SemiBold',
+  },
+  priorityContainer: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priorityBox: {
+    width: 10,
+    height: 10,
+    marginRight: 6,
+  },
+  priorityText: {
+    fontSize: 11,
+    color: '#666',
+    fontFamily: 'K2D-Medium',
   },
 });
 

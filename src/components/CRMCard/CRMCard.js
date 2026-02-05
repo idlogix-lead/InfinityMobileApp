@@ -1,4 +1,3 @@
-// components/CRMCard/CRMCard.js
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -6,6 +5,9 @@ import {
   View,
   TouchableOpacity,
   Image,
+  LayoutAnimation,
+  Platform,
+  UIManager,
   Alert,
 } from 'react-native';
 import { Menu, Divider } from 'react-native-paper';
@@ -15,344 +17,331 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import moment from 'moment';
 import { useUpdateLeadStatus } from '../../hooks/CRMhooks/useCRM';
 
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const CRMCard = ({
   header,
   name,
   email,
-  mail,
   phone,
-  onPress,
+  mail,
   dateText,
-  actOnPress,
-  Description,
   leadId,
   status,
   count,
   interactionType,
+   actOnPress,
   cellNo,
+  onEdit,
+  onActivity,
+  priority = 'High',
+  company,
+  Description, // Add Description prop
 }) => {
+  const [expanded, setExpanded] = useState(false);
   const [visible, setVisible] = useState(false);
   const [editStatus, setEditStatus] = useState(status);
-  
+
   const updateLeadStatusMutation = useUpdateLeadStatus();
-  
-  const openMenu = () => setVisible(true);
-  const closeMenu = () => setVisible(false);
-  
   const interaction = moment(dateText).format('DD MMM YYYY');
-  
+
+  const toggleExpand = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded(!expanded);
+  };
+
   const handleStatusUpdate = (newStatus) => {
     setEditStatus(newStatus);
-    closeMenu();
-    
-    // Update lead status via API
-    updateLeadStatusMutation.mutate({
-      leadId,
-      status: newStatus,
-    });
+    setVisible(false);
+    updateLeadStatusMutation.mutate({ leadId, status: newStatus });
   };
-  
-  const cols = [
-    {
-      title: 'Last Activity',
-      align: 'flex-start',
-      dotColor: 'rgba(234, 71, 71, 1)',
-      content: (
-        <View style={styles.statusRow}>
-          <Text style={styles.value}>{interactionType || 'Email'}</Text>
-        </View>
-      ),
-    },
-    {
-      title: 'Last Interaction',
-      align: 'center',
-      dotColor: 'rgba(231, 205, 76, 1)',
-      content: (
-        <View style={styles.statusRow}>
-          <Text style={styles.value}>{interaction}</Text>
-        </View>
-      ),
-    },
-    {
-      title: 'Total Activities',
-      align: 'flex-end',
-      dotColor: 'rgba(38, 189, 206, 1)',
-      content: <Text style={styles.value}>{count}</Text>
-    },
-  ];
+
+  // Use company prop if provided, otherwise use header
+  const companyName = company || header || 'No Company';
 
   return (
     <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* COLLAPSED VIEW */}
+      <View style={styles.headerRow}>
         <Image
-          source={{
-            uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-          }}
+          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
           style={styles.avatar}
         />
-        <View style={styles.headerContent}>
-          <View style={styles.nameRow}>
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert('House #24, Street 6, Green Town, Lahore')
-              }>
-              <Text style={styles.name}>{name}</Text>
-            </TouchableOpacity>
-            <View style={styles.contactLinks}>
-              <TouchableOpacity onPress={phone}>
-                <Text style={styles.link}>Call</Text>
-              </TouchableOpacity>
-              <Text style={styles.separator}> \ </Text>
-              <TouchableOpacity onPress={mail}>
-                <Text style={styles.link}>E-mail</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name}>{name}</Text>
+          {/* ADD TOUCHABLE OPACITY FOR ADDRESS LIKE IN CRMCard1 */}
           <TouchableOpacity
             onPress={() =>
-              Alert.alert('Office #12, Floor 3, XYZ Plaza, Faisalabad')
+              Alert.alert('Address', 'House #24, Street 6, Green Town, Lahore')
             }>
             <View style={styles.companyRow}>
-              <Text style={styles.company}>{header}</Text>
+              <Text style={styles.company}>{companyName}</Text>
               <MaterialCommunityIcons
                 name="map-marker-outline"
-                size={15}
-                color={'#2F4FE3'}
+                size={14}
+                color="#2F4FE3"
               />
             </View>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Info Row */}
-      <View style={styles.infoRow}>
-        {cols.map((col, index) => (
-          <View key={index} style={[styles.col, { alignItems: col.align }]}>
-            <Text style={styles.label}>{col.title}</Text>
-            <View style={styles.dottedLine}>
-              <View style={[styles.smallDot, { backgroundColor: col.dotColor }]} />
-            </View>
-            {col.content}
+        {/* RIGHT QUICK ACTIONS */}
+        <View style={styles.rightActions}>
+          <View style={styles.quickRow}>
+            <Text style={styles.link} onPress={phone}>Call</Text>
+            <Text style={styles.separator}> | </Text>
+            <Text style={styles.link} onPress={mail}>E-mail</Text>
           </View>
-        ))}
-      </View>
 
-      {/* Contact Info */}
-      <View style={styles.contactInfo}>
-        <View style={styles.contactItem}>
-          <MaterialCommunityIcons
-            name="email-outline"
-            size={15}
-            color={'#2F4FE3'}
-          />
-          <Text style={styles.contactText}>{email || 'N/A'}</Text>
-        </View>
-        <View style={styles.contactItem}>
-          <MaterialCommunityIcons
-            name="phone-outline"
-            size={15}
-            color={'#2F4FE3'}
-          />
-          <Text style={styles.contactText}>{cellNo || 'N/A'}</Text>
+          {/* PRIORITY */}
+          <View style={styles.priorityRow}>
+            <View style={styles.priorityBox} />
+            <Text style={styles.priorityText}>{priority}</Text>
+          </View>
         </View>
       </View>
 
-      {/* Description */}
-      <View style={styles.description}>
-        <Text style={styles.label}>Description</Text>
-        <Text style={styles.descText}>
-          {Description && Description.trim() !== ''
-            ? Description
-            : 'No description provided'}
-        </Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.bottomButton}>
-        <View style={styles.button}>
-          <Menu
-            visible={visible}
-            onDismiss={closeMenu}
-            style={{ marginTop: 55, marginLeft: 15 }}
-            anchor={
-              <TouchableOpacity
-                onPress={openMenu}
-                style={{ flexDirection: 'row' }}>
-                <Text style={styles.buttonText}>{editStatus}</Text>
-                <AntDesign name="down" size={15} color={'#fff'} />
-              </TouchableOpacity>
-            }>
-            <Menu.Item
-              onPress={() => handleStatusUpdate('New')}
-              title="New"
+      {/* EXPANDED CONTENT */}
+      {expanded && (
+        <>
+          <View style={styles.infoRow}>
+            <InfoCol
+              title="Last Activity"
+              value={interactionType || 'Email'}
+              color="#EA4747"
             />
-            <Divider />
-            <Menu.Item
-              onPress={() => handleStatusUpdate('Converted')}
-              title="Converted"
+            <InfoCol
+              title="Last Interaction"
+              value={interaction}
+              color="#E7CD4C"
             />
-            <Divider />
-            <Menu.Item
-              onPress={() => handleStatusUpdate('Working')}
-              title="Working"
+            <InfoCol
+              title="Total Activities"
+              value={count}
+              color="#26BDCE"
             />
-          </Menu>
-        </View>
+          </View>
 
-        <TouchableOpacity onPress={actOnPress} style={styles.button}>
-          <Text style={styles.buttonText}>Activity</Text>
-          <Ionicons name="add-outline" size={20} color={'#fff'} />
-        </TouchableOpacity>
+          <View style={styles.contactInfo}>
+            <ContactItem icon="email-outline" text={email || 'N/A'} />
+            <ContactItem icon="phone-outline" text={cellNo || 'N/A'} />
+          </View>
 
-        <TouchableOpacity onPress={onPress} style={styles.button}>
-          <Text style={styles.buttonText}>Edit Lead</Text>
-        </TouchableOpacity>
-      </View>
+          {/* DESCRIPTION SECTION - Added like in the example */}
+          <View style={styles.description}>
+            <Text style={styles.label}>Description</Text>
+            <Text style={styles.descText}>
+              {Description && Description.trim() !== ''
+                ? Description
+                : 'No description provided'}
+            </Text>
+          </View>
+
+          <View style={styles.bottomButton}>
+            <View style={styles.button}>
+              <Menu
+                visible={visible}
+                onDismiss={() => setVisible(false)}
+                anchor={
+                  <TouchableOpacity
+                    onPress={() => setVisible(true)}
+                    style={styles.menuAnchor}>
+                    <Text style={styles.buttonText}>{editStatus}</Text>
+                    <AntDesign name="down" size={14} color="#fff" />
+                  </TouchableOpacity>
+                }>
+                {['New', 'Working', 'Converted', 'Expired'].map(item => (
+                  <React.Fragment key={item}>
+                    <Menu.Item title={item} onPress={() => handleStatusUpdate(item)} />
+                    <Divider />
+                  </React.Fragment>
+                ))}
+              </Menu>
+            </View>
+
+             <TouchableOpacity onPress={actOnPress} style={styles.button}>
+                     <Text style={styles.buttonText}>Activity</Text>
+                     <Ionicons name="add-outline" size={18} color={'#fff'} />
+                   </TouchableOpacity>
+
+            <TouchableOpacity onPress={onEdit} style={styles.button}>
+              <Text style={styles.buttonText}>Details</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* EXPAND ARROW AT BOTTOM - ALWAYS VISIBLE */}
+      <TouchableOpacity onPress={toggleExpand} style={styles.expandArrow}>
+        <AntDesign
+          name={expanded ? 'up' : 'down'}
+          size={16}
+          color="#888"
+        />
+      </TouchableOpacity>
     </View>
   );
 };
 
+/* ---------- SMALL COMPONENTS ---------- */
+
+const InfoCol = ({ title, value, color }) => (
+  <View style={styles.infoCol}>
+    <Text style={styles.label}>{title}</Text>
+    <View style={styles.line}>
+      <View style={[styles.smallDot, { backgroundColor: color }]} />
+    </View>
+    <Text style={styles.value}>{value}</Text>
+  </View>
+);
+
+const ContactItem = ({ icon, text }) => (
+  <View style={styles.contactItem}>
+    <MaterialCommunityIcons name={icon} size={14} color="#2F4FE3" />
+    <Text style={styles.contactText}>{text}</Text>
+  </View>
+);
+
+/* ---------- STYLES ---------- */
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
-    borderRadius: 3,
-    padding: 12,
-    marginBottom: '5%',
-    shadowColor: 'rgba(0, 0, 0, 0.25)',
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderRadius: 4,
+    padding: 5,
+    marginBottom: 12,
+    elevation: 3,
   },
-  header: {
+
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 10,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   name: {
     fontSize: 13,
     fontFamily: 'K2D-SemiBold',
-    color: 'rgba(60, 60, 60, 1)',
+    color: '#3C3C3C',
   },
-  contactLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  link: {
-    color: 'rgba(21, 68, 137, 1)',
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-  },
-  separator: {
-    color: 'rgba(139, 140, 144, 1)',
-    fontSize: 13,
-    marginHorizontal: 3,
-  },
+  // ADDED COMPANY ROW STYLES
   companyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 2,
   },
   company: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'K2D-Bold',
-    color: 'rgba(125, 125, 125, 1)',
+    color: '#7D7D7D',
     marginRight: 5,
   },
+
+  rightActions: {
+    alignItems: 'flex-end',
+  },
+  quickRow: {
+    flexDirection: 'row',
+  },
+  link: {
+    color: '#154489',
+    fontSize: 11,
+  },
+  separator: {
+    marginHorizontal: 4,
+    color: '#999',
+  },
+
+  priorityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  priorityBox: {
+    width: 10,
+    height: 10,
+    backgroundColor: '#EA4747',
+    marginRight: 6,
+  },
+  priorityText: {
+    fontSize: 11,
+    color: '#666',
+  },
+
   infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: '5%',
+    marginTop: 12,
+    marginBottom: 12,
   },
-  col: {
+  infoCol: {
     flex: 1,
   },
   label: {
-    fontSize: 13,
-    color: 'rgba(0, 0, 0, 1)',
+    fontSize: 12,
     fontFamily: 'K2D-Medium',
   },
-  dottedLine: {
-    width: '100%',
+  line: {
     height: 1,
-    backgroundColor: 'rgba(170, 170, 170, 1)',
-    marginVertical: 10,
-    position: 'relative',
+    backgroundColor: '#AAA',
+    marginVertical: 6,
   },
   smallDot: {
-    width: 7,
-    height: 10,
-    borderRadius: 6,
-    position: 'absolute',
-    marginTop: '-3%',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: '3%',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: -3,
   },
   value: {
-    fontSize: 15,
-    color: 'rgba(139, 140, 144, 1)',
-    fontFamily: 'K2D-Regular',
+    fontSize: 12,
+    color: '#8B8C90',
   },
+
   contactInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: '7%',
-    paddingVertical: '3%',
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
+    marginBottom: 12,
   },
   contactItem: {
     flexDirection: 'row',
-    width: '48%',
     alignItems: 'center',
-    paddingHorizontal: '4%',
   },
   contactText: {
+    marginLeft: 6,
+    fontSize: 12,
     color: '#555',
-    fontSize: 13,
-    fontFamily: 'K2D-Medium',
-    paddingHorizontal: '3%',
   },
+
+  // DESCRIPTION SECTION STYLES - Added like in the example
   description: {
-    marginTop: '7%',
+    marginTop: 12,
+    marginBottom: 5,
   },
   descText: {
-    marginTop: 5,
-    fontSize: 13,
-    color: 'rgba(139, 140, 144, 1)',
+    marginTop: 4,
+    fontSize: 12,
+    color: '#8B8C90',
     fontFamily: 'K2D-Regular',
     borderBottomWidth: 1,
-    borderColor: 'rgba(170, 170, 170, 1)',
-    paddingVertical: '1%',
+    borderColor: '#AAA',
+    paddingBottom: 8,
   },
+
   bottomButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 10,
-    paddingTop: 10,
+    marginVertical: 4,
+    paddingTop: 4,
   },
   button: {
-    height: 35,
-    width: 90,
+    height: 32,
+    width: 85,
     backgroundColor: '#2F4FE3',
     borderRadius: 15,
     flexDirection: 'row',
@@ -362,7 +351,15 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontFamily: 'K2D-Medium',
-    fontSize: 13,
+    fontSize: 12,
+  },
+  menuAnchor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  expandArrow: {
+    alignItems: 'center',
   },
 });
 

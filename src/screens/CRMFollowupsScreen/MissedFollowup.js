@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -208,40 +209,47 @@ const MissedFollowUp = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <SearchHeader />
-      <Text style={styles.title}>Missed Follow-ups</Text>
-      <FlatList
-        data={followups} // 👈 updated state
-        renderItem={renderFollowUpCard}
-        keyExtractor={item => item.id}
-        contentContainerStyle={{paddingBottom: 30}}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <SearchHeader />
+        <Text style={styles.title}>Missed Follow-ups</Text>
+        <FlatList
+          data={followups}
+          renderItem={renderFollowUpCard}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 export default MissedFollowUp;
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f0f1f5',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f0f1f5',
     paddingHorizontal: 20,
-    paddingTop: '5%',
   },
   title: {
-    fontSize: 20,
-    fontFamily: 'K2D-SemiBold',
-    marginVertical: 10,
-    color: '#262626',
+    fontSize: 24,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
+    paddingHorizontal: 4,
+    marginTop: 8,
+    marginBottom: 12,
   },
   card: {
     backgroundColor: '#fff',
     borderRadius: 3,
     padding: 12,
-    marginBottom: '5%',
+    marginBottom: 12,
     elevation: 4,
   },
   label: {
@@ -291,5 +299,8 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderStyle: 'dotted',
     borderColor: 'rgba(21, 69, 140, 1)',
+  },
+  listContent: {
+    paddingBottom: 30,
   },
 });
