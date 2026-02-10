@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
 import { Menu, Divider } from 'react-native-paper';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -48,6 +49,60 @@ const CRMCard1 = ({
       leadId,
       status: newStatus,
     });
+  };
+  
+  // Handle phone button press
+  const handlePhonePress = (e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    phone?.();
+  };
+  
+  // Handle email button press
+  const handleEmailPress = (e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    mail?.();
+  };
+  
+  // Handle call link press
+  const handleCallLink = (e) => {
+    e.stopPropagation();
+    phone?.();
+  };
+  
+  // Handle email link press
+  const handleEmailLink = (e) => {
+    e.stopPropagation();
+    mail?.();
+  };
+  
+  // Handle status menu press
+  const handleStatusMenuPress = (e) => {
+    e.stopPropagation();
+    openMenu();
+  };
+  
+  // Handle activity button press
+  const handleActivityPress = (e) => {
+    e.stopPropagation();
+    actOnPress?.();
+  };
+  
+  // Handle details button press
+  const handleDetailsPress = (e) => {
+    e.stopPropagation();
+    onPress?.();
+  };
+  
+  // Handle name press (for address)
+  const handleNamePress = (e) => {
+    e.stopPropagation();
+    Alert.alert('House #24, Street 6, Green Town, Lahore');
+  };
+  
+  // Handle company press (for office address)
+  const handleCompanyPress = (e) => {
+    e.stopPropagation();
+    Alert.alert('Office #12, Floor 3, XYZ Plaza, Faisalabad');
   };
   
   const cols = [
@@ -92,25 +147,20 @@ const CRMCard1 = ({
         <View style={styles.headerContent}>
           <View style={styles.nameRow}>
             <TouchableOpacity
-              onPress={() =>
-                Alert.alert('House #24, Street 6, Green Town, Lahore')
-              }>
+              onPress={handleNamePress}>
               <Text style={styles.name}>{name}</Text>
             </TouchableOpacity>
             <View style={styles.contactLinks}>
-              <TouchableOpacity onPress={phone}>
+              <TouchableOpacity onPress={handleCallLink}>
                 <Text style={styles.link}>Call</Text>
               </TouchableOpacity>
               <Text style={styles.separator}> \ </Text>
-              <TouchableOpacity onPress={mail}>
+              <TouchableOpacity onPress={handleEmailLink}>
                 <Text style={styles.link}>E-mail</Text>
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert('Office #12, Floor 3, XYZ Plaza, Faisalabad')
-            }>
+          <TouchableOpacity onPress={handleCompanyPress}>
             <View style={styles.companyRow}>
               <Text style={styles.company}>{header}</Text>
               <MaterialCommunityIcons
@@ -138,22 +188,28 @@ const CRMCard1 = ({
 
       {/* Contact Info */}
       <View style={styles.contactInfo}>
-        <View style={styles.contactItem}>
+        <TouchableOpacity 
+          onPress={handleEmailPress}
+          style={styles.contactItem}
+        >
           <MaterialCommunityIcons
             name="email-outline"
             size={14}
             color={'#2F4FE3'}
           />
           <Text style={styles.contactText}>{email || 'N/A'}</Text>
-        </View>
-        <View style={styles.contactItem}>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={handlePhonePress}
+          style={styles.contactItem}
+        >
           <MaterialCommunityIcons
             name="phone-outline"
             size={14}
             color={'#2F4FE3'}
           />
           <Text style={styles.contactText}>{cellNo || 'N/A'}</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Action Buttons */}
@@ -165,7 +221,7 @@ const CRMCard1 = ({
             style={{ marginTop: 48, marginLeft: 12 }}
             anchor={
               <TouchableOpacity
-                onPress={openMenu}
+                onPress={handleStatusMenuPress}
                 style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={styles.buttonText}>{editStatus}</Text>
                 <AntDesign name="down" size={14} color={'#fff'} />
@@ -193,12 +249,12 @@ const CRMCard1 = ({
           </Menu>
         </View>
 
-        <TouchableOpacity onPress={actOnPress} style={styles.button}>
+        <TouchableOpacity onPress={handleActivityPress} style={styles.button}>
           <Text style={styles.buttonText}>Activity</Text>
           <Ionicons name="add-outline" size={18} color={'#fff'} />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onPress} style={styles.button}>
+        <TouchableOpacity onPress={handleDetailsPress} style={styles.button}>
           <Text style={styles.buttonText}>Details</Text>
         </TouchableOpacity>
       </View>

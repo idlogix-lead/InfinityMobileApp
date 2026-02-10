@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#2F4FE3',
     justifyContent: 'center',
-    height: 80,
+    height: 60,
     paddingTop: Platform.OS === 'ios' ? 40 : 10,
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 0,
    

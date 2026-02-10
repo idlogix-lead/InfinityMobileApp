@@ -11,14 +11,19 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Alert,
+  Modal,
 } from 'react-native';
 import { useFollowups, useUpdateFollowup } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const FollowupScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('startDate'); // 'startDate', 'endDate', 'status'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
+  const [showSortModal, setShowSortModal] = useState(false);
 
   // Hooks
   const { 
@@ -39,14 +44,14 @@ const FollowupScreen = ({ navigation }) => {
     TA: 'Task',
   };
 
-  // Filter followups based on selected tab - EXACT SAME LOGIC AS LeadDetailsScreen
+  // Filter followups based on selected tab
   const filteredFollowups = useMemo(() => {
     if (!allFollowups.length) return [];
     
     const today = moment().startOf('day');
     let filtered = [...allFollowups];
 
-    // Apply time filter - EXACT SAME LOGIC
+    // Apply time filter
     if (activeFilter === 'today') {
       filtered = filtered.filter(item => {
         const start = moment(item.StartDate);
@@ -76,11 +81,51 @@ const FollowupScreen = ({ navigation }) => {
       filtered = filtered;
     }
 
-    // Sort by date (newest first) - EXACT SAME SORTING
-    return filtered.sort((a, b) =>
-      moment(b.StartDate || b.Created) - moment(a.StartDate || a.Created)
-    );
+    return filtered;
   }, [allFollowups, activeFilter]);
+
+  // Sort followups based on selected sorting option
+  const sortedFollowups = useMemo(() => {
+    if (!filteredFollowups.length) return [];
+
+    const sorted = [...filteredFollowups];
+
+    sorted.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'startDate':
+          aValue = moment(a.StartDate || a.Created);
+          bValue = moment(b.StartDate || b.Created);
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+
+        case 'endDate':
+          aValue = a.EndDate ? moment(a.EndDate) : moment(a.StartDate || a.Created);
+          bValue = b.EndDate ? moment(b.EndDate) : moment(b.StartDate || b.Created);
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+
+        case 'status':
+          // Sort by completion status (completed first or pending first)
+          if (a.IsComplete === b.IsComplete) {
+            // If same status, sort by start date
+            aValue = moment(a.StartDate || a.Created);
+            bValue = moment(b.StartDate || b.Created);
+            return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+          }
+          return sortOrder === 'asc' 
+            ? (a.IsComplete ? -1 : 1) // Completed first
+            : (a.IsComplete ? 1 : -1); // Pending first
+
+        default:
+          // Default sort by start date
+          aValue = moment(a.StartDate || a.Created);
+          bValue = moment(b.StartDate || b.Created);
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+    });
+
+    return sorted;
+  }, [filteredFollowups, sortBy, sortOrder]);
 
   // Handle refresh
   const onRefresh = async () => {
@@ -116,7 +161,7 @@ const FollowupScreen = ({ navigation }) => {
       Name: followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || 'Unknown Lead',
     };
     
-    navigation.navigate('LeadsDetail', { data: leadData });
+    navigation.navigate('LeadEdit', { data: leadData });
   };
 
   // Helper function to get activity type name
@@ -167,24 +212,7 @@ const FollowupScreen = ({ navigation }) => {
     }
   };
 
-  // Helper function to get follow-up priority - EXACT SAME LOGIC
-  const getFollowupPriority = (item) => {
-    const priorities = ['High', 'Medium', 'Low'];
-    const priorityIndex = item.id % 3; // Using modulo to get consistent priority per item
-    return priorities[priorityIndex];
-  };
-
-  // Helper function to get priority color
-  const getPriorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'high': return '#EA4747';
-      case 'medium': return '#E7CD4C';
-      case 'low': return '#26BDCE';
-      default: return '#EA4747';
-    }
-  };
-
-  // Define tab colors for active state - EXACT SAME
+  // Define tab colors for active state
   const getTabColor = (tabId) => {
     switch (tabId) {
       case 'missed':
@@ -201,7 +229,29 @@ const FollowupScreen = ({ navigation }) => {
     }
   };
 
-  // Filter tabs with tick icons - EXACT SAME
+  // Get sort option display name
+  const getSortOptionName = (option) => {
+    switch (option) {
+      case 'startDate': return 'Start Date';
+      case 'endDate': return 'End Date';
+      case 'status': return 'Status';
+      default: return 'Start Date';
+    }
+  };
+
+  // Toggle sort order
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  // Sort options (simplified)
+  const sortOptions = [
+    { id: 'startDate', label: 'Start Date', icon: 'calendar-clock' },
+    { id: 'endDate', label: 'End Date', icon: 'calendar-arrow-right' },
+    { id: 'status', label: 'Status', icon: 'check-circle' },
+  ];
+
+  // Filter tabs
   const filterTabs = [
     { id: 'all', label: 'All' },
     { id: 'today', label: 'Today' },
@@ -210,7 +260,7 @@ const FollowupScreen = ({ navigation }) => {
     { id: 'completed', label: 'Completed' },
   ];
 
-  // Filter Tab component - EXACT SAME
+  // Filter Tab component
   const FilterTab = ({ tab, active, onPress }) => {
     const tabColor = getTabColor(tab.id);
     
@@ -249,7 +299,6 @@ const FollowupScreen = ({ navigation }) => {
     const isComplete = item.IsComplete;
     const activityType = item.ContactActivityType?.identifier || 'Task';
     const activityIcon = getActivityIcon(activityType);
-    const priority = getFollowupPriority(item);
     const leadName = item.AD_User_ID?.Name || item.AD_User_ID?.identifier || 'Unknown Lead';
 
     return (
@@ -311,9 +360,8 @@ const FollowupScreen = ({ navigation }) => {
             </Text>
           </View>
 
-          {/* Bottom Row: Dates and Priority */}
+          {/* Bottom Row: Dates Only */}
           <View style={styles.bottomRow}>
-            {/* Dates on left */}
             <View style={styles.datesContainer}>
               <View style={styles.dateRow}>
                 <View style={styles.dateItem}>
@@ -331,14 +379,6 @@ const FollowupScreen = ({ navigation }) => {
                     {item.EndDate ? moment(item.EndDate).format('DD MMM YY') : 'N/A'}
                   </Text>
                 </View>
-              </View>
-            </View>
-
-            {/* Priority on right */}
-            <View style={styles.priorityContainer}>
-              <View style={styles.priorityRow}>
-                <View style={[styles.priorityBox, { backgroundColor: getPriorityColor(priority) }]} />
-                <Text style={styles.priorityText}>{priority}</Text>
               </View>
             </View>
           </View>
@@ -369,9 +409,21 @@ const FollowupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
+        {/* Header with Title and Sort Button */}
+        <View style={styles.headerContainer}>
           <Text style={styles.title}>Follow ups</Text>
+          <TouchableOpacity 
+            style={styles.sortButton}
+            onPress={() => setShowSortModal(true)}
+          >
+            <MaterialCommunityIcons name="sort" size={20} color="#2F4FE3" />
+            <Text style={styles.sortButtonText}>Sort</Text>
+            <MaterialIcons 
+              name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+              size={14} 
+              color="#2F4FE3" 
+            />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -403,18 +455,25 @@ const FollowupScreen = ({ navigation }) => {
             ))}
           </ScrollView>
 
-          {/* Active Filter Text */}
-          <Text style={styles.activeFilterText}>
-            {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
-          </Text>
+          {/* Active Filter and Sort Info */}
+          <View style={styles.filterSortInfo}>
+            <Text style={styles.activeFilterText}>
+              {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+            </Text>
+            <View style={styles.currentSortInfo}>
+              <Text style={styles.sortInfoText}>
+                Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
+              </Text>
+            </View>
+          </View>
 
-          {/* Follow-ups List - MATCH LEADDETAILSSCREEN STRUCTURE */}
-          {filteredFollowups.length > 0 ? (
+          {/* Follow-ups List */}
+          {sortedFollowups.length > 0 ? (
             <FlatList
-              data={filteredFollowups}
+              data={sortedFollowups}
               renderItem={renderFollowupCard}
               keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false} // IMPORTANT: Match LeadDetailsScreen
+              scrollEnabled={false}
               contentContainerStyle={styles.listContent}
             />
           ) : (
@@ -430,6 +489,89 @@ const FollowupScreen = ({ navigation }) => {
           )}
         </ScrollView>
       </View>
+
+      {/* Sort Modal */}
+      <Modal
+        visible={showSortModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sort Follow-ups</Text>
+              <TouchableOpacity onPress={() => setShowSortModal(false)}>
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Sort Options */}
+            <ScrollView style={styles.sortOptionsList}>
+              {sortOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.sortOptionItem,
+                    sortBy === option.id && styles.sortOptionItemSelected
+                  ]}
+                  onPress={() => {
+                    setSortBy(option.id);
+                    setShowSortModal(false);
+                  }}
+                >
+                  <View style={styles.sortOptionContent}>
+                    <MaterialCommunityIcons 
+                      name={option.icon} 
+                      size={20} 
+                      color={sortBy === option.id ? '#2F4FE3' : '#666'} 
+                    />
+                    <Text style={[
+                      styles.sortOptionText,
+                      sortBy === option.id && styles.sortOptionTextSelected
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </View>
+                  {sortBy === option.id && (
+                    <MaterialIcons 
+                      name="check" 
+                      size={20} 
+                      color="#2F4FE3" 
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            {/* Sort Order Toggle */}
+            <View style={styles.sortOrderContainer}>
+              <Text style={styles.sortOrderLabel}>Sort Order:</Text>
+              <TouchableOpacity 
+                style={styles.sortOrderButton}
+                onPress={toggleSortOrder}
+              >
+                <Text style={styles.sortOrderText}>
+                  {sortOrder === 'asc' ? 'Ascending (Oldest First)' : 'Descending (Newest First)'}
+                </Text>
+                <MaterialIcons 
+                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+                  size={18} 
+                  color="#2F4FE3" 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Close Button */}
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowSortModal(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -447,8 +589,11 @@ const styles = StyleSheet.create({
     padding: 5,
     paddingBottom: 20,
   },
-  // Title Styles
-  titleContainer: {
+  // Header Styles
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 5,
     paddingTop: 5,
     paddingBottom: 8,
@@ -458,6 +603,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: 'K2D-Bold',
     color: '#333',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    gap: 6,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  sortButtonText: {
+    fontSize: 12,
+    fontFamily: 'K2D-SemiBold',
+    color: '#2F4FE3',
   },
   loadingContent: {
     flex: 1,
@@ -470,9 +636,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontFamily: 'K2D-Regular',
   },
+  // Filter and Sort Info
+  filterSortInfo: {
+    marginBottom: 12,
+  },
+  activeFilterText: {
+    fontSize: 14,
+    color: '#333',
+    fontFamily: 'K2D-SemiBold',
+    marginBottom: 4,
+    paddingLeft: 4,
+  },
+  currentSortInfo: {
+    backgroundColor: '#F0F5FF',
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginLeft: 4,
+  },
+  sortInfoText: {
+    fontSize: 11,
+    color: '#2F4FE3',
+    fontFamily: 'K2D-Medium',
+  },
   // Tabs Styles
   tabsContainer: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tabsContent: {
     paddingRight: 20,
@@ -523,16 +713,9 @@ const styles = StyleSheet.create({
   filterTextInactive: {
     color: '#6B7280',
   },
-  activeFilterText: {
-    fontSize: 14,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    marginBottom: 12,
-    paddingLeft: 4,
-  },
-  // List Styles - UPDATED TO MATCH LEADDETAILSSCREEN
+  // List Styles
   listContent: {
-    paddingTop: 8,
+    paddingTop: 4,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -552,7 +735,7 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Regular',
     textAlign: 'center',
   },
-  // Card Styles
+  // Card Styles (Updated - Removed Priority)
   followupCard: {
     marginBottom: 12,
   },
@@ -654,23 +837,102 @@ const styles = StyleSheet.create({
     color: '#333',
     fontFamily: 'K2D-SemiBold',
   },
-  priorityContainer: {
-    alignItems: 'flex-end',
-    marginLeft: 8,
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  priorityRow: {
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 20,
+    maxHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
+  },
+  sortOptionsList: {
+    maxHeight: 200,
+    marginBottom: 20,
+  },
+  sortOptionItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  priorityBox: {
-    width: 10,
-    height: 10,
-    marginRight: 6,
+  sortOptionItemSelected: {
+    backgroundColor: '#f0f7ff',
+    borderLeftWidth: 3,
+    borderLeftColor: '#2F4FE3',
   },
-  priorityText: {
-    fontSize: 11,
-    color: '#666',
+  sortOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sortOptionText: {
+    fontSize: 15,
     fontFamily: 'K2D-Medium',
+    color: '#333',
+  },
+  sortOptionTextSelected: {
+    color: '#2F4FE3',
+    fontFamily: 'K2D-SemiBold',
+  },
+  sortOrderContainer: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  sortOrderLabel: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
+    marginBottom: 8,
+  },
+  sortOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  sortOrderText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#333',
+    flex: 1,
+    marginRight: 8,
+  },
+  closeButton: {
+    backgroundColor: '#2F4FE3',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 16,
   },
 });
 

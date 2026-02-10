@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -13,77 +14,74 @@ import CenterCircularChart from '../../components/CRMSearch/CRMChart/SalesChart'
 const SalesTab = ({
   navigation,
   salesSummary,
-  salesOpportunities,
+  leads = [], // Changed from salesOpportunities to leads
   circularChartData,
   circularChartLabels,
   isRefreshing,
   handleSalesSummaryPress,
   handleSalesBlueCardPress,
 }) => {
-  // Render sales summary cards
-  const renderSalesSummaryCards = () => {
+  // Combined single card with individual touchable opacities
+  const renderCombinedOpportunityCard = () => {
     return (
-      <View style={styles.leadCardsContainer}>
+      <View style={styles.combinedCard}>
         {/* Total Opportunities Card */}
         <TouchableOpacity 
-          style={styles.salesCard}
+          style={styles.opportunityItem}
           onPress={() => handleSalesSummaryPress('total')}
           activeOpacity={0.7}
         >
           <View style={styles.cardContent}>
             <View style={styles.cardLeft}>
               <View style={[styles.cardIconContainer, {backgroundColor: '#f0f9ff'}]}>
-                <Ionicons name="briefcase" size={20} color="#0369a1" />
+                <Ionicons name="briefcase" size={22} color="#000000" />
               </View>
               <View style={styles.cardTextContainer}>
                 <Text style={styles.cardCount}>Total Opportunities</Text>
-                <Text style={[styles.cardNumber, {color: '#0369a1'}]}>
-                  {salesSummary.totalSales}
-                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#111111" />
           </View>
         </TouchableOpacity>
 
+        {/* Separator */}
+        <View style={styles.separator} />
+
         {/* Won Opportunities Card */}
         <TouchableOpacity 
-          style={styles.salesCard}
+          style={styles.opportunityItem}
           onPress={() => handleSalesSummaryPress('won')}
           activeOpacity={0.7}
         >
           <View style={styles.cardContent}>
             <View style={styles.cardLeft}>
               <View style={[styles.cardIconContainer, {backgroundColor: '#f0fdf4'}]}>
-                <MaterialIcons name="emoji-events" size={20} color="#16a34a" />
+                <MaterialIcons name="emoji-events" size={22} color="#000000" />
               </View>
               <View style={styles.cardTextContainer}>
                 <Text style={styles.cardCount}>Won</Text>
-                <Text style={[styles.cardNumber, {color: '#16a34a'}]}>
-                  {salesSummary.wonSales}
-                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#111111" />
           </View>
         </TouchableOpacity>
 
+        {/* Separator */}
+        <View style={styles.separator} />
+
         {/* In Progress Card */}
         <TouchableOpacity 
-          style={styles.salesCard}
+          style={styles.opportunityItem}
           onPress={() => handleSalesSummaryPress('progress')}
           activeOpacity={0.7}
         >
           <View style={styles.cardContent}>
             <View style={styles.cardLeft}>
               <View style={[styles.cardIconContainer, {backgroundColor: '#fffbeb'}]}>
-                <Ionicons name="timer" size={20} color="#f59e0b" />
+                <Ionicons name="timer" size={22} color="#000000" />
               </View>
               <View style={styles.cardTextContainer}>
                 <Text style={styles.cardCount}>In Progress</Text>
-                <Text style={[styles.cardNumber, {color: '#f59e0b'}]}>
-                  {salesSummary.inProgressSales}
-                </Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#111111" />
@@ -93,35 +91,67 @@ const SalesTab = ({
     );
   };
 
-  // Render sales blue card with different message
-  const renderSalesBlueCard = () => {
-    return (
-      <View style={styles.blueCardContainer}>
-        <View style={styles.salesBlueCard}>
-          <View style={styles.blueCardContent}>
-            <View style={styles.blueCardTextContainer}>
-              <Text style={styles.blueCardTitle}>Sales Tip</Text>
-              <Text style={styles.blueCardDescription}>
-                Focus on high-value opportunities for better ROI
-              </Text>
-            </View>
-            
-            {/* Rectangular white button */}
-            <TouchableOpacity 
-              style={styles.rectangularButton}
-              activeOpacity={0.8}
-              onPress={handleSalesBlueCardPress}
-            >
-              <Text style={styles.rectangularButtonText}>View</Text>
-            </TouchableOpacity>
-          </View>
+  // Render leads list (using leads data from CrmScreen)
+  const renderLeadsList = () => {
+    if (!leads || leads.length === 0) {
+      return (
+        <View style={styles.emptyLeadsContainer}>
+          <MaterialIcons name="people" size={40} color="#ccc" />
+          <Text style={styles.emptyLeadsText}>No leads found</Text>
         </View>
+      );
+    }
+
+    return (
+      <View style={styles.leadsListContainer}>
+        {leads.slice(0, 5).map((lead, index) => (
+          <TouchableOpacity
+            key={lead.id || index}
+            style={styles.leadListItem}
+            onPress={() => navigation.navigate('LeadsDetail', { data: lead })}
+            activeOpacity={0.7}
+          >
+            <View style={styles.listItemContent}>
+              <View style={styles.listItemLeft}>
+                <View style={styles.listItemIcon}>
+                  <Ionicons name="person" size={18} color="#2F4FE3" />
+                </View>
+                <View style={styles.listItemTextContainer}>
+                  <Text style={styles.leadName} numberOfLines={1}>
+                    {lead.Name || lead.ContactName || 'Unnamed Lead'}
+                  </Text>
+                  <Text style={styles.leadDetails} numberOfLines={1}>
+                    {lead.LeadStatus?.identifier || 'No Status'} • 
+                    {lead.EMail || lead.Email || 'No Email'}
+                  </Text>
+                </View>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#999" />
+            </View>
+            {index < Math.min(leads.length - 1, 4) && (
+              <View style={styles.listSeparator} />
+            )}
+          </TouchableOpacity>
+        ))}
+        
+        {leads.length > 5 && (
+          <TouchableOpacity
+            style={styles.viewAllButton}
+            onPress={() => navigation.navigate('GenericLead', { 
+              leads: leads,
+              screenTitle: "All Leads"
+            })}
+          >
+            <Text style={styles.viewAllText}>View All Leads ({leads.length})</Text>
+            <MaterialIcons name="arrow-forward" size={18} color="#2F4FE3" />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
 
   return (
-    <View style={styles.contentContainer}>
+    <ScrollView showsVerticalScrollIndicator={false} style={styles.contentContainer}>
       <View style={{ marginVertical: '4%' }}>
         {/* Center Circular Chart for Sales */}
         <CenterCircularChart
@@ -130,92 +160,60 @@ const SalesTab = ({
           isRefreshing={isRefreshing}
         />
 
-        {/* Sales Blue Card */}
-        {renderSalesBlueCard()}
+     
 
-        {/* Sales Summary Cards */}
-        {renderSalesSummaryCards()}
+        {/* Leads List Section */}
+        <View style={styles.leadsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Sales Opportunities</Text>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('GenericLead', { 
+                leads: leads,
+                screenTitle: "All Leads"
+              })}
+            >
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {renderLeadsList()}
+        </View>
 
       </View>
-    </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  // Blue Card with Rectangular Button Styles
-  blueCardContainer: {
-    marginTop: 10,
-    marginBottom: 12,
-  },
-  salesBlueCard: {
-    backgroundColor: '#2F4FE3',
+  // Combined Card Styles
+  combinedCard: {
+    backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 14,
+    marginTop: 10,
+    marginBottom: 16,
+    marginHorizontal: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  blueCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  blueCardTextContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  blueCardTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'K2D-Bold',
-    marginBottom: 2,
-  },
-  blueCardDescription: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 12,
-    fontFamily: 'K2D-Regular',
-    lineHeight: 16,
-  },
-  rectangularButton: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  rectangularButtonText: {
-    color: '#2F4FE3',
-    fontSize: 12,
-    fontFamily: 'K2D-SemiBold',
-  },
-  // Lead Summary Cards - Uniform Design
-  leadCardsContainer: {
-    marginTop: 8,
-  },
-  salesCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  opportunityItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginHorizontal: 16,
+  },
+  // Card Content Styles
   cardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -228,8 +226,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardIconContainer: {
-    width: 30,
-    height: 30,
+    width: 40,
+    height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
@@ -245,14 +243,117 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardCount: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: 'K2D-Medium',
     color: '#333',
   },
-  cardNumber: {
+  // Leads Section
+  leadsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginHorizontal: 5,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  sectionTitle: {
     fontSize: 18,
     fontFamily: 'K2D-Bold',
+    color: '#333',
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
     color: '#2F4FE3',
+  },
+  // Leads List
+  leadsListContainer: {
+    paddingVertical: 8,
+  },
+  leadListItem: {
+    paddingHorizontal: 16,
+  },
+  listItemContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  listItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  listItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  listItemTextContainer: {
+    flex: 1,
+  },
+  leadName: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#333',
+    marginBottom: 4,
+  },
+  leadDetails: {
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
+  },
+  listSeparator: {
+    height: 1,
+    backgroundColor: '#f5f5f5',
+    marginLeft: 44, // Align with text (icon width + margin)
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#2F4FE3',
+    marginRight: 8,
+  },
+  emptyLeadsContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
+  emptyLeadsText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#999',
+    marginTop: 12,
+    textAlign: 'center',
   },
 });
 
