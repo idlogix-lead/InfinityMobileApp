@@ -1,5 +1,5 @@
-// screens/CRM/GenericLeadScreen.js
-import React, { useState, useMemo } from 'react';
+// screens/CRM/GenericLeadScreen.js - RESPONSIVE WITH SINGLE THEME
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,120 +8,312 @@ import {
   TouchableOpacity,
   Modal,
   Platform,
+  RefreshControl,
+  TextInput,
+  ScrollView,
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
-import { Provider, Portal } from 'react-native-paper';
+import { Provider } from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CRMCard from '../../components/CRMCard/CRMCard';
-import { useFollowups } from '../../hooks/CRMhooks/useCRM';
+import { useFollowups, useLeadStatistics, useSearchLeads } from '../../hooks/CRMhooks/useCRM';
 import { useLeadActions } from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
+import { debounce } from 'lodash';
+
+// Import single theme file
+import theme from '../../constants/CRMTheme/CRMTheme';
+
+
+// Destructure theme for easy access
+const { Colors, Typography, Layout } = theme;
+const { scale, verticalScale, spacing } = Layout;
 
 const GenericLead = ({ 
   navigation, 
-  route, 
-  screenTitle = "Leads",
-  leadFilter,
-  statsConfig,
-  showFilterButton = true // Add this prop to control filter visibility
+  route
 }) => {
+  // Get pre-filtered leads from navigation params
+  const { leads: preFilteredLeads = [], screenTitle: paramTitle } = route.params || {};
+  
+  // Use paramTitle from route.params
+  const actualScreenTitle = paramTitle || "Leads";
+
+  // State
   const [filterVisible, setFilterVisible] = useState(false);
-  const [fromDate, setFromDate] = useState(new Date());
-  const [toDate, setToDate] = useState(new Date());
+  const [sortVisible, setSortVisible] = useState(false);
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
   const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [selectStatus, setSelectStatus] = useState('select');
-  const [filteredLeads, setFilteredLeads] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
+  const [localSearchResults, setLocalSearchResults] = useState([]);
   
-  const { data: followups = [] } = useFollowups();
+  // Sorting state
+  const [sortBy, setSortBy] = useState('createdDate');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  // Hooks
+  const { 
+    data: followups = [], 
+    isLoading: isLoadingFollowups,
+    refetch: refetchFollowups 
+  } = useFollowups();
+  
+  const {
+    data: statistics = { total: 0, todayLeads: 0, monthLeads: 0 },
+    refetch: refetchStats
+  } = useLeadStatistics();
+
+  const { 
+    data: searchResults = [], 
+    isLoading: isLoadingSearch,
+    refetch: refetchSearch 
+  } = useSearchLeads(searchQuery, searchQuery.length >= 2);
+
   const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
-  
-  // Get leads from route params
-  const originalLeads = route.params?.leads || [];
-  const activities = route.params?.activities || followups;
-  
-  // Initialize filteredLeads with original leads on first render
-  React.useEffect(() => {
-    if (originalLeads.length > 0 && filteredLeads.length === 0) {
-      setFilteredLeads(originalLeads);
-    }
-  }, [originalLeads]);
-  
-  // Apply filter function
-  const applyFilter = () => {
-    let filtered = [...originalLeads];
-    
-    // Apply status filter
-    if (selectStatus !== 'select') {
-      filtered = filtered.filter(item => 
-        item?.LeadStatus?.identifier?.toLowerCase() === selectStatus.toLowerCase()
-      );
+
+  // Apply local filtering whenever filters change
+  useEffect(() => {
+    if (!Array.isArray(preFilteredLeads) || preFilteredLeads.length === 0) {
+      setFilteredLeads([]);
+      return;
     }
     
-    // Apply date filter if dates are not today
-    const isDefaultFrom = fromDate.toDateString() === new Date().toDateString();
-    const isDefaultTo = toDate.toDateString() === new Date().toDateString();
+    let filtered = [...preFilteredLeads];
     
-    if (!isDefaultFrom || !isDefaultTo) {
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item.Created);
-        const from = new Date(fromDate);
-        from.setHours(0, 0, 0, 0);
-        
-        const to = new Date(toDate);
-        to.setHours(23, 59, 59, 999);
-        
-        return itemDate >= from && itemDate <= to;
+    // Apply status filter from modal (New, Working, Converted, Expired)
+    if (selectStatus && selectStatus !== 'select') {
+      const statusMap = {
+        'New': 'N', 'new': 'N',
+        'Working': 'W', 'working': 'W',
+        'Converted': 'C', 'converted': 'C',
+        'Expired': 'E', 'expired': 'E'
+      };
+      
+      const statusId = statusMap[selectStatus] || selectStatus;
+      
+      filtered = filtered.filter(lead => {
+        const leadStatusId = lead?.LeadStatus?.id;
+        return leadStatusId === statusId;
+      });
+    }
+    
+    // Apply date filters
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        return leadDate >= start;
+      });
+    }
+    
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(lead => {
+        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        return leadDate <= end;
       });
     }
     
     setFilteredLeads(filtered);
+  }, [preFilteredLeads, selectStatus, fromDate, toDate]);
+
+  // Sort leads based on selected sorting option
+  const sortedLeads = useMemo(() => {
+    if (!filteredLeads.length) return [];
+
+    const sorted = [...filteredLeads];
+
+    sorted.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'createdDate':
+          aValue = moment(a.Created || a.CreatedDate);
+          bValue = moment(b.Created || b.CreatedDate);
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+
+        case 'name':
+          aValue = (a.Name || '').toLowerCase();
+          bValue = (b.Name || '').toLowerCase();
+          return sortOrder === 'asc' 
+            ? aValue.localeCompare(bValue)
+            : bValue.localeCompare(aValue);
+        
+        case 'status':
+          // Define status order
+          const statusOrder = { 'N': 1, 'W': 2, 'C': 3, 'E': 4 };
+          aValue = statusOrder[a?.LeadStatus?.id] || 5;
+          bValue = statusOrder[b?.LeadStatus?.id] || 5;
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+      
+        default:
+          // Default sort by created date (newest first)
+          aValue = moment(a.Created || a.CreatedDate);
+          bValue = moment(b.Created || b.CreatedDate);
+          return bValue - aValue;
+      }
+    });
+
+    return sorted;
+  }, [filteredLeads, sortBy, sortOrder]);
+
+  // Enhanced search function with company and organization name
+  const performSearch = useCallback((query) => {
+    if (!query || query.trim() === '') {
+      setLocalSearchResults([]);
+      return;
+    }
+    
+    const searchTerm = query.toLowerCase().trim();
+    
+    // Search in sortedLeads (which already have status/date filters and sorting applied)
+    const results = sortedLeads.filter(lead => {
+      // 1. Lead Name
+      const name = (lead.Name || '').toLowerCase();
+      
+      // 2. Company Name - Check multiple possible fields
+      const companyName = (lead.BPName || '').toLowerCase();
+      
+      // 3. Organization Name - Check AD_Org_ID and AD_Client_ID
+      const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
+      const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
+      
+      // Search across all fields
+      return name.includes(searchTerm) || 
+             companyName.includes(searchTerm) ||
+             orgName.includes(searchTerm) ||
+             clientName.includes(searchTerm);
+    });
+    
+    setLocalSearchResults(results);
+  }, [sortedLeads]);
+
+  // Debounced search handler
+  const debouncedSearch = useCallback(
+    debounce((query) => {
+      performSearch(query);
+    }, 300),
+    [performSearch]
+  );
+
+  // Handle text change with debounce
+  const handleTextChange = (text) => {
+    setSearchQuery(text);
+    debouncedSearch(text);
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setLocalSearchResults([]);
+    debouncedSearch.cancel();
+  };
+
+  // Apply filter function
+  const applyFilter = () => {
     setFilterVisible(false);
+    // Re-run search if there's a search query
+    if (searchQuery.trim() !== '') {
+      performSearch(searchQuery);
+    }
   };
   
   // Reset filter
   const resetFilter = () => {
-    setFromDate(new Date());
-    setToDate(new Date());
+    setFromDate(null);
+    setToDate(null);
     setSelectStatus('select');
-    setFilteredLeads(originalLeads);
+    setFilteredLeads(preFilteredLeads);
+    setSearchQuery('');
+    setLocalSearchResults([]);
     setFilterVisible(false);
+    setSortBy('createdDate');
+    setSortOrder('desc');
+    debouncedSearch.cancel();
   };
   
-  // Calculate stats based on filtered leads
-  const stats = useMemo(() => {
-    const leadsToUse = filteredLeads.length > 0 ? filteredLeads : originalLeads;
-    
-    if (!leadsToUse.length) {
-      return {
-        todayLeads: 0,
-        monthLeads: 0,
-        totalLeads: 0,
-      };
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchFollowups(),
+        refetchStats()
+      ]);
+      if (searchQuery.length >= 2) {
+        await refetchSearch();
+      }
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Toggle sort order
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
+
+  // Get sort option display name
+  const getSortOptionName = (option) => {
+    switch (option) {
+      case 'createdDate': return 'Created Date';
+      case 'name': return 'Name';
+      case 'status': return 'Status';
+      default: return 'Created Date';
+    }
+  };
+
+  // Determine which data to display - INSTANT LOCAL SEARCH
+  const displayData = useMemo(() => {
+    // If there's a search query, show local search results instantly
+    if (searchQuery && searchQuery.trim() !== '') {
+      return localSearchResults;
     }
     
-    const todayLeads = leadsToUse.filter(lead => 
-      moment(lead.Created).isSame(moment(), 'day')
-    ).length;
-    
-    const monthLeads = leadsToUse.filter(lead => 
-      moment(lead.Created).isSame(moment(), 'month')
-    ).length;
-    
-    return {
-      todayLeads,
-      monthLeads,
-      totalLeads: leadsToUse.length,
-    };
-  }, [filteredLeads, originalLeads]);
-  
+    // No search query, show sorted leads
+    return sortedLeads;
+  }, [sortedLeads, localSearchResults, searchQuery]);
+
+  // Status options for custom picker - Only New, Working, Converted, Expired
+  const statusOptions = [
+    { label: '-- All Statuses --', value: 'select' },
+    { label: 'New', value: 'New' },
+    { label: 'Working', value: 'Working' },
+    { label: 'Converted', value: 'Converted' },
+    { label: 'Expired', value: 'Expired' }
+  ];
+
+  // Sort options
+  const sortOptions = [
+    { id: 'createdDate', label: 'Created Date', icon: 'calendar-plus' },
+    { id: 'name', label: 'Name', icon: 'account' },
+    { id: 'status', label: 'Status', icon: 'checkbox-marked-circle' },
+  ];
+
+  // Format date for display
+  const formatDate = (date) => {
+    if (!date) return '';
+    return moment(date).format('DD MMM YYYY');
+  };
+
   const renderLeadCard = (item) => {
-    const userActivity = activities.filter(
+    const userActivity = followups.filter(
       act => act?.AD_User_ID?.id === item?.id
     );
     
@@ -133,374 +325,856 @@ const GenericLead = ({
     const activityCount = userActivity.length;
     
     return (
-      <View style={{ marginHorizontal: 10, marginVertical: 5 }}>
-        <CRMCard
-          header={item.AD_Org_ID?.identifier || item.AD_Client_ID?.identifier}
-          name={item?.Name}
-          email={item?.EMail}
-          cellNo={item?.Phone}
-          count={activityCount}
-          interactionType={lastActivityType}
-          status={item?.LeadStatus?.identifier}
-          Description={item?.Description}
-          mail={() => handleMail(item?.EMail)}
-          phone={() => handlePhone(item?.Phone)}
-          whatsapp={() => handleWhatsApp(item?.Phone)}
-          dateText={item?.Updated || item?.Created}
-          actOnPress={() => {
-            navigation.navigate('ActivityList', {
-              data: item,
-              mode: 'create',
-            });
+      <View style={{ 
+        marginHorizontal: spacing.sm, 
+        marginVertical: spacing.xs 
+      }}>
+        <TouchableOpacity 
+          style={{ 
+            marginHorizontal: spacing.sm, 
+            marginVertical: spacing.xs 
           }}
           onPress={() => {
-            navigation.navigate('LeadsDetails', { data: item });
+            navigation.navigate('LeadsDetail', { data: item });
           }}
-        />
+          activeOpacity={0.7}
+        >
+          <CRMCard
+            leadId={item.id}
+            header={item.AD_Org_ID?.identifier || item.AD_Client_ID?.identifier}
+            name={item?.Name}
+            email={item?.EMail}
+            cellNo={item?.Phone}
+            count={activityCount}
+            interactionType={lastActivityType}
+            status={item?.LeadStatus?.identifier}
+            Description={item?.Description}
+            company={item.BPName || item.AD_Client_ID?.identifier || item.AD_Org_ID?.identifier}
+            mail={() => handleMail(item?.EMail)}
+            phone={() => handlePhone(item?.Phone)}
+            dateText={item?.Updated || item?.Created}
+            actOnPress={() => {
+              navigation.navigate('ActivityList', {
+                data: item,
+                mode: 'create',
+              });
+            }}
+            onPress={() => {
+              navigation.navigate('LeadEdit', { data: item });
+            }}
+          />
+        </TouchableOpacity>
       </View>
     );
   };
-  
+
+  // Loading state
+  if (!preFilteredLeads || preFilteredLeads.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <CustomHeader 
+          title={actualScreenTitle}
+          RightIcon="filter"
+          RightPress={() => setFilterVisible(true)}
+        />
+        <View style={styles.loadingContent}>
+          <Text style={styles.loadingText}>No leads found</Text>
+          <Text style={styles.emptySubText}>
+            {actualScreenTitle}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Provider>
-      <>
+      <SafeAreaView style={styles.safeArea}>
         {/* Filter Modal */}
-        {filterVisible && (
-          <Portal>
-            <Modal
-              visible={filterVisible}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setFilterVisible(false)}>
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Filter Leads</Text>
-                    <TouchableOpacity
-                      onPress={() => setFilterVisible(false)}
-                      style={styles.closeButton}>
-                      <FontAwesome name="times" size={24} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {/* Status Picker */}
-                  <Text style={styles.sectionTitle}>Select Status</Text>
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={selectStatus}
-                      onValueChange={setSelectStatus}
-                      style={styles.picker}>
-                      <Picker.Item label="-- Select --" value="select" />
-                      <Picker.Item label="New" value="new" />
-                      <Picker.Item label="Working" value="working" />
-                      <Picker.Item label="Converted" value="converted" />
-                      <Picker.Item label="Expired" value="expired" />
-                    </Picker>
-                  </View>
-                  
-                  {/* From Date */}
-                  <Text style={styles.sectionTitle}>From Date</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowFromDatePicker(true)}>
-                    <Text style={styles.dateText}>{fromDate.toDateString()}</Text>
-                    <EvilIcons name="calendar" size={25} color="#000" />
-                  </TouchableOpacity>
-                  
-                  {showFromDatePicker && (
-                    <DateTimePicker
-                      value={fromDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowFromDatePicker(false);
-                        if (date) setFromDate(date);
-                      }}
-                    />
-                  )}
-                  
-                  {/* To Date */}
-                  <Text style={styles.sectionTitle}>To Date</Text>
-                  <TouchableOpacity
-                    style={styles.dateInput}
-                    onPress={() => setShowToDatePicker(true)}>
-                    <Text style={styles.dateText}>{toDate.toDateString()}</Text>
-                    <EvilIcons name="calendar" size={25} color="#000" />
-                  </TouchableOpacity>
-                  
-                  {showToDatePicker && (
-                    <DateTimePicker
-                      value={toDate}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, date) => {
-                        setShowToDatePicker(false);
-                        if (date) setToDate(date);
-                      }}
-                    />
-                  )}
-                  
-                  {/* Action Buttons */}
-                  <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.resetButton]}
-                      onPress={resetFilter}>
-                      <Text style={styles.resetButtonText}>Reset</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                      style={[styles.button, styles.applyButton]}
-                      onPress={applyFilter}>
-                      <Text style={styles.applyButtonText}>Apply Filter</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+        <Modal
+          visible={filterVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setFilterVisible(false)}
+          hardwareAccelerated={true}
+          statusBarTranslucent={false}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Filter {actualScreenTitle}</Text>
+                <TouchableOpacity
+                  onPress={() => setFilterVisible(false)}
+                  style={styles.closeButton}>
+                  <FontAwesome name="times" size={scale(24)} color={Colors.textPrimary} />
+                </TouchableOpacity>
               </View>
-            </Modal>
-          </Portal>
+              
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+              >
+                {/* Status Picker - CUSTOM IMPLEMENTATION */}
+                <Text style={styles.sectionTitle}>Filter by Status</Text>
+                <View style={styles.customPickerContainer}>
+                  {statusOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.statusOption,
+                        selectStatus === option.value && styles.statusOptionSelected
+                      ]}
+                      onPress={() => setSelectStatus(option.value)}
+                    >
+                      <Text style={[
+                        styles.statusOptionText,
+                        selectStatus === option.value && styles.statusOptionTextSelected
+                      ]}>
+                        {option.label}
+                      </Text>
+                      {selectStatus === option.value && (
+                        <MaterialIcons name="check" size={scale(20)} color={Colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                {/* From Date */}
+                <Text style={styles.sectionTitle}>From Date (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => setShowFromDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dateText,
+                    !fromDate && styles.datePlaceholder
+                  ]}>
+                    {fromDate ? formatDate(fromDate) : 'Select start date'}
+                  </Text>
+                  <EvilIcons name="calendar" size={scale(25)} color={Colors.textSecondary} />
+                </TouchableOpacity>
+                
+                {/* To Date */}
+                <Text style={styles.sectionTitle}>To Date (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => setShowToDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dateText,
+                    !toDate && styles.datePlaceholder
+                  ]}>
+                    {toDate ? formatDate(toDate) : 'Select end date'}
+                  </Text>
+                  <EvilIcons name="calendar" size={scale(25)} color={Colors.textSecondary} />
+                </TouchableOpacity>
+                
+                {/* Action Buttons */}
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.resetButton]}
+                    onPress={resetFilter}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.resetButtonText}>Reset</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.button, styles.applyButton]}
+                    onPress={applyFilter}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.applyButtonText}>Apply Filter</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Sort Modal */}
+        <Modal
+          visible={sortVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setSortVisible(false)}
+        >
+          <View style={styles.sortModalOverlay}>
+            <View style={styles.sortModalContent}>
+              <View style={styles.sortModalHeader}>
+                <Text style={styles.sortModalTitle}>Sort {actualScreenTitle}</Text>
+                <TouchableOpacity onPress={() => setSortVisible(false)}>
+                  <MaterialIcons name="close" size={scale(24)} color={Colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Sort Options */}
+              <ScrollView style={styles.sortOptionsList}>
+                {sortOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.sortOptionItem,
+                      sortBy === option.id && styles.sortOptionItemSelected
+                    ]}
+                    onPress={() => {
+                      setSortBy(option.id);
+                      setSortVisible(false);
+                    }}
+                  >
+                    <View style={styles.sortOptionContent}>
+                      <MaterialCommunityIcons 
+                        name={option.icon} 
+                        size={scale(20)} 
+                        color={sortBy === option.id ? Colors.primary : Colors.textSecondary} 
+                      />
+                      <Text style={[
+                        styles.sortOptionText,
+                        sortBy === option.id && styles.sortOptionTextSelected
+                      ]}>
+                        {option.label}
+                      </Text>
+                    </View>
+                    {sortBy === option.id && (
+                      <MaterialIcons 
+                        name="check" 
+                        size={scale(20)} 
+                        color={Colors.primary} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              {/* Sort Order Toggle */}
+              <View style={styles.sortOrderContainer}>
+                <Text style={styles.sortOrderLabel}>Sort Order:</Text>
+                <TouchableOpacity 
+                  style={styles.sortOrderButton}
+                  onPress={toggleSortOrder}
+                >
+                  <Text style={styles.sortOrderText}>
+                    {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+                  </Text>
+                  <MaterialIcons 
+                    name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+                    size={scale(18)} 
+                    color={Colors.primary} 
+                  />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Close Button */}
+              <TouchableOpacity 
+                style={styles.closeSortButton}
+                onPress={() => setSortVisible(false)}
+              >
+                <Text style={styles.closeSortButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+        
+        {/* Date Pickers */}
+        {showFromDatePicker && (
+          <DateTimePicker
+            value={fromDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={(event, date) => {
+              setShowFromDatePicker(false);
+              if (date) setFromDate(date);
+            }}
+            maximumDate={toDate || new Date()}
+          />
         )}
         
-        {/* Custom Header with Filter Button */}
+        {showToDatePicker && (
+          <DateTimePicker
+            value={toDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={(event, date) => {
+              setShowToDatePicker(false);
+              if (date) setToDate(date);
+            }}
+            minimumDate={fromDate || undefined}
+            maximumDate={new Date()}
+          />
+        )}
+        
+        {/* Custom Header with Filter and Sort */}
         <CustomHeader
-          title={screenTitle}
-          RightIcon={showFilterButton ? "filter" : undefined}
-          RightPress={showFilterButton ? () => setFilterVisible(true) : undefined}
+          title={actualScreenTitle}
+          RightIcon="filter"
+          RightPress={() => setFilterVisible(true)}
         />
         
         {/* Main Content */}
-        <View style={{ flex: 1 }}>
+        <View style={styles.container}>
           <View style={styles.main}>
-            {/* Stats Section */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrapper}>
-                  <MaterialIcons
-                    name="article"
-                    size={20}
-                    color="rgba(38, 189, 206, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>Today Leads</Text>
-                <Text style={styles.statValue}>{stats.todayLeads}</Text>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputContainer}>
+                <Ionicons name="search" size={scale(20)} color={Colors.textSecondary} style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={`Search ${actualScreenTitle.toLowerCase()}...`}
+                  placeholderTextColor={Colors.textTertiary}
+                  value={searchQuery}
+                  onChangeText={handleTextChange}
+                  returnKeyType="search"
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                    <Ionicons name="close-circle" size={scale(20)} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
               </View>
               
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrapper}>
-                  <MaterialIcons
-                    name="calendar-month"
-                    size={20}
-                    color="rgba(234, 71, 71, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>This Month</Text>
-                <Text style={styles.statValue}>{stats.monthLeads}</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <View style={styles.statIconWrapper}>
-                  <MaterialCommunityIcons
-                    name="file-account"
-                    size={20}
-                    color="rgba(231, 205, 76, 1)"
-                  />
-                </View>
-                <Text style={styles.statLabel}>All Leads</Text>
-                <Text style={styles.statValue}>{stats.totalLeads}</Text>
-              </View>
+              {/* Sort Button next to search */}
+              <TouchableOpacity 
+                style={styles.sortButton}
+                onPress={() => setSortVisible(true)}
+              >
+                <MaterialCommunityIcons name="sort" size={scale(20)} color={Colors.primary} />
+                <Text style={styles.sortButtonText}>Sort</Text>
+                <MaterialIcons 
+                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+                  size={scale(14)} 
+                  color={Colors.primary} 
+                />
+              </TouchableOpacity>
             </View>
             
-            {/* Leads List */}
+            {/* Search and Sort Info */}
+            <View style={styles.filterSortInfo}>
+              {searchQuery.length > 0 ? (
+                <View style={styles.searchHeader}>
+                  <View>
+                    <Text style={styles.searchHeaderText}>
+                      {displayData.length} matching leads found
+                    </Text>
+                    <Text style={styles.searchQueryText}>
+                      Searching: "{searchQuery}"
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={clearSearch} style={styles.clearSearchButton}>
+                    <Text style={styles.clearSearchText}>Clear Search</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.sortInfoRow}>
+                  <View style={styles.sortInfoContainer}>
+                    <Text style={styles.sortInfoText}>
+                      Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
+                    </Text>
+                  </View>
+                  <Text style={styles.totalCountText}>
+                    {selectStatus !== 'select' ? ` (${selectStatus})` : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
+            
+            {/* Leads List - Shows cards immediately as user types */}
             <FlatList
-              data={filteredLeads.length > 0 ? filteredLeads : originalLeads}
-              keyExtractor={(item, index) => `${item.id}-${index}`}
+              data={displayData}
+              keyExtractor={(item, index) => `${item.id || index}-${index}`}
               renderItem={({ item }) => renderLeadCard(item)}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>
-                    No leads found
-                  </Text>
+                  {searchQuery.length > 0 ? (
+                    <>
+                      <Ionicons name="search" size={scale(60)} color={Colors.border} />
+                      <Text style={styles.emptyText}>
+                        No leads found for "{searchQuery}"
+                      </Text>
+                      <Text style={styles.emptySubText}>
+                        Searched in: Name, Company and Organization
+                      </Text>
+                      <TouchableOpacity onPress={clearSearch} style={styles.emptyActionButton}>
+                        <Text style={styles.emptyActionText}>Clear Search</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <MaterialIcons name="group" size={scale(60)} color={Colors.border} />
+                      <Text style={styles.emptyText}>
+                        {filteredLeads.length === 0 && selectStatus !== 'select' 
+                          ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
+                          : `No leads found in ${actualScreenTitle}`
+                        }
+                      </Text>
+                      <Text style={styles.emptySubText}>
+                        Try changing your filter or sort settings
+                      </Text>
+                    </>
+                  )}
                 </View>
               }
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[
+                styles.listContent,
+                searchQuery.length > 0 && styles.listContentSearch
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={[Colors.primary]}
+                  tintColor={Colors.primary}
+                />
+              }
+              showsVerticalScrollIndicator={false}
             />
           </View>
           
           {/* Floating Action Button */}
           <TouchableOpacity
             onPress={() => navigation.navigate('AddLeads')}
-            style={styles.floatingButton}>
+            style={styles.floatingButton}
+            activeOpacity={0.8}
+          >
             <Text style={styles.floatingButtonText}>+</Text>
           </TouchableOpacity>
         </View>
-      </>
+      </SafeAreaView>
     </Provider>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  container: {
+    flex: 1,
+  },
   main: {
     flex: 1,
-    marginTop: -22,
-    borderRadius: 20,
-    backgroundColor: '#fff',
+    marginTop: verticalScale(10),
+    borderRadius: Layout.borderRadius.md,
+    backgroundColor: Colors.background,
   },
-  statsContainer: {
-    backgroundColor: '#F5F5F5',
-    height: 110,
-    marginTop: '5%',
-    marginHorizontal: 22,
-    flexDirection: 'row',
-    elevation: 10,
-    shadowColor: '#000',
-    borderRadius: 3,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statItem: {
-    alignItems: 'center',
+  loadingContainer: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
-  statIconWrapper: {
-    marginBottom: 8,
+  loadingContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statLabel: {
-    fontFamily: 'K2D-Medium',
-    fontSize: 13,
-    color: '#000',
-    textAlign: 'center',
-    marginBottom: 4,
+  loadingText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
   },
-  statValue: {
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 18,
-    color: '#000',
-    textAlign: 'center',
+  // Enhanced Search Styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.md,
   },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundDark,
+    borderRadius: Layout.borderRadius.round,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: verticalScale(10),
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.input,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: spacing.xs,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.buttonSecondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: Layout.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: spacing.xs,
+    elevation: 2,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  sortButtonText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+  },
+  // Filter and Sort Info
+  filterSortInfo: {
+    marginBottom: spacing.sm,
+  },
+  searchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: Colors.backgroundLight,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    marginBottom: spacing.xs,
+  },
+  searchHeaderText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  searchQueryText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginTop: spacing.xxs,
+  },
+  clearSearchButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: verticalScale(6),
+    backgroundColor: Colors.backgroundDark,
+    borderRadius: Layout.borderRadius.xl,
+  },
+  clearSearchText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  sortInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  sortInfoContainer: {
+    backgroundColor: Colors.infoLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: verticalScale(6),
+    borderRadius: Layout.borderRadius.md,
+  },
+  sortInfoText: {
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  totalCountText: {
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+  },
+  // List Styles
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    padding: spacing.xxxxl,
+    minHeight: verticalScale(300),
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    fontFamily: 'K2D-Medium',
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: spacing.lg,
+  },
+  emptySubText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: spacing.sm,
+    maxWidth: '80%',
+  },
+  emptyActionButton: {
+    marginTop: spacing.xl,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.lg,
+  },
+  emptyActionText: {
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: verticalScale(80),
+  },
+  listContentSearch: {
+    paddingTop: 0,
   },
   floatingButton: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#2F4FE3',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: Layout.floatingButton.bottom,
+    right: Layout.floatingButton.right,
+    backgroundColor: Colors.primary,
+    width: Layout.floatingButton.size,
+    height: Layout.floatingButton.size,
+    borderRadius: Layout.borderRadius.round,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+    zIndex: 1000,
   },
   floatingButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-Bold',
-    fontSize: 20,
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.bold,
+    fontSize: scale(28),
+    lineHeight: scale(30),
   },
   // Filter Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
+    padding: spacing.xl,
+    maxHeight: Layout.modal.maxHeight,
+  },
+  scrollContent: {
+    paddingBottom: spacing.xxxl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
+    paddingBottom: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
   },
   modalTitle: {
-    fontSize: 20,
-    fontFamily: 'K2D-SemiBold',
-    color: '#000',
+    fontSize: Typography.fontSize.h3,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
   closeButton: {
-    padding: 5,
+    padding: spacing.xs,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'K2D-Medium',
-    color: '#000',
-    marginTop: 15,
-    marginBottom: 8,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
-  pickerContainer: {
+  // Custom Picker Styles
+  customPickerContainer: {
+    marginBottom: spacing.xl,
+    borderRadius: Layout.borderRadius.lg,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    marginBottom: 15,
+    borderColor: Colors.border,
   },
-  picker: {
-    height: 50,
+  statusOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: verticalScale(14),
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.backgroundDark,
+    backgroundColor: Colors.background,
+  },
+  statusOptionSelected: {
+    backgroundColor: Colors.infoLight,
+  },
+  statusOptionText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  statusOptionTextSelected: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   dateInput: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.lg,
+    padding: verticalScale(14),
+    marginBottom: spacing.lg,
+    backgroundColor: Colors.background,
   },
   dateText: {
-    fontSize: 16,
-    color: '#000',
-    fontFamily: 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  datePlaceholder: {
+    color: Colors.textTertiary,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.md,
   },
   button: {
     flex: 1,
-    padding: 15,
-    borderRadius: 8,
+    padding: verticalScale(16),
+    borderRadius: Layout.borderRadius.lg,
     alignItems: 'center',
-    marginHorizontal: 5,
+    marginHorizontal: spacing.xs,
+    elevation: 2,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
   },
   resetButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.buttonSecondary,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: Colors.borderDark,
   },
   applyButton: {
-    backgroundColor: '#2F4FE3',
+    backgroundColor: Colors.buttonPrimary,
   },
   resetButtonText: {
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
   applyButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
+  },
+  // Sort Modal Styles
+  sortModalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  sortModalContent: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: Layout.borderRadius.xxl,
+    borderTopRightRadius: Layout.borderRadius.xxl,
+    padding: spacing.xl,
+    maxHeight: '50%',
+  },
+  sortModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  sortModalTitle: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  sortOptionsList: {
+    maxHeight: verticalScale(300),
+    marginBottom: spacing.xl,
+  },
+  sortOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  sortOptionItemSelected: {
+    backgroundColor: Colors.infoLight,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  sortOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  sortOptionText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+  },
+  sortOptionTextSelected: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  sortOrderContainer: {
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.lg,
+  },
+  sortOrderLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  sortOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.background,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  sortOrderText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  closeSortButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: verticalScale(14),
+    borderRadius: Layout.borderRadius.lg,
+    alignItems: 'center',
+  },
+  closeSortButtonText: {
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
 });
 

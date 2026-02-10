@@ -50,7 +50,8 @@ import CrmConverted from '../../screens/CRMScreen/CrmConverted';
 import CrmExpire from '../../screens/CRMScreen/CrmExpire';
 import ActivityList from '../../screens/CRMActivity/ActivityList';
 import AddActivity from '../../screens/CRMActivity/AddActivity';
-import LeadsDetails from '../../screens/CRMLeadDetail/LeadsDetails';
+import LeadDetailsScreen from '../../screens/CRMLeadDetail/LeadsdetailScreen';
+
 import AddLeads from '../../screens/CRMAddLeads/AddLeads';
 import CRMGraph from '../../screens/CRMGraphScreen/CRMGraph';
 import TodayFollowUp from '../../screens/CRMFollowupsScreen/TodayFollowup';
@@ -73,6 +74,8 @@ import AddTask from '../../screens/Requests/AddTask';
 import Approvals from '../../screens/Approvals/Approvals';
 import WFStatusList from '../../screens/Approvals/WFStatusList';
 import MyTasks from '../../screens/Requests/MyTasks';
+import LeadEdit from '../../screens/CRMLeadDetail/Leadedit';
+import GenericLead from '../../screens/CRMScreen/GenericLead';
 
 
 const Stack = createNativeStackNavigator();
@@ -135,12 +138,14 @@ const AppNavigator = () => {
       <Stack.Screen name="CrmScreen" component={CrmScreen} />
       <Stack.Screen name="CrmTotal" component={CrmTotal} />
       <Stack.Screen name="CrmNew" component={CrmNew} />
+      <Stack.Screen name="GenericLead" component={GenericLead} />
       <Stack.Screen name="CrmWorking" component={CrmWorking} />
       <Stack.Screen name="CrmConverted" component={CrmConverted} />
       <Stack.Screen name="CrmExpire" component={CrmExpire} />
       <Stack.Screen name="ActivityList" component={ActivityList} />
       <Stack.Screen name="AddActivity" component={AddActivity} />
-      <Stack.Screen name="LeadsDetails" component={LeadsDetails} />
+      <Stack.Screen name="LeadEdit" component={LeadEdit} />
+          <Stack.Screen name="LeadsDetail" component={LeadDetailsScreen} />
       <Stack.Screen name="AddLeads" component={AddLeads} />
       <Stack.Screen name="CRMGraph" component={CRMGraph} />
       <Stack.Screen name="TodayFollowups" component={TodayFollowUp} />
@@ -166,6 +171,7 @@ const AppNavigator = () => {
         }}
       />
       <Stack.Screen name="MyTasks" component={MyTasks} />
+      
 
       {/* APPROVAL SCREEN BY FZA */}
 

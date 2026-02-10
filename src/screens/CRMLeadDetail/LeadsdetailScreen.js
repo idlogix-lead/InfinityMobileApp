@@ -1,55 +1,58 @@
-// screens/CRM/FollowupScreen.js
 import React, { useState, useMemo } from 'react';
 import {
   View,
-  FlatList,
-  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Linking,
   StyleSheet,
   Text,
-  ScrollView,
-  RefreshControl,
-  ActivityIndicator,
-  SafeAreaView,
-  Alert,
+  FlatList,
+  TouchableOpacity,
   Modal,
+  RefreshControl,
 } from 'react-native';
-import { useFollowups, useUpdateFollowup } from '../../hooks/CRMhooks/useCRM';
+import CustomHeader from '../../components/CustomHeader';
+import CRMCard from '../../components/CRMCard/CRMCard';
+import { useFollowups } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const FollowupScreen = ({ navigation }) => {
-  const [refreshing, setRefreshing] = useState(false);
+const LeadDetailsScreen = ({ navigation, route }) => {
+  const { data: lead } = route.params;
+  const [collapsed, setCollapsed] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortBy, setSortBy] = useState('startDate'); // 'startDate', 'endDate', 'status'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
   const [showSortModal, setShowSortModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Hooks
-  const { 
-    data: allFollowups = [], 
-    isLoading: isLoadingFollowups,
-    refetch: refetchFollowups,
-    error: followupsError 
-  } = useFollowups();
+  const { data: followups = [], isLoading, refetch: refetchFollowups } = useFollowups();
 
-  // Update followup mutation
-  const updateFollowupMutation = useUpdateFollowup();
+  const leadFollowups = useMemo(
+    () =>
+      followups.filter(
+        f => (f.AD_User_ID?.id || f.AD_User_ID) === lead.id
+      ),
+    [followups, lead.id]
+  );
 
-  // Category mappings
-  const categoryMap = {
-    EM: 'Email',
-    PC: 'Phone Call',
-    ME: 'Meeting',
-    TA: 'Task',
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetchFollowups();
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Filter followups based on selected tab
   const filteredFollowups = useMemo(() => {
-    if (!allFollowups.length) return [];
-    
     const today = moment().startOf('day');
-    let filtered = [...allFollowups];
+    let filtered = [...leadFollowups];
 
     // Apply time filter
     if (activeFilter === 'today') {
@@ -82,7 +85,7 @@ const FollowupScreen = ({ navigation }) => {
     }
 
     return filtered;
-  }, [allFollowups, activeFilter]);
+  }, [leadFollowups, activeFilter]);
 
   // Sort followups based on selected sorting option
   const sortedFollowups = useMemo(() => {
@@ -127,54 +130,10 @@ const FollowupScreen = ({ navigation }) => {
     return sorted;
   }, [filteredFollowups, sortBy, sortOrder]);
 
-  // Handle refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetchFollowups();
-    } catch (error) {
-      console.error('Refresh error:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  // Update followup field
-  const updateFollowupField = (id, field, value) => {
-    updateFollowupMutation.mutate({ 
-      id, 
-      updates: { [field]: value } 
-    });
-  };
-
-  // Handle navigation to lead details
-  const handleCardPress = (followup) => {
-    const leadId = followup.AD_User_ID?.id || followup.AD_User_ID;
-    
-    if (!leadId) {
-      Alert.alert('Error', 'Lead information not available');
-      return;
-    }
-
-    const leadData = {
-      id: leadId,
-      Name: followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || 'Unknown Lead',
-    };
-    
-    navigation.navigate('LeadEdit', { data: leadData });
-  };
-
-  // Helper function to get activity type name
-  const getActivityTypeName = (typeCode) => {
-    return categoryMap[typeCode] || typeCode || 'Task';
-  };
-
-  // Helper function to get activity color
+  // Helper functions for activity styling
   const getActivityColor = (type) => {
-    const typeName = getActivityTypeName(type).toUpperCase();
-    switch (typeName) {
+    switch (type?.toUpperCase()) {
       case 'EMAIL': return '#4F46E5';
-      case 'PHONE CALL': return '#0EA5E9';
       case 'PHONE': return '#0EA5E9';
       case 'MEETING': return '#F59E0B';
       case 'TASK': return '#EC4899';
@@ -183,10 +142,8 @@ const FollowupScreen = ({ navigation }) => {
   };
 
   const getActivityBgColor = (type) => {
-    const typeName = getActivityTypeName(type).toUpperCase();
-    switch (typeName) {
+    switch (type?.toUpperCase()) {
       case 'EMAIL': return '#EEF2FF';
-      case 'PHONE CALL': return '#F0F9FF';
       case 'PHONE': return '#F0F9FF';
       case 'MEETING': return '#FEF3C7';
       case 'TASK': return '#FCE7F3';
@@ -196,11 +153,9 @@ const FollowupScreen = ({ navigation }) => {
 
   const getActivityIcon = (type) => {
     const iconColor = getActivityColor(type);
-    const typeName = getActivityTypeName(type).toUpperCase();
-    switch (typeName) {
+    switch (type?.toUpperCase()) {
       case 'EMAIL':
         return <MaterialIcons name="email" size={14} color={iconColor} />;
-      case 'PHONE CALL':
       case 'PHONE':
         return <MaterialIcons name="phone" size={14} color={iconColor} />;
       case 'MEETING':
@@ -244,7 +199,7 @@ const FollowupScreen = ({ navigation }) => {
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
-  // Sort options (simplified)
+  // Sort options
   const sortOptions = [
     { id: 'startDate', label: 'Start Date', icon: 'calendar-clock' },
     { id: 'endDate', label: 'End Date', icon: 'calendar-arrow-right' },
@@ -299,13 +254,18 @@ const FollowupScreen = ({ navigation }) => {
     const isComplete = item.IsComplete;
     const activityType = item.ContactActivityType?.identifier || 'Task';
     const activityIcon = getActivityIcon(activityType);
-    const leadName = item.AD_User_ID?.Name || item.AD_User_ID?.identifier || 'Unknown Lead';
 
     return (
       <TouchableOpacity
         style={styles.followupCard}
         activeOpacity={0.9}
-        onPress={() => handleCardPress(item)}
+        onPress={() => {
+          navigation.navigate('AddActivity', {
+            data: item,
+            mode: 'edit',
+            leadData: lead
+          });
+        }}
       >
         <View style={[
           styles.cardContent,
@@ -315,41 +275,31 @@ const FollowupScreen = ({ navigation }) => {
             borderColor: '#4b4848',
           }
         ]}>
-          {/* Header Row - Lead Name and Status */}
+
+          {/* Header Row - Activity Type on left, Status on right */}
           <View style={styles.cardHeader}>
             <View style={styles.typeRow}>
               <View style={[styles.iconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
                 {activityIcon}
               </View>
-              <View style={styles.leadInfo}>
-                <Text style={styles.leadName} numberOfLines={1}>
-                  {leadName}
-                </Text>
-                <Text style={styles.typeText}>
-                  {getActivityTypeName(activityType)}
-                </Text>
-              </View>
+              <Text style={styles.typeText}>
+                {activityType}
+              </Text>
             </View>
 
             {/* Right side: Status */}
             <View style={styles.rightSide}>
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation();
-                  updateFollowupField(item.id, 'IsComplete', !item.IsComplete);
-                }}
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: isComplete ? '#E6F4EA' : '#FDEAEA' }
-                ]}
-              >
+              <View style={[
+                styles.statusBadge,
+                { backgroundColor: isComplete ? '#E6F4EA' : '#FDEAEA' }
+              ]}>
                 <Text style={[
                   styles.statusText,
                   { color: isComplete ? '#2E7D32' : '#C62828' }
                 ]}>
                   {isComplete ? 'Complete' : 'Pending'}
                 </Text>
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -387,57 +337,89 @@ const FollowupScreen = ({ navigation }) => {
     );
   };
 
-  // Loading state
-  if (isLoadingFollowups && !refreshing) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          {/* Title */}
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>Follow ups</Text>
-          </View>
-          
-          <View style={styles.loadingContent}>
-            <ActivityIndicator size="large" color="#2F4FE3" />
-            <Text style={styles.loadingText}>Loading followups...</Text>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header with Title and Sort Button */}
-        <View style={styles.headerContainer}>
-          <Text style={styles.title}>Follow ups</Text>
-          <TouchableOpacity 
-            style={styles.sortButton}
-            onPress={() => setShowSortModal(true)}
-          >
-            <MaterialCommunityIcons name="sort" size={20} color="#2F4FE3" />
-            <Text style={styles.sortButtonText}>Sort</Text>
-            <MaterialIcons 
-              name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-              size={14} 
-              color="#2F4FE3" 
-            />
-          </TouchableOpacity>
-        </View>
+    <View style={styles.container}>
+      <CustomHeader
+        title="Lead"
+        LeftIcon="arrow-left"
+        LeftPress={() => navigation.goBack()}
+        RightIcon="plus"
+        RightPress={() =>
+          navigation.navigate('AddActivity', {
+            data: lead,
+            mode: 'create',
+          })
+        }
+        MessageNameIcon="edit"
+        MessageOnPress={() =>
+          navigation.navigate('AddActivity', {
+            data: lead,
+            mode: 'create',
+          })
+        }
+      />
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#2F4FE3']}
-              tintColor="#2F4FE3"
-            />
-          }
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#2F4FE3']}
+            tintColor="#2F4FE3"
+          />
+        }
+      >
+        {/* LEAD CARD - Now clickable to go to LeadEdit */}
+        <TouchableOpacity 
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('LeadEdit', { data: lead })}
         >
+          <CRMCard
+            header={lead.AD_Org_ID?.identifier || lead.AD_Client_ID?.identifier}
+            name={lead.Name}
+            email={lead.EMail}
+            cellNo={lead.Phone}
+            dateText={lead.Updated}
+            interactionType={lead.LastActivityType}
+            Description={lead?.Description}
+            count={lead.ActivityCount || 0}
+            status={lead.LeadStatus?.identifier}
+            leadId={lead.id}
+            collapsed={collapsed}
+            onToggle={() => setCollapsed(!collapsed)}
+            phone={() => Linking.openURL(`tel:${lead.Phone}`)}
+            mail={() => Linking.openURL(`mailto:${lead.EMail}`)}
+            actOnPress={() =>
+              navigation.navigate('AddActivity', {
+                data: lead,
+                mode: 'create',
+              })
+            }
+            // Remove the onPress prop from CRMCard since we're wrapping it with TouchableOpacity
+          />
+        </TouchableOpacity>
+
+        {/* FOLLOW UPS SECTION */}
+        <View style={styles.sectionContainer}>
+          {/* Section Header with Sort Button */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Follow-ups</Text>
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={() => setShowSortModal(true)}
+            >
+              <MaterialCommunityIcons name="sort" size={20} color="#2F4FE3" />
+              <Text style={styles.sortButtonText}>Sort</Text>
+              <MaterialIcons 
+                name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+                size={14} 
+                color="#2F4FE3" 
+              />
+            </TouchableOpacity>
+          </View>
+
           {/* Scrollable Filter Tabs */}
           <ScrollView
             horizontal
@@ -468,7 +450,9 @@ const FollowupScreen = ({ navigation }) => {
           </View>
 
           {/* Follow-ups List */}
-          {sortedFollowups.length > 0 ? (
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#2F4FE3" style={styles.loader} />
+          ) : sortedFollowups.length > 0 ? (
             <FlatList
               data={sortedFollowups}
               renderItem={renderFollowupCard}
@@ -483,12 +467,12 @@ const FollowupScreen = ({ navigation }) => {
                 No {activeFilter !== 'all' ? activeFilter + ' ' : ''}follow-ups
               </Text>
               <Text style={styles.emptySubText}>
-                All follow-ups will appear here
+                Tap the + icon in header to add follow-up
               </Text>
             </View>
           )}
-        </ScrollView>
-      </View>
+        </View>
+      </ScrollView>
 
       {/* Sort Modal */}
       <Modal
@@ -572,35 +556,31 @@ const FollowupScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#EDEBEB',
-  },
   container: {
     flex: 1,
     backgroundColor: '#EDEBEB',
   },
   scrollContent: {
-    padding: 5,
+    padding: 12,
     paddingBottom: 20,
   },
-  // Header Styles
-  headerContainer: {
+  sectionContainer: {
+    marginTop: 16,
+  },
+  // Section Header with Sort Button
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 5,
-    paddingTop: 5,
-    paddingBottom: 8,
-    backgroundColor: '#EDEBEB',
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 24,
+  sectionTitle: {
+    fontSize: 20,
     fontFamily: 'K2D-Bold',
     color: '#333',
   },
@@ -624,17 +604,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'K2D-SemiBold',
     color: '#2F4FE3',
-  },
-  loadingContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    fontFamily: 'K2D-Regular',
   },
   // Filter and Sort Info
   filterSortInfo: {
@@ -717,25 +686,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: 4,
   },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    fontFamily: 'K2D-Medium',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  emptySubText: {
-    fontSize: 12,
-    color: '#BBB',
-    fontFamily: 'K2D-Regular',
-    textAlign: 'center',
-  },
-  // Card Styles (Updated - Removed Priority)
   followupCard: {
     marginBottom: 12,
   },
@@ -758,22 +708,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  leadInfo: {
-    flex: 1,
-    marginLeft: 8,
-  },
-  leadName: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
-    marginBottom: 2,
-  },
   iconContainer: {
     width: 24,
     height: 24,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
   },
   typeText: {
     fontSize: 13,
@@ -836,6 +777,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#333',
     fontFamily: 'K2D-SemiBold',
+  },
+  loader: {
+    padding: 20,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    fontFamily: 'K2D-Medium',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptySubText: {
+    fontSize: 12,
+    color: '#BBB',
+    fontFamily: 'K2D-Regular',
+    textAlign: 'center',
   },
   // Modal Styles
   modalOverlay: {
@@ -936,4 +898,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FollowupScreen;
+export default LeadDetailsScreen;

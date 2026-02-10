@@ -1,233 +1,212 @@
-// components/CRMCard/CRMCard.js
-import React, { useState } from 'react';
+// components/CRMCard/CRMCard.js - SAME UI, NO EXPAND
+import React from 'react';
 import {
   StyleSheet,
   Text,
   View,
   TouchableOpacity,
   Image,
-  Alert,
 } from 'react-native';
-import { Menu, Divider } from 'react-native-paper';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import moment from 'moment';
-import { useUpdateLeadStatus } from '../../hooks/CRMhooks/useCRM'; // You'll need to create this hook
 
+/* ================= STATUS CONFIG ================= */
+const STATUS_CONFIG = {
+  New: {
+    barColor: '#2ECC71',
+    badgeText: 'New',
+    badgeBg: '#EAF8F0',
+    badgeColor: '#2ECC71',
+    showDot: true,
+  },
+  Working: {
+    barColor: '#F4A623',
+    badgeText: 'Working',
+    badgeBg: '#FFF3E0',
+    badgeColor: '#F4A623',
+    showDot: true,
+  },
+  Converted: {
+    barColor: '#4A6CF7',
+    badgeText: 'Converted',
+    badgeBg: '#EEF1FF',
+    badgeColor: '#4A6CF7',
+    showDot: false,
+    showCheck: true,
+  },
+  Expired: {
+    barColor: '#EA4747',
+    badgeText: 'Expired',
+    badgeBg: '#FDECEC',
+    badgeColor: '#EA4747',
+    showDot: true,
+  },
+};
+
+/* ================= CARD COMPONENT ================= */
 const CRMCard = ({
-  header,
   name,
-  email,
-  mail,
-  phone,
-  onPress,
-  dateText,
-  actOnPress,
-  Description,
-  id,
-  status,
-  count,
+  header,
+  status = 'New',
   interactionType,
+  dateText,
+  phone,
+  mail,
+  whatsapp,
+  actOnPress,
+  onPress,
+  email,
   cellNo,
+  count,
+  Description,
+  company,
+  leadId,
 }) => {
-  const [visible, setVisible] = useState(false);
-  const [editStatus, setEditStatus] = useState(status);
-  
-  const updateLeadStatusMutation = useUpdateLeadStatus();
-  
-  const openMenu = () => setVisible(true);
-  const closeMenu = () => setVisible(false);
-  
-  const interaction = moment(dateText).format('DD MMM YYYY');
-  
-  const handleStatusUpdate = (newStatus) => {
-    setEditStatus(newStatus);
-    closeMenu();
-    
-    // Update lead status via API
-    updateLeadStatusMutation.mutate({
-      id,
-      status: newStatus,
-    });
-  };
-  
-  const cols = [
-    {
-      title: 'Last Activity',
-      align: 'flex-start',
-      dotColor: 'rgba(234, 71, 71, 1)',
-      content: (
-        <View style={styles.statusRow}>
-          <Text style={styles.value}>{interactionType || 'Email'}</Text>
-        </View>
-      ),
-    },
-    {
-      title: 'Last Interaction',
-      align: 'center',
-      dotColor: 'rgba(231, 205, 76, 1)',
-      content: (
-        <View style={styles.statusRow}>
-          <Text style={styles.value}>{interaction}</Text>
-        </View>
-      ),
-    },
-    {
-      title: 'Total Activities',
-      align: 'flex-end',
-      dotColor: 'rgba(38, 189, 206, 1)',
-      content: <Text style={styles.value}>{count}</Text>
-    },
-  ];
+  const statusUI = STATUS_CONFIG[status] || STATUS_CONFIG.New;
 
   return (
-    <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={{
-            uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-          }}
-          style={styles.avatar}
-        />
-        <View style={styles.headerContent}>
-          <View style={styles.nameRow}>
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert('House #24, Street 6, Green Town, Lahore')
-              }>
-              <Text style={styles.name}>{name}</Text>
-            </TouchableOpacity>
-            <View style={styles.contactLinks}>
-              <TouchableOpacity onPress={phone}>
-                <Text style={styles.link}>Call</Text>
-              </TouchableOpacity>
-              <Text style={styles.separator}> \ </Text>
-              <TouchableOpacity onPress={mail}>
-                <Text style={styles.link}>E-mail</Text>
+    <TouchableOpacity 
+      style={styles.cardContainer}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.card}>
+        {/* COLLAPSED VIEW - SAME LAYOUT */}
+        <View style={styles.row}>
+          {/* LEFT STATUS BAR */}
+          <View
+            style={[
+              styles.statusBar,
+              { backgroundColor: statusUI.barColor },
+            ]}
+          />
+
+          {/* AVATAR */}
+          <Image
+            source={{
+              uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+            }}
+            style={styles.avatar}
+          />
+
+          {/* CENTER CONTENT */}
+          <View style={styles.center}>
+            <Text style={styles.name}>{name || 'No Name'}</Text>
+            <Text style={styles.company}>{header || company || 'No Company'}</Text>
+
+            <Text style={styles.lastText}>
+              Last: {interactionType || 'No Activity'} ·{' '}
+              {dateText ? moment(dateText).fromNow() : 'No Date'}
+            </Text>
+          </View>
+
+          {/* RIGHT SIDE */}
+          <View style={styles.right}>
+            {/* STATUS BADGE */}
+            <View
+              style={[
+                styles.badge,
+                { backgroundColor: statusUI.badgeBg },
+              ]}>
+              {statusUI.showDot && (
+                <View
+                  style={[
+                    styles.dot,
+                    { backgroundColor: statusUI.badgeColor },
+                  ]}
+                />
+              )}
+              {statusUI.showCheck && (
+                <AntDesign
+                  name="checkcircle"
+                  size={14}
+                  color={statusUI.badgeColor}
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: statusUI.badgeColor },
+                ]}>
+                {statusUI.badgeText}
+              </Text>
+            </View>
+
+            {/* ACTION ICONS */}
+            <View style={styles.iconRow}>
+              {phone && (
+                <TouchableOpacity onPress={phone}>
+                  <Ionicons
+                    name="call-outline"
+                    size={18}
+                    color="#2F4FE3"
+                  />
+                </TouchableOpacity>
+              )}
+
+              {mail && (
+                <TouchableOpacity onPress={mail}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={18}
+                    color="#2F4FE3"
+                  />
+                </TouchableOpacity>
+              )}
+
+            
+
+              {/* ADD ACTIVITY */}
+              <TouchableOpacity onPress={actOnPress}>
+                <View style={styles.addActivity}>
+                  <Ionicons
+                    name="alarm-outline"
+                    size={18}
+                    color="#2F4FE3"
+                  />
+                  <AntDesign
+                    name="pluscircle"
+                    size={10}
+                    color="#2F4FE3"
+                    style={styles.plus}
+                  />
+                </View>
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() =>
-              Alert.alert('Office #12, Floor 3, XYZ Plaza, Faisalabad')
-            }>
-            <View style={styles.companyRow}>
-              <Text style={styles.company}>{header}</Text>
-              <MaterialCommunityIcons
-                name="map-marker-outline"
-                size={15}
-                color={'#2F4FE3'}
-              />
-            </View>
-          </TouchableOpacity>
         </View>
+        
+        {/* REMOVED: Expand arrow and expanded content */}
       </View>
-
-      {/* Info Row */}
-      <View style={styles.infoRow}>
-        {cols.map((col, index) => (
-          <View key={index} style={[styles.col, { alignItems: col.align }]}>
-            <Text style={styles.label}>{col.title}</Text>
-            <View style={styles.dottedLine}>
-              <View style={[styles.smallDot, { backgroundColor: col.dotColor }]} />
-            </View>
-            {col.content}
-          </View>
-        ))}
-      </View>
-
-      {/* Contact Info */}
-      <View style={styles.contactInfo}>
-        <View style={styles.contactItem}>
-          <MaterialCommunityIcons
-            name="email-outline"
-            size={15}
-            color={'#2F4FE3'}
-          />
-          <Text style={styles.contactText}>{email || 'N/A'}</Text>
-        </View>
-        <View style={styles.contactItem}>
-          <MaterialCommunityIcons
-            name="phone-outline"
-            size={15}
-            color={'#2F4FE3'}
-          />
-          <Text style={styles.contactText}>{cellNo || 'N/A'}</Text>
-        </View>
-      </View>
-
-      {/* Description */}
-      <View style={styles.description}>
-        <Text style={styles.label}>Description</Text>
-        <Text style={styles.descText}>
-          {Description && Description.trim() !== ''
-            ? Description
-            : 'No description provided'}
-        </Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.bottomButton}>
-        <View style={styles.button}>
-          <Menu
-            visible={visible}
-            onDismiss={closeMenu}
-            style={{ marginTop: 55, marginLeft: 15 }}
-            anchor={
-              <TouchableOpacity
-                onPress={openMenu}
-                style={{ flexDirection: 'row' }}>
-                <Text style={styles.buttonText}>{editStatus}</Text>
-                <AntDesign name="down" size={15} color={'#fff'} />
-              </TouchableOpacity>
-            }>
-            <Menu.Item
-              onPress={() => handleStatusUpdate('New')}
-              title="New"
-            />
-            <Divider />
-            <Menu.Item
-              onPress={() => handleStatusUpdate('Converted')}
-              title="Converted"
-            />
-            <Divider />
-            <Menu.Item
-              onPress={() => handleStatusUpdate('Working')}
-              title="Working"
-            />
-          </Menu>
-        </View>
-
-        <TouchableOpacity onPress={actOnPress} style={styles.button}>
-          <Text style={styles.buttonText}>Activity</Text>
-          <Ionicons name="add-outline" size={20} color={'#fff'} />
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={onPress} style={styles.button}>
-          <Text style={styles.buttonText}>Details</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
+/* ================= STYLES ================= */
 const styles = StyleSheet.create({
+  cardContainer: {
+    marginHorizontal: 10,
+    marginVertical: 5,
+  },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 3,
-    padding: 12,
-    marginBottom: '5%',
-    shadowColor: 'rgba(0, 0, 0, 0.25)',
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
   },
-  header: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingVertical: 10,
+    paddingRight: 10,
+  },
+  statusBar: {
+    width: 5,
+    height: '100%',
+    marginRight: 10,
+    borderRadius: 3,
   },
   avatar: {
     width: 40,
@@ -235,134 +214,57 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 10,
   },
-  headerContent: {
+  center: {
     flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   name: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'K2D-SemiBold',
-    color: 'rgba(60, 60, 60, 1)',
-  },
-  contactLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  link: {
-    color: 'rgba(21, 68, 137, 1)',
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-  },
-  separator: {
-    color: 'rgba(139, 140, 144, 1)',
-    fontSize: 13,
-    marginHorizontal: 3,
-  },
-  companyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
+    color: '#000',
   },
   company: {
-    fontSize: 13,
-    fontFamily: 'K2D-Bold',
-    color: 'rgba(125, 125, 125, 1)',
-    marginRight: 5,
+    fontSize: 12,
+    fontFamily: 'K2D-Medium',
+    color: '#777',
   },
-  infoRow: {
+  lastText: {
+    fontSize: 11,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
+    marginTop: 2,
+  },
+  right: {
+    alignItems: 'flex-end',
+  },
+  badge: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: '5%',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 14,
+    marginBottom: 6,
   },
-  col: {
-    flex: 1,
-  },
-  label: {
-    fontSize: 13,
-    color: 'rgba(0, 0, 0, 1)',
+  badgeText: {
+    fontSize: 11,
     fontFamily: 'K2D-Medium',
   },
-  dottedLine: {
-    width: '100%',
-    height: 1,
-    backgroundColor: 'rgba(170, 170, 170, 1)',
-    marginVertical: 10,
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  iconRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  addActivity: {
     position: 'relative',
   },
-  smallDot: {
-    width: 7,
-    height: 10,
-    borderRadius: 6,
+  plus: {
     position: 'absolute',
-    marginTop: '-3%',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: '3%',
-  },
-  value: {
-    fontSize: 15,
-    color: 'rgba(139, 140, 144, 1)',
-    fontFamily: 'K2D-Regular',
-  },
-  contactInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: '7%',
-    paddingVertical: '3%',
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-  },
-  contactItem: {
-    flexDirection: 'row',
-    width: '48%',
-    alignItems: 'center',
-    paddingHorizontal: '4%',
-  },
-  contactText: {
-    color: '#555',
-    fontSize: 13,
-    fontFamily: 'K2D-Medium',
-    paddingHorizontal: '3%',
-  },
-  description: {
-    marginTop: '7%',
-  },
-  descText: {
-    marginTop: 5,
-    fontSize: 13,
-    color: 'rgba(139, 140, 144, 1)',
-    fontFamily: 'K2D-Regular',
-    borderBottomWidth: 1,
-    borderColor: 'rgba(170, 170, 170, 1)',
-    paddingVertical: '1%',
-  },
-  bottomButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-    paddingTop: 10,
-  },
-  button: {
-    height: 35,
-    width: 90,
-    backgroundColor: '#2F4FE3',
-    borderRadius: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontFamily: 'K2D-Medium',
-    fontSize: 13,
+    right: -5,
+    bottom: -5,
   },
 });
 

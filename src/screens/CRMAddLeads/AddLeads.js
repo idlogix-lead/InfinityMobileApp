@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     marginHorizontal: 20,
-    marginTop: 80,
+    marginTop: 20,
     marginBottom: 20,
     borderRadius: 8,
     elevation: 4,

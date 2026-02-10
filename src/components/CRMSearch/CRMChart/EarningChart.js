@@ -192,7 +192,8 @@ const EarningChart = ({data, days, width = 350, height = 200}) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 10,
+    paddingVertical: 15,
+    paddingHorizontal:25,
     backgroundColor: 'white',
     borderRadius: 12,
     shadowColor: '#000',

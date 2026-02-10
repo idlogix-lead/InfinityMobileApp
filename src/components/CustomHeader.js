@@ -96,18 +96,17 @@ const CustomHeader = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#2F4FE3',
-    borderBottomRightRadius: 10,
-    borderBottomLeftRadius: 10,
     justifyContent: 'center',
-    height: 90,
+    height: 60,
     paddingTop: Platform.OS === 'ios' ? 40 : 10,
     paddingHorizontal: Platform.OS === 'ios' ? 10 : 0,
+   
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 25,
+    paddingHorizontal: 10,
   },
   title: {
     fontSize: 20,
@@ -122,7 +121,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingRight: 10,
+    paddingRight: 5,
     minWidth: 80,
   },
   iosBackText: {
