@@ -112,9 +112,10 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     backgroundColor: '#fff',
-    padding: 15,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 16,
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
