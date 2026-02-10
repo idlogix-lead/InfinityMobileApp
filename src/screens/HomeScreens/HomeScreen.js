@@ -169,9 +169,10 @@ const HomeScreen = ({route}) => {
   }));
 
   // APPROVAL FROM WFAct
-  const myApprovals = wfActivity.filter(
-    r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),
-  );
+  // const myApprovals = wfActivity.filter(
+  //   r => Number(r.AD_WF_Responsible_ID?.id) === Number(userId),
+  // );
+  const myApprovals = wfActivity;
   const suspendedList = myApprovals.filter(item => item.WFState?.id === 'OS');
   const OSCount = suspendedList.length;
 
@@ -265,8 +266,10 @@ const HomeScreen = ({route}) => {
         count: OSCount,
         onPress: () =>
           navigation.navigate('WFStatusList', {
-            title: 'Suspended',
-            data: suspendedList,
+            // title: 'Suspended',
+            // data: suspendedList,
+            // data: myApprovals,
+            title: 'Approvals',
           }),
       },
 

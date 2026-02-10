@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     color: '#222',
-    fontFamily: 'K2D-Regular',
+    fontFamily: 'K2D-Medium',
   },
 });
 
