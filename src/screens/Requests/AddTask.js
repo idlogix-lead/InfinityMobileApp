@@ -28,7 +28,6 @@ import {
 import {useAuthStore} from '../../store/authStore';
 import moment from 'moment';
 
-
 // import {Portal} from 'react-native-paper';
 
 const PRIORITIES = [
@@ -47,7 +46,6 @@ const projectColor = id => {
 const AddTask = ({navigation, isModal = false, onClose, visible}) => {
   const queryClient = useQueryClient();
   const {userId, userName} = useAuthStore();
-
 
   // ===================== STATE =====================
   const [summary, setSummary] = useState('');
@@ -169,8 +167,6 @@ const AddTask = ({navigation, isModal = false, onClose, visible}) => {
 
   const formatDate = date => (date ? moment(date).format('DD MMM YYYY') : '');
 
-
-
   // ===================== DATE TIME PICKER =====================
   // const handleDateChange = (event, selected) => {
   //   if (event.type === 'set' && selected) {
@@ -285,7 +281,7 @@ const AddTask = ({navigation, isModal = false, onClose, visible}) => {
     <>
       {/* <ReqHeader title={'Create Request'} /> */}
       {/* {!isModal && <ReqHeader title={'Create Request'} />} */}
-     
+
       <View style={styles.sheetOverlay}>
         <View style={styles.sheetContainer}>
           <View style={styles.dragIndicator} />
@@ -1022,28 +1018,6 @@ const styles = StyleSheet.create({
   },
   // Calendar Modal
 
-  closeBtn: {
-    alignSelf: 'center',
-    padding: 10,
-  },
-
-  calendarModal: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  calendarBox: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
   cancelBtn: {
     width: 60,
   },
@@ -1082,15 +1056,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 15,
-  },
-  moreBtn: {
-    padding: 10,
-  },
-  doneBtn: {
-    backgroundColor: '#2F4FE3',
-    paddingVertical: 10,
-    paddingHorizontal: 25,
-    borderRadius: 6,
   },
   calendarModal: {
     flex: 1,
@@ -1144,6 +1109,7 @@ const styles = StyleSheet.create({
   quickText: {
     color: '#000',
     fontSize: 14,
+    fontFamily: 'K2D-Regular',
   },
 
   calendarFooter: {
@@ -1251,15 +1217,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     paddingHorizontal: '5%',
-  },
-
-  dragIndicator: {
-    width: 50,
-    height: 5,
-    backgroundColor: '#ccc',
-    borderRadius: 10,
-    alignSelf: 'center',
-    marginBottom: 8,
   },
   overlay: {
     flex: 1,

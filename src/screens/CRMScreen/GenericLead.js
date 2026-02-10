@@ -1,5 +1,5 @@
 // screens/CRM/GenericLeadScreen.js - RESPONSIVE WITH SINGLE THEME
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, {useState, useMemo, useCallback, useEffect} from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,7 +14,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { Provider } from 'react-native-paper';
+import {Provider} from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -23,28 +23,31 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CRMCard from '../../components/CRMCard/CRMCard';
-import { useFollowups, useLeadStatistics, useSearchLeads } from '../../hooks/CRMhooks/useCRM';
-import { useLeadActions } from '../../hooks/CRMhooks/useLeadActions';
+import {
+  useFollowups,
+  useLeadStatistics,
+  useSearchLeads,
+} from '../../hooks/CRMhooks/useCRM';
+import {useLeadActions} from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
-import { debounce } from 'lodash';
+import {debounce} from 'lodash';
 
 // Import single theme file
 import theme from '../../constants/CRMTheme/CRMTheme';
-
+import {Calendar} from 'react-native-calendars';
+import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 
 // Destructure theme for easy access
-const { Colors, Typography, Layout } = theme;
-const { scale, verticalScale, spacing } = Layout;
+const {Colors, Typography, Layout} = theme;
+const {scale, verticalScale, spacing} = Layout;
 
-const GenericLead = ({ 
-  navigation, 
-  route
-}) => {
+const GenericLead = ({navigation, route}) => {
   // Get pre-filtered leads from navigation params
-  const { leads: preFilteredLeads = [], screenTitle: paramTitle } = route.params || {};
-  
+  const {leads: preFilteredLeads = [], screenTitle: paramTitle} =
+    route.params || {};
+
   // Use paramTitle from route.params
-  const actualScreenTitle = paramTitle || "Leads";
+  const actualScreenTitle = paramTitle || 'Leads';
 
   // State
   const [filterVisible, setFilterVisible] = useState(false);
@@ -58,30 +61,34 @@ const GenericLead = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
   const [localSearchResults, setLocalSearchResults] = useState([]);
-  
+
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarMode, setCalendarMode] = useState('to'); // 'from' or 'to'
+  const [selectDate, setSelectDate] = useState(moment().format('YYYY-MM-DD'));
+
   // Sorting state
   const [sortBy, setSortBy] = useState('createdDate');
   const [sortOrder, setSortOrder] = useState('desc');
 
   // Hooks
-  const { 
-    data: followups = [], 
-    isLoading: isLoadingFollowups,
-    refetch: refetchFollowups 
-  } = useFollowups();
-  
   const {
-    data: statistics = { total: 0, todayLeads: 0, monthLeads: 0 },
-    refetch: refetchStats
+    data: followups = [],
+    isLoading: isLoadingFollowups,
+    refetch: refetchFollowups,
+  } = useFollowups();
+
+  const {
+    data: statistics = {total: 0, todayLeads: 0, monthLeads: 0},
+    refetch: refetchStats,
   } = useLeadStatistics();
 
-  const { 
-    data: searchResults = [], 
+  const {
+    data: searchResults = [],
     isLoading: isLoadingSearch,
-    refetch: refetchSearch 
+    refetch: refetchSearch,
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
-  const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
+  const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
 
   // Apply local filtering whenever filters change
   useEffect(() => {
@@ -89,45 +96,53 @@ const GenericLead = ({
       setFilteredLeads([]);
       return;
     }
-    
+
     let filtered = [...preFilteredLeads];
-    
+
     // Apply status filter from modal (New, Working, Converted, Expired)
     if (selectStatus && selectStatus !== 'select') {
       const statusMap = {
-        'New': 'N', 'new': 'N',
-        'Working': 'W', 'working': 'W',
-        'Converted': 'C', 'converted': 'C',
-        'Expired': 'E', 'expired': 'E'
+        New: 'N',
+        new: 'N',
+        Working: 'W',
+        working: 'W',
+        Converted: 'C',
+        converted: 'C',
+        Expired: 'E',
+        expired: 'E',
       };
-      
+
       const statusId = statusMap[selectStatus] || selectStatus;
-      
+
       filtered = filtered.filter(lead => {
         const leadStatusId = lead?.LeadStatus?.id;
         return leadStatusId === statusId;
       });
     }
-    
+
     // Apply date filters
     if (fromDate) {
       const start = new Date(fromDate);
       start.setHours(0, 0, 0, 0);
       filtered = filtered.filter(lead => {
-        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        const leadDate = new Date(
+          lead.Created || lead.Updated || lead.CreatedDate,
+        );
         return leadDate >= start;
       });
     }
-    
+
     if (toDate) {
       const end = new Date(toDate);
       end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(lead => {
-        const leadDate = new Date(lead.Created || lead.Updated || lead.CreatedDate);
+        const leadDate = new Date(
+          lead.Created || lead.Updated || lead.CreatedDate,
+        );
         return leadDate <= end;
       });
     }
-    
+
     setFilteredLeads(filtered);
   }, [preFilteredLeads, selectStatus, fromDate, toDate]);
 
@@ -149,17 +164,17 @@ const GenericLead = ({
         case 'name':
           aValue = (a.Name || '').toLowerCase();
           bValue = (b.Name || '').toLowerCase();
-          return sortOrder === 'asc' 
+          return sortOrder === 'asc'
             ? aValue.localeCompare(bValue)
             : bValue.localeCompare(aValue);
-        
+
         case 'status':
           // Define status order
-          const statusOrder = { 'N': 1, 'W': 2, 'C': 3, 'E': 4 };
+          const statusOrder = {N: 1, W: 2, C: 3, E: 4};
           aValue = statusOrder[a?.LeadStatus?.id] || 5;
           bValue = statusOrder[b?.LeadStatus?.id] || 5;
           return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-      
+
         default:
           // Default sort by created date (newest first)
           aValue = moment(a.Created || a.CreatedDate);
@@ -172,46 +187,51 @@ const GenericLead = ({
   }, [filteredLeads, sortBy, sortOrder]);
 
   // Enhanced search function with company and organization name
-  const performSearch = useCallback((query) => {
-    if (!query || query.trim() === '') {
-      setLocalSearchResults([]);
-      return;
-    }
-    
-    const searchTerm = query.toLowerCase().trim();
-    
-    // Search in sortedLeads (which already have status/date filters and sorting applied)
-    const results = sortedLeads.filter(lead => {
-      // 1. Lead Name
-      const name = (lead.Name || '').toLowerCase();
-      
-      // 2. Company Name - Check multiple possible fields
-      const companyName = (lead.BPName || '').toLowerCase();
-      
-      // 3. Organization Name - Check AD_Org_ID and AD_Client_ID
-      const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
-      const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
-      
-      // Search across all fields
-      return name.includes(searchTerm) || 
-             companyName.includes(searchTerm) ||
-             orgName.includes(searchTerm) ||
-             clientName.includes(searchTerm);
-    });
-    
-    setLocalSearchResults(results);
-  }, [sortedLeads]);
+  const performSearch = useCallback(
+    query => {
+      if (!query || query.trim() === '') {
+        setLocalSearchResults([]);
+        return;
+      }
+
+      const searchTerm = query.toLowerCase().trim();
+
+      // Search in sortedLeads (which already have status/date filters and sorting applied)
+      const results = sortedLeads.filter(lead => {
+        // 1. Lead Name
+        const name = (lead.Name || '').toLowerCase();
+
+        // 2. Company Name - Check multiple possible fields
+        const companyName = (lead.BPName || '').toLowerCase();
+
+        // 3. Organization Name - Check AD_Org_ID and AD_Client_ID
+        const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
+        const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
+
+        // Search across all fields
+        return (
+          name.includes(searchTerm) ||
+          companyName.includes(searchTerm) ||
+          orgName.includes(searchTerm) ||
+          clientName.includes(searchTerm)
+        );
+      });
+
+      setLocalSearchResults(results);
+    },
+    [sortedLeads],
+  );
 
   // Debounced search handler
   const debouncedSearch = useCallback(
-    debounce((query) => {
+    debounce(query => {
       performSearch(query);
     }, 300),
-    [performSearch]
+    [performSearch],
   );
 
   // Handle text change with debounce
-  const handleTextChange = (text) => {
+  const handleTextChange = text => {
     setSearchQuery(text);
     debouncedSearch(text);
   };
@@ -231,7 +251,7 @@ const GenericLead = ({
       performSearch(searchQuery);
     }
   };
-  
+
   // Reset filter
   const resetFilter = () => {
     setFromDate(null);
@@ -245,15 +265,12 @@ const GenericLead = ({
     setSortOrder('desc');
     debouncedSearch.cancel();
   };
-  
+
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        refetchFollowups(),
-        refetchStats()
-      ]);
+      await Promise.all([refetchFollowups(), refetchStats()]);
       if (searchQuery.length >= 2) {
         await refetchSearch();
       }
@@ -266,16 +283,20 @@ const GenericLead = ({
 
   // Toggle sort order
   const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
   };
 
   // Get sort option display name
-  const getSortOptionName = (option) => {
+  const getSortOptionName = option => {
     switch (option) {
-      case 'createdDate': return 'Created Date';
-      case 'name': return 'Name';
-      case 'status': return 'Status';
-      default: return 'Created Date';
+      case 'createdDate':
+        return 'Created Date';
+      case 'name':
+        return 'Name';
+      case 'status':
+        return 'Status';
+      default:
+        return 'Created Date';
     }
   };
 
@@ -285,60 +306,61 @@ const GenericLead = ({
     if (searchQuery && searchQuery.trim() !== '') {
       return localSearchResults;
     }
-    
+
     // No search query, show sorted leads
     return sortedLeads;
   }, [sortedLeads, localSearchResults, searchQuery]);
 
   // Status options for custom picker - Only New, Working, Converted, Expired
   const statusOptions = [
-    { label: '-- All Statuses --', value: 'select' },
-    { label: 'New', value: 'New' },
-    { label: 'Working', value: 'Working' },
-    { label: 'Converted', value: 'Converted' },
-    { label: 'Expired', value: 'Expired' }
+    {label: '-- All Statuses --', value: 'select'},
+    {label: 'New', value: 'New'},
+    {label: 'Working', value: 'Working'},
+    {label: 'Converted', value: 'Converted'},
+    {label: 'Expired', value: 'Expired'},
   ];
 
   // Sort options
   const sortOptions = [
-    { id: 'createdDate', label: 'Created Date', icon: 'calendar-plus' },
-    { id: 'name', label: 'Name', icon: 'account' },
-    { id: 'status', label: 'Status', icon: 'checkbox-marked-circle' },
+    {id: 'createdDate', label: 'Created Date', icon: 'calendar-plus'},
+    {id: 'name', label: 'Name', icon: 'account'},
+    {id: 'status', label: 'Status', icon: 'checkbox-marked-circle'},
   ];
 
   // Format date for display
-  const formatDate = (date) => {
+  const formatDate = date => {
     if (!date) return '';
     return moment(date).format('DD MMM YYYY');
   };
 
-  const renderLeadCard = (item) => {
+  const renderLeadCard = item => {
     const userActivity = followups.filter(
-      act => act?.AD_User_ID?.id === item?.id
+      act => act?.AD_User_ID?.id === item?.id,
     );
-    
+
     const lastActivity = [...userActivity].sort(
-      (a, b) => new Date(b.Created) - new Date(a.Created)
+      (a, b) => new Date(b.Created) - new Date(a.Created),
     )[0];
-    
-    const lastActivityType = lastActivity?.ContactActivityType?.identifier || 'N/A';
+
+    const lastActivityType =
+      lastActivity?.ContactActivityType?.identifier || 'N/A';
     const activityCount = userActivity.length;
-    
+
     return (
-      <View style={{ 
-        marginHorizontal: spacing.sm, 
-        marginVertical: spacing.xs 
-      }}>
-        <TouchableOpacity 
-          style={{ 
-            marginHorizontal: spacing.sm, 
-            marginVertical: spacing.xs 
+      <View
+        style={{
+          marginHorizontal: spacing.sm,
+          marginVertical: spacing.xs,
+        }}>
+        <TouchableOpacity
+          style={{
+            marginHorizontal: spacing.sm,
+            marginVertical: spacing.xs,
           }}
           onPress={() => {
-            navigation.navigate('LeadsDetail', { data: item });
+            navigation.navigate('LeadsDetail', {data: item});
           }}
-          activeOpacity={0.7}
-        >
+          activeOpacity={0.7}>
           <CRMCard
             leadId={item.id}
             header={item.AD_Org_ID?.identifier || item.AD_Client_ID?.identifier}
@@ -349,7 +371,11 @@ const GenericLead = ({
             interactionType={lastActivityType}
             status={item?.LeadStatus?.identifier}
             Description={item?.Description}
-            company={item.BPName || item.AD_Client_ID?.identifier || item.AD_Org_ID?.identifier}
+            company={
+              item.BPName ||
+              item.AD_Client_ID?.identifier ||
+              item.AD_Org_ID?.identifier
+            }
             mail={() => handleMail(item?.EMail)}
             phone={() => handlePhone(item?.Phone)}
             dateText={item?.Updated || item?.Created}
@@ -360,7 +386,7 @@ const GenericLead = ({
               });
             }}
             onPress={() => {
-              navigation.navigate('LeadEdit', { data: item });
+              navigation.navigate('LeadEdit', {data: item});
             }}
           />
         </TouchableOpacity>
@@ -372,16 +398,14 @@ const GenericLead = ({
   if (!preFilteredLeads || preFilteredLeads.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <CustomHeader 
+        <CustomHeader
           title={actualScreenTitle}
           RightIcon="filter"
           RightPress={() => setFilterVisible(true)}
         />
         <View style={styles.loadingContent}>
           <Text style={styles.loadingText}>No leads found</Text>
-          <Text style={styles.emptySubText}>
-            {actualScreenTitle}
-          </Text>
+          <Text style={styles.emptySubText}>{actualScreenTitle}</Text>
         </View>
       </View>
     );
@@ -397,95 +421,162 @@ const GenericLead = ({
           animationType="slide"
           onRequestClose={() => setFilterVisible(false)}
           hardwareAccelerated={true}
-          statusBarTranslucent={false}
-        >
+          statusBarTranslucent={false}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Filter {actualScreenTitle}</Text>
+                <Text style={styles.modalTitle}>
+                  Filter {actualScreenTitle}
+                </Text>
                 <TouchableOpacity
                   onPress={() => setFilterVisible(false)}
                   style={styles.closeButton}>
-                  <FontAwesome name="times" size={scale(24)} color={Colors.textPrimary} />
+                  <FontAwesome
+                    name="times"
+                    size={scale(24)}
+                    color={Colors.textPrimary}
+                  />
                 </TouchableOpacity>
               </View>
-              
-              <ScrollView 
+
+              <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
+                contentContainerStyle={styles.scrollContent}>
                 {/* Status Picker - CUSTOM IMPLEMENTATION */}
                 <Text style={styles.sectionTitle}>Filter by Status</Text>
                 <View style={styles.customPickerContainer}>
-                  {statusOptions.map((option) => (
+                  {statusOptions.map(option => (
                     <TouchableOpacity
                       key={option.value}
                       style={[
                         styles.statusOption,
-                        selectStatus === option.value && styles.statusOptionSelected
+                        selectStatus === option.value &&
+                          styles.statusOptionSelected,
                       ]}
-                      onPress={() => setSelectStatus(option.value)}
-                    >
-                      <Text style={[
-                        styles.statusOptionText,
-                        selectStatus === option.value && styles.statusOptionTextSelected
-                      ]}>
+                      onPress={() => setSelectStatus(option.value)}>
+                      <Text
+                        style={[
+                          styles.statusOptionText,
+                          selectStatus === option.value &&
+                            styles.statusOptionTextSelected,
+                        ]}>
                         {option.label}
                       </Text>
                       {selectStatus === option.value && (
-                        <MaterialIcons name="check" size={scale(20)} color={Colors.primary} />
+                        <MaterialIcons
+                          name="check"
+                          size={scale(20)}
+                          color={Colors.primary}
+                        />
                       )}
                     </TouchableOpacity>
                   ))}
                 </View>
-                
+
                 {/* From Date */}
                 <Text style={styles.sectionTitle}>From Date (Optional)</Text>
                 <TouchableOpacity
                   style={styles.dateInput}
-                  onPress={() => setShowFromDatePicker(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.dateText,
-                    !fromDate && styles.datePlaceholder
-                  ]}>
+                  // onPress={() => setShowFromDatePicker(true)}
+                  onPress={() => {
+                    setCalendarMode('from');
+                    setShowCalendar(true);
+                  }}
+                  activeOpacity={0.7}>
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !fromDate && styles.datePlaceholder,
+                    ]}>
                     {fromDate ? formatDate(fromDate) : 'Select start date'}
                   </Text>
-                  <EvilIcons name="calendar" size={scale(25)} color={Colors.textSecondary} />
+                  <EvilIcons
+                    name="calendar"
+                    size={scale(25)}
+                    color={Colors.textSecondary}
+                  />
                 </TouchableOpacity>
-                
+
                 {/* To Date */}
                 <Text style={styles.sectionTitle}>To Date (Optional)</Text>
-                <TouchableOpacity
-                  style={styles.dateInput}
-                  onPress={() => setShowToDatePicker(true)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.dateText,
-                    !toDate && styles.datePlaceholder
-                  ]}>
+                <View style={styles.dateInput}>
+                  <Text
+                    style={[
+                      styles.dateText,
+                      !toDate && styles.datePlaceholder,
+                    ]}>
                     {toDate ? formatDate(toDate) : 'Select end date'}
                   </Text>
-                  <EvilIcons name="calendar" size={scale(25)} color={Colors.textSecondary} />
-                </TouchableOpacity>
-                
+
+                  {/* Calendar Icon only triggers calendar */}
+                  <TouchableOpacity
+                    // onPress={() => setShowToDatePicker(true)}
+                    // onPress={() => setShowCalendar(true)}
+                    onPress={() => {
+                      setCalendarMode('to');
+                      setShowCalendar(true);
+                    }}
+                    activeOpacity={0.7}
+                    style={{paddingLeft: scale(8)}} // optional: spacing
+                  >
+                    <EvilIcons
+                      name="calendar"
+                      size={scale(25)}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* To Date Calendar */}
+                {/* {showToDatePicker && (
+                  <Modal
+                    visible={showToDatePicker}
+                    transparent={true}
+                    animationType="slide"
+                    onRequestClose={() => setShowToDatePicker(false)}>
+                    <View style={styles.calendarModalOverlay}>
+                      <View style={styles.calendarModalContent}>
+                        <Calendar
+                          onDayPress={day => {
+                            setToDate(day.dateString);
+                            setShowToDatePicker(false);
+                          }}
+                          markedDates={{
+                            [toDate]: {
+                              selected: true,
+                              selectedColor: Colors.primary,
+                            },
+                          }}
+                          theme={{
+                            selectedDayBackgroundColor: Colors.primary,
+                            todayTextColor: Colors.primary,
+                            arrowColor: Colors.primary,
+                          }}
+                          minDate={fromDate || undefined}
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowToDatePicker(false)}
+                          style={styles.calendarCloseButton}>
+                          <Text style={{color: Colors.primary}}>Close</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Modal>
+                )} */}
+
                 {/* Action Buttons */}
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     style={[styles.button, styles.resetButton]}
                     onPress={resetFilter}
-                    activeOpacity={0.7}
-                  >
+                    activeOpacity={0.7}>
                     <Text style={styles.resetButtonText}>Reset</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.button, styles.applyButton]}
                     onPress={applyFilter}
-                    activeOpacity={0.7}
-                  >
+                    activeOpacity={0.7}>
                     <Text style={styles.applyButtonText}>Apply Filter</Text>
                   </TouchableOpacity>
                 </View>
@@ -499,86 +590,95 @@ const GenericLead = ({
           visible={sortVisible}
           transparent={true}
           animationType="slide"
-          onRequestClose={() => setSortVisible(false)}
-        >
+          onRequestClose={() => setSortVisible(false)}>
           <View style={styles.sortModalOverlay}>
             <View style={styles.sortModalContent}>
               <View style={styles.sortModalHeader}>
-                <Text style={styles.sortModalTitle}>Sort {actualScreenTitle}</Text>
+                <Text style={styles.sortModalTitle}>
+                  Sort {actualScreenTitle}
+                </Text>
                 <TouchableOpacity onPress={() => setSortVisible(false)}>
-                  <MaterialIcons name="close" size={scale(24)} color={Colors.textPrimary} />
+                  <MaterialIcons
+                    name="close"
+                    size={scale(24)}
+                    color={Colors.textPrimary}
+                  />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Sort Options */}
               <ScrollView style={styles.sortOptionsList}>
-                {sortOptions.map((option) => (
+                {sortOptions.map(option => (
                   <TouchableOpacity
                     key={option.id}
                     style={[
                       styles.sortOptionItem,
-                      sortBy === option.id && styles.sortOptionItemSelected
+                      sortBy === option.id && styles.sortOptionItemSelected,
                     ]}
                     onPress={() => {
                       setSortBy(option.id);
                       setSortVisible(false);
-                    }}
-                  >
+                    }}>
                     <View style={styles.sortOptionContent}>
-                      <MaterialCommunityIcons 
-                        name={option.icon} 
-                        size={scale(20)} 
-                        color={sortBy === option.id ? Colors.primary : Colors.textSecondary} 
+                      <MaterialCommunityIcons
+                        name={option.icon}
+                        size={scale(20)}
+                        color={
+                          sortBy === option.id
+                            ? Colors.primary
+                            : Colors.textSecondary
+                        }
                       />
-                      <Text style={[
-                        styles.sortOptionText,
-                        sortBy === option.id && styles.sortOptionTextSelected
-                      ]}>
+                      <Text
+                        style={[
+                          styles.sortOptionText,
+                          sortBy === option.id && styles.sortOptionTextSelected,
+                        ]}>
                         {option.label}
                       </Text>
                     </View>
                     {sortBy === option.id && (
-                      <MaterialIcons 
-                        name="check" 
-                        size={scale(20)} 
-                        color={Colors.primary} 
+                      <MaterialIcons
+                        name="check"
+                        size={scale(20)}
+                        color={Colors.primary}
                       />
                     )}
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              
+
               {/* Sort Order Toggle */}
               <View style={styles.sortOrderContainer}>
                 <Text style={styles.sortOrderLabel}>Sort Order:</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.sortOrderButton}
-                  onPress={toggleSortOrder}
-                >
+                  onPress={toggleSortOrder}>
                   <Text style={styles.sortOrderText}>
                     {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
                   </Text>
-                  <MaterialIcons 
-                    name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-                    size={scale(18)} 
-                    color={Colors.primary} 
+                  <MaterialIcons
+                    name={
+                      sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'
+                    }
+                    size={scale(18)}
+                    color={Colors.primary}
                   />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Close Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeSortButton}
-                onPress={() => setSortVisible(false)}
-              >
+                onPress={() => setSortVisible(false)}>
                 <Text style={styles.closeSortButtonText}>Close</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
-        
+
         {/* Date Pickers */}
-        {showFromDatePicker && (
+        {/* {showFromDatePicker && (
           <DateTimePicker
             value={fromDate || new Date()}
             mode="date"
@@ -589,9 +689,9 @@ const GenericLead = ({
             }}
             maximumDate={toDate || new Date()}
           />
-        )}
-        
-        {showToDatePicker && (
+        )} */}
+
+        {/* {showToDatePicker && (
           <DateTimePicker
             value={toDate || new Date()}
             mode="date"
@@ -603,22 +703,41 @@ const GenericLead = ({
             minimumDate={fromDate || undefined}
             maximumDate={new Date()}
           />
-        )}
-        
+        )} */}
+        <CalendarModal
+          visible={showCalendar}
+          initialDate={calendarMode === 'from' ? fromDate : selectDate}
+          onClose={() => setShowCalendar(false)}
+          onSelectDate={date => {
+            if (calendarMode === 'from') setFromDate(date);
+            else {
+              setSelectDate(date);
+              setToDate(date);
+            }
+            setShowCalendar(false);
+          }}
+          title={calendarMode === 'from' ? 'From Date' : 'To Date'}
+        />
+
         {/* Custom Header with Filter and Sort */}
         <CustomHeader
           title={actualScreenTitle}
           RightIcon="filter"
           RightPress={() => setFilterVisible(true)}
         />
-        
+
         {/* Main Content */}
         <View style={styles.container}>
           <View style={styles.main}>
             {/* Search Bar */}
             <View style={styles.searchContainer}>
               <View style={styles.searchInputContainer}>
-                <Ionicons name="search" size={scale(20)} color={Colors.textSecondary} style={styles.searchIcon} />
+                <Ionicons
+                  name="search"
+                  size={scale(20)}
+                  color={Colors.textSecondary}
+                  style={styles.searchIcon}
+                />
                 <TextInput
                   style={styles.searchInput}
                   placeholder={`Search ${actualScreenTitle.toLowerCase()}...`}
@@ -630,27 +749,36 @@ const GenericLead = ({
                   autoCapitalize="none"
                 />
                 {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={scale(20)} color={Colors.textSecondary} />
+                  <TouchableOpacity
+                    onPress={clearSearch}
+                    style={styles.clearButton}>
+                    <Ionicons
+                      name="close-circle"
+                      size={scale(20)}
+                      color={Colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 )}
               </View>
-              
+
               {/* Sort Button next to search */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.sortButton}
-                onPress={() => setSortVisible(true)}
-              >
-                <MaterialCommunityIcons name="sort" size={scale(20)} color={Colors.primary} />
+                onPress={() => setSortVisible(true)}>
+                <MaterialCommunityIcons
+                  name="sort"
+                  size={scale(20)}
+                  color={Colors.primary}
+                />
                 <Text style={styles.sortButtonText}>Sort</Text>
-                <MaterialIcons 
-                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-                  size={scale(14)} 
-                  color={Colors.primary} 
+                <MaterialIcons
+                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'}
+                  size={scale(14)}
+                  color={Colors.primary}
                 />
               </TouchableOpacity>
             </View>
-            
+
             {/* Search and Sort Info */}
             <View style={styles.filterSortInfo}>
               {searchQuery.length > 0 ? (
@@ -663,7 +791,9 @@ const GenericLead = ({
                       Searching: "{searchQuery}"
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={clearSearch} style={styles.clearSearchButton}>
+                  <TouchableOpacity
+                    onPress={clearSearch}
+                    style={styles.clearSearchButton}>
                     <Text style={styles.clearSearchText}>Clear Search</Text>
                   </TouchableOpacity>
                 </View>
@@ -671,7 +801,8 @@ const GenericLead = ({
                 <View style={styles.sortInfoRow}>
                   <View style={styles.sortInfoContainer}>
                     <Text style={styles.sortInfoText}>
-                      Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
+                      Sorted by: {getSortOptionName(sortBy)} (
+                      {sortOrder === 'asc' ? 'Asc' : 'Desc'})
                     </Text>
                   </View>
                   <Text style={styles.totalCountText}>
@@ -680,35 +811,44 @@ const GenericLead = ({
                 </View>
               )}
             </View>
-            
+
             {/* Leads List - Shows cards immediately as user types */}
             <FlatList
               data={displayData}
               keyExtractor={(item, index) => `${item.id || index}-${index}`}
-              renderItem={({ item }) => renderLeadCard(item)}
+              renderItem={({item}) => renderLeadCard(item)}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   {searchQuery.length > 0 ? (
                     <>
-                      <Ionicons name="search" size={scale(60)} color={Colors.border} />
+                      <Ionicons
+                        name="search"
+                        size={scale(60)}
+                        color={Colors.border}
+                      />
                       <Text style={styles.emptyText}>
                         No leads found for "{searchQuery}"
                       </Text>
                       <Text style={styles.emptySubText}>
                         Searched in: Name, Company and Organization
                       </Text>
-                      <TouchableOpacity onPress={clearSearch} style={styles.emptyActionButton}>
+                      <TouchableOpacity
+                        onPress={clearSearch}
+                        style={styles.emptyActionButton}>
                         <Text style={styles.emptyActionText}>Clear Search</Text>
                       </TouchableOpacity>
                     </>
                   ) : (
                     <>
-                      <MaterialIcons name="group" size={scale(60)} color={Colors.border} />
+                      <MaterialIcons
+                        name="group"
+                        size={scale(60)}
+                        color={Colors.border}
+                      />
                       <Text style={styles.emptyText}>
-                        {filteredLeads.length === 0 && selectStatus !== 'select' 
+                        {filteredLeads.length === 0 && selectStatus !== 'select'
                           ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
-                          : `No leads found in ${actualScreenTitle}`
-                        }
+                          : `No leads found in ${actualScreenTitle}`}
                       </Text>
                       <Text style={styles.emptySubText}>
                         Try changing your filter or sort settings
@@ -719,7 +859,7 @@ const GenericLead = ({
               }
               contentContainerStyle={[
                 styles.listContent,
-                searchQuery.length > 0 && styles.listContentSearch
+                searchQuery.length > 0 && styles.listContentSearch,
               ]}
               refreshControl={
                 <RefreshControl
@@ -732,13 +872,12 @@ const GenericLead = ({
               showsVerticalScrollIndicator={false}
             />
           </View>
-          
+
           {/* Floating Action Button */}
           <TouchableOpacity
             onPress={() => navigation.navigate('AddLeads')}
             style={styles.floatingButton}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             <Text style={styles.floatingButtonText}>+</Text>
           </TouchableOpacity>
         </View>
@@ -821,7 +960,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
@@ -943,7 +1082,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 5,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
     shadowRadius: 3,
     zIndex: 1000,
@@ -959,6 +1098,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
+    
   },
   modalContent: {
     backgroundColor: Colors.background,
@@ -1057,7 +1197,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.2,
     shadowRadius: 1.5,
   },
@@ -1175,6 +1315,25 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: Typography.fontSize.medium,
+  },
+
+  // CALENDAR STYLE
+  calendarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarModalContent: {
+    backgroundColor: '#fff',
+    width: '90%',
+    borderRadius: 10,
+    padding: 10,
+  },
+  calendarCloseButton: {
+    marginTop: 10,
+    alignSelf: 'center',
+    padding: 10,
   },
 });
 
