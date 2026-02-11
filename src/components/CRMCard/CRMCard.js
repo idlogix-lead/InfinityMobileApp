@@ -1,5 +1,5 @@
-// components/CRMCard/CRMCard.js - SAME UI, NO EXPAND
-import React from 'react';
+// components/CRMCard/CRMCard.js
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,8 +10,8 @@ import {
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import moment from 'moment';
+import { useQueryClient } from 'react-query';
 
-/* ================= STATUS CONFIG ================= */
 const STATUS_CONFIG = {
   New: {
     barColor: '#2ECC71',
@@ -44,26 +44,76 @@ const STATUS_CONFIG = {
   },
 };
 
-/* ================= CARD COMPONENT ================= */
 const CRMCard = ({
+  leadId,
   name,
   header,
-  status = 'New',
+  status: propStatus = 'New',
   interactionType,
   dateText,
   phone,
   mail,
-  whatsapp,
   actOnPress,
   onPress,
   email,
-  cellNo,
   count,
   Description,
   company,
-  leadId,
 }) => {
-  const statusUI = STATUS_CONFIG[status] || STATUS_CONFIG.New;
+  const queryClient = useQueryClient();
+  const [currentStatus, setCurrentStatus] = useState(propStatus);
+
+  // Subscribe to query cache changes
+  useEffect(() => {
+    const updateStatusFromCache = () => {
+      if (!leadId) return;
+
+      // Try to get from main leads cache
+      const cachedLeads = queryClient.getQueryData(['leads']);
+      if (Array.isArray(cachedLeads)) {
+        const cachedLead = cachedLeads.find(lead => 
+          lead.id === leadId || lead.AD_User_ID?.id === leadId
+        );
+        if (cachedLead?.LeadStatus?.identifier) {
+          setCurrentStatus(cachedLead.LeadStatus.identifier);
+          return;
+        }
+      }
+
+      // Try to get from status-specific caches
+      const statuses = ['New', 'Working', 'Converted', 'Expired'];
+      for (const status of statuses) {
+        const cachedStatusLeads = queryClient.getQueryData(['leads', { status }]);
+        if (Array.isArray(cachedStatusLeads)) {
+          const cachedLead = cachedStatusLeads.find(lead => 
+            lead.id === leadId || lead.AD_User_ID?.id === leadId
+          );
+          if (cachedLead?.LeadStatus?.identifier) {
+            setCurrentStatus(cachedLead.LeadStatus.identifier);
+            return;
+          }
+        }
+      }
+      
+      setCurrentStatus(propStatus);
+    };
+
+    // Initial update
+    updateStatusFromCache();
+
+    // Subscribe to query cache changes
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event?.query?.queryKey?.[0] === 'leads') {
+        updateStatusFromCache();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [leadId, queryClient, propStatus]);
+
+  const statusUI = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.New;
 
   return (
     <TouchableOpacity 
@@ -72,9 +122,7 @@ const CRMCard = ({
       activeOpacity={0.7}
     >
       <View style={styles.card}>
-        {/* COLLAPSED VIEW - SAME LAYOUT */}
         <View style={styles.row}>
-          {/* LEFT STATUS BAR */}
           <View
             style={[
               styles.statusBar,
@@ -82,7 +130,6 @@ const CRMCard = ({
             ]}
           />
 
-          {/* AVATAR */}
           <Image
             source={{
               uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
@@ -90,7 +137,6 @@ const CRMCard = ({
             style={styles.avatar}
           />
 
-          {/* CENTER CONTENT */}
           <View style={styles.center}>
             <Text style={styles.name}>{name || 'No Name'}</Text>
             <Text style={styles.company}>{header || company || 'No Company'}</Text>
@@ -101,9 +147,7 @@ const CRMCard = ({
             </Text>
           </View>
 
-          {/* RIGHT SIDE */}
           <View style={styles.right}>
-            {/* STATUS BADGE */}
             <View
               style={[
                 styles.badge,
@@ -134,7 +178,6 @@ const CRMCard = ({
               </Text>
             </View>
 
-            {/* ACTION ICONS */}
             <View style={styles.iconRow}>
               {phone && (
                 <TouchableOpacity onPress={phone}>
@@ -156,9 +199,6 @@ const CRMCard = ({
                 </TouchableOpacity>
               )}
 
-            
-
-              {/* ADD ACTIVITY */}
               <TouchableOpacity onPress={actOnPress}>
                 <View style={styles.addActivity}>
                   <Ionicons
@@ -177,14 +217,11 @@ const CRMCard = ({
             </View>
           </View>
         </View>
-        
-        {/* REMOVED: Expand arrow and expanded content */}
       </View>
     </TouchableOpacity>
   );
 };
 
-/* ================= STYLES ================= */
 const styles = StyleSheet.create({
   cardContainer: {
     marginHorizontal: 10,

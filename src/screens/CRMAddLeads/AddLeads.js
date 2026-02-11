@@ -1,5 +1,5 @@
 // screens/AddLeads.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,15 +9,19 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  FlatList,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../../components/CustomHeader';
 import { useAddLeadForm } from '../../hooks/CRMhooks/useAddLeadForm';
-import { useCreateLead, useCampaigns } from '../../services/CRMAPI/useLead';
+import { useCreateLead, useCampaigns, useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import FormSection from '../../components/AddLead/FormSection';
 import FormInput from '../../components/AddLead/LeadForm';
 import SelectPicker from '../../components/AddLead/SelectPicker';
 import { Picker } from '@react-native-picker/picker';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const AddLeads = () => {
   const navigation = useNavigation();
@@ -40,6 +44,11 @@ const AddLeads = () => {
   // Use React Query mutations
   const createLeadMutation = useCreateLead();
   const { data: campaigns = [], isLoading: loadingCampaigns } = useCampaigns();
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+
+  // State for searchable sales rep picker
+  const [showSalesRepModal, setShowSalesRepModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Status options
   const leadStatusOptions = [
@@ -71,6 +80,37 @@ const AddLeads = () => {
   useEffect(() => {
     initializeForm();
   }, [initializeForm]);
+
+  // Filter sales reps based on search query (by name only)
+  const filteredSalesReps = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return salesReps;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return salesReps.filter(rep => 
+      rep.Name && rep.Name.toLowerCase().includes(query)
+    );
+  }, [salesReps, searchQuery]);
+
+  // Get selected sales rep name
+  const selectedRepName = useMemo(() => {
+    if (!formData.salesRep) return '';
+    const rep = salesReps.find(r => r.id === formData.salesRep);
+    return rep ? rep.Name : '';
+  }, [formData.salesRep, salesReps]);
+
+  // Handle sales rep selection
+  const handleSelectSalesRep = (rep) => {
+    updateField('salesRep', rep.id);
+    setShowSalesRepModal(false);
+    setSearchQuery('');
+  };
+
+  // Clear selected sales rep
+  const handleClearSalesRep = () => {
+    updateField('salesRep', '');
+  };
 
   // Handle form submission
   const handleSubmit = async () => {
@@ -108,7 +148,25 @@ const AddLeads = () => {
   };
 
   // Loading state
-  const isLoading = createLeadMutation.isLoading || loadingCampaigns;
+  const isLoading = createLeadMutation.isLoading || loadingCampaigns || loadingSalesReps;
+
+  // Render sales rep item
+  const renderSalesRepItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.repItem,
+        formData.salesRep === item.id && styles.selectedRepItem,
+      ]}
+      onPress={() => handleSelectSalesRep(item)}
+    >
+      <View style={styles.repItemContent}>
+        <Text style={styles.repName}>{item.Name}</Text>
+      </View>
+      {formData.salesRep === item.id && (
+        <Icon name="check" size={20} color="#2F4FE3" />
+      )}
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -118,7 +176,9 @@ const AddLeads = () => {
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#2F4FE3" />
-          <Text style={styles.loadingText}>Creating lead...</Text>
+          <Text style={styles.loadingText}>
+            {createLeadMutation.isLoading ? 'Creating lead...' : 'Loading data...'}
+          </Text>
         </View>
       )}
       
@@ -186,12 +246,38 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
           
-          <FormInput
-            label="Assigned To"
-            value={formData.salesRep}
-            editable={false}
-            placeholder="Auto-filled from your account"
-          />
+          {/* Searchable Sales Representative Picker */}
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerLabel}>Assigned To (Sales Representative)*</Text>
+            <TouchableOpacity
+              style={[
+                styles.salesRepSelector,
+                errors.salesRep && styles.selectorError,
+              ]}
+              onPress={() => setShowSalesRepModal(true)}
+            >
+              {selectedRepName ? (
+                <View style={styles.selectedRepContainer}>
+                  <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleClearSalesRep();
+                    }}
+                  >
+                    <Icon name="close" size={18} color="#666" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={styles.placeholderText}>Select Sales Representative</Text>
+              )}
+              <Icon name="arrow-drop-down" size={24} color="#666" />
+            </TouchableOpacity>
+            {errors.salesRep && (
+              <Text style={styles.errorText}>{errors.salesRep}</Text>
+            )}
+          </View>
           
           <FormInput
             label="Description"
@@ -425,10 +511,10 @@ const AddLeads = () => {
         <TouchableOpacity
           style={[
             styles.submitButton,
-            createLeadMutation.isLoading && styles.submitButtonDisabled,
+            (createLeadMutation.isLoading || !formData.salesRep) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={createLeadMutation.isLoading}
+          disabled={createLeadMutation.isLoading || !formData.salesRep}
         >
           <Text style={styles.submitButtonText}>
             {createLeadMutation.isLoading ? 'Creating...' : 'Create Lead'}
@@ -437,6 +523,80 @@ const AddLeads = () => {
         
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Sales Representative Selection Modal */}
+      <Modal
+        visible={showSalesRepModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSalesRepModal(false);
+          setSearchQuery('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Representative</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSalesRepModal(false);
+                  setSearchQuery('');
+                }}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by name..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus={true}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery('')}
+                  style={styles.clearSearchButton}
+                >
+                  <Icon name="close" size={18} color="#666" />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Sales Representatives List */}
+            <FlatList
+              data={filteredSalesReps}
+              renderItem={renderSalesRepItem}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Icon name="person-off" size={50} color="#ccc" />
+                  <Text style={styles.emptyText}>
+                    {searchQuery.trim() 
+                      ? `No sales representatives found for "${searchQuery}"`
+                      : 'No sales representatives available'}
+                  </Text>
+                </View>
+              }
+              style={styles.repList}
+              contentContainerStyle={styles.repListContent}
+            />
+            
+            {/* Footer */}
+            <View style={styles.modalFooter}>
+              <Text style={styles.footerText}>
+                {filteredSalesReps.length} of {salesReps.length} sales representatives
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -444,7 +604,7 @@ const AddLeads = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#EDEBEB',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -536,6 +696,151 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: 'K2D-Regular',
+  },
+  
+  // Sales Rep Selector Styles
+  salesRepSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+  },
+  selectorError: {
+    borderColor: 'red',
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepText: {
+    fontSize: 14,
+    color: '#000',
+    fontFamily: 'K2D-Regular',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+    flex: 1,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    margin: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
+  },
+  clearSearchButton: {
+    padding: 4,
+  },
+  repList: {
+    maxHeight: 400,
+  },
+  repListContent: {
+    paddingBottom: 16,
+  },
+  repItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  selectedRepItem: {
+    backgroundColor: '#f0f5ff',
+  },
+  repItemContent: {
+    flex: 1,
+  },
+  repName: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
   },
 });
 

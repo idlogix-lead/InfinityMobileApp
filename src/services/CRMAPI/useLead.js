@@ -222,3 +222,30 @@ export const useBusinessPartners = () => {
     retry: 1,
   });
 };
+export const useSalesRepresentatives = (enabled = true) => {
+  return useQuery({
+    queryKey: ['sales-representatives'],
+    queryFn: async () => {
+      try {
+        const data = await crmApiService.getSalesRepresentatives();
+        
+        // SAFETY: Ensure we always return an array
+        if (!Array.isArray(data)) {
+          console.warn('⚠️ useSalesRepresentatives: API returned non-array, converting to array');
+          return [];
+        }
+        
+        console.log(`✅ useSalesRepresentatives success, data length: ${data.length}`);
+        return data;
+      } catch (error) {
+        handleApiError(error, 'useSalesRepresentatives');
+        return []; // Fallback to empty array
+      }
+    },
+    enabled,
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    cacheTime: 1000 * 60 * 20, // 20 minutes
+    retry: 1,
+    retryDelay: 1000,
+  });
+};

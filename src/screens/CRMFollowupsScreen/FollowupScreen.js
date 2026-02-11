@@ -1,5 +1,5 @@
 // screens/CRM/FollowupScreen.js
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -12,11 +12,21 @@ import {
   SafeAreaView,
   Alert,
   Modal,
+  TextInput,
 } from 'react-native';
 import { useFollowups, useUpdateFollowup } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { debounce } from 'lodash';
+
+// Import theme
+import theme from '../../constants/CRMTheme/CRMTheme';
+
+// Destructure theme for easy access
+const { Colors, Typography, Layout } = theme;
+const { scale, verticalScale, spacing } = Layout;
 
 const FollowupScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
@@ -24,6 +34,9 @@ const FollowupScreen = ({ navigation }) => {
   const [sortBy, setSortBy] = useState('startDate'); // 'startDate', 'endDate', 'status'
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
   const [showSortModal, setShowSortModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearchResults, setLocalSearchResults] = useState([]);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   // Hooks
   const { 
@@ -42,6 +55,63 @@ const FollowupScreen = ({ navigation }) => {
     PC: 'Phone Call',
     ME: 'Meeting',
     TA: 'Task',
+  };
+
+  // Enhanced search function
+  const performSearch = useCallback((query, followupsToSearch) => {
+    if (!query || query.trim() === '') {
+      setLocalSearchResults([]);
+      return;
+    }
+    
+    const searchTerm = query.toLowerCase().trim();
+    
+    // Search in followups
+    const results = followupsToSearch.filter(followup => {
+      // 1. Lead Name
+      const leadName = (followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || '').toLowerCase();
+      
+      // 2. Company Name
+      const companyName = (followup.AD_User_ID?.BPName || '').toLowerCase();
+      
+      // 3. Organization Name
+      const orgName = (followup.AD_User_ID?.AD_Org_ID?.identifier || '').toLowerCase();
+      
+      // 4. Description
+      const description = (followup.Description || '').toLowerCase();
+      
+      // 5. Activity Type
+      const activityType = (getActivityTypeName(followup.ContactActivityType?.identifier) || '').toLowerCase();
+      
+      // Search across all fields
+      return leadName.includes(searchTerm) || 
+             companyName.includes(searchTerm) ||
+             orgName.includes(searchTerm) ||
+             description.includes(searchTerm) ||
+             activityType.includes(searchTerm);
+    });
+    
+    setLocalSearchResults(results);
+  }, []);
+
+  // Debounced search handler
+  const debouncedSearch = useCallback(
+    debounce((query, followupsToSearch) => {
+      performSearch(query, followupsToSearch);
+    }, 300),
+    [performSearch]
+  );
+
+  // Handle text change with debounce
+  const handleTextChange = (text) => {
+    setSearchQuery(text);
+  };
+
+  // Clear search
+  const clearSearch = () => {
+    setSearchQuery('');
+    setLocalSearchResults([]);
+    debouncedSearch.cancel();
   };
 
   // Filter followups based on selected tab
@@ -127,6 +197,26 @@ const FollowupScreen = ({ navigation }) => {
     return sorted;
   }, [filteredFollowups, sortBy, sortOrder]);
 
+  // Determine which data to display
+  const displayData = useMemo(() => {
+    // If there's a search query, show local search results
+    if (searchQuery && searchQuery.trim() !== '') {
+      return localSearchResults;
+    }
+    
+    // No search query, show sorted followups
+    return sortedFollowups;
+  }, [sortedFollowups, localSearchResults, searchQuery]);
+
+  // Trigger search when sortedFollowups or searchQuery changes
+  useEffect(() => {
+    if (searchQuery && searchQuery.trim() !== '') {
+      debouncedSearch(searchQuery, sortedFollowups);
+    } else {
+      setLocalSearchResults([]);
+    }
+  }, [searchQuery, sortedFollowups, debouncedSearch]);
+
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
@@ -199,16 +289,16 @@ const FollowupScreen = ({ navigation }) => {
     const typeName = getActivityTypeName(type).toUpperCase();
     switch (typeName) {
       case 'EMAIL':
-        return <MaterialIcons name="email" size={14} color={iconColor} />;
+        return <MaterialIcons name="email" size={scale(14)} color={iconColor} />;
       case 'PHONE CALL':
       case 'PHONE':
-        return <MaterialIcons name="phone" size={14} color={iconColor} />;
+        return <MaterialIcons name="phone" size={scale(14)} color={iconColor} />;
       case 'MEETING':
-        return <MaterialIcons name="people" size={14} color={iconColor} />;
+        return <MaterialIcons name="people" size={scale(14)} color={iconColor} />;
       case 'TASK':
-        return <MaterialIcons name="task-alt" size={14} color={iconColor} />;
+        return <MaterialIcons name="task-alt" size={scale(14)} color={iconColor} />;
       default:
-        return <MaterialIcons name="event" size={14} color={iconColor} />;
+        return <MaterialIcons name="event" size={scale(14)} color={iconColor} />;
     }
   };
 
@@ -216,16 +306,16 @@ const FollowupScreen = ({ navigation }) => {
   const getTabColor = (tabId) => {
     switch (tabId) {
       case 'missed':
-        return '#EF4444';
+        return Colors.error;
       case 'today':
-        return '#3B82F6';
+        return Colors.info;
       case 'completed':
-        return '#10B981';
+        return Colors.success;
       case 'future':
-        return '#F59E0B';
+        return Colors.warning;
       case 'all':
       default:
-        return '#8B5CF6';
+        return Colors.primary;
     }
   };
 
@@ -279,8 +369,8 @@ const FollowupScreen = ({ navigation }) => {
         ]}>
           <MaterialIcons 
             name="check" 
-            size={12} 
-            color="#FFFFFF" 
+            size={scale(12)} 
+            color={Colors.textInverse} 
           />
         </View>
         
@@ -312,7 +402,7 @@ const FollowupScreen = ({ navigation }) => {
           { 
             borderLeftWidth: 1, 
             borderLeftColor: getActivityColor(activityType),
-            borderColor: '#4b4848',
+            borderColor: Colors.borderDark,
           }
         ]}>
           {/* Header Row - Lead Name and Status */}
@@ -340,12 +430,12 @@ const FollowupScreen = ({ navigation }) => {
                 }}
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: isComplete ? '#E6F4EA' : '#FDEAEA' }
+                  { backgroundColor: isComplete ? Colors.successLight : Colors.errorLight }
                 ]}
               >
                 <Text style={[
                   styles.statusText,
-                  { color: isComplete ? '#2E7D32' : '#C62828' }
+                  { color: isComplete ? Colors.success : Colors.error }
                 ]}>
                   {isComplete ? 'Complete' : 'Pending'}
                 </Text>
@@ -365,7 +455,7 @@ const FollowupScreen = ({ navigation }) => {
             <View style={styles.datesContainer}>
               <View style={styles.dateRow}>
                 <View style={styles.dateItem}>
-                  <MaterialIcons name="calendar-today" size={12} color="#666" />
+                  <MaterialIcons name="calendar-today" size={scale(12)} color={Colors.textSecondary} />
                   <Text style={styles.dateLabel}>Start: </Text>
                   <Text style={styles.dateValue}>
                     {moment(item.StartDate).format('DD MMM YY')}
@@ -373,7 +463,7 @@ const FollowupScreen = ({ navigation }) => {
                 </View>
                 <Text style={styles.dateSeparator}>|</Text>
                 <View style={styles.dateItem}>
-                  <MaterialIcons name="calendar-today" size={12} color="#666" />
+                  <MaterialIcons name="calendar-today" size={scale(12)} color={Colors.textSecondary} />
                   <Text style={styles.dateLabel}>End: </Text>
                   <Text style={styles.dateValue}>
                     {item.EndDate ? moment(item.EndDate).format('DD MMM YY') : 'N/A'}
@@ -398,7 +488,7 @@ const FollowupScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.loadingContent}>
-            <ActivityIndicator size="large" color="#2F4FE3" />
+            <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.loadingText}>Loading followups...</Text>
           </View>
         </View>
@@ -409,21 +499,9 @@ const FollowupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header with Title and Sort Button */}
-        <View style={styles.headerContainer}>
+        {/* Title */}
+        <View style={styles.titleContainer}>
           <Text style={styles.title}>Follow ups</Text>
-          <TouchableOpacity 
-            style={styles.sortButton}
-            onPress={() => setShowSortModal(true)}
-          >
-            <MaterialCommunityIcons name="sort" size={20} color="#2F4FE3" />
-            <Text style={styles.sortButtonText}>Sort</Text>
-            <MaterialIcons 
-              name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-              size={14} 
-              color="#2F4FE3" 
-            />
-          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -433,11 +511,57 @@ const FollowupScreen = ({ navigation }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={['#2F4FE3']}
-              tintColor="#2F4FE3"
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
             />
           }
         >
+          {/* SEARCH AND SORT IN ONE ROW */}
+          <View style={styles.searchContainer}>
+            <View style={[
+              styles.searchInputContainer,
+              searchFocused && styles.searchInputContainerFocused
+            ]}>
+              <Ionicons 
+                name="search" 
+                size={scale(20)} 
+                color={Colors.textSecondary} 
+                style={styles.searchIcon} 
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search follow-ups by lead name, company..."
+                placeholderTextColor={Colors.textTertiary}
+                value={searchQuery}
+                onChangeText={handleTextChange}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                returnKeyType="search"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={scale(20)} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Sort Button next to search */}
+            <TouchableOpacity 
+              style={styles.sortButton}
+              onPress={() => setShowSortModal(true)}
+            >
+              <MaterialCommunityIcons name="sort" size={scale(20)} color={Colors.primary} />
+              <Text style={styles.sortButtonText}>Sort</Text>
+              <MaterialIcons 
+                name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
+                size={scale(14)} 
+                color={Colors.primary} 
+              />
+            </TouchableOpacity>
+          </View>
+
           {/* Scrollable Filter Tabs */}
           <ScrollView
             horizontal
@@ -455,22 +579,37 @@ const FollowupScreen = ({ navigation }) => {
             ))}
           </ScrollView>
 
-          {/* Active Filter and Sort Info */}
+          {/* Search and Sort Info */}
           <View style={styles.filterSortInfo}>
-            <Text style={styles.activeFilterText}>
-              {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
-            </Text>
-            <View style={styles.currentSortInfo}>
-              <Text style={styles.sortInfoText}>
-                Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
-              </Text>
-            </View>
+            {searchQuery.length > 0 ? (
+              <View style={styles.searchHeader}>
+                <View>
+                  <Text style={styles.searchHeaderText}>
+                    {displayData.length} matching follow-ups found
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={clearSearch} style={styles.clearSearchButton}>
+                  <Text style={styles.clearSearchText}>Clear Search</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.sortInfoRow}>
+                <Text style={styles.activeFilterText}>
+                  {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+                </Text>
+                <View style={styles.currentSortInfo}>
+                  <Text style={styles.sortInfoText}>
+                    Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Follow-ups List */}
-          {sortedFollowups.length > 0 ? (
+          {displayData.length > 0 ? (
             <FlatList
-              data={sortedFollowups}
+              data={displayData}
               renderItem={renderFollowupCard}
               keyExtractor={(item) => item.id.toString()}
               scrollEnabled={false}
@@ -478,13 +617,30 @@ const FollowupScreen = ({ navigation }) => {
             />
           ) : (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="event-note" size={40} color="#E5E7EB" />
-              <Text style={styles.emptyText}>
-                No {activeFilter !== 'all' ? activeFilter + ' ' : ''}follow-ups
-              </Text>
-              <Text style={styles.emptySubText}>
-                All follow-ups will appear here
-              </Text>
+              {searchQuery.length > 0 ? (
+                <>
+                  <Ionicons name="search" size={scale(40)} color={Colors.border} />
+                  <Text style={styles.emptyText}>
+                    No follow-ups found for "{searchQuery}"
+                  </Text>
+                  <Text style={styles.emptySubText}>
+                    Searched in: Lead name, company, organization, description, and activity type
+                  </Text>
+                  <TouchableOpacity onPress={clearSearch} style={styles.emptyActionButton}>
+                    <Text style={styles.emptyActionText}>Clear Search</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="event-note" size={scale(40)} color={Colors.border} />
+                  <Text style={styles.emptyText}>
+                    No {activeFilter !== 'all' ? activeFilter + ' ' : ''}follow-ups
+                  </Text>
+                  <Text style={styles.emptySubText}>
+                    All follow-ups will appear here
+                  </Text>
+                </>
+              )}
             </View>
           )}
         </ScrollView>
@@ -502,7 +658,7 @@ const FollowupScreen = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Sort Follow-ups</Text>
               <TouchableOpacity onPress={() => setShowSortModal(false)}>
-                <MaterialIcons name="close" size={24} color="#000" />
+                <MaterialIcons name="close" size={scale(24)} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
             
@@ -523,8 +679,8 @@ const FollowupScreen = ({ navigation }) => {
                   <View style={styles.sortOptionContent}>
                     <MaterialCommunityIcons 
                       name={option.icon} 
-                      size={20} 
-                      color={sortBy === option.id ? '#2F4FE3' : '#666'} 
+                      size={scale(20)} 
+                      color={sortBy === option.id ? Colors.primary : Colors.textSecondary} 
                     />
                     <Text style={[
                       styles.sortOptionText,
@@ -536,8 +692,8 @@ const FollowupScreen = ({ navigation }) => {
                   {sortBy === option.id && (
                     <MaterialIcons 
                       name="check" 
-                      size={20} 
-                      color="#2F4FE3" 
+                      size={scale(20)} 
+                      color={Colors.primary} 
                     />
                   )}
                 </TouchableOpacity>
@@ -556,8 +712,8 @@ const FollowupScreen = ({ navigation }) => {
                 </Text>
                 <MaterialIcons 
                   name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-                  size={18} 
-                  color="#2F4FE3" 
+                  size={scale(18)} 
+                  color={Colors.primary} 
                 />
               </TouchableOpacity>
             </View>
@@ -579,51 +735,93 @@ const FollowupScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 5,
-    paddingBottom: 20,
+    padding: spacing.sm,
+    paddingBottom: spacing.md,
   },
-  // Header Styles
-  headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 5,
-    paddingTop: 5,
-    paddingBottom: 8,
-    backgroundColor: '#EDEBEB',
+  // Title Styles
+  titleContainer: {
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+    backgroundColor: Colors.background,
   },
   title: {
-    fontSize: 24,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
+    fontSize: Typography.fontSize.h2,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  // SEARCH AND SORT ROW STYLES
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    paddingHorizontal: spacing.xm,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.round,
+    paddingHorizontal: spacing.md,
+    paddingVertical: verticalScale(6),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    elevation: 2,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  searchInputContainerFocused: {
+    borderColor: Colors.primary,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.fontSize.input,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: spacing.xs,
   },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: Colors.buttonSecondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: Layout.borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 6,
+    borderColor: Colors.borderLight,
+    gap: spacing.xs,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
   sortButtonText: {
-    fontSize: 12,
-    fontFamily: 'K2D-SemiBold',
-    color: '#2F4FE3',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
   },
   loadingContent: {
     flex: 1,
@@ -631,127 +829,179 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 12,
-    fontFamily: 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textSecondary,
+    marginTop: spacing.md,
+    fontFamily: Typography.fontFamily.regular,
   },
   // Filter and Sort Info
   filterSortInfo: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
+  },
+  searchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
+    backgroundColor: Colors.infoLight,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: spacing.xs,
+    marginHorizontal: spacing.xs,
+  },
+  searchHeaderText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+  },
+  searchQueryText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginTop: spacing.xxs,
+  },
+  clearSearchButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: verticalScale(6),
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  clearSearchText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  sortInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
   },
   activeFilterText: {
-    fontSize: 14,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    marginBottom: 4,
-    paddingLeft: 4,
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+    marginBottom: spacing.xs,
   },
   currentSortInfo: {
-    backgroundColor: '#F0F5FF',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginLeft: 4,
+    backgroundColor: Colors.infoLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: verticalScale(4),
+    borderRadius: Layout.borderRadius.md,
   },
   sortInfoText: {
-    fontSize: 11,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-Medium',
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.medium,
   },
   // Tabs Styles
   tabsContainer: {
-    marginBottom: 8,
+    marginBottom: spacing.md,
   },
   tabsContent: {
-    paddingRight: 20,
+    paddingRight: spacing.xl,
     flexDirection: 'row',
     alignItems: 'center',
   },
   filterTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: verticalScale(8),
+    borderRadius: Layout.borderRadius.xl,
+    backgroundColor: Colors.backgroundLight,
+    marginRight: spacing.sm,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderColor: Colors.border,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 1,
     elevation: 1,
-    minWidth: 120,
+    minWidth: scale(105),
   },
   filterTabActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.backgroundLight,
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
   },
   tickContainer: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: scale(20),
+    height: scale(20),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   tickContainerInactive: {
-    backgroundColor: '#6B7280',
+    backgroundColor: Colors.textTertiary,
   },
   filterText: {
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
   },
   filterTextActive: {
-    fontFamily: 'K2D-SemiBold',
+    fontFamily: Typography.fontFamily.semiBold,
   },
   filterTextInactive: {
-    color: '#6B7280',
+    color: Colors.textTertiary,
   },
   // List Styles
   listContent: {
-    paddingTop: 4,
+    paddingTop: spacing.xs,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.xxxl,
+    paddingHorizontal: spacing.xl,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#999',
-    fontFamily: 'K2D-Medium',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  emptySubText: {
-    fontSize: 12,
-    color: '#BBB',
-    fontFamily: 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
     textAlign: 'center',
   },
-  // Card Styles (Updated - Removed Priority)
+  emptySubText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyActionButton: {
+    marginTop: spacing.lg,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.lg,
+  },
+  emptyActionText: {
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
+  },
+  // Card Styles
   followupCard: {
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   cardContent: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.md,
+    padding: spacing.md,
     borderWidth: 0.5,
-    borderColor: '#807e7e',
+    borderColor: Colors.borderDark,
     borderLeftWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    marginBottom: verticalScale(10),
   },
   typeRow: {
     flexDirection: 'row',
@@ -760,48 +1010,48 @@ const styles = StyleSheet.create({
   },
   leadInfo: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   leadName: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
-    marginBottom: 2,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: spacing.xxs,
   },
   iconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: scale(24),
+    height: scale(24),
+    borderRadius: Layout.borderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   typeText: {
-    fontSize: 13,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
   rightSide: {
     alignItems: 'flex-end',
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: verticalScale(3),
+    borderRadius: Layout.borderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statusText: {
-    fontSize: 10,
-    fontFamily: 'K2D-SemiBold',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   descriptionContainer: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   descriptionText: {
-    fontSize: 12,
-    color: '#555',
-    fontFamily: 'K2D-Regular',
-    lineHeight: 16,
+    fontSize: Typography.fontSize.small,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    lineHeight: Typography.lineHeight.small,
   },
   bottomRow: {
     flexDirection: 'row',
@@ -821,118 +1071,118 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dateSeparator: {
-    marginHorizontal: 8,
-    color: '#999',
-    fontSize: 10,
+    marginHorizontal: spacing.sm,
+    color: Colors.textTertiary,
+    fontSize: Typography.fontSize.xsmall,
   },
   dateLabel: {
-    fontSize: 11,
-    color: '#666',
-    fontFamily: 'K2D-Regular',
-    marginLeft: 4,
-    marginRight: 2,
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    marginLeft: spacing.xs,
+    marginRight: spacing.xxs,
   },
   dateValue: {
-    fontSize: 11,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
+    backgroundColor: Colors.backgroundLight,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
+    padding: spacing.xl,
     maxHeight: '60%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   modalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
+    fontSize: Typography.fontSize.h3,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
   },
   sortOptionsList: {
-    maxHeight: 200,
-    marginBottom: 20,
+    maxHeight: verticalScale(200),
+    marginBottom: spacing.xl,
   },
   sortOptionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: verticalScale(14),
+    paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.borderLight,
   },
   sortOptionItemSelected: {
-    backgroundColor: '#f0f7ff',
+    backgroundColor: Colors.infoLight,
     borderLeftWidth: 3,
-    borderLeftColor: '#2F4FE3',
+    borderLeftColor: Colors.primary,
   },
   sortOptionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   sortOptionText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
   },
   sortOptionTextSelected: {
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   sortOrderContainer: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
+    marginBottom: spacing.xl,
+    padding: spacing.lg,
+    backgroundColor: Colors.background,
+    borderRadius: Layout.borderRadius.lg,
   },
   sortOrderLabel: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
-    marginBottom: 8,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   sortOrderButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: Colors.borderLight,
   },
   sortOrderText: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
     flex: 1,
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   closeButton: {
-    backgroundColor: '#2F4FE3',
-    paddingVertical: 14,
-    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: verticalScale(14),
+    borderRadius: Layout.borderRadius.lg,
     alignItems: 'center',
   },
   closeButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
 });
 
