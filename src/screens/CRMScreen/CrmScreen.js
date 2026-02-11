@@ -38,6 +38,7 @@ const screenWidth = Dimensions.get('window').width;
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const scrollViewRef = useRef(null);
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   // Add this useEffect to handle Android back button
   useEffect(() => {
@@ -75,6 +76,20 @@ const CrmScreen = ({ navigation }) => {
     return () => backHandler.remove();
   }, [navigation]);
 
+  // Subscribe to query cache changes for real-time updates
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      // When any leads query is updated, force a re-render
+      if (event?.query?.queryKey?.[0] === 'leads') {
+        setForceUpdate(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [queryClient]);
+
   // Get UI states from CRM store
   const {
     activeTab,
@@ -99,6 +114,16 @@ const CrmScreen = ({ navigation }) => {
     isRefetching: leadsRefetching,
   } = useLeads();
 
+  // Get the latest leads from cache
+  const getLatestLeads = useCallback(() => {
+    // Try to get from main leads cache
+    const cachedLeads = queryClient.getQueryData(['leads']);
+    if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
+      return cachedLeads;
+    }
+    return leads;
+  }, [leads, queryClient]);
+
   const {
     data: followups = [],
     isLoading: followupsLoading,
@@ -118,29 +143,10 @@ const CrmScreen = ({ navigation }) => {
   // Combined refreshing state
   const isRefreshing = leadsRefetching || followupsRefetching || salesRefetching || manualRefreshing;
 
-  // Handle pull-to-refresh
-  const handleRefresh = useCallback(async () => {
-    setManualRefreshing(true);
-    
-    try {
-      await Promise.all([
-        refetchLeads(),
-        refetchFollowups(),
-        refetchSales(),
-      ]);
-      
-      queryClient.invalidateQueries(['leads']);
-      queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['salesOpportunities']);
-    } catch (error) {
-      console.error('Refresh error:', error);
-      Alert.alert('Refresh Failed', 'Could not update data. Please try again.');
-    } finally {
-      setManualRefreshing(false);
-    }
-  }, [refetchLeads, refetchFollowups, refetchSales, queryClient]);
+  // Get the latest leads for display
+  const latestLeads = getLatestLeads();
 
-  // Memoized lead calculations based on displayed leads
+  // Memoized lead calculations based on displayed leads - using latestLeads
   const {
     newLeads,
     convertedLeads,
@@ -148,19 +154,19 @@ const CrmScreen = ({ navigation }) => {
     expiredLeads,
     totalLeads
   } = useMemo(() => {
-    const newLeads = leads.filter(lead => lead?.LeadStatus?.id === 'N');
-    const converted = leads.filter(lead => lead?.LeadStatus?.id === 'C');
-    const working = leads.filter(lead => lead?.LeadStatus?.id === 'W');
-    const expired = leads.filter(lead => lead?.LeadStatus?.id === 'E');
+    const newLeads = latestLeads.filter(lead => lead?.LeadStatus?.id === 'N');
+    const converted = latestLeads.filter(lead => lead?.LeadStatus?.id === 'C');
+    const working = latestLeads.filter(lead => lead?.LeadStatus?.id === 'W');
+    const expired = latestLeads.filter(lead => lead?.LeadStatus?.id === 'E');
 
     return {
       newLeads,
       convertedLeads: converted,
       workingLeads: working,
       expiredLeads: expired,
-      totalLeads: leads.length,
+      totalLeads: latestLeads.length,
     };
-  }, [leads]);
+  }, [latestLeads, forceUpdate]);
 
   // Memoized sales opportunity calculations
   const salesSummary = useMemo(() => {
@@ -223,6 +229,28 @@ const CrmScreen = ({ navigation }) => {
     return { todayFollowups, futureFollowups, missedFollowups };
   }, [followups]);
 
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    setManualRefreshing(true);
+    
+    try {
+      await Promise.all([
+        refetchLeads(),
+        refetchFollowups(),
+        refetchSales(),
+      ]);
+      
+      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries(['salesOpportunities']);
+    } catch (error) {
+      console.error('Refresh error:', error);
+      Alert.alert('Refresh Failed', 'Could not update data. Please try again.');
+    } finally {
+      setManualRefreshing(false);
+    }
+  }, [refetchLeads, refetchFollowups, refetchSales, queryClient]);
+
   // Handle tab press
   const handleTabPress = (tab) => {
     setActiveTab(tab);
@@ -258,7 +286,7 @@ const CrmScreen = ({ navigation }) => {
     
     switch(type) {
       case 'total':
-        filteredLeads = leads;
+        filteredLeads = latestLeads;
         screenTitle = "All Leads";
         screenName = "CrmTotal";
         break;
@@ -278,14 +306,15 @@ const CrmScreen = ({ navigation }) => {
         screenName = "CrmNew";
         break;
       default:
-        filteredLeads = leads;
+        filteredLeads = latestLeads;
         screenTitle = "Leads";
         screenName = "GenericLead";
     }
     
     navigation.navigate(screenName, { 
       leads: filteredLeads,
-      screenTitle: screenTitle
+      screenTitle: screenTitle,
+      timestamp: Date.now() // Add timestamp to force refresh
     });
   };
 
@@ -320,7 +349,8 @@ const CrmScreen = ({ navigation }) => {
     // Navigate to sales opportunities screen
     navigation.navigate('SalesOpportunitiesList', { 
       sales: filteredSales,
-      screenTitle: screenTitle
+      screenTitle: screenTitle,
+      timestamp: Date.now() // Add timestamp to force refresh
     });
   };
 
@@ -328,7 +358,8 @@ const CrmScreen = ({ navigation }) => {
   const handleSalesBlueCardPress = () => {
     navigation.navigate('SalesOpportunitiesList', { 
       sales: salesOpportunities,
-      screenTitle: "All Opportunities"
+      screenTitle: "All Opportunities",
+      timestamp: Date.now() // Add timestamp to force refresh
     });
   };
 
@@ -418,18 +449,19 @@ const CrmScreen = ({ navigation }) => {
                     tintColor="#2F4FE3"
                   />
                 }
+                key={`sales-${forceUpdate}`} // Force re-render on cache update
               >
                 {/* Custom Sales Tab Component */}
                 <SalesTab
-        navigation={navigation}
-        salesSummary={salesSummary}
-        leads={leads}  // Changed from salesOpportunities to leads
-        circularChartData={circularChartData}
-        circularChartLabels={circularChartLabels}
-        isRefreshing={isRefreshing}
-        handleSalesSummaryPress={handleSalesSummaryPress}
-        handleSalesBlueCardPress={handleSalesBlueCardPress}
-      />
+                  navigation={navigation}
+                  salesSummary={salesSummary}
+                  leads={leads}
+                  circularChartData={circularChartData}
+                  circularChartLabels={circularChartLabels}
+                  isRefreshing={isRefreshing}
+                  handleSalesSummaryPress={handleSalesSummaryPress}
+                  handleSalesBlueCardPress={handleSalesBlueCardPress}
+                />
               </ScrollView>
             </View>
           )}
@@ -447,10 +479,11 @@ const CrmScreen = ({ navigation }) => {
                     tintColor="#2F4FE3"
                   />
                 }
+                key={`leads-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* NEW: LeadTab Component */}
+                {/* NEW: LeadTab Component - Pass latestLeads instead of leads */}
                 <LeadTab
-                  leads={leads}
+                  leads={latestLeads}
                   navigation={navigation}
                   isRefreshing={isRefreshing}
                   handleLeadSummaryPress={handleLeadSummaryPress}
@@ -458,6 +491,7 @@ const CrmScreen = ({ navigation }) => {
                   convertedLeads={convertedLeads}
                   workingLeads={workingLeads}
                   newLeads={newLeads}
+                  key={`leadtab-${forceUpdate}`} // Force re-render on cache update
                 />
               </ScrollView>
             </View>
@@ -466,7 +500,10 @@ const CrmScreen = ({ navigation }) => {
           {/* Show FollowupScreen when FollowUps tab is active */}
           {showOverviewCard && (
             <View style={[styles.tabContentContainer, styles.followupsContainer]}>
-              <FollowupScreen navigation={navigation} />
+              <FollowupScreen 
+                navigation={navigation} 
+                key={`followups-${forceUpdate}`} // Force re-render on cache update
+              />
             </View>
           )}
         </View>
@@ -501,7 +538,7 @@ const CrmScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
    container: {
     flex: 1,
-    backgroundColor: 'rgba(240, 241, 245, 1)',
+    backgroundColor: '#EDEBEB',
   },
   tabContentContainer: {
     flex: 1,
@@ -531,7 +568,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#2F4FE3',
     height: '100%',
     width: '33.33%', // Each tab takes 1/3 of the width
- 
     top: 0,
     transition: 'left 0.3s ease-in-out',
   },

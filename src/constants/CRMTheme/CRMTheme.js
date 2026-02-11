@@ -30,8 +30,8 @@ const Colors = {
   primaryDark: '#1C3AC7',
   
   // Background Colors
-  background: '#FFFFFF',
-  backgroundLight: '#F9F9F9',
+  background: '#EDEBEB',
+  backgroundLight: '#ffffff',
   backgroundDark: '#F5F5F5',
   backgroundGrey: '#EDEBEB',
   

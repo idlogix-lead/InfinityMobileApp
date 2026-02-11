@@ -10,11 +10,12 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import CenterCircularChart from '../../components/CRMSearch/CRMChart/SalesChart';
+import CRMCard from '../../components/CRMCard/CRMCard';
 
 const SalesTab = ({
   navigation,
   salesSummary,
-  leads = [], // Changed from salesOpportunities to leads
+  leads = [],
   circularChartData,
   circularChartLabels,
   isRefreshing,
@@ -91,7 +92,7 @@ const SalesTab = ({
     );
   };
 
-  // Render leads list (using leads data from CrmScreen)
+  // Render leads list using CRMCard component
   const renderLeadsList = () => {
     if (!leads || leads.length === 0) {
       return (
@@ -105,33 +106,48 @@ const SalesTab = ({
     return (
       <View style={styles.leadsListContainer}>
         {leads.slice(0, 5).map((lead, index) => (
-          <TouchableOpacity
-            key={lead.id || index}
-            style={styles.leadListItem}
-            onPress={() => navigation.navigate('LeadsDetail', { data: lead })}
-            activeOpacity={0.7}
-          >
-            <View style={styles.listItemContent}>
-              <View style={styles.listItemLeft}>
-                <View style={styles.listItemIcon}>
-                  <Ionicons name="person" size={18} color="#2F4FE3" />
-                </View>
-                <View style={styles.listItemTextContainer}>
-                  <Text style={styles.leadName} numberOfLines={1}>
-                    {lead.Name || lead.ContactName || 'Unnamed Lead'}
-                  </Text>
-                  <Text style={styles.leadDetails} numberOfLines={1}>
-                    {lead.LeadStatus?.identifier || 'No Status'} • 
-                    {lead.EMail || lead.Email || 'No Email'}
-                  </Text>
-                </View>
-              </View>
-              <MaterialIcons name="chevron-right" size={20} color="#999" />
-            </View>
-            {index < Math.min(leads.length - 1, 4) && (
-              <View style={styles.listSeparator} />
-            )}
-          </TouchableOpacity>
+          <View key={lead.id || index} style={styles.cardContainer}>
+            <TouchableOpacity 
+              style={styles.cardTouchable}
+              onPress={() => navigation.navigate('LeadsDetail', { data: lead })}
+              activeOpacity={0.7}
+            >
+              <CRMCard
+                leadId={lead.id}
+                header={lead.AD_Org_ID?.identifier || lead.AD_Client_ID?.identifier}
+                name={lead?.Name || lead?.ContactName}
+                email={lead?.EMail || lead?.Email}
+                cellNo={lead?.Phone}
+                status={lead?.LeadStatus?.identifier}
+                Description={lead?.Description}
+                company={lead.BPName || lead.AD_Client_ID?.identifier || lead.AD_Org_ID?.identifier}
+                mail={() => {
+                  const email = lead?.EMail || lead?.Email;
+                  if (email) {
+                    // Handle mail action
+                    console.log('Mail to:', email);
+                  }
+                }}
+                phone={() => {
+                  const phone = lead?.Phone;
+                  if (phone) {
+                    // Handle phone action
+                    console.log('Call:', phone);
+                  }
+                }}
+                dateText={lead?.Updated || lead?.Created}
+                actOnPress={() => {
+                  navigation.navigate('AddActivity', {
+                    data: lead,
+                    mode: 'create',
+                  });
+                }}
+                onPress={() => {
+                  navigation.navigate('LeadEdit', { data: lead });
+                }}
+              />
+            </TouchableOpacity>
+          </View>
         ))}
         
         {leads.length > 5 && (
@@ -139,10 +155,10 @@ const SalesTab = ({
             style={styles.viewAllButton}
             onPress={() => navigation.navigate('GenericLead', { 
               leads: leads,
-              screenTitle: "All Leads"
+              screenTitle: "All Sales Opportunities"
             })}
           >
-            <Text style={styles.viewAllText}>View All Leads ({leads.length})</Text>
+            <Text style={styles.viewAllText}>View All Opportunities ({leads.length})</Text>
             <MaterialIcons name="arrow-forward" size={18} color="#2F4FE3" />
           </TouchableOpacity>
         )}
@@ -160,16 +176,14 @@ const SalesTab = ({
           isRefreshing={isRefreshing}
         />
 
-     
-
-        {/* Leads List Section */}
-        <View style={styles.leadsSection}>
+        {/* Sales Opportunities Section with CRMCard */}
+        <View style={styles.opportunitiesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Sales Opportunities</Text>
             <TouchableOpacity 
               onPress={() => navigation.navigate('GenericLead', { 
                 leads: leads,
-                screenTitle: "All Leads"
+                screenTitle: "All Sales Opportunities"
               })}
             >
               <Text style={styles.seeAllText}>See All</Text>
@@ -178,7 +192,6 @@ const SalesTab = ({
           
           {renderLeadsList()}
         </View>
-
       </View>
     </ScrollView>
   );
@@ -247,8 +260,8 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     color: '#333',
   },
-  // Leads Section
-  leadsSection: {
+  // Opportunities Section - Updated for CRMCard
+  opportunitiesSection: {
     backgroundColor: '#fff',
     borderRadius: 8,
     marginHorizontal: 5,
@@ -282,51 +295,16 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Medium',
     color: '#2F4FE3',
   },
-  // Leads List
+  // Leads List - CRMCard Container Styles (minimized margins)
   leadsListContainer: {
     paddingVertical: 8,
   },
-  leadListItem: {
-    paddingHorizontal: 16,
+  cardContainer: {
+    marginHorizontal: 4, // Reduced from spacing.xs (4px)
+    marginVertical: 2, // Reduced from spacing.xxs (2px)
   },
-  listItemContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  listItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  listItemIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f0f7ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  listItemTextContainer: {
-    flex: 1,
-  },
-  leadName: {
-    fontSize: 16,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
-    marginBottom: 4,
-  },
-  leadDetails: {
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-  },
-  listSeparator: {
-    height: 1,
-    backgroundColor: '#f5f5f5',
-    marginLeft: 44, // Align with text (icon width + margin)
+  cardTouchable: {
+    // No additional margins
   },
   viewAllButton: {
     flexDirection: 'row',
@@ -336,6 +314,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
     backgroundColor: '#fafafa',
+    marginTop: 8,
   },
   viewAllText: {
     fontSize: 14,

@@ -165,6 +165,7 @@ const buildUrl = (endpoint, filters = {}, customFilter = null) => {
 // CRM API SERVICE
 // ============================================
 const crmApiService = {
+  
   /**
    * Fetch leads with optional filters
    * FIXED: Proper OData filter syntax
@@ -227,6 +228,7 @@ const crmApiService = {
     }
   },
 
+  
   /**
    * Fetch single lead by ID
    */
@@ -242,6 +244,58 @@ const crmApiService = {
       throw error;
     }
   },
+  /**
+ * Fetch sales representatives (AD_Users)
+ */
+getSalesRepresentatives: async (filters = {}) => {
+  try {
+    // Build filter for sales reps (you might want to filter only active users or specific roles)
+    let filterParts = ['IsActive eq true'];
+    
+    // Optionally add role filter if you have a specific sales role
+    // if (filters.salesRole) {
+    //   filterParts.push(`AD_Role_ID/id eq '${filters.salesRole}'`);
+    // }
+    
+    const filterString = filterParts.join(' and ');
+    const url = buildUrl('models/AD_User', {}, filterString);
+    
+    console.log('👥 Sales Reps API URL:', url);
+    
+    const data = await makeRequest(url);
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} sales representatives`);
+    return records;
+  } catch (error) {
+    console.error('Get sales representatives failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
+/**
+ * Unified update lead method - handles both status and other field updates
+ */
+updateLeadUnified: async (leadId, updates) => {
+  try {
+    const url = buildUrl(`models/AD_User/${leadId}`);
+    console.log('✏️ Unified update lead URL:', url, 'Updates:', updates);
+    
+    const data = await makeRequest(url, {
+      method: 'PUT',
+      body: updates,
+    });
+    
+    console.log('✅ Lead updated successfully via unified method');
+    return data;
+  } catch (error) {
+    console.error('Unified update lead failed:', error.message);
+    throw error;
+  }
+},
 /**
  * Create a new location
  */

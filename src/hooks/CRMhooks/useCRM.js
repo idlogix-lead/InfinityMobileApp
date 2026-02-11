@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 import { useAuthStore } from '../../store/authStore';
+import { Alert } from 'react-native';
 
 // ============================================
 // COMMON ERROR HANDLER
@@ -24,6 +25,36 @@ const handleApiError = (error, context) => {
   }
   
   throw error;
+};
+
+// ============================================
+// STATUS MAPPING HELPERS
+// ============================================
+
+// Map status identifier to ID
+export const getStatusId = (statusIdentifier) => {
+  const statusMap = {
+    'New': 'N',
+    'Working': 'W',
+    'Converted': 'C',
+    'Expired': 'E',
+    'N': 'N',
+    'W': 'W',
+    'C': 'C',
+    'E': 'E'
+  };
+  return statusMap[statusIdentifier] || 'N';
+};
+
+// Map status ID to identifier
+export const getStatusIdentifier = (statusId) => {
+  const statusMap = {
+    'N': 'New',
+    'W': 'Working',
+    'C': 'Converted',
+    'E': 'Expired'
+  };
+  return statusMap[statusId] || 'New';
 };
 
 // ============================================
@@ -62,6 +93,48 @@ export const useLeads = (filters = {}, enabled = true) => {
   });
 };
 
+// Hook for fetching leads by status (for category filtering)
+export const useLeadsByStatus = (status, enabled = true) => {
+  console.log('📞 useLeadsByStatus called, status:', status);
+  
+  const filters = {};
+  if (status) {
+    filters.status = status;
+  }
+  
+  const queryClient = useQueryClient();
+  const queryKey = ['leads', status ? { status } : {}];
+  
+  return useQuery({
+    queryKey,
+    queryFn: async () => {
+      console.log(`🔍 Fetching leads with status: ${status || 'All'}`);
+      try {
+        const data = await crmApiService.getLeads(filters);
+        
+        // Process and normalize the data
+        const processedData = (Array.isArray(data) ? data : []).map(lead => ({
+          ...lead,
+          LeadStatus: lead.LeadStatus || { id: 'N', identifier: 'New' },
+          statusId: lead.LeadStatus?.id || 'N',
+          statusLabel: lead.LeadStatus?.identifier || 'New'
+        }));
+        
+        console.log(`✅ Retrieved ${processedData.length} leads for status: ${status || 'All'}`);
+        return processedData;
+      } catch (error) {
+        handleApiError(error, 'useLeadsByStatus');
+        return [];
+      }
+    },
+    enabled,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    cacheTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1,
+    retryDelay: 1000,
+  });
+};
+
 // Hook for fetching lead statistics
 export const useLeadStatistics = (enabled = true) => {
   return useQuery({
@@ -78,27 +151,7 @@ export const useLeadStatistics = (enabled = true) => {
     staleTime: 1000 * 60 * 2, // 2 minutes
   });
 };
-// Add this to your useCRM.js file
-export const useUpdateFollowupStatus = () => {
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: ({ id, isComplete }) => 
-      crmApiService.updateFollowup(id, { IsComplete: isComplete }),
-    onSuccess: (updatedFollowup) => {
-      queryClient.setQueryData(['followups'], (oldData) => {
-        if (!Array.isArray(oldData)) return oldData;
-        
-        return oldData.map(followup => 
-          followup.id === updatedFollowup.id ? { ...followup, ...updatedFollowup } : followup
-        );
-      });
-    },
-    onError: (error) => {
-      handleApiError(error, 'useUpdateFollowupStatus');
-    },
-  });
-};
+
 // Hook for fetching followups
 export const useFollowups = (filters = {}, enabled = true) => {
   return useQuery({
@@ -182,9 +235,23 @@ export const useCreateLead = () => {
   
   return useMutation({
     mutationFn: (leadData) => crmApiService.createLead(leadData),
-    onSuccess: () => {
-      // Invalidate leads queries
-      queryClient.invalidateQueries(['leads']);
+    onSuccess: (newLead) => {
+      console.log('✅ Lead created successfully, updating cache');
+      
+      // Update all leads queries
+      queryClient.setQueriesData(['leads'], (oldData) => {
+        if (!Array.isArray(oldData)) return oldData;
+        return [newLead, ...oldData];
+      });
+      
+      // Update status-specific queries
+      const status = newLead.LeadStatus?.identifier || 'New';
+      queryClient.setQueriesData(['leads', { status }], (oldData) => {
+        if (!Array.isArray(oldData)) return oldData;
+        return [newLead, ...oldData];
+      });
+      
+      // Invalidate statistics
       queryClient.invalidateQueries(['lead-statistics']);
     },
     onError: (error) => {
@@ -199,15 +266,60 @@ export const useUpdateLead = () => {
   
   return useMutation({
     mutationFn: ({ id, updates }) => crmApiService.updateLead(id, updates),
-    onSuccess: (updatedLead) => {
-      // Update leads cache
-      queryClient.setQueryData(['leads'], (oldData) => {
+    onSuccess: (updatedLead, variables) => {
+      console.log('✅ Lead updated successfully, updating cache');
+      
+      // Get old lead data to check if status changed
+      const oldLeads = queryClient.getQueryData(['leads']);
+      let oldStatus = null;
+      
+      if (Array.isArray(oldLeads)) {
+        const oldLead = oldLeads.find(lead => lead.id === variables.id);
+        oldStatus = oldLead?.LeadStatus?.identifier;
+      }
+      
+      const newStatus = updatedLead.LeadStatus?.identifier;
+      const statusChanged = oldStatus && newStatus && oldStatus !== newStatus;
+      
+      // Update all leads cache
+      queryClient.setQueriesData(['leads'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
         
         return oldData.map(lead => 
           lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
         );
       });
+      
+      // Update status-specific queries
+      if (statusChanged) {
+        // Remove from old status cache
+        queryClient.setQueriesData(['leads', { status: oldStatus }], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          return oldData.filter(lead => lead.id !== updatedLead.id);
+        });
+        
+        // Add to new status cache
+        queryClient.setQueriesData(['leads', { status: newStatus }], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          // Check if lead already exists in new status cache
+          const exists = oldData.some(lead => lead.id === updatedLead.id);
+          if (exists) {
+            return oldData.map(lead => 
+              lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
+            );
+          } else {
+            return [...oldData, updatedLead];
+          }
+        });
+      } else {
+        // Just update the status-specific cache
+        queryClient.setQueriesData(['leads', { status: newStatus }], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          return oldData.map(lead => 
+            lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
+          );
+        });
+      }
       
       // Invalidate statistics
       queryClient.invalidateQueries(['lead-statistics']);
@@ -218,9 +330,7 @@ export const useUpdateLead = () => {
   });
 };
 
-
-
-// Mutation for updating lead status 
+// Mutation for updating lead status - UPDATED FOR IMMEDIATE UI UPDATES
 export const useUpdateLeadStatus = () => {
   const queryClient = useQueryClient();
   
@@ -233,44 +343,167 @@ export const useUpdateLeadStatus = () => {
       }
       
       try {
+        const statusId = getStatusId(status);
+        const statusIdentifier = getStatusIdentifier(statusId);
+        
         const response = await crmApiService.updateLeadStatus(leadId, status);
-        console.log('✅ useUpdateLeadStatus success:', response);
-        return { ...response, leadId, status };
+        console.log('✅ useUpdateLeadStatus API success:', response);
+        
+        return { 
+          ...response, 
+          leadId, 
+          status,
+          statusId,
+          statusIdentifier 
+        };
       } catch (error) {
         console.error('❌ useUpdateLeadStatus mutation error:', error);
         throw error;
       }
     },
-    onSuccess: (data, variables) => {
-      console.log('✅ useUpdateLeadStatus onSuccess:', { data, variables });
+    onMutate: async ({ leadId, status }) => {
+      console.log('🔄 Optimistic update for lead status:', { leadId, status });
       
-      // Update leads cache
-      queryClient.setQueryData(['leads'], (oldData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries(['leads']);
+      
+      // Get status IDs
+      const statusId = getStatusId(status);
+      const statusIdentifier = getStatusIdentifier(statusId);
+      
+      // Snapshot the previous value
+      const previousLeads = queryClient.getQueryData(['leads']);
+      
+      // Get old lead data to find previous status
+      let oldStatus = null;
+      if (Array.isArray(previousLeads)) {
+        const oldLead = previousLeads.find(lead => lead.id === leadId || lead.AD_User_ID?.id === leadId);
+        oldStatus = oldLead?.LeadStatus?.identifier;
+      }
+      
+      // Optimistically update all leads caches
+      const optimisticUpdate = (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
         
         return oldData.map(lead => {
-          if (lead.id === variables.leadId || lead.AD_User_ID?.id === variables.leadId) {
-            return { 
-              ...lead, 
-              LeadStatus: { 
-                id: variables.status === 'New' ? 'N' : 
-                     variables.status === 'Working' ? 'W' : 
-                     variables.status === 'Converted' ? 'C' : 
-                     variables.status === 'Expired' ? 'E' : 'N',
-                identifier: variables.status
-              } 
+          if (lead.id === leadId || lead.AD_User_ID?.id === leadId) {
+            return {
+              ...lead,
+              LeadStatus: {
+                id: statusId,
+                identifier: statusIdentifier
+              },
+              statusId: statusId,
+              statusLabel: statusIdentifier
             };
           }
           return lead;
         });
-      });
+      };
       
-      // Invalidate statistics
+      // Update all leads queries
+      queryClient.setQueriesData(['leads'], optimisticUpdate);
+      
+      // Update status-specific queries
+      if (oldStatus && oldStatus !== statusIdentifier) {
+        // Remove from old status cache
+        queryClient.setQueriesData(['leads', { status: oldStatus }], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          return oldData.filter(lead => !(lead.id === leadId || lead.AD_User_ID?.id === leadId));
+        });
+        
+        // Get the updated lead from the main cache
+        const updatedLeads = queryClient.getQueryData(['leads']);
+        let updatedLead = null;
+        if (Array.isArray(updatedLeads)) {
+          updatedLead = updatedLeads.find(lead => lead.id === leadId || lead.AD_User_ID?.id === leadId);
+        }
+        
+        // Add to new status cache
+        if (updatedLead) {
+          queryClient.setQueriesData(['leads', { status: statusIdentifier }], (oldData) => {
+            if (!Array.isArray(oldData)) return [updatedLead];
+            // Check if lead already exists
+            const exists = oldData.some(lead => lead.id === leadId || lead.AD_User_ID?.id === leadId);
+            if (exists) {
+              return oldData.map(lead => 
+                (lead.id === leadId || lead.AD_User_ID?.id === leadId) ? updatedLead : lead
+              );
+            } else {
+              return [...oldData, updatedLead];
+            }
+          });
+        }
+      } else {
+        // Just update the status-specific cache
+        queryClient.setQueriesData(['leads', { status: statusIdentifier }], optimisticUpdate);
+      }
+      
+      // Return context with snapshots
+      return { previousLeads, oldStatus, leadId, newStatus: statusIdentifier };
+    },
+    onSuccess: (data, variables, context) => {
+      console.log('✅ useUpdateLeadStatus onSuccess:', { data, variables, context });
+      
+      // Invalidate statistics to refresh counts
+      queryClient.invalidateQueries(['lead-statistics']);
+      
+      // Show success message
+      Alert.alert('Success', `Lead status updated to ${variables.status} successfully!`);
+    },
+    onError: (error, variables, context) => {
+      console.error('❌ useUpdateLeadStatus onError:', { error, variables, context });
+      
+      // Rollback on error
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+        
+        // Also rollback status-specific queries
+        if (context.oldStatus) {
+          queryClient.invalidateQueries(['leads', { status: context.oldStatus }]);
+        }
+        queryClient.invalidateQueries(['leads', { status: context.newStatus }]);
+      }
+      
+      Alert.alert('Error', `Failed to update status: ${error.message}`);
+    },
+    onSettled: () => {
+      // Always refetch after error or success to ensure consistency
+      queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['lead-statistics']);
     },
-    onError: (error, variables) => {
-      console.error('❌ useUpdateLeadStatus onError:', { error, variables });
-      Alert.alert('Error', `Failed to update status: ${error.message}`);
+  });
+};
+
+// Mutation for updating followup status
+export const useUpdateFollowupStatus = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ id, isComplete }) => 
+      crmApiService.updateFollowup(id, { IsComplete: isComplete }),
+    onMutate: async ({ id, isComplete }) => {
+      await queryClient.cancelQueries(['followups']);
+      
+      const previousFollowups = queryClient.getQueryData(['followups']);
+      
+      queryClient.setQueriesData(['followups'], (oldData) => {
+        if (!Array.isArray(oldData)) return oldData;
+        return oldData.map(followup => 
+          followup.id === id ? { ...followup, IsComplete: isComplete } : followup
+        );
+      });
+      
+      return { previousFollowups };
+    },
+    onError: (error, variables, context) => {
+      if (context?.previousFollowups) {
+        queryClient.setQueryData(['followups'], context.previousFollowups);
+      }
+      handleApiError(error, 'useUpdateFollowupStatus');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['followups']);
     },
   });
 };
@@ -281,9 +514,17 @@ export const useCreateFollowup = () => {
   
   return useMutation({
     mutationFn: (followupData) => crmApiService.createFollowup(followupData),
-    onSuccess: () => {
-      // Invalidate followups queries
-      queryClient.invalidateQueries(['followups']);
+    onSuccess: (newFollowup) => {
+      // Update followups cache
+      queryClient.setQueriesData(['followups'], (oldData) => {
+        if (!Array.isArray(oldData)) return [newFollowup];
+        return [newFollowup, ...oldData];
+      });
+      
+      // Invalidate lead activities
+      if (newFollowup.AD_User_ID?.id) {
+        queryClient.invalidateQueries(['lead-activities', newFollowup.AD_User_ID.id]);
+      }
     },
     onError: (error) => {
       handleApiError(error, 'useCreateFollowup');
@@ -299,13 +540,17 @@ export const useUpdateFollowup = () => {
     mutationFn: ({ id, updates }) => crmApiService.updateFollowup(id, updates),
     onSuccess: (updatedFollowup) => {
       // Update followups cache
-      queryClient.setQueryData(['followups'], (oldData) => {
+      queryClient.setQueriesData(['followups'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
-        
         return oldData.map(followup => 
           followup.id === updatedFollowup.id ? { ...followup, ...updatedFollowup } : followup
         );
       });
+      
+      // Invalidate lead activities
+      if (updatedFollowup.AD_User_ID?.id) {
+        queryClient.invalidateQueries(['lead-activities', updatedFollowup.AD_User_ID.id]);
+      }
     },
     onError: (error) => {
       handleApiError(error, 'useUpdateFollowup');
@@ -319,13 +564,26 @@ export const useDeleteFollowup = () => {
   
   return useMutation({
     mutationFn: (followupId) => crmApiService.deleteFollowup(followupId),
-    onSuccess: (result) => {
+    onSuccess: (result, followupId) => {
+      // Get the deleted followup data to know which lead it belonged to
+      const followups = queryClient.getQueryData(['followups']);
+      let leadId = null;
+      
+      if (Array.isArray(followups)) {
+        const deletedFollowup = followups.find(f => f.id === followupId);
+        leadId = deletedFollowup?.AD_User_ID?.id;
+      }
+      
       // Remove from followups cache
-      queryClient.setQueryData(['followups'], (oldData) => {
+      queryClient.setQueriesData(['followups'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
-        
-        return oldData.filter(followup => followup.id !== result.id);
+        return oldData.filter(followup => followup.id !== followupId);
       });
+      
+      // Invalidate lead activities
+      if (leadId) {
+        queryClient.invalidateQueries(['lead-activities', leadId]);
+      }
     },
     onError: (error) => {
       handleApiError(error, 'useDeleteFollowup');
@@ -349,8 +607,11 @@ export const useCreateSalesOpportunity = () => {
   });
 };
 
+// ============================================
+// SEARCH AND ACTIVITY HOOKS
+// ============================================
+
 // Hook for searching leads
-// In hooks/useCRM.js - Update useSearchLeads hook
 export const useSearchLeads = (searchTerm, enabled = true) => {
   return useQuery({
     queryKey: ['search-leads', searchTerm],
@@ -408,6 +669,10 @@ export const useActivityStatistics = (leadId) => {
   }, [activities]);
 };
 
+// ============================================
+// REFRESH HOOK
+// ============================================
+
 // Hook for refreshing all CRM data
 export const useRefreshCRMData = () => {
   const queryClient = useQueryClient();
@@ -419,7 +684,30 @@ export const useRefreshCRMData = () => {
         query.queryKey[0] === 'leads' ||
         query.queryKey[0] === 'lead-statistics' ||
         query.queryKey[0] === 'followups' ||
-        query.queryKey[0] === 'sales-opportunities'
+        query.queryKey[0] === 'sales-opportunities' ||
+        query.queryKey[0] === 'lead-activities'
     });
   };
+};
+
+export default {
+  useLeads,
+  useLeadsByStatus,
+  useLeadStatistics,
+  useFollowups,
+  useSalesOpportunities,
+  useCreateLead,
+  useUpdateLead,
+  useUpdateLeadStatus,
+  useCreateFollowup,
+  useUpdateFollowup,
+  useDeleteFollowup,
+  useUpdateFollowupStatus,
+  useCreateSalesOpportunity,
+  useSearchLeads,
+  useLeadActivities,
+  useActivityStatistics,
+  useRefreshCRMData,
+  getStatusId,
+  getStatusIdentifier
 };

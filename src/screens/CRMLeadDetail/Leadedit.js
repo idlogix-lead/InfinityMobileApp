@@ -11,16 +11,17 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  FlatList,
+  Modal as RNModal,
 } from 'react-native';
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useMemo} from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {Modal} from 'react-native-paper';
-import {useMutation, useQuery, useQueryClient} from 'react-query';
-import {useAuthStore} from '../../store/authStore';
-import crmApiService from '../../services/CRMAPI/crmApiService';
+import {Menu, Divider} from 'react-native-paper';
+import {useUpdateLead, useLeadStatistics, useLeadActivities} from '../../hooks/CRMhooks/useCRM';
+import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 
 const {width} = Dimensions.get('window');
 
@@ -54,47 +55,98 @@ const STATUS_CONFIG = {
     badgeBg: '#FDECEC',
     badgeColor: '#EA4747',
     showDot: true,
-  },
+  },  
+};
+
+// Tab Component
+const TabButton = ({title, active, onPress}) => (
+  <TouchableOpacity
+    style={[styles.tabButton, active && styles.tabButtonActive]}
+    onPress={onPress}>
+    <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
+      {title}
+    </Text>
+  </TouchableOpacity>
+);
+
+// Activity Item Component
+const ActivityItem = ({activity}) => {
+  const getActivityIcon = (type) => {
+    switch(type) {
+      case 'Phone Call': return 'phone';
+      case 'Email': return 'email';
+      case 'Meeting': return 'calendar';
+      case 'Task': return 'checkbox-marked-circle';
+      default: return 'account';
+    }
+  };
+
+  const getStatusColor = (isComplete) => {
+    return isComplete ? '#2ECC71' : '#F4A623';
+  };
+
+  return (
+    <View style={styles.activityItem}>
+      <View style={styles.activityIconContainer}>
+        <MaterialCommunityIcons 
+          name={getActivityIcon(activity.ContactActivityType?.identifier || 'Task')} 
+          size={24} 
+          color="#2F4FE3" 
+        />
+      </View>
+      <View style={styles.activityContent}>
+        <View style={styles.activityHeader}>
+          <Text style={styles.activityTitle}>{activity.ContactActivityType?.identifier || 'Activity'}</Text>
+          <View style={[styles.activityStatus, { backgroundColor: getStatusColor(activity.IsComplete) + '20' }]}>
+            <Text style={[styles.activityStatusText, { color: getStatusColor(activity.IsComplete) }]}>
+              {activity.IsComplete ? 'Completed' : 'Pending'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.activityDescription} numberOfLines={2}>
+          {activity.Description || 'No description'}
+        </Text>
+        <View style={styles.activityMeta}>
+          <View style={styles.activityMetaItem}>
+            <MaterialCommunityIcons name="calendar" size={14} color="#666" />
+            <Text style={styles.activityMetaText}>
+              {activity.StartDate ? new Date(activity.StartDate).toLocaleDateString() : 'No date'}
+            </Text>
+          </View>
+          {activity.ContactPerson && (
+            <View style={styles.activityMetaItem}>
+              <MaterialCommunityIcons name="account" size={14} color="#666" />
+              <Text style={styles.activityMetaText}>{activity.ContactPerson.identifier}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
 };
 
 const LeadEdit = ({route, navigation}) => {
   const { data: leadData } = route.params;
-  const queryClient = useQueryClient();
   
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('basic');
+  
+  // Use detailed data directly (assuming data is passed from parent)
+  const displayLead = leadData;
 
-  // Fetch lead details
-  const { 
-    data: leadDetails, 
-    isLoading: isLoadingLead,
-    error: leadError,
-    refetch: refetchLead
-  } = useQuery(
-    ['lead', leadData?.id],
-    () => crmApiService.getLeadById(leadData?.id),
-    {
-      enabled: !!leadData?.id,
-      staleTime: 1000 * 60 * 5,
-    }
-  );
-
-  // Use detailed data if available
-  const displayLead = leadDetails || leadData;
-
-  // Section states
-  const [showBasicInfo, setShowBasicInfo] = useState(true);
-  const [showMoreInfo, setShowMoreInfo] = useState(false);
-  const [showCompanyInfo, setShowCompanyInfo] = useState(false);
-  const [showOtherInfo, setShowOtherInfo] = useState(false);
-
-  // Modal states
+  // Menu visibility states
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
   const [bpMenuVisible, setBpMenuVisible] = useState(false);
   const [orgMenuVisible, setOrgMenuVisible] = useState(false);
-  const [leadSourceModalVisible, setLeadSourceModalVisible] = useState(false);
-  const [salesRepMenuVisible, setSalesRepMenuVisible] = useState(false);
-
+  const [leadSourceMenuVisible, setLeadSourceMenuVisible] = useState(false);
+  
+  // Dynamic Sales Rep Modal state
+  const [salesRepModalVisible, setSalesRepModalVisible] = useState(false);
+  const [salesRepSearch, setSalesRepSearch] = useState('');
+  
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -111,8 +163,8 @@ const LeadEdit = ({route, navigation}) => {
     description: '',
     active: true,
     searchKey: '',
-    salesRepId: '1000117',
-    salesRepLabel: 'Muhammad Anwar',
+    salesRepId: '',
+    salesRepLabel: '',
     companyName: '',
     leadSourceDesc: '',
     leadStatusDesc: '',
@@ -122,6 +174,9 @@ const LeadEdit = ({route, navigation}) => {
     leadSourceId: 'CC',
     leadSourceLabel: 'Cold Call',
   });
+
+  // Use dynamic sales representatives
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
 
   // Static dropdown options
   const leadStatusOptions = [
@@ -149,10 +204,29 @@ const LeadEdit = ({route, navigation}) => {
     {id: 'R', identifier: 'Referral'},
   ];
 
-  const salesRepOptions = [
-    {id: '1000117', identifier: 'Muhammad Anwar'},
-    {id: '1000000', identifier: 'STIAdmin'},
-  ];
+  // Use the custom hooks from useCRM
+  const updateLeadMutation = useUpdateLead();
+  const { refetch: refetchLeadStatistics } = useLeadStatistics();
+  const { data: activities = [], isLoading: activitiesLoading } = useLeadActivities(displayLead?.id);
+
+  // Filter sales reps based on search query
+  const filteredSalesReps = useMemo(() => {
+    if (!salesRepSearch.trim()) {
+      return salesReps;
+    }
+    
+    const query = salesRepSearch.toLowerCase();
+    return salesReps.filter(rep => 
+      rep.Name && rep.Name.toLowerCase().includes(query)
+    );
+  }, [salesReps, salesRepSearch]);
+
+  // Get selected sales rep name
+  const selectedRepName = useMemo(() => {
+    if (!formData.salesRepId) return '';
+    const rep = salesReps.find(r => r.id === formData.salesRepId);
+    return rep ? rep.Name : '';
+  }, [formData.salesRepId, salesReps]);
 
   // Initialize form data
   useEffect(() => {
@@ -172,8 +246,8 @@ const LeadEdit = ({route, navigation}) => {
         description: displayLead?.Description || '',
         active: displayLead?.IsActive !== undefined ? displayLead.IsActive : true,
         searchKey: displayLead?.Value || '',
-        salesRepId: displayLead?.SalesRep_ID?.id || '1000117',
-        salesRepLabel: displayLead?.SalesRep_ID?.identifier || 'Muhammad Anwar',
+        salesRepId: displayLead?.SalesRep_ID?.id || '',
+        salesRepLabel: displayLead?.SalesRep_ID?.identifier || '',
         companyName: displayLead?.BPName || '',
         leadSourceDesc: displayLead?.LeadSourceDescription || '',
         leadStatusDesc: displayLead?.LeadStatusDescription || '',
@@ -185,72 +259,6 @@ const LeadEdit = ({route, navigation}) => {
       });
     }
   }, [displayLead]);
-
-  // Update mutation
-  const updateLeadMutation = useMutation({
-    mutationFn: async (updatedData) => {
-      try {
-        const payload = {
-          Name: updatedData.name,
-          EMail: updatedData.email,
-          Phone: updatedData.phone || '',
-          Phone2: updatedData.phone2 || '',
-          Birthday: updatedData.birthday || null,
-          IsSalesLead: updatedData.salesLead,
-          IsVendorLead: updatedData.vendorLead,
-          BPName: updatedData.companyName || '',
-          AD_Org_ID: {
-            id: updatedData.organizationId,
-            identifier: updatedData.organizationLabel
-          },
-          SalesRep_ID: {
-            id: updatedData.salesRepId,
-            identifier: updatedData.salesRepLabel
-          },
-          AD_Client_ID: {
-            id: updatedData.businessPartnerId,
-            identifier: updatedData.businessPartnerLabel
-          },
-          Description: updatedData.description || '',
-          IsActive: updatedData.active,
-          Value: updatedData.searchKey || '',
-          LeadSourceDescription: updatedData.leadSourceDesc || '',
-          LeadStatusDescription: updatedData.leadStatusDesc || '',
-          Comments: updatedData.comments || '',
-          LeadStatus: {
-            id: updatedData.statusId,
-            identifier: updatedData.statusLabel
-          },
-          LeadSource: {
-            id: updatedData.leadSourceId,
-            identifier: updatedData.leadSourceLabel
-          }
-        };
-
-        const response = await crmApiService.updateLead(displayLead.id, payload);
-        return response;
-      } catch (error) {
-        console.error('Update lead error:', error);
-        throw error;
-      }
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries(['leads']);
-      queryClient.invalidateQueries(['lead', displayLead.id]);
-      Alert.alert('Success', 'Lead updated successfully!');
-      setIsEditMode(false);
-      refetchLead();
-    },
-    onError: (error) => {
-      let errorMessage = 'Failed to update lead. Please try again.';
-      if (error.message === 'SESSION_EXPIRED') {
-        errorMessage = 'Your session has expired. Please login again.';
-        const logout = useAuthStore.getState().logout;
-        if (logout) logout();
-      }
-      Alert.alert('Error', errorMessage);
-    },
-  });
 
   const handleSave = () => {
     // Validate required fields
@@ -264,7 +272,57 @@ const LeadEdit = ({route, navigation}) => {
       return;
     }
 
-    updateLeadMutation.mutate(formData);
+    const payload = {
+      Name: formData.name,
+      EMail: formData.email,
+      Phone: formData.phone || '',
+      Phone2: formData.phone2 || '',
+      Birthday: formData.birthday || null,
+      IsSalesLead: formData.salesLead,
+      IsVendorLead: formData.vendorLead,
+      BPName: formData.companyName || '',
+      AD_Org_ID: {
+        id: formData.organizationId,
+        identifier: formData.organizationLabel
+      },
+      SalesRep_ID: formData.salesRepId ? {
+        id: formData.salesRepId,
+        identifier: formData.salesRepLabel
+      } : null,
+      AD_Client_ID: {
+        id: formData.businessPartnerId,
+        identifier: formData.businessPartnerLabel
+      },
+      Description: formData.description || '',
+      IsActive: formData.active,
+      Value: formData.searchKey || '',
+      LeadSourceDescription: formData.leadSourceDesc || '',
+      LeadStatusDescription: formData.leadStatusDesc || '',
+      Comments: formData.comments || '',
+      LeadStatus: {
+        id: formData.statusId,
+        identifier: formData.statusLabel
+      },
+      LeadSource: {
+        id: formData.leadSourceId,
+        identifier: formData.leadSourceLabel
+      }
+    };
+
+    // Use the mutation hook
+    updateLeadMutation.mutate({
+      id: displayLead.id,
+      updates: payload
+    }, {
+      onSuccess: () => {
+        Alert.alert('Success', 'Lead updated successfully!');
+        setIsEditMode(false);
+        refetchLeadStatistics();
+      },
+      onError: (error) => {
+        Alert.alert('Error', error.message || 'Failed to update lead');
+      }
+    });
   };
 
   const handleEditToggle = () => {
@@ -286,32 +344,40 @@ const LeadEdit = ({route, navigation}) => {
     setFormData(prev => ({...prev, [key]: value}));
   };
 
+  // Handle sales rep selection
+  const handleSelectSalesRep = (rep) => {
+    updateFormData('salesRepId', rep.id);
+    updateFormData('salesRepLabel', rep.Name);
+    setSalesRepModalVisible(false);
+    setSalesRepSearch('');
+  };
+
+  // Clear selected sales rep
+  const handleClearSalesRep = () => {
+    updateFormData('salesRepId', '');
+    updateFormData('salesRepLabel', '');
+  };
+
+  // Handle status update
+  const handleStatusUpdate = (statusOption) => {
+    updateFormData('statusId', statusOption.id);
+    updateFormData('statusLabel', statusOption.identifier);
+    setStatusMenuVisible(false);
+  };
+
   // Get current status UI config
   const statusUI = STATUS_CONFIG[formData.statusLabel] || STATUS_CONFIG.New;
 
-  // SIMPLIFIED COMPONENTS
-  const SectionHeader = ({title, expanded, toggle}) => (
-    <TouchableOpacity onPress={toggle} style={styles.SectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <MaterialCommunityIcons
-        name={expanded ? 'chevron-up' : 'chevron-down'}
-        size={25}
-        color={'#ccc'}
-      />
-    </TouchableOpacity>
-  );
-
-  const InfoCard = ({icon, label, value}) => (
-    <View style={styles.infoCard}>
-      <View style={styles.infoCardIcon}>
-        <MaterialCommunityIcons name={icon} size={20} color="#2F4FE3" />
-      </View>
-      <View style={styles.infoCardContent}>
-        <Text style={styles.infoCardLabel}>{label}</Text>
-        <Text style={styles.infoCardValue} numberOfLines={2}>{value || 'Not provided'}</Text>
-      </View>
-    </View>
-  );
+  // Get status config or default for unknown statuses
+  const getStatusConfig = (statusLabel) => {
+    return STATUS_CONFIG[statusLabel] || {
+      barColor: '#6c757d',
+      badgeText: statusLabel || 'Unknown',
+      badgeBg: '#f8f9fa',
+      badgeColor: '#6c757d',
+      showDot: true,
+    };
+  };
 
   // RENDER FUNCTIONS FOR DIFFERENT FIELD TYPES
   const renderTextField = (label, value, key, placeholder, keyboardType = 'default') => {
@@ -369,7 +435,7 @@ const LeadEdit = ({route, navigation}) => {
     );
   };
 
-  const renderDropdownField = (label, value, key, onPress) => {
+  const renderDropdownField = (label, value, key, onPress, disabled = false) => {
     if (!isEditMode) {
       return (
         <View style={styles.viewField}>
@@ -384,10 +450,54 @@ const LeadEdit = ({route, navigation}) => {
         <Text style={styles.label}>{label}</Text>
         <TouchableOpacity
           onPress={onPress}
-          style={styles.dropdownInput}>
+          style={[styles.dropdownInput, disabled && styles.dropdownDisabled]}
+          disabled={disabled}
+        >
           <Text style={{color: value ? '#000' : '#777'}}>
             {value || `Select ${label}`}
           </Text>
+          <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderSalesRepField = () => {
+    if (!isEditMode) {
+      return (
+        <View style={styles.viewField}>
+          <Text style={styles.viewLabel}>Sales Representative:</Text>
+          <Text style={styles.viewValue}>{selectedRepName || 'Not assigned'}</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.editField}>
+        <Text style={styles.label}>Sales Representative</Text>
+        <TouchableOpacity
+          style={[
+            styles.salesRepSelector,
+            !formData.salesRepId && styles.selectorEmpty
+          ]}
+          onPress={() => setSalesRepModalVisible(true)}
+        >
+          {selectedRepName ? (
+            <View style={styles.selectedRepContainer}>
+              <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleClearSalesRep();
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={18} color="#666" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.placeholderText}>Select Sales Representative</Text>
+          )}
           <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
         </TouchableOpacity>
       </View>
@@ -421,27 +531,278 @@ const LeadEdit = ({route, navigation}) => {
     );
   };
 
-  if (isLoadingLead) {
-    return (
-      <View style={styles.loadingContainer}>
-        <CustomHeader 
-          title={displayLead?.Name || 'Lead Details'}
-          LeftIcon="arrow-left"
-          LeftPress={() => navigation.goBack()}
-          RightIcon={null}
-          RightPress={null}
-          MessageNameIcon={null}
-          MessageOnPress={null}
-        />
-        <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color="#2F4FE3" />
-          <Text style={styles.loadingText}>Loading lead details...</Text>
-        </View>
+  // Render sales rep item in modal
+  const renderSalesRepItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.repItem,
+        formData.salesRepId === item.id && styles.selectedRepItem,
+      ]}
+      onPress={() => handleSelectSalesRep(item)}
+    >
+      <View style={styles.repItemContent}>
+        <Text style={styles.repName}>{item.Name}</Text>
+        {item.Email && (
+          <Text style={styles.repEmail}>{item.Email}</Text>
+        )}
       </View>
-    );
-  }
+      {formData.salesRepId === item.id && (
+        <AntDesign name="check" size={20} color="#2F4FE3" />
+      )}
+    </TouchableOpacity>
+  );
 
-  if (leadError || !displayLead) {
+  // Render content based on active tab
+  const renderTabContent = () => {
+    switch(activeTab) {
+      case 'basic':
+        return (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Contact Information</Text>
+            </View>
+            <View style={styles.sectionContent}>
+              {renderTextField(
+                "Phone",
+                formData.phone,
+                'phone',
+                'Enter Phone',
+                'phone-pad'
+              )}
+              
+              {renderTextField(
+                "Secondary Phone",
+                formData.phone2,
+                'phone2',
+                'Secondary Phone',
+                'phone-pad'
+              )}
+              
+              {renderTextField(
+                "Birthday",
+                formData.birthday,
+                'birthday',
+                'YYYY-MM-DD'
+              )}
+              
+              {/* Lead Source Dropdown with Menu */}
+              <View style={styles.editField}>
+                <Text style={styles.label}>Lead Source</Text>
+                <Menu
+                  visible={leadSourceMenuVisible}
+                  onDismiss={() => setLeadSourceMenuVisible(false)}
+                  anchor={
+                    <TouchableOpacity
+                      onPress={() => setLeadSourceMenuVisible(true)}
+                      style={styles.dropdownInput}
+                    >
+                      <Text style={{color: formData.leadSourceLabel ? '#000' : '#777'}}>
+                        {formData.leadSourceLabel || 'Select Lead Source'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
+                    </TouchableOpacity>
+                  }
+                >
+                  {leadSourceOptions.map((option, index) => (
+                    <React.Fragment key={option.id}>
+                      <Menu.Item
+                        onPress={() => {
+                          updateFormData('leadSourceId', option.id);
+                          updateFormData('leadSourceLabel', option.identifier);
+                          setLeadSourceMenuVisible(false);
+                        }}
+                        title={option.identifier}
+                      />
+                      {index < leadSourceOptions.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </Menu>
+              </View>
+              
+              {/* Dynamic Sales Representative Field */}
+              {renderSalesRepField()}
+            </View>
+          </View>
+        );
+        
+      case 'company':
+        return (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Company Information</Text>
+            </View>
+            <View style={styles.sectionContent}>
+              {renderTextField(
+                "Company Name",
+                formData.companyName,
+                'companyName',
+                'Enter company name'
+              )}
+
+              {/* Business Partner Dropdown with Menu */}
+              <View style={styles.editField}>
+                <Text style={styles.label}>Business Partner</Text>
+                <Menu
+                  visible={bpMenuVisible}
+                  onDismiss={() => setBpMenuVisible(false)}
+                  anchor={
+                    <TouchableOpacity
+                      onPress={() => setBpMenuVisible(true)}
+                      style={styles.dropdownInput}
+                    >
+                      <Text style={{color: formData.businessPartnerLabel ? '#000' : '#777'}}>
+                        {formData.businessPartnerLabel || 'Select Business Partner'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
+                    </TouchableOpacity>
+                  }
+                >
+                  {businessPartnerOptions.map((option, index) => (
+                    <React.Fragment key={option.id}>
+                      <Menu.Item
+                        onPress={() => {
+                          updateFormData('businessPartnerId', option.id);
+                          updateFormData('businessPartnerLabel', option.identifier);
+                          setBpMenuVisible(false);
+                        }}
+                        title={option.identifier}
+                      />
+                      {index < businessPartnerOptions.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </Menu>
+              </View>
+
+              {/* Organization Dropdown with Menu */}
+              <View style={styles.editField}>
+                <Text style={styles.label}>Organization</Text>
+                <Menu
+                  visible={orgMenuVisible}
+                  onDismiss={() => setOrgMenuVisible(false)}
+                  anchor={
+                    <TouchableOpacity
+                      onPress={() => setOrgMenuVisible(true)}
+                      style={styles.dropdownInput}
+                    >
+                      <Text style={{color: formData.organizationLabel ? '#000' : '#777'}}>
+                        {formData.organizationLabel || 'Select Organization'}
+                      </Text>
+                      <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
+                    </TouchableOpacity>
+                  }
+                >
+                  {organizationOptions.map((option, index) => (
+                    <React.Fragment key={option.id}>
+                      <Menu.Item
+                        onPress={() => {
+                          updateFormData('organizationId', option.id);
+                          updateFormData('organizationLabel', option.identifier);
+                          setOrgMenuVisible(false);
+                        }}
+                        title={option.identifier}
+                      />
+                      {index < organizationOptions.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </Menu>
+              </View>
+              
+              {renderTextAreaField(
+                "Lead Source Description",
+                formData.leadSourceDesc,
+                'leadSourceDesc',
+                'Enter lead source description'
+              )}
+            </View>
+          </View>
+        );
+        
+      case 'detailed':
+        return (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Detailed Information</Text>
+            </View>
+            <View style={styles.sectionContent}>
+              {renderBooleanField(
+                "Sales Lead",
+                formData.salesLead,
+                'salesLead'
+              )}
+
+              {renderBooleanField(
+                "Vendor Lead",
+                formData.vendorLead,
+                'vendorLead'
+              )}
+
+              {renderTextAreaField(
+                "Description",
+                formData.description,
+                'description',
+                'Enter description'
+              )}
+              
+              {renderTextAreaField(
+                "Comments",
+                formData.comments,
+                'comments',
+                'Enter comments'
+              )}
+            </View>
+          </View>
+        );
+        
+      case 'activities':
+        return (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.activitiesHeader}>
+                <Text style={styles.sectionTitle}>Activity Log</Text>
+                <TouchableOpacity 
+                  style={styles.addActivityButtonSmall}
+                  onPress={handleAddActivity}>
+                  <MaterialCommunityIcons name="plus" size={20} color="#2F4FE3" />
+                  <Text style={styles.addActivityText}>Add Activity</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View style={styles.sectionContent}>
+              {activitiesLoading ? (
+                <View style={styles.loadingActivities}>
+                  <ActivityIndicator size="small" color="#2F4FE3" />
+                  <Text style={styles.loadingText}>Loading activities...</Text>
+                </View>
+              ) : activities.length > 0 ? (
+                <FlatList
+                  data={activities}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({item}) => <ActivityItem activity={item} />}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                  ListFooterComponent={() => <View style={styles.listFooter} />}
+                />
+              ) : (
+                <View style={styles.noActivities}>
+                  <MaterialCommunityIcons name="calendar-blank" size={48} color="#ccc" />
+                  <Text style={styles.noActivitiesText}>No activities found</Text>
+                  <TouchableOpacity 
+                    style={styles.addFirstActivityButton}
+                    onPress={handleAddActivity}>
+                    <Text style={styles.addFirstActivityText}>Add First Activity</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        );
+        
+      default:
+        return null;
+    }
+  };
+
+  if (!displayLead) {
     return (
       <View style={styles.errorContainer}>
         <CustomHeader 
@@ -488,255 +849,192 @@ const LeadEdit = ({route, navigation}) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         
-        {/* LEAD HEADER CARD */}
+        {/* SIMPLIFIED HEADER CARD */}
         <View style={styles.headerCard}>
           <View style={[styles.statusBar, { backgroundColor: statusUI.barColor }]} />
           
           <View style={styles.headerContent}>
-            <View style={styles.avatarSection}>
-              <Image
-                source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
-                style={styles.avatar}
-              />
-              <View style={styles.nameSection}>
-                <Text style={styles.leadName}>{formData.name || 'Unnamed Lead'}</Text>
-                <Text style={styles.leadCompany}>
-                  {formData.organizationLabel || 'No Organization'}
-                </Text>
-              </View>
-            </View>
+            {/* Avatar */}
+            <Image
+              source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+              style={styles.avatar}
+            />
             
-            <TouchableOpacity 
-              style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
-              onPress={() => isEditMode && setStatusMenuVisible(true)}
-              activeOpacity={isEditMode ? 0.7 : 1}
-            >
-              {statusUI.showDot && (
-                <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+            <View style={styles.contactInfoSection}>
+              {/* Lead Name */}
+              <Text style={styles.leadName}>{formData.name || 'Unnamed Lead'}</Text>
+              
+              {/* Email */}
+              {formData.email ? (
+                <View style={styles.contactRow}>
+                  <MaterialCommunityIcons name="email" size={14} color="#666" style={styles.contactIcon} />
+                  <Text style={styles.contactText} numberOfLines={1}>
+                    {formData.email}
+                  </Text>
+                </View>
+              ) : null}
+              
+              {/* Primary Phone */}
+              {formData.phone ? (
+                <View style={styles.contactRow}>
+                  <MaterialCommunityIcons name="phone" size={14} color="#666" style={styles.contactIcon} />
+                  <Text style={styles.contactText}>
+                    {formData.phone}
+                  </Text>
+                </View>
+              ) : null}
+              
+              {/* Company Name */}
+              {formData.companyName ? (
+                <View style={styles.contactRow}>
+                  <MaterialCommunityIcons name="office-building" size={14} color="#666" style={styles.contactIcon} />
+                  <Text style={styles.companyText}>
+                    {formData.companyName}
+                  </Text>
+                </View>
+              ) : null}
+              
+              {/* Sales Representative */}
+              {selectedRepName && (
+                <View style={styles.contactRow}>
+                  <MaterialCommunityIcons name="account" size={14} color="#666" style={styles.contactIcon} />
+                  <Text style={styles.salesRepText}>
+                    Assigned to: {selectedRepName}
+                  </Text>
+                </View>
               )}
-              {statusUI.showCheck && (
-                <AntDesign
-                  name="checkcircle"
-                  size={14}
-                  color={statusUI.badgeColor}
-                  style={{ marginRight: 4 }}
-                />
-              )}
-              <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                {statusUI.badgeText}
-              </Text>
-              {isEditMode && (
-                <MaterialCommunityIcons 
-                  name="chevron-down" 
-                  size={16} 
-                  color={statusUI.badgeColor} 
-                  style={{ marginLeft: 4 }}
-                />
-              )}
-            </TouchableOpacity>
+            </View>
           </View>
           
-          <TouchableOpacity 
-            style={styles.addActivityButton}
-            onPress={handleAddActivity}
-          >
-            <View style={styles.addActivityIcon}>
-              <Ionicons name="alarm-outline" size={28} color="#2F4FE3" />
-              <AntDesign 
-                name="pluscircle" 
-                size={14} 
-                color="#2F4FE3" 
-                style={styles.activityPlus}
-              />
-            </View>
-          </TouchableOpacity>
+          {/* Right Section with Status and Activity */}
+          <View style={styles.rightSection}>
+            {/* Status Dropdown using Menu - Only visible in Edit Mode */}
+            {isEditMode ? (
+              <Menu
+                visible={statusMenuVisible}
+                onDismiss={() => setStatusMenuVisible(false)}
+                anchor={
+                  <TouchableOpacity 
+                    style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
+                    onPress={() => setStatusMenuVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    {statusUI.showDot && (
+                      <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                    )}
+                    {statusUI.showCheck && (
+                      <AntDesign
+                        name="checkcircle"
+                        size={14}
+                        color={statusUI.badgeColor}
+                        style={{ marginRight: 4 }}
+                      />
+                    )}
+                    <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
+                      {statusUI.badgeText}
+                    </Text>
+                    <AntDesign 
+                      name="down" 
+                      size={12} 
+                      color={statusUI.badgeColor} 
+                      style={{ marginLeft: 6 }}
+                    />
+                  </TouchableOpacity>
+                }
+                style={styles.statusMenu}
+              >
+                {leadStatusOptions.map((option, index) => (
+                  <React.Fragment key={option.id}>
+                    <Menu.Item
+                      onPress={() => handleStatusUpdate(option)}
+                      title={option.identifier}
+                      titleStyle={[
+                        styles.menuItemTitle,
+                        formData.statusId === option.id && styles.menuItemSelected
+                      ]}
+                    />
+                    {index < leadStatusOptions.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </Menu>
+            ) : (
+              <View style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}>
+                {statusUI.showDot && (
+                  <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                )}
+                {statusUI.showCheck && (
+                  <AntDesign
+                    name="checkcircle"
+                    size={14}
+                    color={statusUI.badgeColor}
+                    style={{ marginRight: 4 }}
+                  />
+                )}
+                <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
+                  {statusUI.badgeText}
+                </Text>
+              </View>
+            )}
+            
+            {/* Add Activity Button */}
+            <TouchableOpacity 
+              style={styles.addActivityButton}
+              onPress={handleAddActivity}
+            >
+              <View style={styles.addActivityIcon}>
+                <Ionicons name="alarm-outline" size={28} color="#2F4FE3" />
+                <AntDesign 
+                  name="pluscircle" 
+                  size={14} 
+                  color="#2F4FE3" 
+                  style={styles.activityPlus}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Status Description - Only show in edit mode */}
+            {isEditMode && formData.leadStatusDesc ? (
+              <Text style={styles.statusDescription} numberOfLines={1}>
+                {formData.leadStatusDesc}
+              </Text>
+            ) : null}
+          </View>
         </View>
         
         {/* EDIT MODE INDICATOR */}
         {isEditMode && (
           <View style={styles.editModeIndicator}>
             <MaterialCommunityIcons name="pencil" size={14} color="#2F4FE3" />
-            <Text style={styles.editModeText}>Edit Mode - All fields are now editable</Text>
+            <Text style={styles.editModeText}>Edit Mode - All fields are editable</Text>
           </View>
         )}
         
-        {/* QUICK INFO CARDS (View Mode Only) */}
-        {!isEditMode && (
-          <>
-            <View style={styles.quickInfoSection}>
-              <InfoCard 
-                icon="phone"
-                label="Phone"
-                value={formData.phone}
-              />
-              <InfoCard 
-                icon="briefcase"
-                label="Company"
-                value={formData.companyName}
-              />
-            </View>
-            
-            <View style={styles.quickInfoSection}>
-              <InfoCard 
-                icon="source-branch"
-                label="Lead Source"
-                value={formData.leadSourceLabel}
-              />
-              <InfoCard 
-                icon="account-tie"
-                label="Sales Rep"
-                value={formData.salesRepLabel}
-              />
-            </View>
-          </>
-        )}
-        
-        {/* BASIC INFO SECTION */}
-        <View style={styles.sectionCard}>
-          <SectionHeader
-            title="Basic Information"
-            expanded={showBasicInfo}
-            toggle={() => setShowBasicInfo(!showBasicInfo)}
+        {/* TABS */}
+        <View style={styles.tabsContainer}>
+          <TabButton 
+            title="Basic Info" 
+            active={activeTab === 'basic'} 
+            onPress={() => setActiveTab('basic')} 
           />
-          {showBasicInfo && (
-            <View style={styles.sectionContent}>
-              {renderTextField(
-                "Full Name *",
-                formData.name,
-                'name',
-                'Enter Name'
-              )}
-
-              {renderTextField(
-                "Email *",
-                formData.email,
-                'email',
-                'Enter Email',
-                'email-address'
-              )}
-
-              {renderTextField(
-                "Phone",
-                formData.phone,
-                'phone',
-                'Enter Phone',
-                'phone-pad'
-              )}
-            </View>
-          )}
+          <TabButton 
+            title="Company" 
+            active={activeTab === 'company'} 
+            onPress={() => setActiveTab('company')} 
+          />
+          <TabButton 
+            title="Detailed" 
+            active={activeTab === 'detailed'} 
+            onPress={() => setActiveTab('detailed')} 
+          />
+          <TabButton 
+            title="Activities" 
+            active={activeTab === 'activities'} 
+            onPress={() => setActiveTab('activities')} 
+          />
         </View>
         
-        {/* DETAILED INFORMATION SECTION */}
-        <View style={styles.sectionCard}>
-          <SectionHeader
-            title="Detailed Information"
-            expanded={showMoreInfo}
-            toggle={() => setShowMoreInfo(!showMoreInfo)}
-          />
-          {showMoreInfo && (
-            <View style={styles.sectionContent}>
-              {renderTextField(
-                "Secondary Phone",
-                formData.phone2,
-                'phone2',
-                'Secondary Phone',
-                'phone-pad'
-              )}
-
-              {renderBooleanField(
-                "Sales Lead",
-                formData.salesLead,
-                'salesLead'
-              )}
-
-              {renderBooleanField(
-                "Vendor Lead",
-                formData.vendorLead,
-                'vendorLead'
-              )}
-
-              {renderTextAreaField(
-                "Description",
-                formData.description,
-                'description',
-                'Enter description'
-              )}
-            </View>
-          )}
-        </View>
-        
-        {/* COMPANY INFORMATION SECTION */}
-        <View style={styles.sectionCard}>
-          <SectionHeader
-            title="Company Information"
-            expanded={showCompanyInfo}
-            toggle={() => setShowCompanyInfo(!showCompanyInfo)}
-          />
-          {showCompanyInfo && (
-            <View style={styles.sectionContent}>
-              {renderTextField(
-                "Company Name",
-                formData.companyName,
-                'companyName',
-                'Enter company name'
-              )}
-
-              {renderDropdownField(
-                "Business Partner",
-                formData.businessPartnerLabel,
-                'businessPartnerLabel',
-                () => setBpMenuVisible(true)
-              )}
-
-              {renderDropdownField(
-                "Organization",
-                formData.organizationLabel,
-                'organizationLabel',
-                () => setOrgMenuVisible(true)
-              )}
-            </View>
-          )}
-        </View>
-        
-        {/* OTHER INFORMATION SECTION */}
-        <View style={styles.sectionCard}>
-          <SectionHeader
-            title="Other Information"
-            expanded={showOtherInfo}
-            toggle={() => setShowOtherInfo(!showOtherInfo)}
-          />
-          {showOtherInfo && (
-            <View style={styles.sectionContent}>
-              {renderDropdownField(
-                "Lead Source",
-                formData.leadSourceLabel,
-                'leadSourceLabel',
-                () => setLeadSourceModalVisible(true)
-              )}
-
-              {renderTextAreaField(
-                "Lead Source Description",
-                formData.leadSourceDesc,
-                'leadSourceDesc',
-                'Enter lead source description'
-              )}
-
-              {renderDropdownField(
-                "Sales Representative",
-                formData.salesRepLabel,
-                'salesRepLabel',
-                () => setSalesRepMenuVisible(true)
-              )}
-
-              {renderTextAreaField(
-                "Comments",
-                formData.comments,
-                'comments',
-                'Enter comments'
-              )}
-            </View>
-          )}
-        </View>
+        {/* TAB CONTENT */}
+        {renderTabContent()}
         
         {/* ACTION BUTTONS (Edit Mode Only) */}
         {isEditMode && (
@@ -772,198 +1070,95 @@ const LeadEdit = ({route, navigation}) => {
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* MODALS */}
-      {isEditMode && (
-        <>
-          {/* Lead Status Modal */}
-          <Modal
-            visible={statusMenuVisible}
-            onDismiss={() => setStatusMenuVisible(false)}
-            transparent={true}
-            animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Update Lead Status</Text>
-                <ScrollView style={styles.modalScroll}>
-                  {leadStatusOptions.map(item => {
-                    const itemStatusUI = STATUS_CONFIG[item.identifier] || STATUS_CONFIG.New;
-                    return (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={[
-                          styles.modalOption,
-                          formData.statusId === item.id && styles.modalOptionSelected
-                        ]}
-                        onPress={() => {
-                          updateFormData('statusId', item.id);
-                          updateFormData('statusLabel', item.identifier);
-                          setStatusMenuVisible(false);
-                        }}>
-                        <View style={[styles.statusDot, { backgroundColor: itemStatusUI.barColor }]} />
-                        <Text style={styles.modalOptionText}>{item.identifier}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setStatusMenuVisible(false)}>
-                  <Text style={styles.modalCancelBtnTxt}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+      {/* Dynamic Sales Representative Modal */}
+      <RNModal
+        visible={salesRepModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setSalesRepModalVisible(false);
+          setSalesRepSearch('');
+        }}
+      >
+        <View style={styles.salesRepModalOverlay}>
+          <View style={styles.salesRepModalContainer}>
+            <View style={styles.salesRepModalHeader}>
+              <Text style={styles.salesRepModalTitle}>Select Sales Representative</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setSalesRepModalVisible(false);
+                  setSalesRepSearch('');
+                }}
+                style={styles.salesRepCloseButton}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#333" />
+              </TouchableOpacity>
             </View>
-          </Modal>
-
-          {/* Business Partner Modal */}
-          <Modal
-            visible={bpMenuVisible}
-            onDismiss={() => setBpMenuVisible(false)}
-            transparent={true}
-            animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Business Partner</Text>
-                <ScrollView style={styles.modalScroll}>
-                  {businessPartnerOptions.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.modalOption,
-                        formData.businessPartnerId === item.id && styles.modalOptionSelected
-                      ]}
-                      onPress={() => {
-                        updateFormData('businessPartnerId', item.id);
-                        updateFormData('businessPartnerLabel', item.identifier);
-                        setBpMenuVisible(false);
-                      }}>
-                      <Text style={styles.modalOptionText}>{item.identifier}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+            
+            {/* Search Input */}
+            <View style={styles.salesRepSearchContainer}>
+              <MaterialCommunityIcons name="magnify" size={20} color="#666" style={styles.salesRepSearchIcon} />
+              <TextInput
+                style={styles.salesRepSearchInput}
+                placeholder="Search by name..."
+                value={salesRepSearch}
+                onChangeText={setSalesRepSearch}
+                autoFocus={true}
+              />
+              {salesRepSearch.length > 0 && (
                 <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setBpMenuVisible(false)}>
-                  <Text style={styles.modalCancelBtnTxt}>Cancel</Text>
+                  onPress={() => setSalesRepSearch('')}
+                  style={styles.salesRepClearSearchButton}
+                >
+                  <MaterialCommunityIcons name="close" size={18} color="#666" />
                 </TouchableOpacity>
-              </View>
+              )}
             </View>
-          </Modal>
-
-          {/* Lead Source Modal */}
-          <Modal
-            visible={leadSourceModalVisible}
-            onDismiss={() => setLeadSourceModalVisible(false)}
-            transparent={true}
-            animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Lead Source</Text>
-                <ScrollView style={styles.modalScroll}>
-                  {leadSourceOptions.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.modalOption,
-                        formData.leadSourceId === item.id && styles.modalOptionSelected
-                      ]}
-                      onPress={() => {
-                        updateFormData('leadSourceId', item.id);
-                        updateFormData('leadSourceLabel', item.identifier);
-                        setLeadSourceModalVisible(false);
-                      }}>
-                      <Text style={styles.modalOptionText}>{item.identifier}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setLeadSourceModalVisible(false)}>
-                  <Text style={styles.modalCancelBtnTxt}>Cancel</Text>
-                </TouchableOpacity>
+            
+            {/* Sales Representatives List */}
+            {loadingSalesReps ? (
+              <View style={styles.salesRepLoadingContainer}>
+                <ActivityIndicator size="large" color="#2F4FE3" />
+                <Text style={styles.salesRepLoadingText}>Loading sales representatives...</Text>
               </View>
+            ) : (
+              <FlatList
+                data={filteredSalesReps}
+                renderItem={renderSalesRepItem}
+                keyExtractor={(item) => item.id.toString()}
+                ListEmptyComponent={
+                  <View style={styles.salesRepEmptyContainer}>
+                    <MaterialCommunityIcons name="account-off" size={50} color="#ccc" />
+                    <Text style={styles.salesRepEmptyText}>
+                      {salesRepSearch.trim() 
+                        ? `No sales representatives found for "${salesRepSearch}"`
+                        : 'No sales representatives available'}
+                    </Text>
+                  </View>
+                }
+                style={styles.salesRepList}
+                contentContainerStyle={styles.salesRepListContent}
+              />
+            )}
+            
+            {/* Footer */}
+            <View style={styles.salesRepModalFooter}>
+              <Text style={styles.salesRepFooterText}>
+                {filteredSalesReps.length} of {salesReps.length} sales representatives
+              </Text>
             </View>
-          </Modal>
-
-          {/* Sales Rep Modal */}
-          <Modal
-            visible={salesRepMenuVisible}
-            onDismiss={() => setSalesRepMenuVisible(false)}
-            transparent={true}
-            animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Sales Representative</Text>
-                <ScrollView style={styles.modalScroll}>
-                  {salesRepOptions.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.modalOption,
-                        formData.salesRepId === item.id && styles.modalOptionSelected
-                      ]}
-                      onPress={() => {
-                        updateFormData('salesRepId', item.id);
-                        updateFormData('salesRepLabel', item.identifier);
-                        setSalesRepMenuVisible(false);
-                      }}>
-                      <Text style={styles.modalOptionText}>{item.identifier}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setSalesRepMenuVisible(false)}>
-                  <Text style={styles.modalCancelBtnTxt}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-
-          {/* Organization Modal */}
-          <Modal
-            visible={orgMenuVisible}
-            onDismiss={() => setOrgMenuVisible(false)}
-            transparent={true}
-            animationType="slide">
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Organization</Text>
-                <ScrollView style={styles.modalScroll}>
-                  {organizationOptions.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={[
-                        styles.modalOption,
-                        formData.organizationId === item.id && styles.modalOptionSelected
-                      ]}
-                      onPress={() => {
-                        updateFormData('organizationId', item.id);
-                        updateFormData('organizationLabel', item.identifier);
-                        setOrgMenuVisible(false);
-                      }}>
-                      <Text style={styles.modalOptionText}>{item.identifier}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={() => setOrgMenuVisible(false)}>
-                  <Text style={styles.modalCancelBtnTxt}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-        </>
-      )}
+          </View>
+        </View>
+      </RNModal>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#f4f2f8'},
+  container: {flex: 1, backgroundColor: '#EDEBEB'},
   scrollContent: {paddingBottom: 30},
   
-  // Header Card
+  // Simplified Header Card
   headerCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -977,20 +1172,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 120,
   },
   statusBar: {
     width: 6,
     height: '100%',
-    minHeight: 100,
+    minHeight: 120,
   },
   headerContent: {
     flex: 1,
-    padding: 16,
-  },
-  avatarSection: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    padding: 16,
   },
   avatar: {
     width: 50,
@@ -1000,28 +1193,59 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#f0f0f0',
   },
-  nameSection: {
+  contactInfoSection: {
     flex: 1,
+    justifyContent: 'center',
   },
   leadName: {
     fontSize: 18,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
-    marginBottom: 2,
+    marginBottom: 6,
   },
-  leadCompany: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  contactIcon: {
+    marginRight: 6,
+    width: 16,
+  },
+  contactText: {
+    fontSize: 13,
+    fontFamily: 'K2D-Regular',
     color: '#666',
+    flex: 1,
+  },
+  companyText: {
+    fontSize: 13,
+    fontFamily: 'K2D-Medium',
+    color: '#444',
+    flex: 1,
+  },
+  salesRepText: {
+    fontSize: 12,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
+    flex: 1,
+    fontStyle: 'italic',
+  },
+  rightSection: {
+    width: 140,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-start',
+    paddingRight: 16,
+    paddingTop: 16,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 20,
-    marginTop: 4,
+    marginBottom: 12,
+    alignSelf: 'flex-end',
   },
   statusBadgeText: {
     fontSize: 13,
@@ -1033,12 +1257,29 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginRight: 6,
   },
-  
-  // Add Activity Button
+  statusDescription: {
+    fontSize: 11,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
+    marginTop: 4,
+    textAlign: 'right',
+    maxWidth: 120,
+  },
+  statusMenu: {
+    marginTop: 40,
+  },
+  menuItemTitle: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+  },
+  menuItemSelected: {
+    color: '#2F4FE3',
+    fontFamily: 'K2D-SemiBold',
+  },
   addActivityButton: {
-    width: 80,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
   addActivityIcon: {
     position: 'relative',
@@ -1069,48 +1310,36 @@ const styles = StyleSheet.create({
     color: '#2F4FE3',
   },
   
-  // Quick Info Cards
-  quickInfoSection: {
+  // Tabs
+  tabsContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
     marginBottom: 12,
-    gap: 12,
-  },
-  infoCard: {
-    flex: 1,
     backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 10,
+    padding: 4,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
-  infoCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F0F5FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  infoCardContent: {
+  tabButton: {
     flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
   },
-  infoCardLabel: {
-    fontSize: 11,
-    fontFamily: 'K2D-Medium',
-    color: '#999',
-    marginBottom: 2,
+  tabButtonActive: {
+    backgroundColor: '#2F4FE3',
   },
-  infoCardValue: {
+  tabButtonText: {
     fontSize: 14,
     fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    color: '#666',
+  },
+  tabButtonTextActive: {
+    color: '#fff',
   },
   
   // Section Cards
@@ -1126,18 +1355,137 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
   },
-  SectionHeader: {
+  sectionHeader: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'K2D-Bold',
+    color: '#333',
+  },
+  sectionContent: {
+    // Content styles
+  },
+  
+  // Activities Header
+  activitiesHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  addActivityButtonSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F5FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    gap: 6,
+  },
+  addActivityText: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
+    color: '#2F4FE3',
+  },
+  
+  // Activity Items
+  activityItem: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+  },
+  activityIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F0F5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+  },
+  activityStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  activityStatusText: {
+    fontSize: 12,
+    fontFamily: 'K2D-SemiBold',
+  },
+  activityDescription: {
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
     marginBottom: 8,
   },
-  sectionTitle: {
-    fontSize: 16, 
-    fontFamily: 'K2D-SemiBold', 
-    color: '#333'
+  activityMeta: {
+    flexDirection: 'row',
+    gap: 16,
   },
-  sectionContent: {
+  activityMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  activityMetaText: {
+    fontSize: 12,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#f0f0f0',
+    marginVertical: 4,
+  },
+  listFooter: {
+    height: 20,
+  },
+  noActivities: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  noActivitiesText: {
+    fontSize: 16,
+    fontFamily: 'K2D-Medium',
+    color: '#999',
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  addFirstActivityButton: {
+    backgroundColor: '#2F4FE3',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addFirstActivityText: {
+    color: '#fff',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 16,
+  },
+  loadingActivities: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
     marginTop: 8,
   },
   
@@ -1192,9 +1540,170 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  dropdownDisabled: {
+    backgroundColor: '#f0f0f0',
+    opacity: 0.7,
+  },
   textArea: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  
+  // Sales Representative Selector Styles
+  salesRepSelector: {
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectorEmpty: {
+    borderColor: '#ffb3b3',
+    backgroundColor: '#fff5f5',
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepText: {
+    fontSize: 14,
+    color: '#000',
+    fontFamily: 'K2D-Regular',
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+    flex: 1,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  
+  // Sales Representative Modal Styles
+  salesRepModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  salesRepModalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
+  },
+  salesRepModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  salesRepModalTitle: {
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+  },
+  salesRepCloseButton: {
+    padding: 4,
+  },
+  salesRepSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    margin: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9f9f9',
+  },
+  salesRepSearchIcon: {
+    marginRight: 8,
+  },
+  salesRepSearchInput: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
+  },
+  salesRepClearSearchButton: {
+    padding: 4,
+  },
+  salesRepLoadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  salesRepLoadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
+  },
+  salesRepList: {
+    maxHeight: 400,
+  },
+  salesRepListContent: {
+    paddingBottom: 16,
+  },
+  repItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  selectedRepItem: {
+    backgroundColor: '#f0f5ff',
+  },
+  repItemContent: {
+    flex: 1,
+  },
+  repName: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
+    marginBottom: 2,
+  },
+  repEmail: {
+    fontSize: 12,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
+  },
+  salesRepEmptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  salesRepEmptyText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  salesRepModalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    alignItems: 'center',
+  },
+  salesRepFooterText: {
+    fontSize: 12,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
   },
   
   // Action Buttons
@@ -1246,76 +1755,7 @@ const styles = StyleSheet.create({
     height: 30,
   },
   
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    maxHeight: '70%',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  modalScroll: {
-    maxHeight: 300,
-  },
-  modalOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalOptionSelected: {
-    backgroundColor: '#f0f7ff',
-  },
-  modalOptionText: {
-    color: '#333',
-    fontSize: 15,
-    fontFamily: 'K2D-Medium',
-    marginLeft: 12,
-  },
-  modalCancelBtn: {
-    marginTop: 15,
-    backgroundColor: '#6c757d',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modalCancelBtnTxt: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 15,
-  },
-  
   // Loading and Error States
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#f4f2f8',
-  },
-  loadingContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 100,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontFamily: 'K2D-Medium',
-    color: '#555',
-    marginTop: 12,
-  },
   errorContainer: {
     flex: 1,
     backgroundColor: '#f4f2f8',
