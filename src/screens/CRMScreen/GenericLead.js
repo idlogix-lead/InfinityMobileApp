@@ -14,9 +14,9 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { Provider } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
-import { useQueryClient } from 'react-query';
+import {Provider} from 'react-native-paper';
+import {useFocusEffect} from '@react-navigation/native';
+import {useQueryClient} from 'react-query';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -36,6 +36,7 @@ import {debounce} from 'lodash';
 
 // Import single theme file
 import theme from '../../constants/CRMTheme/CRMTheme';
+import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 
 // Destructure theme for easy access
 const {Colors, Typography, Layout} = theme;
@@ -62,16 +63,20 @@ const GenericLead = ({navigation, route}) => {
   const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
   const [localSearchResults, setLocalSearchResults] = useState([]);
   const [forceUpdate, setForceUpdate] = useState(0);
-  
+
   // Sorting state
   const [sortBy, setSortBy] = useState('createdDate');
   const [sortOrder, setSortOrder] = useState('desc');
 
+  const [endDate, setEndDate] = useState(moment().format('YYYY-MM-DD'));
+  const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectDate, setSelectDate] = useState(null);
   // Hooks
   const queryClient = useQueryClient();
-  
-  const { 
-    data: followups = [], 
+
+  const {
+    data: followups = [],
     isLoading: isLoadingFollowups,
     refetch: refetchFollowups,
   } = useFollowups();
@@ -87,11 +92,11 @@ const GenericLead = ({navigation, route}) => {
     refetch: refetchSearch,
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
-  const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
+  const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
 
   // Subscribe to query cache changes for real-time updates
   useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+    const unsubscribe = queryClient.getQueryCache().subscribe(event => {
       // When any leads query is updated, force a re-render
       if (event?.query?.queryKey?.[0] === 'leads') {
         setForceUpdate(prev => prev + 1);
@@ -112,36 +117,39 @@ const GenericLead = ({navigation, route}) => {
       return () => {
         // Cleanup if needed
       };
-    }, [queryClient])
+    }, [queryClient]),
   );
 
   // Get the latest lead data from cache
-  const getLatestLeadData = useCallback((leadId) => {
-    if (!leadId) return null;
-    
-    // Try to get from main leads cache
-    const cachedLeads = queryClient.getQueryData(['leads']);
-    if (Array.isArray(cachedLeads)) {
-      const cachedLead = cachedLeads.find(lead => 
-        lead.id === leadId || lead.AD_User_ID?.id === leadId
-      );
-      if (cachedLead) return cachedLead;
-    }
-    
-    // Try to get from status-specific caches
-    const statuses = ['New', 'Working', 'Converted', 'Expired'];
-    for (const status of statuses) {
-      const cachedStatusLeads = queryClient.getQueryData(['leads', { status }]);
-      if (Array.isArray(cachedStatusLeads)) {
-        const cachedLead = cachedStatusLeads.find(lead => 
-          lead.id === leadId || lead.AD_User_ID?.id === leadId
+  const getLatestLeadData = useCallback(
+    leadId => {
+      if (!leadId) return null;
+
+      // Try to get from main leads cache
+      const cachedLeads = queryClient.getQueryData(['leads']);
+      if (Array.isArray(cachedLeads)) {
+        const cachedLead = cachedLeads.find(
+          lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
         );
         if (cachedLead) return cachedLead;
       }
-    }
-    
-    return null;
-  }, [queryClient]);
+
+      // Try to get from status-specific caches
+      const statuses = ['New', 'Working', 'Converted', 'Expired'];
+      for (const status of statuses) {
+        const cachedStatusLeads = queryClient.getQueryData(['leads', {status}]);
+        if (Array.isArray(cachedStatusLeads)) {
+          const cachedLead = cachedStatusLeads.find(
+            lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
+          );
+          if (cachedLead) return cachedLead;
+        }
+      }
+
+      return null;
+    },
+    [queryClient],
+  );
 
   // Apply local filtering whenever filters change
   useEffect(() => {
@@ -149,13 +157,13 @@ const GenericLead = ({navigation, route}) => {
       setFilteredLeads([]);
       return;
     }
-    
+
     // Get the latest data from cache for all leads
     let filtered = preFilteredLeads.map(lead => {
       const cachedLead = getLatestLeadData(lead.id);
       return cachedLead || lead;
     });
-    
+
     // Apply status filter from modal
     if (selectStatus && selectStatus !== 'select') {
       const statusMap = {
@@ -201,7 +209,14 @@ const GenericLead = ({navigation, route}) => {
     }
 
     setFilteredLeads(filtered);
-  }, [preFilteredLeads, selectStatus, fromDate, toDate, forceUpdate, getLatestLeadData]);
+  }, [
+    preFilteredLeads,
+    selectStatus,
+    fromDate,
+    toDate,
+    forceUpdate,
+    getLatestLeadData,
+  ]);
 
   // Sort leads based on selected sorting option
   const sortedLeads = useMemo(() => {
@@ -226,7 +241,7 @@ const GenericLead = ({navigation, route}) => {
             : bValue.localeCompare(aValue);
 
         case 'status':
-          const statusOrder = { 'N': 1, 'W': 2, 'C': 3, 'E': 4 };
+          const statusOrder = {N: 1, W: 2, C: 3, E: 4};
           aValue = statusOrder[a?.LeadStatus?.id] || 5;
           bValue = statusOrder[b?.LeadStatus?.id] || 5;
           return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
@@ -242,28 +257,33 @@ const GenericLead = ({navigation, route}) => {
   }, [filteredLeads, sortBy, sortOrder]);
 
   // Enhanced search function
-  const performSearch = useCallback((query) => {
-    if (!query || query.trim() === '') {
-      setLocalSearchResults([]);
-      return;
-    }
-    
-    const searchTerm = query.toLowerCase().trim();
-    
-    const results = sortedLeads.filter(lead => {
-      const name = (lead.Name || '').toLowerCase();
-      const companyName = (lead.BPName || '').toLowerCase();
-      const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
-      const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
-      
-      return name.includes(searchTerm) || 
-             companyName.includes(searchTerm) ||
-             orgName.includes(searchTerm) ||
-             clientName.includes(searchTerm);
-    });
-    
-    setLocalSearchResults(results);
-  }, [sortedLeads]);
+  const performSearch = useCallback(
+    query => {
+      if (!query || query.trim() === '') {
+        setLocalSearchResults([]);
+        return;
+      }
+
+      const searchTerm = query.toLowerCase().trim();
+
+      const results = sortedLeads.filter(lead => {
+        const name = (lead.Name || '').toLowerCase();
+        const companyName = (lead.BPName || '').toLowerCase();
+        const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
+        const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
+
+        return (
+          name.includes(searchTerm) ||
+          companyName.includes(searchTerm) ||
+          orgName.includes(searchTerm) ||
+          clientName.includes(searchTerm)
+        );
+      });
+
+      setLocalSearchResults(results);
+    },
+    [sortedLeads],
+  );
 
   // Debounced search handler
   const debouncedSearch = useCallback(
@@ -316,7 +336,7 @@ const GenericLead = ({navigation, route}) => {
         queryClient.invalidateQueries(['leads']),
         queryClient.invalidateQueries(['lead-statistics']),
         refetchFollowups(),
-        refetchStats()
+        refetchStats(),
       ]);
       if (searchQuery.length >= 2) {
         await refetchSearch();
@@ -378,12 +398,12 @@ const GenericLead = ({navigation, route}) => {
   };
 
   // Updated renderLeadCard with live data and leadId
-  const renderLeadCard = (item) => {
+  const renderLeadCard = item => {
     // Get the latest lead data from cache
     const liveLead = getLatestLeadData(item.id) || item;
-    
+
     const userActivity = followups.filter(
-      act => act?.AD_User_ID?.id === liveLead?.id
+      act => act?.AD_User_ID?.id === liveLead?.id,
     );
 
     const lastActivity = [...userActivity].sort(
@@ -396,15 +416,18 @@ const GenericLead = ({navigation, route}) => {
 
     return (
       <View style={styles.cardContainer} key={`${liveLead.id}-${forceUpdate}`}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.cardTouchable}
           onPress={() => {
-            navigation.navigate('LeadsDetail', { data: liveLead });
+            navigation.navigate('LeadsDetail', {data: liveLead});
           }}
           activeOpacity={0.7}>
           <CRMCard
             leadId={liveLead.id} // CRITICAL: Always pass leadId for cache lookup
-            header={liveLead.AD_Org_ID?.identifier || liveLead.AD_Client_ID?.identifier}
+            header={
+              liveLead.AD_Org_ID?.identifier ||
+              liveLead.AD_Client_ID?.identifier
+            }
             name={liveLead?.Name}
             email={liveLead?.EMail}
             cellNo={liveLead?.Phone}
@@ -412,7 +435,11 @@ const GenericLead = ({navigation, route}) => {
             interactionType={lastActivityType}
             status={liveLead?.LeadStatus?.identifier}
             Description={liveLead?.Description}
-            company={liveLead.BPName || liveLead.AD_Client_ID?.identifier || liveLead.AD_Org_ID?.identifier}
+            company={
+              liveLead.BPName ||
+              liveLead.AD_Client_ID?.identifier ||
+              liveLead.AD_Org_ID?.identifier
+            }
             mail={() => handleMail(liveLead?.EMail)}
             phone={() => handlePhone(liveLead?.Phone)}
             dateText={liveLead?.Updated || liveLead?.Created}
@@ -423,7 +450,7 @@ const GenericLead = ({navigation, route}) => {
               });
             }}
             onPress={() => {
-              navigation.navigate('LeadEdit', { data: liveLead });
+              navigation.navigate('LeadEdit', {data: liveLead});
             }}
           />
         </TouchableOpacity>
@@ -478,8 +505,7 @@ const GenericLead = ({navigation, route}) => {
 
               <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-              >
+                contentContainerStyle={styles.scrollContent}>
                 {/* Status Picker */}
                 <Text style={styles.sectionTitle}>Filter by Status</Text>
                 <View style={styles.customPickerContainer}>
@@ -798,9 +824,9 @@ const GenericLead = ({navigation, route}) => {
                   </TouchableOpacity>
                 )}
               </View>
-              
+
               {/* Sort Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.sortButton}
                 onPress={() => setSortVisible(true)}>
                 <MaterialCommunityIcons
@@ -850,12 +876,14 @@ const GenericLead = ({navigation, route}) => {
                 </View>
               )}
             </View>
-            
+
             {/* Leads List */}
             <FlatList
               data={displayData}
-              keyExtractor={(item, index) => `${item.id || index}-${forceUpdate}`}
-              renderItem={({ item }) => renderLeadCard(item)}
+              keyExtractor={(item, index) =>
+                `${item.id || index}-${forceUpdate}`
+              }
+              renderItem={({item}) => renderLeadCard(item)}
               extraData={forceUpdate}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -1140,7 +1168,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
-    
   },
   modalContent: {
     backgroundColor: Colors.background,
