@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
   TextInput,
   Keyboard,
+  ScrollView,
 } from 'react-native';
 import React, {useMemo, useState, useEffect} from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -17,8 +18,9 @@ import dayjs from 'dayjs';
 import ReqHeader from '../../components/ReqHeader';
 import {useWFAct} from '../../hooks/ApprovalHooks/useApproval';
 import {useNavigation} from '@react-navigation/native';
-import {ScrollView} from 'react-native-gesture-handler';
 import {Dropdown} from 'react-native-element-dropdown';
+import {Swipeable} from 'react-native-gesture-handler';
+import {Animated} from 'react-native';
 
 const WFStatusList = ({route}) => {
   const {title} = route.params;
@@ -37,6 +39,25 @@ const WFStatusList = ({route}) => {
   const [wfStatusFilter, setWfStatusFilter] = useState('All Status');
   const [roleFilter, setRoleFilter] = useState('All Role');
 
+  // BACK HANDLER
+  useEffect(() => {
+    const backAction = () => {
+      if (multiSelectMode) {
+        setMultiSelectMode(false);
+        setSelectedIds([]);
+        return true; // prevent default behavior
+      }
+      return false; // allow default behavior
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
+    );
+
+    return () => backHandler.remove();
+  }, [multiSelectMode]);
+
   // DROPDOWN DATA
   const docTypes = useMemo(() => {
     const types = data.map(i => i.C_DocType_ID?.identifier).filter(Boolean);
@@ -53,20 +74,8 @@ const WFStatusList = ({route}) => {
     return ['All Role', ...new Set(roles)];
   }, [data]);
 
-  // TAB FILTER
-  const tabFilteredData = useMemo(() => {
+  const filteredForCount = useMemo(() => {
     return data.filter(item => {
-      if (activeTab === 'APPROVED')
-        return (
-          item.Processed === true && item.WFState?.identifier === 'Completed'
-        );
-      return item.Processed === false;
-    });
-  }, [data, activeTab]);
-
-  // SEARCH + FILTER
-  const filteredData = useMemo(() => {
-    return tabFilteredData.filter(item => {
       const docType = item.C_DocType_ID?.identifier;
       const wfState = item.WFState?.identifier;
       const role = item.AD_Role_ID?.identifier;
@@ -87,6 +96,58 @@ const WFStatusList = ({route}) => {
         return false;
 
       return true;
+    });
+  }, [data, roleFilter, docTypeFilter, wfStatusFilter, search]);
+
+  // TAB FILTER
+  const tabFilteredData = useMemo(() => {
+    return filteredForCount.filter(item => {
+      if (activeTab === 'APPROVED')
+        return (
+          item.Processed === true && item.WFState?.identifier === 'Completed'
+        );
+      return item.Processed === false;
+    });
+  }, [filteredForCount, activeTab]);
+
+  // TAB FILTER COUNT
+  const unapprovedCount = filteredForCount.filter(
+    item => item.Processed === false,
+  ).length;
+  const approvedCount = filteredForCount.filter(
+    item => item.Processed === true && item.WFState?.identifier === 'Completed',
+  ).length;
+
+  // SEARCH + FILTER
+  const filteredData = useMemo(() => {
+    const filtered = tabFilteredData.filter(item => {
+      const docType = item.C_DocType_ID?.identifier;
+      const wfState = item.WFState?.identifier;
+      const role = item.AD_Role_ID?.identifier;
+      const partner = item.party_name?.toLowerCase() || '';
+      const process = item.AD_WF_Process_ID?.identifier?.toLowerCase() || '';
+
+      if (roleFilter !== 'All Role' && role !== roleFilter) return false;
+      if (docTypeFilter !== 'All Doc Type' && docType !== docTypeFilter)
+        return false;
+      if (wfStatusFilter !== 'All Status' && wfState !== wfStatusFilter)
+        return false;
+
+      if (
+        search &&
+        !partner.includes(search.toLowerCase()) &&
+        !process.includes(search.toLowerCase())
+      )
+        return false;
+
+      return true;
+    });
+
+    // Sort by docdate descending (most recent first)
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.docdate).getTime();
+      const dateB = new Date(b.docdate).getTime();
+      return dateB - dateA; // most recent first
     });
   }, [tabFilteredData, docTypeFilter, wfStatusFilter, roleFilter, search]);
 
@@ -127,150 +188,253 @@ const WFStatusList = ({route}) => {
   };
 
   return (
-    <>
+    <View style={{flex: 1, backgroundColor: '#F7F8FA'}}>
       <StatusBar translucent barStyle="dark-content" />
       <ReqHeader title={title} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={{flex: 1, backgroundColor: '#F7F8FA'}}>
           {/* FILTERS */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterBar}>
-            {[roleList, docTypes, wfStatusList].map((list, index) => (
-              <Dropdown
-                style={styles.filterDropdown}
-                containerStyle={styles.dropdownContainer}
-                dropdownPosition="bottom"
-                maxHeight={220}
-                data={list.map(v => ({label: v, value: v}))}
-                labelField="label"
-                valueField="value"
-                value={[roleFilter, docTypeFilter, wfStatusFilter][index]}
-                onChange={i =>
-                  index === 0
-                    ? setRoleFilter(i.value)
-                    : index === 1
-                    ? setDocTypeFilter(i.value)
-                    : setWfStatusFilter(i.value)
-                }
+          <View style={{paddingHorizontal: 12, paddingVertical: 8}}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.filterBar}>
+                {[roleList, docTypes, wfStatusList].map((list, index) => (
+                  <Dropdown
+                    key={index}
+                    style={styles.filterDropdown}
+                    containerStyle={styles.dropdownContainer}
+                    //  TEXT COLORS
+                    selectedTextStyle={styles.dropdownSelectedText}
+                    placeholderStyle={styles.dropdownPlaceholder}
+                    itemTextStyle={styles.dropdownItemText}
+                    ScrollViewProps={{
+                      showVerticalScrollIndicator: false,
+                      nestedScrollEnabled: true,
+                    }}
+                    dropdownPosition="bottom"
+                    maxHeight={220}
+                    data={list.map(v => ({label: v, value: v}))}
+                    labelField="label"
+                    valueField="value"
+                    value={[roleFilter, docTypeFilter, wfStatusFilter][index]}
+                    onChange={i =>
+                      index === 0
+                        ? setRoleFilter(i.value)
+                        : index === 1
+                        ? setDocTypeFilter(i.value)
+                        : setWfStatusFilter(i.value)
+                    }
+                  />
+                ))}
+              </View>
+            </ScrollView>
+            {/* SEARCH */}
+            <View style={styles.searchBox}>
+              <MaterialIcons name="search" size={20} color="#000" />
+              <TextInput
+                placeholder="Search..."
+                value={search}
+                onChangeText={setSearch}
+                style={styles.searchInput}
               />
-            ))}
-          </ScrollView>
-          {/* SEARCH */}
-          <View style={styles.searchBox}>
-            <MaterialIcons name="search" size={20} color="#888" />
-            <TextInput
-              placeholder="Search..."
-              value={search}
-              onChangeText={setSearch}
-              style={styles.searchInput}
-            />
-          </View>
-
-          {/* TABS */}
-          <View style={styles.tabRow}>
-            <TouchableOpacity
-              onPress={() => setActiveTab('UNAPPROVED')}
-              style={[
-                styles.tabBtn,
-                activeTab === 'UNAPPROVED' && styles.tabActive,
-              ]}>
-              <Text
+            </View>
+            {/* APPROVED AND UNAPPROVED TABS */}
+            <View style={styles.tabRow}>
+              <TouchableOpacity
+                onPress={() => setActiveTab('UNAPPROVED')}
                 style={[
-                  styles.tabText,
-                  activeTab === 'UNAPPROVED' && styles.tabActiveText,
+                  styles.tabBtn,
+                  activeTab === 'UNAPPROVED' && styles.tabActive,
                 ]}>
-                Unapproved
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === 'UNAPPROVED' && styles.tabActiveText,
+                  ]}>
+                  Unapproved ({unapprovedCount})
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setActiveTab('APPROVED')}
-              style={[
-                styles.tabBtn,
-                activeTab === 'APPROVED' && styles.tabActive,
-              ]}>
-              <Text
+              <TouchableOpacity
+                onPress={() => setActiveTab('APPROVED')}
                 style={[
-                  styles.tabText,
-                  activeTab === 'APPROVED' && styles.tabActiveText,
+                  styles.tabBtn,
+                  activeTab === 'APPROVED' && styles.tabActive,
                 ]}>
-                Approved
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === 'APPROVED' && styles.tabActiveText,
+                  ]}>
+                  Approved ({approvedCount})
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* EMPTY HANDLER */}
           {filteredData.length === 0 ? (
             <View style={styles.emptyBox}>
-              <MaterialIcons name="inbox" size={60} color="#ccc" />
-              <Text style={styles.emptyText}>No approvals found</Text>
+              <View style={styles.emptyIconWrap}>
+                <MaterialIcons name="inbox" size={80} color="#CBD5E1" />
+              </View>
+              <Text style={styles.emptyTitle}>No Approvals Found</Text>
+              <Text style={styles.emptySub}>
+                You don’t have any tasks. Try adjusting filters or check later.
+              </Text>
             </View>
           ) : (
             <FlatList
               data={filteredData}
-              keyExtractor={i => String(i.Record_ID)}
-              contentContainerStyle={{padding: 12}}
+              keyExtractor={(i, index) => String(i.Record_ID) + index}
+              contentContainerStyle={{padding: 12, marginBottom: 100}}
               renderItem={({item}) => {
                 const process = item.AD_WF_Process_ID?.identifier;
                 const icon = getProcessIcon(process);
                 const date = dayjs(item.docdate).format('DD MMM YYYY');
                 const isSelected = selectedIds.includes(item.Record_ID);
+                const amount = Number(item.TotalLines ?? 0);
 
-                return (
-                  <View style={styles.card}>
-                    {/* CHECKBOX */}
-                    {multiSelectMode && (
-                      <TouchableOpacity
-                        onPress={() => toggleSelect(item.Record_ID)}
-                        style={styles.checkbox}>
-                        <MaterialIcons
-                          name={
-                            isSelected ? 'check-box' : 'check-box-outline-blank'
-                          }
-                          size={22}
-                          color="#2F4FE3"
-                        />
-                      </TouchableOpacity>
-                    )}
-
-                    {/* ICON */}
-                    <View style={styles.iconWrap}>
-                      <MaterialIcons name={icon} size={18} color="#2F4FE3" />
-                    </View>
-
-                    {/* TEXT */}
-                    <TouchableOpacity
-                      style={{flex: 1}}
-                      onPress={() =>
-                        navigation.navigate('WFDetailScreen', {item})
-                      }
-                      onLongPress={() => {
-                        setMultiSelectMode(true);
-                        toggleSelect(item.Record_ID);
+                const renderRightActions = (progress, dragX) => {
+                  const scale = dragX.interpolate({
+                    inputRange: [-100, 0],
+                    outputRange: [1, 0],
+                    extrapolate: 'clamp',
+                  });
+                  return (
+                    <Animated.View
+                      style={{
+                        justifyContent: 'center',
+                        marginRight: 10,
+                        transform: [{scale}],
                       }}>
-                      <Text style={styles.title}>{process}</Text>
-                      <Text style={styles.sub}>{item.party_name}</Text>
-                      <Text style={styles.date}>{date}</Text>
-                    </TouchableOpacity>
+                      <View
+                        style={{
+                          backgroundColor: '#EF4444',
+                          padding: 20,
+                          borderRadius: 8,
+                        }}>
+                        <Text style={{color: '#fff', fontWeight: 'bold'}}>
+                          Reject
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  );
+                };
 
-                    {/* ACTION BUTTONS */}
-                    <View style={styles.actionCol}>
-                      <TouchableOpacity
-                        style={styles.approveBtn}
-                        onPress={() => approveSingle(item)}>
-                        <MaterialIcons name="check" size={18} color="#fff" />
-                      </TouchableOpacity>
+                const renderLeftActions = (progress, dragX) => {
+                  const scale = dragX.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  });
+                  return (
+                    <Animated.View
+                      style={{
+                        justifyContent: 'center',
+                        marginLeft: 10,
+                        transform: [{scale}],
+                      }}>
+                      <View
+                        style={{
+                          backgroundColor: '#22C55E',
+                          padding: 20,
+                          borderRadius: 8,
+                        }}>
+                        <Text style={{color: '#fff', fontWeight: 'bold'}}>
+                          Approve
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  );
+                };
+                return (
+                  <Swipeable
+                    renderLeftActions={renderLeftActions}
+                    renderRightActions={renderRightActions}
+                    onSwipeableLeftOpen={() => approveSingle(item)}
+                    onSwipeableRightOpen={() => rejectSingle(item)}>
+                    <View style={styles.card}>
+                      <View style={styles.cardContent}>
+                        {/* CHECKBOX */}
+                        {multiSelectMode && (
+                          <TouchableOpacity
+                            onPress={() => toggleSelect(item.Record_ID)}
+                            style={styles.checkbox}>
+                            <MaterialIcons
+                              name={
+                                isSelected
+                                  ? 'check-box'
+                                  : 'check-box-outline-blank'
+                              }
+                              size={22}
+                              // color="#2F4FE3"
+                              color={'#222'}
+                            />
+                          </TouchableOpacity>
+                        )}
 
-                      <TouchableOpacity
-                        style={styles.rejectBtn}
-                        onPress={() => rejectSingle(item)}>
-                        <MaterialIcons name="close" size={18} color="#fff" />
-                      </TouchableOpacity>
+                        {/* ICON */}
+                        <View style={styles.iconWrap}>
+                          <MaterialIcons name={icon} size={18} color="#000" />
+                        </View>
+
+                        {/* TEXT */}
+                        <TouchableOpacity
+                          style={{flex: 1}}
+                          onPress={() =>
+                            navigation.navigate('WFDetail', {item})
+                          }
+                          onLongPress={() => {
+                            setMultiSelectMode(true);
+                            toggleSelect(item.Record_ID);
+                          }}>
+                          <Text style={styles.title}>{process}</Text>
+                          <Text style={[styles.sub, {fontSize: 12}]}>
+                            Amount • PKR {amount}
+                          </Text>
+                          <Text style={styles.sub}>
+                            {item.party_name} {'  '}• {'  '}
+                            <Text style={styles.date}>{date}</Text>
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* FORWARD ARROW */}
+                        {/* <MaterialIcons
+                          name="arrow-forward-ios"
+                          size={18}
+                          color="#222"
+                        /> */}
+                      </View>
+
+                      {/* FOOTER BUTTONS */}
+                      {!multiSelectMode && (
+                        <View style={styles.cardFooter}>
+                          <TouchableOpacity
+                            style={styles.approveBtn}
+                            onPress={() => approveSingle(item)}>
+                            {/* <MaterialIcons
+                              name="check"
+                              size={16}
+                              color="#555"
+                            /> */}
+                            <Text style={styles.approveText}>Approve</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.rejectBtn}
+                            onPress={() => rejectSingle(item)}>
+                            {/* <MaterialIcons
+                              name="close"
+                              size={16}
+                              color="#555"
+                            /> */}
+                            <Text style={styles.rejectText}>Reject</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
-                  </View>
+                  </Swipeable>
                 );
               }}
             />
@@ -295,7 +459,7 @@ const WFStatusList = ({route}) => {
           )}
         </View>
       </TouchableWithoutFeedback>
-    </>
+    </View>
   );
 };
 
@@ -304,112 +468,256 @@ export default WFStatusList;
 /* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
+  filterBar: {
+    paddingHorizontal: '3%',
+    gap: 8,
+    flexDirection: 'row',
+    marginVertical: 4,
+  },
+  filterDropdown: {
+    height: 38,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 50,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
   dropdownContainer: {
     borderRadius: 12,
-    elevation: 8,
-    zIndex: 9999, // Android fix
-    position: 'absolute', // prevent pushing layout
+    elevation: 10,
+    zIndex: 9999,
+    backgroundColor: '#fff',
+  },
+
+  dropdownSelectedText: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontFamily: 'K2D-SemiBold',
+  },
+
+  dropdownPlaceholder: {
+    color: '#555', // placeholder gray
+    fontSize: 13,
+    fontFamily: 'K2D-Medium',
+  },
+
+  dropdownItemText: {
+    color: '#666', //  OPTIONS TEXT GRAY
+    fontSize: 13,
+    fontFamily: 'K2D-Medium',
+    lineHeight: 20,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingHorizontal:"5%",
-    marginHorizontal: '5%',
-    bottom:6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 50,
+    paddingHorizontal: 16,
+    marginHorizontal: 12,
+    marginTop: 12,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
-    height: 40,
   },
-  searchInput: {flex: 1, marginLeft: 8, fontSize: 14},
-
-  tabRow: {flexDirection: 'row', paddingHorizontal: 12, marginBottom: 6},
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#0F172A',
+    fontFamily: 'K2D-Medium',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    marginTop: 16,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 50,
+    padding: 4,
+  },
   tabBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: '#EEE',
-    marginRight: 8,
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 50,
   },
-  tabActive: {backgroundColor: '#2F4FE3'},
-  tabText: {fontSize: 13, color: '#555'},
-  tabActiveText: {color: '#fff', fontWeight: '700'},
-  filterBar: {
-    paddingHorizontal: 12,
-    // marginBottom: 4, // small spacing only
+
+  tabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  filterDropdown: {
-    height: 36,
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    elevation: 2,
-    marginRight: 8,
-  },
+
+  tabText: {fontSize: 13, color: '#222', fontFamily: 'K2D-SemiBold'},
+  tabActiveText: {color: '#222', fontFamily: 'K2D-SemiBold', fontSize: 13},
 
   emptyBox: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 100,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 20,
+    marginTop: '30%',
   },
-  emptyText: {fontSize: 16, color: '#999', marginTop: 10},
 
-  card: {
-    flexDirection: 'row',
+  emptyIconWrap: {
+    backgroundColor: '#E2E8F0',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-    elevation: 2,
+    justifyContent: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 5,
   },
+
+  emptyTitle: {
+    fontSize: 18,
+    color: '#0F172A',
+    fontFamily: 'K2D-SemiBold',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+
+  emptySub: {
+    fontSize: 14,
+    color: '#64748B',
+    fontFamily: 'K2D-Medium',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  cardContent: {flexDirection: 'row', alignItems: 'center'},
 
   checkbox: {marginRight: 8},
-
   iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F2F5FF',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
+  },
+  title: {
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
+    color: '#0F172A',
   },
 
-  title: {fontSize: 15, fontWeight: '600'},
-  sub: {fontSize: 13, color: '#555'},
-  date: {fontSize: 12, color: '#999'},
+  sub: {
+    fontSize: 13,
+    fontFamily: 'K2D-Medium',
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  date: {
+    fontSize: 12,
+    fontFamily: 'K2D-Medium',
+    color: '#94A3B8',
+  },
 
   actionCol: {flexDirection: 'column', marginLeft: 8},
-  approveBtn: {
-    backgroundColor: '#22C55E',
-    padding: 6,
-    borderRadius: 6,
-    marginBottom: 6,
-  },
-  rejectBtn: {backgroundColor: '#EF4444', padding: 6, borderRadius: 6},
 
+  cardFooter: {
+    flexDirection: 'row',
+    marginTop: 14,
+    gap: 12,
+  },
+  approveBtn: {
+    flex: 1,
+    backgroundColor: '#DCFCE7',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+
+  approveText: {
+    color: '#16A34A',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 13,
+  },
+
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#FEE2E2',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+
+  rejectText: {
+    color: '#DC2626',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 13,
+  },
   multiBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 5,
+    // left: 20,
+    // right: 20,
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    elevation: 10,
+    backgroundColor: '#FFFFFF',
+    // borderRadius: 16,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    gap: 10,
   },
   multiApprove: {
     flex: 1,
-    backgroundColor: '#22C55E',
-    padding: 14,
+    backgroundColor: '#16A34A',
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
+    marginLeft: 10,
   },
+
   multiReject: {
     flex: 1,
-    backgroundColor: '#EF4444',
-    padding: 14,
+    backgroundColor: '#DC2626',
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
+    marginRight: 10,
   },
-  multiText: {color: '#fff', fontWeight: '700'},
+
+  multiText: {
+    color: '#FFFFFF',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 14,
+  },
 });

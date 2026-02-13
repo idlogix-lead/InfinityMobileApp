@@ -76,6 +76,7 @@ import WFStatusList from '../../screens/Approvals/WFStatusList';
 import MyTasks from '../../screens/Requests/MyTasks';
 import LeadEdit from '../../screens/CRMLeadDetail/Leadedit';
 import GenericLead from '../../screens/CRMScreen/GenericLead';
+import WFDetail from '../../screens/Approvals/WFDetail';
 
 
 const Stack = createNativeStackNavigator();
@@ -177,6 +178,7 @@ const AppNavigator = () => {
 
       <Stack.Screen name="approvals" component={Approvals} />
       <Stack.Screen name="WFStatusList" component={WFStatusList} />
+      <Stack.Screen name="WFDetail" component={WFDetail} />
       {/* JUST FOR PRACTICE */}
     </Stack.Navigator>
   );
