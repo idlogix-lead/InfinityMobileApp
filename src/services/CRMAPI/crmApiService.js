@@ -389,7 +389,38 @@ createLocation: async (locationData) => {
       throw error;
     }
   },
-
+/**
+ * Fetch completed activities for a specific lead
+ */
+getCompletedLeadActivities: async (leadId) => {
+  try {
+    if (!leadId) return [];
+    
+    // Build filter for completed activities of this specific lead
+    const filterParts = [
+      `AD_User_ID eq ${leadId}`,
+      `IsComplete eq true`
+    ];
+    
+    const filterString = filterParts.join(' and ');
+    const url = buildUrl('models/C_ContactActivity', {}, filterString);
+    
+    console.log('🔍 Completed Activities API URL:', url);
+    
+    const data = await makeRequest(url);
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} completed activities for lead ${leadId}`);
+    return records;
+  } catch (error) {
+    console.error('Get completed lead activities failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
   /**
    * Fetch all followups/activities
    */

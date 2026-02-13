@@ -17,7 +17,6 @@ import { useMutation, useQueryClient } from 'react-query';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { TextInput } from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
 import { 
@@ -26,6 +25,14 @@ import {
   useDeleteFollowup 
 } from '../../hooks/CRMhooks/useCRM';
 import { useCRMStore } from '../../store/crmStore';
+import moment from 'moment';
+
+// Import theme
+import theme from '../../constants/CRMTheme/CRMTheme';
+import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
+
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale } = Layout;
 
 const AddActivity = ({ route, navigation }) => {
   const { data, mode } = route.params;
@@ -34,12 +41,15 @@ const AddActivity = ({ route, navigation }) => {
   // State
   const [fromDate, setFromDate] = useState(new Date());
   const [toDate, setToDate] = useState(new Date());
-  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [activityCollapsed, setActivityCollapsed] = useState(true);
   const [selectedActivity, setSelectedActivity] = useState('Select Activity Type');
   const [description, setDescription] = useState('');
+
+  // Calendar state
+  const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarTitle, setCalendarTitle] = useState('Select Date');
 
   // Animations
   const activityAnim = React.useRef(new Animated.Value(0)).current;
@@ -101,9 +111,14 @@ const AddActivity = ({ route, navigation }) => {
     return date.toISOString().split('.')[0] + 'Z';
   };
 
+  // Format date for display
+  const formatDisplayDate = (date) => {
+    return moment(date).format('DD MMM YYYY');
+  };
+
   // Handle save with validation
   const handleSave = async () => {
-    // Validation - SAME AS PREVIOUS CODE
+    // Validation
     if (selectedActivity === 'Select Activity Type' && mode === 'create') {
       Alert.alert('Validation Error', 'Please select an activity type.');
       return;
@@ -220,24 +235,36 @@ const AddActivity = ({ route, navigation }) => {
     });
 
   // Date handlers
-  const handleFromDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
-      setShowFromDatePicker(false);
-    }
-
-    if (selectedDate) {
-      setFromDate(selectedDate);
-    }
+  const handleFromDatePress = () => {
+    setCalendarMode('from');
+    setCalendarTitle('Select Start Date');
+    setShowCalendar(true);
   };
 
-  const handleToDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
-      setShowToDatePicker(false);
-    }
+  const handleToDatePress = () => {
+    setCalendarMode('to');
+    setCalendarTitle('Select End Date');
+    setShowCalendar(true);
+  };
 
-    if (selectedDate) {
+  const handleDateSelect = (date) => {
+    const selectedDate = new Date(date);
+    
+    if (calendarMode === 'from') {
+      setFromDate(selectedDate);
+      // If from date is after to date, update to date as well
+      if (selectedDate > toDate) {
+        setToDate(selectedDate);
+      }
+    } else {
+      // Ensure to date is not before from date
+      if (selectedDate < fromDate) {
+        Alert.alert('Invalid Date', 'End date cannot be before start date.');
+        return;
+      }
       setToDate(selectedDate);
     }
+    setShowCalendar(false);
   };
 
   const selectActivity = (type) => {
@@ -248,18 +275,32 @@ const AddActivity = ({ route, navigation }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 ,backgroundColor: '#EDEBEB'}}
-      keyboardVerticalOffset={80}
+      style={styles.keyboardView}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={{ flex: 1 }}>
+          <View style={styles.container}>
             <CustomHeader 
               title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
-              onBackPress={() => navigation.goBack()}
+              LeftIcon="arrow-left"
+              LeftPress={() => navigation.goBack()}
+              RightIcon={null}
+              RightPress={null}
+            />
+
+            {/* Calendar Modal */}
+            <CalendarModal
+              visible={showCalendar}
+              initialDate={calendarMode === 'from' ? fromDate : toDate}
+              onClose={() => setShowCalendar(false)}
+              onSelectDate={handleDateSelect}
+              title={calendarTitle}
+              minDate={calendarMode === 'to' ? fromDate : undefined}
             />
 
             {/* Form Container */}
@@ -274,6 +315,7 @@ const AddActivity = ({ route, navigation }) => {
                   <TouchableOpacity
                     onPress={toggleActivitySection}
                     style={styles.dropdown}
+                    activeOpacity={0.7}
                   >
                     <Text style={[
                       styles.dropdownText,
@@ -284,7 +326,7 @@ const AddActivity = ({ route, navigation }) => {
                     <Animated.View
                       style={{ transform: [{ rotate: getRotation(activityAnim) }] }}
                     >
-                      <AntDesign name="down" size={16} color={'#2F4FE3'} />
+                      <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
                     </Animated.View>
                   </TouchableOpacity>
 
@@ -295,6 +337,7 @@ const AddActivity = ({ route, navigation }) => {
                           key={type}
                           onPress={() => selectActivity(type)}
                           style={styles.activityOption}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.activityOptionText}>{type}</Text>
                         </TouchableOpacity>
@@ -309,56 +352,30 @@ const AddActivity = ({ route, navigation }) => {
                 <Text style={styles.sectionTitle}>Start Date *</Text>
               </View>
               <TouchableOpacity
-                onPress={() => setShowFromDatePicker(true)}
+                onPress={handleFromDatePress}
                 style={styles.dateInput}
+                activeOpacity={0.7}
               >
                 <Text style={styles.dateText}>
-                  {fromDate.toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatDisplayDate(fromDate)}
                 </Text>
-                <EvilIcons name="calendar" size={24} color={'#2F4FE3'} />
+                <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
               </TouchableOpacity>
-              {showFromDatePicker && (
-                <DateTimePicker
-                  value={fromDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleFromDateChange}
-                  maximumDate={toDate}
-                />
-              )}
 
               {/* End Date */}
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>End Date *</Text>
               </View>
               <TouchableOpacity
-                onPress={() => setShowToDatePicker(true)}
+                onPress={handleToDatePress}
                 style={styles.dateInput}
+                activeOpacity={0.7}
               >
                 <Text style={styles.dateText}>
-                  {toDate.toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+                  {formatDisplayDate(toDate)}
                 </Text>
-                <EvilIcons name="calendar" size={24} color={'#2F4FE3'} />
+                <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
               </TouchableOpacity>
-              {showToDatePicker && (
-                <DateTimePicker
-                  value={toDate}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={handleToDateChange}
-                  minimumDate={fromDate}
-                />
-              )}
 
               {/* Description */}
               <View style={styles.sectionHeader}>
@@ -374,23 +391,24 @@ const AddActivity = ({ route, navigation }) => {
                 onChangeText={setDescription}
                 theme={{
                   colors: {
-                    primary: '#2F4FE3',
-                    background: '#FFFFFF',
+                    primary: Colors.primary,
+                    background: Colors.backgroundLight,
                   },
                 }}
-                outlineColor="#E0E0E0"
-                activeOutlineColor="#2F4FE3"
+                outlineColor={Colors.border}
+                activeOutlineColor={Colors.primary}
               />
 
               {/* Complete Checkbox */}
               <TouchableOpacity
                 onPress={() => setIsComplete(!isComplete)}
                 style={styles.checkboxContainer}
+                activeOpacity={0.7}
               >
                 <Icon
                   name={isComplete ? 'check-box' : 'check-box-outline-blank'}
-                  size={24}
-                  color={isComplete ? '#2F4FE3' : '#666'}
+                  size={Layout.iconSize.lg}
+                  color={isComplete ? Colors.primary : Colors.textSecondary}
                 />
                 <Text style={[
                   styles.checkboxLabel,
@@ -407,6 +425,7 @@ const AddActivity = ({ route, navigation }) => {
                     onPress={handleDelete}
                     style={[styles.button, styles.deleteButton]}
                     disabled={deleteFollowupMutation.isLoading}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.deleteButtonText}>
                       {deleteFollowupMutation.isLoading ? 'Deleting...' : 'Delete'}
@@ -418,6 +437,7 @@ const AddActivity = ({ route, navigation }) => {
                   onPress={handleSave}
                   style={[styles.button, styles.saveButton]}
                   disabled={createFollowupMutation.isLoading || updateFollowupMutation.isLoading}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.saveButtonText}>
                     {createFollowupMutation.isLoading || updateFollowupMutation.isLoading
@@ -435,127 +455,139 @@ const AddActivity = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: verticalScale(20),
+  },
   formContainer: {
-    backgroundColor: '#FFFFFF',
-    marginTop: 20,
-    marginHorizontal: 16,
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
+    backgroundColor: Colors.cardBackground,
+    marginTop: verticalScale(20),
+    marginHorizontal: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: Layout.borderRadius.lg,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
   sectionHeader: {
-    marginBottom: 8,
+    marginBottom: Spacing.xs,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
   },
   dropdown: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    backgroundColor: Colors.backgroundLight,
+    marginBottom: Spacing.md,
   },
   dropdownText: {
-    fontSize: 16,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
   placeholderText: {
-    color: '#999',
+    color: Colors.textTertiary,
   },
   activityOptions: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    marginBottom: 16,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Spacing.md,
     overflow: 'hidden',
   },
   activityOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.borderLight,
   },
   activityOptionText: {
-    fontSize: 16,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
   dateInput: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    backgroundColor: Colors.backgroundLight,
+    marginBottom: Spacing.md,
   },
   dateText: {
-    fontSize: 16,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
   descriptionInput: {
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
+    backgroundColor: Colors.backgroundLight,
+    marginBottom: Spacing.md,
   },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.xl,
   },
   checkboxLabel: {
-    fontSize: 16,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
-    marginLeft: 12,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
   },
   checkboxLabelChecked: {
-    color: '#2F4FE3',
+    color: Colors.primary,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: Spacing.md,
   },
   button: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 100,
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Layout.borderRadius.md,
+    minWidth: scale(100),
     alignItems: 'center',
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
   },
   deleteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   saveButton: {
-    backgroundColor: '#2F4FE3',
+    backgroundColor: Colors.primary,
   },
   saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
 });
 

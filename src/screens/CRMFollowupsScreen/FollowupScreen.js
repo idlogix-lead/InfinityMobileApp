@@ -499,11 +499,6 @@ const FollowupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Follow ups</Text>
-        </View>
-
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}

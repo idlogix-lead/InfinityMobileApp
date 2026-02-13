@@ -689,6 +689,24 @@ export const useRefreshCRMData = () => {
     });
   };
 };
+// Hook for fetching completed activities for a specific lead
+export const useCompletedLeadActivities = (leadId, enabled = true) => {
+  return useQuery({
+    queryKey: ['lead-completed-activities', leadId],
+    queryFn: async () => {
+      try {
+        if (!leadId) return [];
+        const activities = await crmApiService.getCompletedLeadActivities(leadId);
+        return Array.isArray(activities) ? activities : [];
+      } catch (error) {
+        console.error('Get completed lead activities failed:', error.message);
+        return [];
+      }
+    },
+    enabled: enabled && !!leadId,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+};
 
 export default {
   useLeads,
@@ -707,6 +725,7 @@ export default {
   useSearchLeads,
   useLeadActivities,
   useActivityStatistics,
+    useCompletedLeadActivities,
   useRefreshCRMData,
   getStatusId,
   getStatusIdentifier

@@ -851,9 +851,6 @@ const GenericLead = ({navigation, route}) => {
                     <Text style={styles.searchHeaderText}>
                       {displayData.length} matching leads found
                     </Text>
-                    <Text style={styles.searchQueryText}>
-                      Searching: "{searchQuery}"
-                    </Text>
                   </View>
                   <TouchableOpacity
                     onPress={clearSearch}

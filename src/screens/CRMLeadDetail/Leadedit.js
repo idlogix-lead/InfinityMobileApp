@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Dimensions,
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -13,97 +12,140 @@ import {
   Image,
   FlatList,
   Modal as RNModal,
-  displayLeft,
 } from 'react-native';
-import React, {useState, useEffect, useMemo} from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import {Menu, Divider} from 'react-native-paper';
-import {
-  useUpdateLead,
-  useLeadStatistics,
-  useLeadActivities,
-} from '../../hooks/CRMhooks/useCRM';
-import {useSalesRepresentatives} from '../../services/CRMAPI/useLead';
+import { Menu, Divider } from 'react-native-paper';
+import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
+import { useQueryClient } from 'react-query';
+import theme from '../../constants/CRMTheme/CRMTheme';
 
-const {width} = Dimensions.get('window');
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale } = Layout;
 
-/* ================= STATUS CONFIG ================= */
+/* ================= STATUS CONFIG WITH THEME COLORS ================= */
 const STATUS_CONFIG = {
   New: {
-    barColor: '#2ECC71',
+    barColor: Colors.statusNew,
     badgeText: 'New',
-    badgeBg: '#EAF8F0',
-    badgeColor: '#2ECC71',
+    badgeBg: Colors.infoLight,
+    badgeColor: Colors.statusNew,
     showDot: true,
   },
   Working: {
-    barColor: '#F4A623',
+    barColor: Colors.statusWorking,
     badgeText: 'Working',
-    badgeBg: '#FFF3E0',
-    badgeColor: '#F4A623',
+    badgeBg: Colors.warningLight,
+    badgeColor: Colors.statusWorking,
     showDot: true,
   },
   Converted: {
-    barColor: '#4A6CF7',
+    barColor: Colors.statusConverted,
     badgeText: 'Converted',
-    badgeBg: '#EEF1FF',
-    badgeColor: '#4A6CF7',
+    badgeBg: Colors.successLight,
+    badgeColor: Colors.statusConverted,
     showDot: false,
     showCheck: true,
   },
   Expired: {
-    barColor: '#EA4747',
+    barColor: Colors.statusExpired,
     badgeText: 'Expired',
-    badgeBg: '#FDECEC',
-    badgeColor: '#EA4747',
+    badgeBg: Colors.errorLight,
+    badgeColor: Colors.statusExpired,
     showDot: true,
   },
 };
 
-// Tab Component
-const TabButton = ({title, active, onPress}) => (
-  <TouchableOpacity
-    style={[styles.tabButton, active && styles.tabButtonActive]}
-    onPress={onPress}>
-    <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
-      {title}
-    </Text>
-  </TouchableOpacity>
+// Validation functions (same as useAddLeadForm)
+const validateEmail = (email) => {
+  if (!email) return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePhone = (phone) => {
+  if (!phone) return true; // Optional field in edit mode
+  const phoneRegex = /^(\+\d{1,4})?\d{8,15}$/;
+  return phoneRegex.test(phone.replace(/\s/g, ''));
+};
+
+const validateDate = (date) => {
+  if (!date) return true; // Optional field
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  return dateRegex.test(date);
+};
+
+// Tab Component with Integrated Arrow Connector
+const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
+  <View style={styles.tabButtonWrapper}>
+    <TouchableOpacity
+      style={[
+        styles.tabButton,
+        active && styles.tabButtonActive,
+        isFirst && styles.tabButtonFirst,
+        isLast && styles.tabButtonLast,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
+        {title}
+      </Text>
+    </TouchableOpacity>
+    
+    {/* Integrated Arrow Connector - Part of Active Tab, Touches Card */}
+    {active && (
+      <View style={styles.activeTabArrowContainer}>
+        <View style={styles.activeTabArrow} />
+      </View>
+    )}
+  </View>
 );
 
-// Activity Item Component
-const ActivityItem = ({activity}) => {
-  const getActivityIcon = type => {
-    switch (type) {
-      case 'Phone Call':
+// Activity Item Component - For Completed Activities Only
+const ActivityItem = ({ activity }) => {
+  const getActivityIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'phone call':
+      case 'phone':
         return 'phone';
-      case 'Email':
+      case 'email':
         return 'email';
-      case 'Meeting':
+      case 'meeting':
         return 'calendar';
-      case 'Task':
+      case 'task':
         return 'checkbox-marked-circle';
       default:
         return 'account';
     }
   };
 
-  const getStatusColor = isComplete => {
-    return isComplete ? '#2ECC71' : '#F4A623';
+  // Format date properly
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No date';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   return (
     <View style={styles.activityItem}>
       <View style={styles.activityIconContainer}>
         <MaterialCommunityIcons
-          name={getActivityIcon(
-            activity.ContactActivityType?.identifier || 'Task',
-          )}
-          size={24}
-          color="#2F4FE3"
+          name={getActivityIcon(activity.ContactActivityType?.identifier)}
+          size={Layout.iconSize.md}
+          color={Colors.primary}
         />
       </View>
       <View style={styles.activityContent}>
@@ -111,48 +153,76 @@ const ActivityItem = ({activity}) => {
           <Text style={styles.activityTitle}>
             {activity.ContactActivityType?.identifier || 'Activity'}
           </Text>
-          <View
-            style={[
-              styles.activityStatus,
-              {backgroundColor: getStatusColor(activity.IsComplete) + '20'},
-            ]}>
-            <Text
-              style={[
-                styles.activityStatusText,
-                {color: getStatusColor(activity.IsComplete)},
-              ]}>
-              {activity.IsComplete ? 'Completed' : 'Pending'}
+          <View style={[styles.activityStatusBadge, { backgroundColor: Colors.successLight }]}>
+            <Text style={[styles.activityStatusText, { color: Colors.success }]}>
+              Completed
             </Text>
           </View>
         </View>
-        <Text style={styles.activityDescription} numberOfLines={2}>
+        <Text style={styles.activityDescription} numberOfLines={1}>
           {activity.Description || 'No description'}
         </Text>
         <View style={styles.activityMeta}>
           <View style={styles.activityMetaItem}>
-            <MaterialCommunityIcons name="calendar" size={14} color="#666" />
+            <MaterialCommunityIcons name="calendar" size={Layout.iconSize.xs} color={Colors.textSecondary} />
             <Text style={styles.activityMetaText}>
-              {activity.StartDate
-                ? new Date(activity.StartDate).toLocaleDateString()
-                : 'No date'}
+              {formatDate(activity.StartDate)}
             </Text>
           </View>
-          {activity.ContactPerson && (
-            <View style={styles.activityMetaItem}>
-              <MaterialCommunityIcons name="account" size={14} color="#666" />
-              <Text style={styles.activityMetaText}>
-                {activity.ContactPerson.identifier}
-              </Text>
-            </View>
-          )}
         </View>
       </View>
     </View>
   );
 };
 
-const LeadEdit = ({route, navigation}) => {
-  const {data: leadData} = route.params;
+// View Mode Row Component - No Icons, Clear Label/Value Hierarchy
+const ViewRow = ({ label, value }) => (
+  <View style={styles.viewRow}>
+    <Text style={styles.viewLabel}>{label}</Text>
+    <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+  </View>
+);
+
+// Section Header Component - Larger Title
+const SectionHeader = ({ title, icon }) => (
+  <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeaderLeft}>
+      <MaterialCommunityIcons name={icon} size={Layout.iconSize.lg} color={Colors.primary} />
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  </View>
+);
+
+// Toggle Button Component for Yes/No Fields
+const ToggleButton = ({ label, value, onPress }) => (
+  <View style={styles.toggleContainer}>
+    <Text style={styles.toggleLabel}>{label}</Text>
+    <View style={styles.toggleButtons}>
+      <TouchableOpacity
+        style={[styles.toggleOption, value === true && styles.toggleOptionActive]}
+        onPress={() => onPress(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.toggleOptionText, value === true && styles.toggleOptionTextActive]}>
+          Yes
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.toggleOption, value === false && styles.toggleOptionActive]}
+        onPress={() => onPress(false)}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.toggleOptionText, value === false && styles.toggleOptionTextActive]}>
+          No
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
+
+const LeadEdit = ({ route, navigation }) => {
+  const { data: leadData } = route.params;
+  const queryClient = useQueryClient();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -160,7 +230,10 @@ const LeadEdit = ({route, navigation}) => {
   // Tab state
   const [activeTab, setActiveTab] = useState('basic');
 
-  // Use detailed data directly (assuming data is passed from parent)
+  // Field errors state
+  const [errors, setErrors] = useState({});
+
+  // Use detailed data directly
   const displayLead = leadData;
 
   // Menu visibility states
@@ -202,50 +275,51 @@ const LeadEdit = ({route, navigation}) => {
   });
 
   // Use dynamic sales representatives
-  const {data: salesReps = [], isLoading: loadingSalesReps} =
-    useSalesRepresentatives();
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
 
   // Static dropdown options
   const leadStatusOptions = [
-    {id: 'N', identifier: 'New'},
-    {id: 'W', identifier: 'Working'},
-    {id: 'C', identifier: 'Converted'},
-    {id: 'E', identifier: 'Expired'},
+    { id: 'N', identifier: 'New' },
+    { id: 'W', identifier: 'Working' },
+    { id: 'C', identifier: 'Converted' },
+    { id: 'E', identifier: 'Expired' },
   ];
 
   const businessPartnerOptions = [
-    {id: '1000000', identifier: 'Starlet Innovations Pvt Ltd'},
-    {id: '1000001', identifier: 'Other Client'},
+    { id: '1000000', identifier: 'Starlet Innovations Pvt Ltd' },
+    { id: '1000001', identifier: 'Other Client' },
   ];
 
   const organizationOptions = [
-    {id: '1000000', identifier: 'Starlet Innovation Pvt Ltd'},
-    {id: '1000001', identifier: 'Other Organization'},
+    { id: '1000000', identifier: 'Starlet Innovation Pvt Ltd' },
+    { id: '1000001', identifier: 'Other Organization' },
   ];
 
   const leadSourceOptions = [
-    {id: 'CC', identifier: 'Cold Call'},
-    {id: 'E', identifier: 'Email'},
-    {id: 'P', identifier: 'Phone'},
-    {id: 'W', identifier: 'Website'},
-    {id: 'R', identifier: 'Referral'},
+    { id: 'CC', identifier: 'Cold Call' },
+    { id: 'E', identifier: 'Email' },
+    { id: 'P', identifier: 'Phone' },
+    { id: 'W', identifier: 'Website' },
+    { id: 'R', identifier: 'Referral' },
   ];
 
-  // Use the custom hooks from useCRM
+  // Use the custom hooks from useCRM - Now using useCompletedLeadActivities
   const updateLeadMutation = useUpdateLead();
-  const {refetch: refetchLeadStatistics} = useLeadStatistics();
-  const {data: activities = [], isLoading: activitiesLoading} =
-    useLeadActivities(displayLead?.id);
+  const { refetch: refetchLeadStatistics } = useLeadStatistics();
+  const { 
+    data: activities = [], 
+    isLoading: activitiesLoading, 
+    refetch: refetchActivities 
+  } = useCompletedLeadActivities(displayLead?.id);
 
   // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
     if (!salesRepSearch.trim()) {
       return salesReps;
     }
-
     const query = salesRepSearch.toLowerCase();
-    return salesReps.filter(
-      rep => rep.Name && rep.Name.toLowerCase().includes(query),
+    return salesReps.filter(rep =>
+      rep.Name && rep.Name.toLowerCase().includes(query)
     );
   }, [salesReps, salesRepSearch]);
 
@@ -265,18 +339,14 @@ const LeadEdit = ({route, navigation}) => {
         phone: displayLead?.Phone || '',
         phone2: displayLead?.Phone2 || '',
         birthday: displayLead?.Birthday || '',
-        salesLead: displayLeft?.IsSalesLead || false,
+        salesLead: displayLead?.IsSalesLead || false,
         vendorLead: displayLead?.IsVendorLead || false,
         businessPartnerId: displayLead?.AD_Client_ID?.id || '1000000',
-        businessPartnerLabel:
-          displayLead?.AD_Client_ID?.identifier ||
-          'Starlet Innovations Pvt Ltd',
+        businessPartnerLabel: displayLead?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd',
         organizationId: displayLead?.AD_Org_ID?.id || '1000000',
-        organizationLabel:
-          displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd',
+        organizationLabel: displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd',
         description: displayLead?.Description || '',
-        active:
-          displayLead?.IsActive !== undefined ? displayLead.IsActive : true,
+        active: displayLead?.IsActive !== undefined ? displayLead.IsActive : true,
         searchKey: displayLead?.Value || '',
         salesRepId: displayLead?.SalesRep_ID?.id || '',
         salesRepLabel: displayLead?.SalesRep_ID?.identifier || '',
@@ -289,18 +359,74 @@ const LeadEdit = ({route, navigation}) => {
         leadSourceId: displayLead?.LeadSource?.id || 'CC',
         leadSourceLabel: displayLead?.LeadSource?.identifier || 'Cold Call',
       });
+      
+      // Clear errors when initializing
+      setErrors({});
     }
   }, [displayLead]);
 
-  const handleSave = () => {
-    // Validate required fields
-    if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Name is required');
-      return;
+  // Clear error for a field when it's updated
+  const updateFormData = (key, value) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+    // Clear error for this field if it exists
+    if (errors[key]) {
+      setErrors(prev => ({ ...prev, [key]: null }));
+    }
+  };
+
+  // Validation function - matches useAddLeadForm
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Required fields validation
+    if (!formData.name?.trim()) {
+      newErrors.name = 'Name is required';
     }
 
-    if (!formData.email.trim()) {
-      Alert.alert('Validation Error', 'Email is required');
+    if (!formData.email?.trim()) {
+      newErrors.email = 'Email is required';
+    }
+
+    // Email format validation
+    if (formData.email && !validateEmail(formData.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    // Phone format validation (optional)
+    if (formData.phone && formData.phone.trim() && !validatePhone(formData.phone)) {
+      newErrors.phone = 'Invalid phone format (use +92XXXXXXXXXX)';
+    }
+
+    // Secondary phone format validation (optional)
+    if (formData.phone2 && formData.phone2.trim() && !validatePhone(formData.phone2)) {
+      newErrors.phone2 = 'Invalid phone format';
+    }
+
+    // Birthday format validation (optional)
+    if (formData.birthday && formData.birthday.trim() && !validateDate(formData.birthday)) {
+      newErrors.birthday = 'Invalid date format (use YYYY-MM-DD)';
+    }
+
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      console.log('❌ Form validation errors:', newErrors);
+      
+      // Show first error in alert
+      const firstErrorKey = Object.keys(newErrors)[0];
+      const firstError = newErrors[firstErrorKey];
+      Alert.alert('Validation Error', firstError);
+      
+      return false;
+    }
+    
+    console.log('✅ Form validation passed');
+    return true;
+  };
+
+  const handleSave = () => {
+    // Validate form first
+    if (!validateForm()) {
       return;
     }
 
@@ -315,17 +441,15 @@ const LeadEdit = ({route, navigation}) => {
       BPName: formData.companyName || '',
       AD_Org_ID: {
         id: formData.organizationId,
-        identifier: formData.organizationLabel,
+        identifier: formData.organizationLabel
       },
-      SalesRep_ID: formData.salesRepId
-        ? {
-            id: formData.salesRepId,
-            identifier: formData.salesRepLabel,
-          }
-        : null,
+      SalesRep_ID: formData.salesRepId ? {
+        id: formData.salesRepId,
+        identifier: formData.salesRepLabel
+      } : null,
       AD_Client_ID: {
         id: formData.businessPartnerId,
-        identifier: formData.businessPartnerLabel,
+        identifier: formData.businessPartnerLabel
       },
       Description: formData.description || '',
       IsActive: formData.active,
@@ -335,31 +459,30 @@ const LeadEdit = ({route, navigation}) => {
       Comments: formData.comments || '',
       LeadStatus: {
         id: formData.statusId,
-        identifier: formData.statusLabel,
+        identifier: formData.statusLabel
       },
       LeadSource: {
         id: formData.leadSourceId,
-        identifier: formData.leadSourceLabel,
-      },
+        identifier: formData.leadSourceLabel
+      }
     };
 
-    // Use the mutation hook
-    updateLeadMutation.mutate(
-      {
-        id: displayLead.id,
-        updates: payload,
+    updateLeadMutation.mutate({
+      id: displayLead.id,
+      updates: payload
+    }, {
+      onSuccess: () => {
+        Alert.alert('Success', 'Lead updated successfully!');
+        setIsEditMode(false);
+        refetchLeadStatistics();
+        queryClient.invalidateQueries(['leads']);
+        queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+        setErrors({}); // Clear errors on success
       },
-      {
-        onSuccess: () => {
-          Alert.alert('Success', 'Lead updated successfully!');
-          setIsEditMode(false);
-          refetchLeadStatistics();
-        },
-        onError: error => {
-          Alert.alert('Error', error.message || 'Failed to update lead');
-        },
-      },
-    );
+      onError: (error) => {
+        Alert.alert('Error', error.message || 'Failed to update lead');
+      }
+    });
   };
 
   const handleEditToggle = () => {
@@ -367,6 +490,7 @@ const LeadEdit = ({route, navigation}) => {
       handleSave();
     } else {
       setIsEditMode(true);
+      setErrors({}); // Clear errors when entering edit mode
     }
   };
 
@@ -374,15 +498,15 @@ const LeadEdit = ({route, navigation}) => {
     navigation.navigate('AddActivity', {
       data: displayLead,
       mode: 'create',
+      onGoBack: () => {
+        refetchActivities();
+        queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+      }
     });
   };
 
-  const updateFormData = (key, value) => {
-    setFormData(prev => ({...prev, [key]: value}));
-  };
-
   // Handle sales rep selection
-  const handleSelectSalesRep = rep => {
+  const handleSelectSalesRep = (rep) => {
     updateFormData('salesRepId', rep.id);
     updateFormData('salesRepLabel', rep.Name);
     setSalesRepModalVisible(false);
@@ -396,7 +520,7 @@ const LeadEdit = ({route, navigation}) => {
   };
 
   // Handle status update
-  const handleStatusUpdate = statusOption => {
+  const handleStatusUpdate = (statusOption) => {
     updateFormData('statusId', statusOption.id);
     updateFormData('statusLabel', statusOption.identifier);
     setStatusMenuVisible(false);
@@ -405,51 +529,43 @@ const LeadEdit = ({route, navigation}) => {
   // Get current status UI config
   const statusUI = STATUS_CONFIG[formData.statusLabel] || STATUS_CONFIG.New;
 
-  // Get status config or default for unknown statuses
-  const getStatusConfig = statusLabel => {
-    return (
-      STATUS_CONFIG[statusLabel] || {
-        barColor: '#6c757d',
-        badgeText: statusLabel || 'Unknown',
-        badgeBg: '#f8f9fa',
-        badgeColor: '#6c757d',
-        showDot: true,
-      }
-    );
+  // Handle boolean field toggle
+  const handleBooleanToggle = (key, value) => {
+    updateFormData(key, value);
   };
 
   // RENDER FUNCTIONS FOR DIFFERENT FIELD TYPES
-  const renderTextField = (
-    label,
-    value,
-    key,
-    placeholder,
-    keyboardType = 'default',
-  ) => {
+  const renderTextField = (label, value, key, placeholder, keyboardType = 'default') => {
     if (!isEditMode) {
       return (
-        <View style={styles.viewField}>
-          <Text style={styles.viewLabel}>{label}:</Text>
-          <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
-        </View>
+        <ViewRow 
+          label={label}
+          value={value}
+        />
       );
     }
 
     return (
       <View style={styles.editField}>
-        <Text style={styles.label}>{label}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder={placeholder}
-          value={value}
-          onChangeText={text => updateFormData(key, text)}
-          placeholderTextColor="#777"
-          keyboardType={keyboardType}
-          autoCapitalize={
-            keyboardType === 'email-address' ? 'none' : 'sentences'
-          }
-          editable={isEditMode}
-        />
+        <Text style={styles.editLabel}>{label}</Text>
+        <View>
+          <TextInput
+            style={[
+              styles.input,
+              errors[key] && styles.inputError
+            ]}
+            placeholder={placeholder}
+            placeholderTextColor={Colors.textTertiary}
+            value={value}
+            onChangeText={(text) => updateFormData(key, text)}
+            keyboardType={keyboardType}
+            autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+            editable={isEditMode}
+          />
+          {errors[key] && (
+            <Text style={styles.errorText}>{errors[key]}</Text>
+          )}
+        </View>
       </View>
     );
   };
@@ -457,22 +573,22 @@ const LeadEdit = ({route, navigation}) => {
   const renderTextAreaField = (label, value, key, placeholder) => {
     if (!isEditMode) {
       return (
-        <View style={styles.viewField}>
-          <Text style={styles.viewLabel}>{label}:</Text>
-          <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
-        </View>
+        <ViewRow 
+          label={label}
+          value={value}
+        />
       );
     }
 
     return (
       <View style={styles.editField}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.editLabel}>{label}</Text>
         <TextInput
           style={[styles.input, styles.textArea]}
           placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
           value={value}
-          onChangeText={text => updateFormData(key, text)}
-          placeholderTextColor="#777"
+          onChangeText={(text) => updateFormData(key, text)}
           multiline={true}
           numberOfLines={4}
           textAlignVertical="top"
@@ -482,127 +598,98 @@ const LeadEdit = ({route, navigation}) => {
     );
   };
 
-  const renderDropdownField = (
-    label,
-    value,
-    key,
-    onPress,
-    disabled = false,
-  ) => {
-    if (!isEditMode) {
-      return (
-        <View style={styles.viewField}>
-          <Text style={styles.viewLabel}>{label}:</Text>
-          <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.label}>{label}</Text>
-        <TouchableOpacity
-          onPress={onPress}
-          style={[styles.dropdownInput, disabled && styles.dropdownDisabled]}
-          disabled={disabled}>
-          <Text style={{color: value ? '#000' : '#777'}}>
-            {value || `Select ${label}`}
-          </Text>
-          <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
   const renderSalesRepField = () => {
     if (!isEditMode) {
       return (
-        <View style={styles.viewField}>
-          <Text style={styles.viewLabel}>Sales Representative:</Text>
-          <Text style={styles.viewValue}>
-            {selectedRepName || 'Not assigned'}
-          </Text>
-        </View>
+        <ViewRow 
+          label="Sales Representative"
+          value={selectedRepName || 'Not assigned'}
+        />
       );
     }
 
     return (
       <View style={styles.editField}>
-        <Text style={styles.label}>Sales Representative</Text>
+        <Text style={styles.editLabel}>Sales Representative</Text>
         <TouchableOpacity
           style={[
             styles.salesRepSelector,
-            !formData.salesRepId && styles.selectorEmpty,
+            !formData.salesRepId && styles.selectorEmpty
           ]}
-          onPress={() => setSalesRepModalVisible(true)}>
+          onPress={() => setSalesRepModalVisible(true)}
+          activeOpacity={0.7}
+        >
           {selectedRepName ? (
             <View style={styles.selectedRepContainer}>
-              <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+              <View style={styles.selectedRepInfo}>
+                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
+                <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+              </View>
               <TouchableOpacity
                 style={styles.clearButton}
-                onPress={e => {
+                onPress={(e) => {
                   e.stopPropagation();
                   handleClearSalesRep();
-                }}>
-                <MaterialCommunityIcons name="close" size={18} color="#666" />
+                }}
+              >
+                <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
           ) : (
-            <Text style={styles.placeholderText}>
-              Select Sales Representative
-            </Text>
+            <>
+              <Text style={styles.placeholderText}>Select Sales Representative</Text>
+              <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
+            </>
           )}
-          <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
         </TouchableOpacity>
       </View>
     );
   };
 
-  const renderBooleanField = (
-    label,
-    value,
-    key,
-    trueText = 'Yes',
-    falseText = 'No',
-  ) => {
-    const displayValue = value ? trueText : falseText;
-
+  const renderBooleanField = (label, value, key) => {
     if (!isEditMode) {
       return (
-        <View style={styles.viewField}>
-          <Text style={styles.viewLabel}>{label}:</Text>
-          <Text style={styles.viewValue}>{displayValue}</Text>
-        </View>
+        <ViewRow 
+          label={label}
+          value={value ? 'Yes' : 'No'}
+        />
       );
     }
 
     return (
-      <View style={styles.editField}>
-        <Text style={styles.label}>{label}</Text>
-        <TouchableOpacity
-          onPress={() => updateFormData(key, !value)}
-          style={styles.dropdownInput}>
-          <Text style={{color: '#000'}}>{displayValue}</Text>
-          <MaterialCommunityIcons name="chevron-down" size={22} color="#666" />
-        </TouchableOpacity>
-      </View>
+      <ToggleButton
+        label={label}
+        value={value}
+        onPress={(val) => handleBooleanToggle(key, val)}
+      />
     );
   };
 
   // Render sales rep item in modal
-  const renderSalesRepItem = ({item}) => (
+  const renderSalesRepItem = ({ item }) => (
     <TouchableOpacity
       style={[
         styles.repItem,
         formData.salesRepId === item.id && styles.selectedRepItem,
       ]}
-      onPress={() => handleSelectSalesRep(item)}>
+      onPress={() => handleSelectSalesRep(item)}
+      activeOpacity={0.7}
+    >
       <View style={styles.repItemContent}>
-        <Text style={styles.repName}>{item.Name}</Text>
-        {item.Email && <Text style={styles.repEmail}>{item.Email}</Text>}
+        <View style={styles.repAvatar}>
+          <Text style={styles.repAvatarText}>
+            {item.Name?.charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.repDetails}>
+          <Text style={styles.repName}>{item.Name}</Text>
+          {item.Email && (
+            <Text style={styles.repEmail}>{item.Email}</Text>
+          )}
+        </View>
       </View>
       {formData.salesRepId === item.id && (
-        <AntDesign name="check" size={20} color="#2F4FE3" />
+        <AntDesign name="checkcircle" size={Layout.iconSize.md} color={Colors.primary} />
       )}
     </TouchableOpacity>
   );
@@ -613,56 +700,53 @@ const LeadEdit = ({route, navigation}) => {
       case 'basic':
         return (
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Contact Information</Text>
-            </View>
+            <SectionHeader 
+              title="Contact Information" 
+              icon="phone"
+            />
             <View style={styles.sectionContent}>
               {renderTextField(
-                'Phone',
+                "Phone",
                 formData.phone,
                 'phone',
                 'Enter Phone',
-                'phone-pad',
+                'phone-pad'
               )}
 
               {renderTextField(
-                'Secondary Phone',
+                "Secondary Phone",
                 formData.phone2,
                 'phone2',
                 'Secondary Phone',
-                'phone-pad',
+                'phone-pad'
               )}
 
               {renderTextField(
-                'Birthday',
+                "Birthday",
                 formData.birthday,
                 'birthday',
-                'YYYY-MM-DD',
+                'YYYY-MM-DD'
               )}
 
               {/* Lead Source Dropdown with Menu */}
               <View style={styles.editField}>
-                <Text style={styles.label}>Lead Source</Text>
+                <Text style={styles.editLabel}>Lead Source</Text>
                 <Menu
                   visible={leadSourceMenuVisible}
                   onDismiss={() => setLeadSourceMenuVisible(false)}
                   anchor={
                     <TouchableOpacity
                       onPress={() => setLeadSourceMenuVisible(true)}
-                      style={styles.dropdownInput}>
-                      <Text
-                        style={{
-                          color: formData.leadSourceLabel ? '#000' : '#777',
-                        }}>
+                      style={styles.dropdownInput}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.dropdownText}>
                         {formData.leadSourceLabel || 'Select Lead Source'}
                       </Text>
-                      <MaterialCommunityIcons
-                        name="chevron-down"
-                        size={22}
-                        color="#666"
-                      />
+                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
                     </TouchableOpacity>
-                  }>
+                  }
+                >
                   {leadSourceOptions.map((option, index) => (
                     <React.Fragment key={option.id}>
                       <Menu.Item
@@ -672,6 +756,7 @@ const LeadEdit = ({route, navigation}) => {
                           setLeadSourceMenuVisible(false);
                         }}
                         title={option.identifier}
+                        titleStyle={styles.menuItemTitle}
                       />
                       {index < leadSourceOptions.length - 1 && <Divider />}
                     </React.Fragment>
@@ -688,55 +773,47 @@ const LeadEdit = ({route, navigation}) => {
       case 'company':
         return (
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Company Information</Text>
-            </View>
+            <SectionHeader 
+              title="Company Information" 
+              icon="office-building"
+            />
             <View style={styles.sectionContent}>
               {renderTextField(
-                'Company Name',
+                "Company Name",
                 formData.companyName,
                 'companyName',
-                'Enter company name',
+                'Enter company name'
               )}
 
               {/* Business Partner Dropdown with Menu */}
               <View style={styles.editField}>
-                <Text style={styles.label}>Business Partner</Text>
+                <Text style={styles.editLabel}>Business Partner</Text>
                 <Menu
                   visible={bpMenuVisible}
                   onDismiss={() => setBpMenuVisible(false)}
                   anchor={
                     <TouchableOpacity
                       onPress={() => setBpMenuVisible(true)}
-                      style={styles.dropdownInput}>
-                      <Text
-                        style={{
-                          color: formData.businessPartnerLabel
-                            ? '#000'
-                            : '#777',
-                        }}>
-                        {formData.businessPartnerLabel ||
-                          'Select Business Partner'}
+                      style={styles.dropdownInput}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.dropdownText}>
+                        {formData.businessPartnerLabel || 'Select Business Partner'}
                       </Text>
-                      <MaterialCommunityIcons
-                        name="chevron-down"
-                        size={22}
-                        color="#666"
-                      />
+                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
                     </TouchableOpacity>
-                  }>
+                  }
+                >
                   {businessPartnerOptions.map((option, index) => (
                     <React.Fragment key={option.id}>
                       <Menu.Item
                         onPress={() => {
                           updateFormData('businessPartnerId', option.id);
-                          updateFormData(
-                            'businessPartnerLabel',
-                            option.identifier,
-                          );
+                          updateFormData('businessPartnerLabel', option.identifier);
                           setBpMenuVisible(false);
                         }}
                         title={option.identifier}
+                        titleStyle={styles.menuItemTitle}
                       />
                       {index < businessPartnerOptions.length - 1 && <Divider />}
                     </React.Fragment>
@@ -746,39 +823,33 @@ const LeadEdit = ({route, navigation}) => {
 
               {/* Organization Dropdown with Menu */}
               <View style={styles.editField}>
-                <Text style={styles.label}>Organization</Text>
+                <Text style={styles.editLabel}>Organization</Text>
                 <Menu
                   visible={orgMenuVisible}
                   onDismiss={() => setOrgMenuVisible(false)}
                   anchor={
                     <TouchableOpacity
                       onPress={() => setOrgMenuVisible(true)}
-                      style={styles.dropdownInput}>
-                      <Text
-                        style={{
-                          color: formData.organizationLabel ? '#000' : '#777',
-                        }}>
+                      style={styles.dropdownInput}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.dropdownText}>
                         {formData.organizationLabel || 'Select Organization'}
                       </Text>
-                      <MaterialCommunityIcons
-                        name="chevron-down"
-                        size={22}
-                        color="#666"
-                      />
+                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
                     </TouchableOpacity>
-                  }>
+                  }
+                >
                   {organizationOptions.map((option, index) => (
                     <React.Fragment key={option.id}>
                       <Menu.Item
                         onPress={() => {
                           updateFormData('organizationId', option.id);
-                          updateFormData(
-                            'organizationLabel',
-                            option.identifier,
-                          );
+                          updateFormData('organizationLabel', option.identifier);
                           setOrgMenuVisible(false);
                         }}
                         title={option.identifier}
+                        titleStyle={styles.menuItemTitle}
                       />
                       {index < organizationOptions.length - 1 && <Divider />}
                     </React.Fragment>
@@ -787,10 +858,10 @@ const LeadEdit = ({route, navigation}) => {
               </View>
 
               {renderTextAreaField(
-                'Lead Source Description',
+                "Lead Source Description",
                 formData.leadSourceDesc,
                 'leadSourceDesc',
-                'Enter lead source description',
+                'Enter lead source description'
               )}
             </View>
           </View>
@@ -799,34 +870,35 @@ const LeadEdit = ({route, navigation}) => {
       case 'detailed':
         return (
           <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Detailed Information</Text>
-            </View>
+            <SectionHeader 
+              title="Detailed Information" 
+              icon="clipboard-text"
+            />
             <View style={styles.sectionContent}>
               {renderBooleanField(
-                'Sales Lead',
+                "Sales Lead",
                 formData.salesLead,
-                'salesLead',
+                'salesLead'
               )}
 
               {renderBooleanField(
-                'Vendor Lead',
+                "Vendor Lead",
                 formData.vendorLead,
-                'vendorLead',
+                'vendorLead'
               )}
 
               {renderTextAreaField(
-                'Description',
+                "Description",
                 formData.description,
                 'description',
-                'Enter description',
+                'Enter description'
               )}
 
               {renderTextAreaField(
-                'Comments',
+                "Comments",
                 formData.comments,
                 'comments',
-                'Enter comments',
+                'Enter comments'
               )}
             </View>
           </View>
@@ -834,56 +906,29 @@ const LeadEdit = ({route, navigation}) => {
 
       case 'activities':
         return (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.activitiesHeader}>
-                <Text style={styles.sectionTitle}>Activity Log</Text>
-                <TouchableOpacity
-                  style={styles.addActivityButtonSmall}
-                  onPress={handleAddActivity}>
-                  <MaterialCommunityIcons
-                    name="plus"
-                    size={20}
-                    color="#2F4FE3"
-                  />
-                  <Text style={styles.addActivityText}>Add Activity</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+          <View style={[styles.sectionCard, styles.activitySectionCard]}>
+            <SectionHeader 
+              title={`Completed Activities (${activities.length})`} 
+              icon="calendar-check"
+            />
             <View style={styles.sectionContent}>
               {activitiesLoading ? (
-                <View style={styles.loadingActivities}>
-                  <ActivityIndicator size="small" color="#2F4FE3" />
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading activities...</Text>
                 </View>
               ) : activities.length > 0 ? (
                 <FlatList
                   data={activities}
-                  keyExtractor={item => item.id.toString()}
-                  renderItem={({item}) => <ActivityItem activity={item} />}
+                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                  renderItem={({ item }) => <ActivityItem activity={item} />}
                   scrollEnabled={false}
-                  ItemSeparatorComponent={() => (
-                    <View style={styles.separator} />
-                  )}
-                  ListFooterComponent={() => <View style={styles.listFooter} />}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
                 />
               ) : (
-                <View style={styles.noActivities}>
-                  <MaterialCommunityIcons
-                    name="calendar-blank"
-                    size={48}
-                    color="#ccc"
-                  />
-                  <Text style={styles.noActivitiesText}>
-                    No activities found
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.addFirstActivityButton}
-                    onPress={handleAddActivity}>
-                    <Text style={styles.addFirstActivityText}>
-                      Add First Activity
-                    </Text>
-                  </TouchableOpacity>
+                <View style={styles.emptyState}>
+                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.xl} color={Colors.border} />
+                  <Text style={styles.emptyStateText}>No completed activities</Text>
                 </View>
               )}
             </View>
@@ -897,26 +942,21 @@ const LeadEdit = ({route, navigation}) => {
 
   if (!displayLead) {
     return (
-      <View style={styles.errorContainer}>
+      <View style={styles.container}>
         <CustomHeader
           title={'Lead Details'}
           LeftIcon="arrow-left"
           LeftPress={() => navigation.goBack()}
           RightIcon={null}
           RightPress={null}
-          MessageNameIcon={null}
-          MessageOnPress={null}
         />
-        <View style={styles.errorContent}>
-          <MaterialCommunityIcons
-            name="alert-circle"
-            size={48}
-            color="#F44336"
-          />
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.xxl} color={Colors.error} />
           <Text style={styles.errorText}>Failed to load lead details</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => navigation.goBack()}>
+            onPress={() => navigation.goBack()}
+          >
             <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -926,292 +966,227 @@ const LeadEdit = ({route, navigation}) => {
 
   return (
     <KeyboardAvoidingView
-      style={{flex: 1}}
+      style={styles.keyboardView}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      {/* Custom Header */}
+
       <CustomHeader
         title={'Lead Details'}
         LeftIcon="arrow-left"
         LeftPress={() => navigation.goBack()}
-        RightIcon={isEditMode ? 'content-save' : 'pencil'}
+        RightIcon={isEditMode ? "content-save" : "pencil"}
         RightPress={handleEditToggle}
-        MessageNameIcon={null}
-        MessageOnPress={null}
       />
 
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
-        {/* SIMPLIFIED HEADER CARD */}
+
+        {/* Header Card - Minimized Spacing */}
         <View style={styles.headerCard}>
-          <View
-            style={[styles.statusBar, {backgroundColor: statusUI.barColor}]}
-          />
-
           <View style={styles.headerContent}>
-            {/* Avatar */}
-            <Image
-              source={{
-                uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
-              }}
-              style={styles.avatar}
-            />
+            <View style={styles.headerLeft}>
+              <View style={styles.avatarContainer}>
+                <Image
+                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+                  style={styles.avatar}
+                />
+              </View>
+              
+              <View style={styles.headerInfo}>
+                <Text style={styles.leadName}>{formData.name || 'Unnamed Lead'}</Text>
+                {formData.companyName && (
+                  <View style={styles.companyBadge}>
+                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.primary} />
+                    <Text style={styles.companyBadgeText}>{formData.companyName}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
 
-            <View style={styles.contactInfoSection}>
-              {/* Lead Name */}
-              <Text style={styles.leadName}>
-                {formData.name || 'Unnamed Lead'}
-              </Text>
-
-              {/* Email */}
-              {formData.email ? (
-                <View style={styles.contactRow}>
-                  <MaterialCommunityIcons
-                    name="email"
-                    size={14}
-                    color="#666"
-                    style={styles.contactIcon}
-                  />
-                  <Text style={styles.contactText} numberOfLines={1}>
-                    {formData.email}
-                  </Text>
-                </View>
-              ) : null}
-
-              {/* Primary Phone */}
-              {formData.phone ? (
-                <View style={styles.contactRow}>
-                  <MaterialCommunityIcons
-                    name="phone"
-                    size={14}
-                    color="#666"
-                    style={styles.contactIcon}
-                  />
-                  <Text style={styles.contactText}>{formData.phone}</Text>
-                </View>
-              ) : null}
-
-              {/* Company Name */}
-              {formData.companyName ? (
-                <View style={styles.contactRow}>
-                  <MaterialCommunityIcons
-                    name="office-building"
-                    size={14}
-                    color="#666"
-                    style={styles.contactIcon}
-                  />
-                  <Text style={styles.companyText}>{formData.companyName}</Text>
-                </View>
-              ) : null}
-
-              {/* Sales Representative */}
-              {selectedRepName && (
-                <View style={styles.contactRow}>
-                  <MaterialCommunityIcons
-                    name="account"
-                    size={14}
-                    color="#666"
-                    style={styles.contactIcon}
-                  />
-                  <Text style={styles.salesRepText}>
-                    Assigned to: {selectedRepName}
+            {/* Status Badge and Activity Icon - Stacked with No Space */}
+            <View style={styles.headerRight}>
+              {isEditMode ? (
+                <Menu
+                  visible={statusMenuVisible}
+                  onDismiss={() => setStatusMenuVisible(false)}
+                  anchor={
+                    <TouchableOpacity
+                      style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
+                      onPress={() => setStatusMenuVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      {statusUI.showDot && (
+                        <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                      )}
+                      {statusUI.showCheck && (
+                        <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                      )}
+                      <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
+                        {statusUI.badgeText}
+                      </Text>
+                      <AntDesign name="down" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                    </TouchableOpacity>
+                  }
+                >
+                  {leadStatusOptions.map((option, index) => (
+                    <React.Fragment key={option.id}>
+                      <Menu.Item
+                        onPress={() => handleStatusUpdate(option)}
+                        title={option.identifier}
+                        titleStyle={[
+                          styles.menuItemTitle,
+                          formData.statusId === option.id && styles.menuItemSelected
+                        ]}
+                      />
+                      {index < leadStatusOptions.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </Menu>
+              ) : (
+                <View style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}>
+                  {statusUI.showDot && (
+                    <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                  )}
+                  {statusUI.showCheck && (
+                    <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                  )}
+                  <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
+                    {statusUI.badgeText}
                   </Text>
                 </View>
               )}
+              
+              {/* Activity Icon - Directly Under Status Badge with No Margin */}
+              <TouchableOpacity
+                onPress={handleAddActivity}
+                activeOpacity={0.7}
+                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                style={styles.activityIconWrapper}
+              >
+                <View style={styles.addActivityIcon}>
+                  <Ionicons name="alarm-outline" size={Layout.iconSize.md} color={Colors.primary} />
+                  <AntDesign 
+                    name="pluscircle" 
+                    size={Layout.iconSize.xs} 
+                    color={Colors.primary} 
+                    style={styles.activityPlusIcon}
+                  />
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
 
-          {/* Right Section with Status and Activity */}
-          <View style={styles.rightSection}>
-            {/* Status Dropdown using Menu - Only visible in Edit Mode */}
-            {isEditMode ? (
-              <Menu
-                visible={statusMenuVisible}
-                onDismiss={() => setStatusMenuVisible(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={[
-                      styles.statusBadge,
-                      {backgroundColor: statusUI.badgeBg},
-                    ]}
-                    onPress={() => setStatusMenuVisible(true)}
-                    activeOpacity={0.7}>
-                    {statusUI.showDot && (
-                      <View
-                        style={[
-                          styles.dot,
-                          {backgroundColor: statusUI.badgeColor},
-                        ]}
-                      />
-                    )}
-                    {statusUI.showCheck && (
-                      <AntDesign
-                        name="checkcircle"
-                        size={14}
-                        color={statusUI.badgeColor}
-                        style={{marginRight: 4}}
-                      />
-                    )}
-                    <Text
-                      style={[
-                        styles.statusBadgeText,
-                        {color: statusUI.badgeColor},
-                      ]}>
-                      {statusUI.badgeText}
-                    </Text>
-                    <AntDesign
-                      name="down"
-                      size={12}
-                      color={statusUI.badgeColor}
-                      style={{marginLeft: 6}}
-                    />
-                  </TouchableOpacity>
-                }
-                style={styles.statusMenu}>
-                {leadStatusOptions.map((option, index) => (
-                  <React.Fragment key={option.id}>
-                    <Menu.Item
-                      onPress={() => handleStatusUpdate(option)}
-                      title={option.identifier}
-                      titleStyle={[
-                        styles.menuItemTitle,
-                        formData.statusId === option.id &&
-                          styles.menuItemSelected,
-                      ]}
-                    />
-                    {index < leadStatusOptions.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </Menu>
-            ) : (
-              <View
-                style={[
-                  styles.statusBadge,
-                  {backgroundColor: statusUI.badgeBg},
-                ]}>
-                {statusUI.showDot && (
-                  <View
-                    style={[styles.dot, {backgroundColor: statusUI.badgeColor}]}
-                  />
-                )}
-                {statusUI.showCheck && (
-                  <AntDesign
-                    name="checkcircle"
-                    size={14}
-                    color={statusUI.badgeColor}
-                    style={{marginRight: 4}}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    {color: statusUI.badgeColor},
-                  ]}>
-                  {statusUI.badgeText}
-                </Text>
+          {/* Contact Info Row - Compact */}
+          <View style={styles.contactInfoRow}>
+            {formData.email && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="email" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{formData.email}</Text>
               </View>
             )}
-
-            {/* Add Activity Button */}
-            <TouchableOpacity
-              style={styles.addActivityButton}
-              onPress={handleAddActivity}>
-              <View style={styles.addActivityIcon}>
-                <Ionicons name="alarm-outline" size={28} color="#2F4FE3" />
-                <AntDesign
-                  name="pluscircle"
-                  size={14}
-                  color="#2F4FE3"
-                  style={styles.activityPlus}
-                />
+            {formData.phone && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="phone" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{formData.phone}</Text>
               </View>
-            </TouchableOpacity>
-
-            {/* Status Description - Only show in edit mode */}
-            {isEditMode && formData.leadStatusDesc ? (
-              <Text style={styles.statusDescription} numberOfLines={1}>
-                {formData.leadStatusDesc}
-              </Text>
-            ) : null}
+            )}
+            {selectedRepName && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{selectedRepName}</Text>
+              </View>
+            )}
           </View>
+
+          {isEditMode && formData.leadStatusDesc && (
+            <View style={styles.statusNote}>
+              <MaterialCommunityIcons name="information" size={Layout.iconSize.sm} color={Colors.info} />
+              <Text style={styles.statusNoteText}>{formData.leadStatusDesc}</Text>
+            </View>
+          )}
         </View>
 
-        {/* EDIT MODE INDICATOR */}
+        {/* Edit Mode Badge - Compact */}
         {isEditMode && (
-          <View style={styles.editModeIndicator}>
-            <MaterialCommunityIcons name="pencil" size={14} color="#2F4FE3" />
-            <Text style={styles.editModeText}>
-              Edit Mode - All fields are editable
-            </Text>
+          <View style={styles.editBadge}>
+            <MaterialCommunityIcons name="pencil" size={Layout.iconSize.sm} color={Colors.primary} />
+            <Text style={styles.editBadgeText}>Editing Mode</Text>
           </View>
         )}
 
-        {/* TABS */}
-        <View style={styles.tabsContainer}>
-          <TabButton
-            title="Basic Info"
-            active={activeTab === 'basic'}
-            onPress={() => setActiveTab('basic')}
-          />
-          <TabButton
-            title="Company"
-            active={activeTab === 'company'}
-            onPress={() => setActiveTab('company')}
-          />
-          <TabButton
-            title="Detailed"
-            active={activeTab === 'detailed'}
-            onPress={() => setActiveTab('detailed')}
-          />
-          <TabButton
-            title="Activities"
-            active={activeTab === 'activities'}
-            onPress={() => setActiveTab('activities')}
-          />
+        {/* Tabs with Integrated Arrow Connector - Touches Card */}
+        <View style={styles.tabsWrapper}>
+          <View style={styles.tabsContainer}>
+            <TabButton 
+              title="Basic" 
+              active={activeTab === 'basic'} 
+              onPress={() => setActiveTab('basic')}
+              isFirst={true}
+              isLast={false}
+            />
+            <TabButton 
+              title="Company" 
+              active={activeTab === 'company'} 
+              onPress={() => setActiveTab('company')}
+              isFirst={false}
+              isLast={false}
+            />
+            <TabButton 
+              title="Details" 
+              active={activeTab === 'detailed'} 
+              onPress={() => setActiveTab('detailed')}
+              isFirst={false}
+              isLast={false}
+            />
+            <TabButton 
+              title="Activities" 
+              active={activeTab === 'activities'} 
+              onPress={() => setActiveTab('activities')}
+              isFirst={false}
+              isLast={true}
+            />
+          </View>
         </View>
 
-        {/* TAB CONTENT */}
+        {/* Tab Content */}
         {renderTabContent()}
 
-        {/* ACTION BUTTONS (Edit Mode Only) */}
+        {/* Action Buttons */}
         {isEditMode && (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[
-                styles.saveBtn,
-                updateLeadMutation.isLoading && styles.saveBtnDisabled,
+                styles.saveButton,
+                updateLeadMutation.isLoading && styles.saveButtonDisabled
               ]}
               onPress={handleSave}
-              disabled={updateLeadMutation.isLoading}>
+              disabled={updateLeadMutation.isLoading}
+              activeOpacity={0.7}
+            >
               {updateLeadMutation.isLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color={Colors.textInverse} />
               ) : (
                 <>
-                  <MaterialCommunityIcons
-                    name="content-save"
-                    size={18}
-                    color="#FFFFFF"
-                  />
-                  <Text style={styles.saveBtnTxt}>Save Changes</Text>
+                  <MaterialCommunityIcons name="content-save" size={Layout.iconSize.md} color={Colors.textInverse} />
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={() => setIsEditMode(false)}>
-              <Text style={styles.cancelBtnTxt}>Cancel</Text>
+              style={styles.cancelButton}
+              onPress={() => setIsEditMode(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Bottom padding */}
-        <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* Dynamic Sales Representative Modal */}
+      {/* Sales Representative Modal */}
       <RNModal
         visible={salesRepModalVisible}
         animationType="slide"
@@ -1219,86 +1194,60 @@ const LeadEdit = ({route, navigation}) => {
         onRequestClose={() => {
           setSalesRepModalVisible(false);
           setSalesRepSearch('');
-        }}>
-        <View style={styles.salesRepModalOverlay}>
-          <View style={styles.salesRepModalContainer}>
-            <View style={styles.salesRepModalHeader}>
-              <Text style={styles.salesRepModalTitle}>
-                Select Sales Representative
-              </Text>
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Representative</Text>
               <TouchableOpacity
                 onPress={() => {
                   setSalesRepModalVisible(false);
                   setSalesRepSearch('');
                 }}
-                style={styles.salesRepCloseButton}>
-                <MaterialCommunityIcons name="close" size={24} color="#333" />
+              >
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
-            {/* Search Input */}
-            <View style={styles.salesRepSearchContainer}>
-              <MaterialCommunityIcons
-                name="magnify"
-                size={20}
-                color="#666"
-                style={styles.salesRepSearchIcon}
-              />
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.md} color={Colors.textSecondary} />
               <TextInput
-                style={styles.salesRepSearchInput}
+                style={styles.modalSearchInput}
                 placeholder="Search by name..."
+                placeholderTextColor={Colors.textTertiary}
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
-                autoFocus={true}
               />
               {salesRepSearch.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setSalesRepSearch('')}
-                  style={styles.salesRepClearSearchButton}>
-                  <MaterialCommunityIcons name="close" size={18} color="#666" />
+                <TouchableOpacity onPress={() => setSalesRepSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* Sales Representatives List */}
             {loadingSalesReps ? (
-              <View style={styles.salesRepLoadingContainer}>
-                <ActivityIndicator size="large" color="#2F4FE3" />
-                <Text style={styles.salesRepLoadingText}>
-                  Loading sales representatives...
-                </Text>
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
               </View>
             ) : (
               <FlatList
                 data={filteredSalesReps}
                 renderItem={renderSalesRepItem}
-                keyExtractor={item => item.id.toString()}
+                keyExtractor={(item) => item.id.toString()}
                 ListEmptyComponent={
-                  <View style={styles.salesRepEmptyContainer}>
-                    <MaterialCommunityIcons
-                      name="account-off"
-                      size={50}
-                      color="#ccc"
-                    />
-                    <Text style={styles.salesRepEmptyText}>
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xxl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
                       {salesRepSearch.trim()
-                        ? `No sales representatives found for "${salesRepSearch}"`
+                        ? `No results for "${salesRepSearch}"`
                         : 'No sales representatives available'}
                     </Text>
                   </View>
                 }
-                style={styles.salesRepList}
-                contentContainerStyle={styles.salesRepListContent}
               />
             )}
-
-            {/* Footer */}
-            <View style={styles.salesRepModalFooter}>
-              <Text style={styles.salesRepFooterText}>
-                {filteredSalesReps.length} of {salesReps.length} sales
-                representatives
-              </Text>
-            </View>
           </View>
         </View>
       </RNModal>
@@ -1306,256 +1255,466 @@ const LeadEdit = ({route, navigation}) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#EDEBEB'},
-  scrollContent: {paddingBottom: 30},
 
-  // Simplified Header Card
-  headerCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 16,
-    marginBottom: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 120,
+const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-  statusBar: {
-    width: 6,
-    height: '100%',
-    minHeight: 120,
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  scrollContent: {
+    paddingBottom: verticalScale(30),
+  },
+
+  // Header Card - Minimized Spacing
+  headerCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden',
   },
   headerContent: {
-    flex: 1,
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: 16,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xs,
   },
-  avatar: {
-    width: 60, // Larger than CRMCard (40px)
-    height: 60, // Larger than CRMCard (40px)
-    borderRadius: 30,
-    marginRight: 16,
-    borderWidth: 2,
-    borderColor: '#f0f0f0',
-  },
-  contactInfoSection: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  leadName: {
-    fontSize: 20, // Larger than CRMCard (14px)
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
-    marginBottom: 6,
-  },
-  contactRow: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-  },
-  contactIcon: {
-    marginRight: 6,
-    width: 16,
-  },
-  contactText: {
-    fontSize: 13,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
     flex: 1,
   },
-  companyText: {
-    fontSize: 13,
-    fontFamily: 'K2D-Medium',
-    color: '#444',
+  avatarContainer: {
+    marginRight: Spacing.md,
+  },
+  avatar: {
+    width: scale(48),
+    height: scale(48),
+    borderRadius: scale(24),
+    borderWidth: 2,
+    borderColor: Colors.borderLight,
+  },
+  headerInfo: {
     flex: 1,
   },
-  salesRepText: {
-    fontSize: 12,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-    flex: 1,
-    fontStyle: 'italic',
+  leadName: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
   },
-  rightSection: {
-    width: 140,
+  companyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+  },
+  companyBadgeText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.primary,
+    marginLeft: Spacing.xxs,
+  },
+  
+  // Header Right - Status and Activity Stacked with No Space
+  headerRight: {
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
-    paddingRight: 16,
-    paddingTop: 16,
   },
+  activityIconWrapper: {
+    marginTop: 0,
+    paddingTop: 0,
+  },
+
+  // Contact Info Row - Compact
+  contactInfoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  contactChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    gap: Spacing.xxs,
+  },
+  contactChipText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+
+  // Status Badge
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 12,
-    alignSelf: 'flex-end',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.round,
+    gap: Spacing.xxs,
   },
   statusBadgeText: {
-    fontSize: 13,
-    fontFamily: 'K2D-SemiBold',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: scale(6),
+    height: scale(6),
+    borderRadius: scale(3),
   },
-  statusDescription: {
-    fontSize: 11,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-    marginTop: 4,
-    textAlign: 'right',
-    maxWidth: 120,
-  },
-  statusMenu: {
-    marginTop: 40,
-  },
-  menuItemTitle: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-  },
-  menuItemSelected: {
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
-  },
-  addActivityButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
+  
+  // Activity Icon - Clean, No Background
   addActivityIcon: {
     position: 'relative',
-  },
-  activityPlus: {
-    position: 'absolute',
-    right: -6,
-    bottom: -6,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-  },
-
-  // Edit Mode Indicator
-  editModeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8F4FF',
-    paddingVertical: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    gap: 6,
+    marginTop: Spacing.md,
+    marginRight: Spacing.lg,
   },
-  editModeText: {
-    fontSize: 13,
-    fontFamily: 'K2D-SemiBold',
-    color: '#2F4FE3',
+  activityPlusIcon: {
+    position: 'absolute',
+    right: -scale(4),
+    bottom: -scale(4),
+    backgroundColor: Colors.cardBackground,
+    borderRadius: scale(8),
   },
 
-  // Tabs
+  // Status Note
+  statusNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.infoLight,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    gap: Spacing.xs,
+  },
+  statusNoteText: {
+    flex: 1,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.info,
+  },
+  inputError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
+  // Edit Mode Badge - Compact
+  editBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: Colors.infoLight,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.round,
+    marginBottom: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  editBadgeText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+  },
+
+  // Tabs with Integrated Arrow Connector - Touches Card
+  tabsWrapper: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: 0,
+  },
   tabsContainer: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 4,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    padding: Spacing.xxs,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 3,
+    elevation: 2,
+    position: 'relative',
+    zIndex: 5,
+  },
+  tabButtonWrapper: {
+    flex: 1,
+    position: 'relative',
   },
   tabButton: {
-    flex: 1,
-    paddingVertical: 12,
+    paddingVertical: verticalScale(10),
     alignItems: 'center',
-    borderRadius: 8,
+    position: 'relative',
+  },
+  tabButtonFirst: {
+    borderTopLeftRadius: Layout.borderRadius.md,
+    borderBottomLeftRadius: Layout.borderRadius.md,
+  },
+  tabButtonLast: {
+    borderTopRightRadius: Layout.borderRadius.md,
+    borderBottomRightRadius: Layout.borderRadius.md,
   },
   tabButtonActive: {
-    backgroundColor: '#2F4FE3',
+    backgroundColor: Colors.primary,
   },
   tabButtonText: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#666',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
   },
   tabButtonTextActive: {
-    color: '#fff',
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  
+  // Integrated Arrow - Part of Active Tab, Touches Both Tab and Card
+  activeTabArrowContainer: {
+    position: 'absolute',
+    bottom: -verticalScale(14),
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  activeTabArrow: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: scale(10),
+    borderRightWidth: scale(10),
+    borderTopWidth: scale(12),
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: Colors.primary,
   },
 
   // Section Cards
   sectionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: verticalScale(14),
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden',
   },
+  
+  // Activity Section Card - Minimized
+  activitySectionCard: {
+    marginTop: verticalScale(14),
+    marginBottom: Spacing.md,
+  },
+  
   sectionHeader: {
-    marginBottom: 16,
-    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.backgroundLight,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
+    fontSize: Typography.fontSize.large,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
   },
   sectionContent: {
-    // Content styles
+    padding: Spacing.md,
   },
 
-  // Activities Header
-  activitiesHeader: {
+  // View Mode Row - No Icons, Clear Label/Value Hierarchy
+  viewRow: {
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  viewLabel: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  viewValue: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    lineHeight: Typography.lineHeight.h4,
+  },
+
+  // Edit Mode Field Styles
+  editField: {
+    marginBottom: Spacing.md,
+  },
+  editLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(12),
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  textArea: {
+    minHeight: verticalScale(70),
+    textAlignVertical: 'top',
+  },
+  dropdownInput: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(10),
   },
-  addActivityButtonSmall: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F5FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-  },
-  addActivityText: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#2F4FE3',
+  dropdownText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
   },
 
-  // Activity Items
-  activityItem: {
+  // Sales Rep Selector
+  salesRepSelector: {
     flexDirection: 'row',
-    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(12),
   },
-  activityIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F0F5FF',
+  selectorEmpty: {
+    borderColor: Colors.errorLight,
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  selectedRepText: {
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  placeholderText: {
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  clearButton: {
+    padding: Spacing.xxs,
+  },
+
+  // Toggle Button Styles for Yes/No Fields
+  toggleContainer: {
+    marginBottom: Spacing.lg,
+  },
+  toggleLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  toggleButtons: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  toggleOption: {
+    flex: 1,
+    paddingVertical: verticalScale(12),
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  toggleOptionActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  toggleOptionText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  toggleOptionTextActive: {
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+
+  // Activity Styles - Minimized
+  activityItem: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  activityIconContainer: {
+    width: scale(32),
+    height: scale(32),
+    borderRadius: scale(16),
+    backgroundColor: Colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
   },
   activityContent: {
     flex: 1,
@@ -1564,380 +1723,267 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: Spacing.xxs,
   },
   activityTitle: {
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
-  activityStatus: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+  activityStatusBadge: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
   },
   activityStatusText: {
-    fontSize: 12,
-    fontFamily: 'K2D-SemiBold',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   activityDescription: {
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-    marginBottom: 8,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
   },
   activityMeta: {
     flexDirection: 'row',
-    gap: 16,
   },
   activityMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: Spacing.xxs,
   },
   activityMetaText: {
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
   },
   separator: {
     height: 1,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 4,
+    backgroundColor: Colors.borderLight,
+    marginVertical: Spacing.xs,
   },
-  listFooter: {
-    height: 20,
-  },
-  noActivities: {
+
+  // Loading & Empty States - Minimized
+  loadingContainer: {
     alignItems: 'center',
-    paddingVertical: 40,
-  },
-  noActivitiesText: {
-    fontSize: 16,
-    fontFamily: 'K2D-Medium',
-    color: '#999',
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  addFirstActivityButton: {
-    backgroundColor: '#2F4FE3',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  addFirstActivityText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
-  },
-  loadingActivities: {
-    alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: verticalScale(20),
   },
   loadingText: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
-    marginTop: 8,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
   },
-
-  // Field Styles
-  editField: {
-    marginBottom: 16,
-  },
-  viewField: {
-    marginBottom: 14,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  label: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 6,
-    fontFamily: 'K2D-SemiBold',
-  },
-  viewLabel: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontFamily: 'K2D-Medium',
-    marginBottom: 4,
-  },
-  viewValue: {
-    fontSize: 15,
-    color: '#333',
-    fontFamily: 'K2D-Regular',
-  },
-
-  // Input Styles
-  input: {
-    backgroundColor: '#f9f9f9',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    color: '#333',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-  },
-  dropdownInput: {
-    backgroundColor: '#f9f9f9',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyState: {
     alignItems: 'center',
+    paddingVertical: verticalScale(20),
   },
-  dropdownDisabled: {
-    backgroundColor: '#f0f0f0',
-    opacity: 0.7,
+  emptyStateText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  emptyStateButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Layout.borderRadius.md,
   },
-
-  // Sales Representative Selector Styles
-  salesRepSelector: {
-    backgroundColor: '#f9f9f9',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  selectorEmpty: {
-    borderColor: '#ffb3b3',
-    backgroundColor: '#fff5f5',
-  },
-  selectedRepContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectedRepText: {
-    fontSize: 14,
-    color: '#000',
-    fontFamily: 'K2D-Regular',
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: '#999',
-    fontFamily: 'K2D-Regular',
-    flex: 1,
-  },
-  clearButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-
-  // Sales Representative Modal Styles
-  salesRepModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  salesRepModalContainer: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '80%',
-  },
-  salesRepModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  salesRepModalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
-  },
-  salesRepCloseButton: {
-    padding: 4,
-  },
-  salesRepSearchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    margin: 16,
-    paddingHorizontal: 12,
-    backgroundColor: '#f9f9f9',
-  },
-  salesRepSearchIcon: {
-    marginRight: 8,
-  },
-  salesRepSearchInput: {
-    flex: 1,
-    height: 40,
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
-  },
-  salesRepClearSearchButton: {
-    padding: 4,
-  },
-  salesRepLoadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  salesRepLoadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-  },
-  salesRepList: {
-    maxHeight: 400,
-  },
-  salesRepListContent: {
-    paddingBottom: 16,
-  },
-  repItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  selectedRepItem: {
-    backgroundColor: '#f0f5ff',
-  },
-  repItemContent: {
-    flex: 1,
-  },
-  repName: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
-    marginBottom: 2,
-  },
-  repEmail: {
-    fontSize: 12,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
-  },
-  salesRepEmptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-  },
-  salesRepEmptyText: {
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 12,
-  },
-  salesRepModalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    alignItems: 'center',
-  },
-  salesRepFooterText: {
-    fontSize: 12,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
+  emptyStateButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
   },
 
   // Action Buttons
   actionButtons: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 20,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: verticalScale(20),
+    gap: Spacing.sm,
   },
-  saveBtn: {
-    width: '100%',
-    backgroundColor: '#2F4FE3',
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
+  saveButton: {
     flexDirection: 'row',
-    gap: 8,
-    elevation: 2,
-    shadowColor: '#2F4FE3',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  saveBtnDisabled: {
-    backgroundColor: '#9aa7e3',
-  },
-  saveBtnTxt: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
-  },
-  cancelBtn: {
-    width: '100%',
-    backgroundColor: '#fff',
-    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: verticalScale(14),
+    borderRadius: Layout.borderRadius.md,
+    gap: Spacing.sm,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
+  },
+  saveButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(14),
+    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
-    borderColor: '#ddd',
-    marginTop: 10,
+    borderColor: Colors.border,
   },
-  cancelBtnTxt: {
-    color: '#666',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
-  },
-  bottomPadding: {
-    height: 30,
+  cancelButtonText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
 
-  // Loading and Error States
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: Colors.cardBackground,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  modalSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    gap: Spacing.sm,
+  },
+  modalSearchInput: {
+    flex: 1,
+    height: verticalScale(44),
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  modalLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(40),
+  },
+  modalLoadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(40),
+  },
+  modalEmptyText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+  },
+
+  // Rep Item Styles
+  repItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  selectedRepItem: {
+    backgroundColor: Colors.infoLight,
+  },
+  repItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  repAvatar: {
+    width: scale(44),
+    height: scale(44),
+    borderRadius: scale(22),
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  repAvatarText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textInverse,
+  },
+  repDetails: {
+    flex: 1,
+  },
+  repName: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
+  },
+  repEmail: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+
+  // Menu Styles
+  menuItemTitle: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  menuItemSelected: {
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+
+  // Error States
   errorContainer: {
     flex: 1,
-    backgroundColor: '#f4f2f8',
-  },
-  errorContent: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-    paddingTop: 100,
+    justifyContent: 'center',
+    padding: Spacing.xxxxl,
   },
   errorText: {
-    fontSize: 18,
-    fontFamily: 'K2D-SemiBold',
-    color: '#000',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
     textAlign: 'center',
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: '#2F4FE3',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
   },
   retryButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
 });
 

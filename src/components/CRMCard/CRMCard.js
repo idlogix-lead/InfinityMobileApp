@@ -12,34 +12,41 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import moment from 'moment';
 import { useQueryClient } from 'react-query';
 
+// Import CRMTheme
+import theme from '../../constants/CRMTheme/CRMTheme';
+
+// Destructure theme
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale } = Layout;
+
 const STATUS_CONFIG = {
   New: {
-    barColor: '#2ECC71',
+    barColor: Colors.statusNew,
     badgeText: 'New',
     badgeBg: '#EAF8F0',
-    badgeColor: '#2ECC71',
+    badgeColor: Colors.statusNew,
     showDot: true,
   },
   Working: {
-    barColor: '#F4A623',
+    barColor: Colors.statusWorking,
     badgeText: 'Working',
     badgeBg: '#FFF3E0',
-    badgeColor: '#F4A623',
+    badgeColor: Colors.statusWorking,
     showDot: true,
   },
   Converted: {
-    barColor: '#4A6CF7',
+    barColor: Colors.statusConverted,
     badgeText: 'Converted',
     badgeBg: '#EEF1FF',
-    badgeColor: '#4A6CF7',
+    badgeColor: Colors.statusConverted,
     showDot: false,
     showCheck: true,
   },
   Expired: {
-    barColor: '#EA4747',
+    barColor: Colors.statusExpired,
     badgeText: 'Expired',
     badgeBg: '#FDECEC',
-    badgeColor: '#EA4747',
+    badgeColor: Colors.statusExpired,
     showDot: true,
   },
 };
@@ -114,6 +121,10 @@ const CRMCard = ({
   }, [leadId, queryClient, propStatus]);
 
   const statusUI = STATUS_CONFIG[currentStatus] || STATUS_CONFIG.New;
+  
+  // Determine if there's any activity
+  const hasActivity = interactionType && interactionType !== 'No Activity' && interactionType !== 'N/A';
+  const hasDate = dateText;
 
   return (
     <TouchableOpacity 
@@ -123,13 +134,7 @@ const CRMCard = ({
     >
       <View style={styles.card}>
         <View style={styles.row}>
-          <View
-            style={[
-              styles.statusBar,
-              { backgroundColor: statusUI.barColor },
-            ]}
-          />
-
+          
           <Image
             source={{
               uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
@@ -138,12 +143,19 @@ const CRMCard = ({
           />
 
           <View style={styles.center}>
-            <Text style={styles.name}>{name || 'No Name'}</Text>
-            <Text style={styles.company}>{header || company || 'No Company'}</Text>
+            <Text style={styles.name} numberOfLines={1}>
+              {name || 'No Name'}
+            </Text>
+            <Text style={styles.company} numberOfLines={1}>
+              {header || company || 'No Company'}
+            </Text>
 
             <Text style={styles.lastText}>
-              Last: {interactionType || 'No Activity'} ·{' '}
-              {dateText ? moment(dateText).fromNow() : 'No Date'}
+              {hasActivity ? (
+                <>Last: {interactionType} · {dateText ? moment(dateText).fromNow() : 'No Date'}</>
+              ) : (
+                <Text style={styles.noActivityText}>No activity yet</Text>
+              )}
             </Text>
           </View>
 
@@ -164,9 +176,9 @@ const CRMCard = ({
               {statusUI.showCheck && (
                 <AntDesign
                   name="checkcircle"
-                  size={14}
+                  size={scale(14)}
                   color={statusUI.badgeColor}
-                  style={{ marginRight: 4 }}
+                  style={styles.checkIcon}
                 />
               )}
               <Text
@@ -180,36 +192,36 @@ const CRMCard = ({
 
             <View style={styles.iconRow}>
               {phone && (
-                <TouchableOpacity onPress={phone}>
+                <TouchableOpacity onPress={phone} style={styles.iconButton}>
                   <Ionicons
                     name="call-outline"
-                    size={18}
-                    color="#2F4FE3"
+                    size={Layout.iconSize.sm}
+                    color={Colors.primary}
                   />
                 </TouchableOpacity>
               )}
 
               {mail && (
-                <TouchableOpacity onPress={mail}>
+                <TouchableOpacity onPress={mail} style={styles.iconButton}>
                   <Ionicons
                     name="mail-outline"
-                    size={18}
-                    color="#2F4FE3"
+                    size={Layout.iconSize.sm}
+                    color={Colors.primary}
                   />
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity onPress={actOnPress}>
+              <TouchableOpacity onPress={actOnPress} style={styles.iconButton}>
                 <View style={styles.addActivity}>
                   <Ionicons
                     name="alarm-outline"
-                    size={18}
-                    color="#2F4FE3"
+                    size={Layout.iconSize.sm}
+                    color={Colors.primary}
                   />
                   <AntDesign
                     name="pluscircle"
-                    size={10}
-                    color="#2F4FE3"
+                    size={scale(10)}
+                    color={Colors.primary}
                     style={styles.plus}
                   />
                 </View>
@@ -224,84 +236,101 @@ const CRMCard = ({
 
 const styles = StyleSheet.create({
   cardContainer: {
-    marginHorizontal: 10,
-    marginVertical: 5,
+    marginHorizontal: Spacing.xs,
+    marginVertical: Spacing.xxs,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.md,
     elevation: 3,
+    shadowColor: Colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingRight: 10,
-  },
-  statusBar: {
-    width: 5,
-    height: '100%',
-    marginRight: 10,
-    borderRadius: 3,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
+    width: Layout.iconSize.xl,
+    height: Layout.iconSize.xl,
+    borderRadius: Layout.borderRadius.round,
+    marginRight: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   center: {
     flex: 1,
+    marginRight: Spacing.xs,
   },
   name: {
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    color: '#000',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
   },
   company: {
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-    color: '#777',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
   },
   lastText: {
-    fontSize: 11,
-    fontFamily: 'K2D-Regular',
-    color: '#999',
-    marginTop: 2,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+  },
+  noActivityText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    fontStyle: 'italic',
   },
   right: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 14,
-    marginBottom: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    marginBottom: Spacing.xs,
   },
   badgeText: {
-    fontSize: 11,
-    fontFamily: 'K2D-Medium',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+    width: scale(8),
+    height: scale(8),
+    borderRadius: scale(4),
+    marginRight: Spacing.xxs,
+  },
+  checkIcon: {
+    marginRight: Spacing.xxs,
   },
   iconRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Spacing.md,
+  },
+  iconButton: {
+    padding: Spacing.xxs,
   },
   addActivity: {
     position: 'relative',
   },
   plus: {
     position: 'absolute',
-    right: -5,
-    bottom: -5,
+    right: -scale(5),
+    bottom: -scale(5),
+    backgroundColor: Colors.cardBackground,
+    borderRadius: scale(10),
   },
 });
 
