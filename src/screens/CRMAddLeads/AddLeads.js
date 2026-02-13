@@ -18,7 +18,7 @@ import CustomHeader from '../../components/CustomHeader';
 import { useAddLeadForm } from '../../hooks/CRMhooks/useAddLeadForm';
 import { useCreateLead, useCampaigns, useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import FormSection from '../../components/AddLead/FormSection';
-import FormInput from '../../components/AddLead/LeadForm';
+import { FormInput, PhoneInput } from '../../components/AddLead/LeadForm';
 import SelectPicker from '../../components/AddLead/SelectPicker';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -49,6 +49,7 @@ const AddLeads = () => {
   // State for searchable sales rep picker
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [countryCode, setCountryCode] = useState('+92'); // Pakistan by default
 
   // Status options
   const leadStatusOptions = [
@@ -219,17 +220,19 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
           
-          <FormInput
+          {/* Phone Input with Country Code */}
+          <PhoneInput
             label="Phone"
             required
             value={formData.phone}
             onChangeText={(value) => updateField('phone', value)}
-            placeholder="+92XXXXXXXXXX"
-            keyboardType="phone-pad"
+            placeholder="Enter phone number"
             error={errors.phone}
             focused={focusedField === 'phone'}
             onFocus={() => setFocusedField('phone')}
             onBlur={() => setFocusedField(null)}
+            defaultCountryCode="+92"
+            onCountryCodeChange={(code) => setCountryCode(code)}
           />
           
           <FormInput
@@ -337,16 +340,17 @@ const AddLeads = () => {
           expanded={expandedSections.otherInfo}
           onToggle={() => toggleSection('otherInfo')}
         >
-          <FormInput
+          {/* Secondary Phone with Country Code */}
+          <PhoneInput
             label="Secondary Phone"
             value={formData.phone2}
             onChangeText={(value) => updateField('phone2', value)}
-            placeholder="+92XXXXXXXXXX"
-            keyboardType="phone-pad"
+            placeholder="Enter secondary phone"
             error={errors.phone2}
             focused={focusedField === 'phone2'}
             onFocus={() => setFocusedField('phone2')}
             onBlur={() => setFocusedField(null)}
+            defaultCountryCode="+92"
           />
           
           <FormInput
@@ -629,38 +633,49 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 20,
-    borderRadius: 8,
-    elevation: 4,
+    borderRadius: 12,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
   formContent: {
-    padding: 16,
+    padding: 20,
   },
   pickerContainer: {
     marginBottom: 16,
   },
   pickerLabel: {
-    color: '#000',
+    color: '#333',
     fontFamily: 'K2D-SemiBold',
     fontSize: 14,
     marginBottom: 6,
+    letterSpacing: 0.5,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   picker: {
-    height: 40,
-    color: '#000',
+    height: 48,
+    color: '#333',
   },
   smallPicker: {
-    height: 40,
-    color: '#000',
+    height: 48,
+    color: '#333',
     fontSize: 14,
   },
   booleanContainer: {
@@ -673,34 +688,48 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   booleanLabel: {
-    color: '#000',
+    color: '#333',
     fontFamily: 'K2D-SemiBold',
     fontSize: 14,
     marginBottom: 6,
+    letterSpacing: 0.5,
   },
   submitButton: {
     backgroundColor: '#2F4FE3',
-    paddingVertical: 14,
-    borderRadius: 6,
+    paddingVertical: 16,
+    borderRadius: 8,
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 10,
+    
+    // Shadow for iOS
+    shadowColor: '#2F4FE3',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    
+    // Elevation for Android
+    elevation: 6,
   },
   submitButtonDisabled: {
     backgroundColor: '#8fa3e3',
+    shadowOpacity: 0.2,
+    elevation: 3,
   },
   submitButtonText: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'K2D-SemiBold',
+    letterSpacing: 0.5,
   },
   bottomSpacing: {
     height: 20,
   },
   errorText: {
-    color: 'red',
+    color: '#FF3B30',
     fontSize: 12,
     marginTop: 4,
+    marginLeft: 4,
     fontFamily: 'K2D-Regular',
   },
   
@@ -710,14 +739,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   selectorError: {
-    borderColor: 'red',
+    borderColor: '#FF3B30',
+    shadowColor: '#FF3B30',
   },
   selectedRepContainer: {
     flex: 1,
@@ -726,12 +765,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   selectedRepText: {
-    fontSize: 14,
-    color: '#000',
+    fontSize: 15,
+    color: '#333',
     fontFamily: 'K2D-Regular',
   },
   placeholderText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#999',
     fontFamily: 'K2D-Regular',
     flex: 1,
@@ -749,9 +788,18 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '80%',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    
+    // Elevation for Android
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -759,7 +807,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
     fontSize: 18,
@@ -773,19 +821,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#E0E0E0',
     borderRadius: 8,
     margin: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    
+    // Elevation for Android
+    elevation: 2,
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: 40,
-    fontSize: 14,
+    height: 44,
+    fontSize: 15,
     fontFamily: 'K2D-Regular',
     color: '#333',
   },
@@ -802,7 +859,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -814,7 +871,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   repName: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
   },
@@ -825,7 +882,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'K2D-Regular',
     color: '#999',
     textAlign: 'center',
@@ -834,11 +891,11 @@ const styles = StyleSheet.create({
   modalFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#f0f0f0',
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'K2D-Regular',
     color: '#666',
   },

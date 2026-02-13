@@ -14,7 +14,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import {Provider} from 'react-native-paper';
+import {Provider, Menu, Divider} from 'react-native-paper';
 import {useFocusEffect} from '@react-navigation/native';
 import {useQueryClient} from 'react-query';
 import CustomHeader from '../../components/CustomHeader';
@@ -52,7 +52,6 @@ const GenericLead = ({navigation, route}) => {
 
   // State
   const [filterVisible, setFilterVisible] = useState(false);
-  const [sortVisible, setSortVisible] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
   const [showFromDatePicker, setShowFromDatePicker] = useState(false);
@@ -65,13 +64,14 @@ const GenericLead = ({navigation, route}) => {
   const [forceUpdate, setForceUpdate] = useState(0);
 
   // Sorting state
-  const [sortBy, setSortBy] = useState('createdDate');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortBy, setSortBy] = useState('latest'); // Default sort option
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
   const [endDate, setEndDate] = useState(moment().format('YYYY-MM-DD'));
   const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectDate, setSelectDate] = useState(null);
+  
   // Hooks
   const queryClient = useQueryClient();
 
@@ -93,6 +93,21 @@ const GenericLead = ({navigation, route}) => {
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
   const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
+
+  // Sort options
+  const sortOptions = [
+    {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
+    {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
+    {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
+    {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
+    {id: 'statusNew', label: 'Status: New First', icon: 'star'},
+    {id: 'statusWorking', label: 'Status: Working First', icon: 'progress-clock'},
+    {id: 'statusConverted', label: 'Status: Converted First', icon: 'check-circle'},
+    {id: 'statusExpired', label: 'Status: Expired First', icon: 'clock-alert'},
+  ];
+
+  // Get current sort option display
+  const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
 
   // Subscribe to query cache changes for real-time updates
   useEffect(() => {
@@ -225,36 +240,63 @@ const GenericLead = ({navigation, route}) => {
     const sorted = [...filteredLeads];
 
     sorted.sort((a, b) => {
-      let aValue, bValue;
-
       switch (sortBy) {
-        case 'createdDate':
-          aValue = moment(a.Created || a.CreatedDate);
-          bValue = moment(b.Created || b.CreatedDate);
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        case 'latest':
+          // Newest first (descending)
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
-        case 'name':
-          aValue = (a.Name || '').toLowerCase();
-          bValue = (b.Name || '').toLowerCase();
-          return sortOrder === 'asc'
-            ? aValue.localeCompare(bValue)
-            : bValue.localeCompare(aValue);
+        case 'oldest':
+          // Oldest first (ascending)
+          return moment(a.Created || a.CreatedDate).valueOf() - moment(b.Created || b.CreatedDate).valueOf();
 
-        case 'status':
-          const statusOrder = {N: 1, W: 2, C: 3, E: 4};
-          aValue = statusOrder[a?.LeadStatus?.id] || 5;
-          bValue = statusOrder[b?.LeadStatus?.id] || 5;
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        case 'nameAZ':
+          // A to Z
+          const nameA = (a.Name || '').toLowerCase();
+          const nameB = (b.Name || '').toLowerCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          return 0;
+
+        case 'nameZA':
+          // Z to A
+          const nameAZ = (a.Name || '').toLowerCase();
+          const nameBZ = (b.Name || '').toLowerCase();
+          if (nameAZ > nameBZ) return -1;
+          if (nameAZ < nameBZ) return 1;
+          return 0;
+
+        case 'statusNew':
+          // New first, then by date
+          if (a.LeadStatus?.id === 'N' && b.LeadStatus?.id !== 'N') return -1;
+          if (a.LeadStatus?.id !== 'N' && b.LeadStatus?.id === 'N') return 1;
+          // If same status, sort by date (newest first)
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+
+        case 'statusWorking':
+          // Working first, then by date
+          if (a.LeadStatus?.id === 'W' && b.LeadStatus?.id !== 'W') return -1;
+          if (a.LeadStatus?.id !== 'W' && b.LeadStatus?.id === 'W') return 1;
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+
+        case 'statusConverted':
+          // Converted first, then by date
+          if (a.LeadStatus?.id === 'C' && b.LeadStatus?.id !== 'C') return -1;
+          if (a.LeadStatus?.id !== 'C' && b.LeadStatus?.id === 'C') return 1;
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+
+        case 'statusExpired':
+          // Expired first, then by date
+          if (a.LeadStatus?.id === 'E' && b.LeadStatus?.id !== 'E') return -1;
+          if (a.LeadStatus?.id !== 'E' && b.LeadStatus?.id === 'E') return 1;
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
         default:
-          aValue = moment(a.Created || a.CreatedDate);
-          bValue = moment(b.Created || b.CreatedDate);
-          return bValue - aValue;
+          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
       }
     });
 
     return sorted;
-  }, [filteredLeads, sortBy, sortOrder]);
+  }, [filteredLeads, sortBy]);
 
   // Enhanced search function
   const performSearch = useCallback(
@@ -323,8 +365,7 @@ const GenericLead = ({navigation, route}) => {
     setSearchQuery('');
     setLocalSearchResults([]);
     setFilterVisible(false);
-    setSortBy('createdDate');
-    setSortOrder('desc');
+    setSortBy('latest');
     debouncedSearch.cancel();
   };
 
@@ -348,25 +389,6 @@ const GenericLead = ({navigation, route}) => {
     }
   };
 
-  // Toggle sort order
-  const toggleSortOrder = () => {
-    setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
-  };
-
-  // Get sort option display name
-  const getSortOptionName = option => {
-    switch (option) {
-      case 'createdDate':
-        return 'Created Date';
-      case 'name':
-        return 'Name';
-      case 'status':
-        return 'Status';
-      default:
-        return 'Created Date';
-    }
-  };
-
   // Determine which data to display
   const displayData = useMemo(() => {
     if (searchQuery && searchQuery.trim() !== '') {
@@ -382,13 +404,6 @@ const GenericLead = ({navigation, route}) => {
     {label: 'Working', value: 'Working'},
     {label: 'Converted', value: 'Converted'},
     {label: 'Expired', value: 'Expired'},
-  ];
-
-  // Sort options
-  const sortOptions = [
-    {id: 'createdDate', label: 'Created Date', icon: 'calendar-plus'},
-    {id: 'name', label: 'Name', icon: 'account'},
-    {id: 'status', label: 'Status', icon: 'checkbox-marked-circle'},
   ];
 
   // Format date for display
@@ -541,7 +556,6 @@ const GenericLead = ({navigation, route}) => {
                 <Text style={styles.sectionTitle}>From Date (Optional)</Text>
                 <TouchableOpacity
                   style={styles.dateInput}
-                  // onPress={() => setShowFromDatePicker(true)}
                   onPress={() => {
                     setCalendarMode('from');
                     setShowCalendar(true);
@@ -574,15 +588,12 @@ const GenericLead = ({navigation, route}) => {
 
                   {/* Calendar Icon only triggers calendar */}
                   <TouchableOpacity
-                    // onPress={() => setShowToDatePicker(true)}
-                    // onPress={() => setShowCalendar(true)}
                     onPress={() => {
                       setCalendarMode('to');
                       setShowCalendar(true);
                     }}
                     activeOpacity={0.7}
-                    style={{paddingLeft: scale(8)}} // optional: spacing
-                  >
+                    style={{paddingLeft: scale(8)}}>
                     <EvilIcons
                       name="calendar"
                       size={scale(25)}
@@ -590,43 +601,6 @@ const GenericLead = ({navigation, route}) => {
                     />
                   </TouchableOpacity>
                 </View>
-
-                {/* To Date Calendar */}
-                {/* {showToDatePicker && (
-                  <Modal
-                    visible={showToDatePicker}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setShowToDatePicker(false)}>
-                    <View style={styles.calendarModalOverlay}>
-                      <View style={styles.calendarModalContent}>
-                        <Calendar
-                          onDayPress={day => {
-                            setToDate(day.dateString);
-                            setShowToDatePicker(false);
-                          }}
-                          markedDates={{
-                            [toDate]: {
-                              selected: true,
-                              selectedColor: Colors.primary,
-                            },
-                          }}
-                          theme={{
-                            selectedDayBackgroundColor: Colors.primary,
-                            todayTextColor: Colors.primary,
-                            arrowColor: Colors.primary,
-                          }}
-                          minDate={fromDate || undefined}
-                        />
-                        <TouchableOpacity
-                          onPress={() => setShowToDatePicker(false)}
-                          style={styles.calendarCloseButton}>
-                          <Text style={{color: Colors.primary}}>Close</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </Modal>
-                )} */}
 
                 {/* Action Buttons */}
                 <View style={styles.buttonContainer}>
@@ -649,125 +623,7 @@ const GenericLead = ({navigation, route}) => {
           </View>
         </Modal>
 
-        {/* Sort Modal */}
-        <Modal
-          visible={sortVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setSortVisible(false)}>
-          <View style={styles.sortModalOverlay}>
-            <View style={styles.sortModalContent}>
-              <View style={styles.sortModalHeader}>
-                <Text style={styles.sortModalTitle}>
-                  Sort {actualScreenTitle}
-                </Text>
-                <TouchableOpacity onPress={() => setSortVisible(false)}>
-                  <MaterialIcons
-                    name="close"
-                    size={scale(24)}
-                    color={Colors.textPrimary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Sort Options */}
-              <ScrollView style={styles.sortOptionsList}>
-                {sortOptions.map(option => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.sortOptionItem,
-                      sortBy === option.id && styles.sortOptionItemSelected,
-                    ]}
-                    onPress={() => {
-                      setSortBy(option.id);
-                      setSortVisible(false);
-                    }}>
-                    <View style={styles.sortOptionContent}>
-                      <MaterialCommunityIcons
-                        name={option.icon}
-                        size={scale(20)}
-                        color={
-                          sortBy === option.id
-                            ? Colors.primary
-                            : Colors.textSecondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.sortOptionText,
-                          sortBy === option.id && styles.sortOptionTextSelected,
-                        ]}>
-                        {option.label}
-                      </Text>
-                    </View>
-                    {sortBy === option.id && (
-                      <MaterialIcons
-                        name="check"
-                        size={scale(20)}
-                        color={Colors.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Sort Order Toggle */}
-              <View style={styles.sortOrderContainer}>
-                <Text style={styles.sortOrderLabel}>Sort Order:</Text>
-                <TouchableOpacity
-                  style={styles.sortOrderButton}
-                  onPress={toggleSortOrder}>
-                  <Text style={styles.sortOrderText}>
-                    {sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-                  </Text>
-                  <MaterialIcons
-                    name={
-                      sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'
-                    }
-                    size={scale(18)}
-                    color={Colors.primary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Close Button */}
-              <TouchableOpacity
-                style={styles.closeSortButton}
-                onPress={() => setSortVisible(false)}>
-                <Text style={styles.closeSortButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Date Pickers */}
-        {/* {showFromDatePicker && (
-          <DateTimePicker
-            value={fromDate || new Date()}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-              setShowFromDatePicker(false);
-              if (date) setFromDate(date);
-            }}
-            maximumDate={toDate || new Date()}
-          />
-        )} */}
-
-        {/* {showToDatePicker && (
-          <DateTimePicker
-            value={toDate || new Date()}
-            mode="date"
-            display="default"
-            onChange={(event, date) => {
-              setShowToDatePicker(false);
-              if (date) setToDate(date);
-            }}
-            minimumDate={fromDate || undefined}
-            maximumDate={new Date()}
-          />
-        )} */}
+        {/* Calendar Modal */}
         <CalendarModal
           visible={showCalendar}
           initialDate={calendarMode === 'from' ? fromDate : selectDate}
@@ -825,22 +681,54 @@ const GenericLead = ({navigation, route}) => {
                 )}
               </View>
 
-              {/* Sort Button */}
-              <TouchableOpacity
-                style={styles.sortButton}
-                onPress={() => setSortVisible(true)}>
-                <MaterialCommunityIcons
-                  name="sort"
-                  size={scale(20)}
-                  color={Colors.primary}
-                />
-                <Text style={styles.sortButtonText}>Sort</Text>
-                <MaterialIcons
-                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'}
-                  size={scale(14)}
-                  color={Colors.primary}
-                />
-              </TouchableOpacity>
+              {/* Sort Dropdown Button */}
+              <Menu
+                visible={sortMenuVisible}
+                onDismiss={() => setSortMenuVisible(false)}
+                anchor={
+                  <TouchableOpacity
+                    style={styles.sortButton}
+                    onPress={() => setSortMenuVisible(true)}>
+                    <MaterialCommunityIcons
+                      name="sort"
+                      size={scale(20)}
+                      color={Colors.primary}
+                    />
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={scale(16)}
+                      color={Colors.primary}
+                    />
+                  </TouchableOpacity>
+                }
+                style={styles.sortMenu}>
+                {sortOptions.map((option, index) => (
+                  <React.Fragment key={option.id}>
+                    <Menu.Item
+                      onPress={() => {
+                        setSortBy(option.id);
+                        setSortMenuVisible(false);
+                      }}
+                      title={option.label}
+                      titleStyle={[
+                        styles.menuItemTitle,
+                        sortBy === option.id && styles.menuItemSelected
+                      ]}
+                      left={() => (
+                        <MaterialCommunityIcons
+                          name={option.icon}
+                          size={scale(18)}
+                          color={sortBy === option.id ? Colors.primary : Colors.textSecondary}
+                        />
+                      )}
+                      right={() => sortBy === option.id && (
+                        <MaterialIcons name="check" size={scale(18)} color={Colors.primary} />
+                      )}
+                    />
+                    {index < sortOptions.length - 1 && <Divider />}
+                  </React.Fragment>
+                ))}
+              </Menu>
             </View>
 
             {/* Search and Sort Info */}
@@ -861,15 +749,11 @@ const GenericLead = ({navigation, route}) => {
               ) : (
                 <View style={styles.sortInfoRow}>
                   <View style={styles.sortInfoContainer}>
-                    <Text style={styles.sortInfoText}>
-                      Sorted by: {getSortOptionName(sortBy)} (
-                      {sortOrder === 'asc' ? 'Asc' : 'Desc'})
-                    </Text>
-                  </View>
-                  <Text style={styles.totalCountText}>
+                    <Text style={styles.totalCountText}>
                     {filteredLeads.length} leads
-                    {selectStatus !== 'select' ? ` (${selectStatus})` : ''}
                   </Text>
+                  </View>
+                 
                 </View>
               )}
             </View>
@@ -1015,23 +899,29 @@ const styles = StyleSheet.create({
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.buttonSecondary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    width: scale(44),
+    height: scale(44),
     borderRadius: Layout.borderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    gap: spacing.xs,
     elevation: 2,
     shadowColor: Colors.shadow,
     shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  sortButtonText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
+  sortMenu: {
+    marginTop: verticalScale(40),
+  },
+  menuItemTitle: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  menuItemSelected: {
     color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   filterSortInfo: {
     marginBottom: spacing.xxs,
@@ -1284,104 +1174,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: Typography.fontSize.medium,
   },
-  sortModalOverlay: {
-    flex: 1,
-    backgroundColor: Colors.overlay,
-    justifyContent: 'flex-end',
-  },
-  sortModalContent: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: Layout.borderRadius.xxl,
-    borderTopRightRadius: Layout.borderRadius.xxl,
-    padding: spacing.xl,
-    maxHeight: '50%',
-  },
-  sortModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  sortModalTitle: {
-    fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-  },
-  sortOptionsList: {
-    maxHeight: verticalScale(300),
-    marginBottom: spacing.xl,
-  },
-  sortOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: verticalScale(14),
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  sortOptionItemSelected: {
-    backgroundColor: Colors.infoLight,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
-  },
-  sortOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  sortOptionText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textPrimary,
-  },
-  sortOptionTextSelected: {
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
-  sortOrderContainer: {
-    marginBottom: spacing.xl,
-    padding: spacing.lg,
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.lg,
-  },
-  sortOrderLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  sortOrderButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.background,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: verticalScale(12),
-    borderRadius: Layout.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  sortOrderText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textPrimary,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  closeSortButton: {
-    backgroundColor: Colors.primary,
-    paddingVertical: verticalScale(14),
-    borderRadius: Layout.borderRadius.lg,
-    alignItems: 'center',
-  },
-  closeSortButtonText: {
-    color: Colors.textInverse,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: Typography.fontSize.medium,
-  },
-
-  // CALENDAR STYLE
   calendarModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -394,7 +394,9 @@ const CrmScreen = ({ navigation }) => {
     <Provider>
       <>
         {/* Custom Header */}
-        <CustomHeader title="CRM Board" />
+        <CustomHeader title="CRM Board" 
+          RightIcon="home" 
+  RightPress={() => navigation.navigate('Home')} />
         
         {/* Content */}
         <View style={styles.container}>
@@ -570,6 +572,7 @@ const styles = StyleSheet.create({
     width: '33.33%', // Each tab takes 1/3 of the width
     top: 0,
     transition: 'left 0.3s ease-in-out',
+    borderRadius: 20,
   },
   // Positions for active tab
   activeTabLeads: {

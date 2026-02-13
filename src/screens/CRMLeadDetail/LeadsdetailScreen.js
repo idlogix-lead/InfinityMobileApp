@@ -1,900 +1,1053 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View,
   ScrollView,
-  ActivityIndicator,
-  Linking,
   StyleSheet,
   Text,
-  FlatList,
+  View,
   TouchableOpacity,
-  Modal,
-  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Image,
+  FlatList,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
-import CRMCard from '../../components/CRMCard/CRMCard';
-import { useFollowups } from '../../hooks/CRMhooks/useCRM';
-import moment from 'moment';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import AntDesign from 'react-native-vector-icons/AntDesign';
+import { useCompletedLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useQueryClient } from 'react-query';
+import moment from 'moment';
+import theme from '../../constants/CRMTheme/CRMTheme';
 
-const LeadDetailsScreen = ({ navigation, route }) => {
-  const { data: lead } = route.params;
-  const [collapsed, setCollapsed] = useState(true);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('startDate'); // 'startDate', 'endDate', 'status'
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
-  const [showSortModal, setShowSortModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale } = Layout;
 
-  const { data: followups = [], isLoading, refetch: refetchFollowups } = useFollowups();
+/* ================= STATUS CONFIG WITH THEME COLORS ================= */
+const STATUS_CONFIG = {
+  New: {
+    barColor: Colors.statusNew,
+    badgeText: 'New',
+    badgeBg: Colors.infoLight,
+    badgeColor: Colors.statusNew,
+    showDot: true,
+  },
+  Working: {
+    barColor: Colors.statusWorking,
+    badgeText: 'Working',
+    badgeBg: Colors.warningLight,
+    badgeColor: Colors.statusWorking,
+    showDot: true,
+  },
+  Converted: {
+    barColor: Colors.statusConverted,
+    badgeText: 'Converted',
+    badgeBg: Colors.successLight,
+    badgeColor: Colors.statusConverted,
+    showDot: false,
+    showCheck: true,
+  },
+  Expired: {
+    barColor: Colors.statusExpired,
+    badgeText: 'Expired',
+    badgeBg: Colors.errorLight,
+    badgeColor: Colors.statusExpired,
+    showDot: true,
+  },
+};
 
-  const leadFollowups = useMemo(
-    () =>
-      followups.filter(
-        f => (f.AD_User_ID?.id || f.AD_User_ID) === lead.id
-      ),
-    [followups, lead.id]
-  );
+// Helper functions for activity styling
+const getActivityColor = (type) => {
+  switch (type?.toUpperCase()) {
+    case 'EMAIL': return '#4F46E5';
+    case 'PHONE CALL': return '#0EA5E9';
+    case 'PHONE': return '#0EA5E9';
+    case 'MEETING': return '#F59E0B';
+    case 'TASK': return '#EC4899';
+    default: return '#6366F1';
+  }
+};
 
-  // Handle refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetchFollowups();
-    } catch (error) {
-      console.error('Refresh error:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+const getActivityBgColor = (type) => {
+  switch (type?.toUpperCase()) {
+    case 'EMAIL': return '#EEF2FF';
+    case 'PHONE CALL': return '#F0F9FF';
+    case 'PHONE': return '#F0F9FF';
+    case 'MEETING': return '#FEF3C7';
+    case 'TASK': return '#FCE7F3';
+    default: return '#F5F3FF';
+  }
+};
 
-  // Filter followups based on selected tab
-  const filteredFollowups = useMemo(() => {
-    const today = moment().startOf('day');
-    let filtered = [...leadFollowups];
+const getActivityIcon = (type) => {
+  const iconColor = getActivityColor(type);
+  switch (type?.toUpperCase()) {
+    case 'EMAIL':
+      return <MaterialIcons name="email" size={scale(14)} color={iconColor} />;
+    case 'PHONE CALL':
+    case 'PHONE':
+      return <MaterialIcons name="phone" size={scale(14)} color={iconColor} />;
+    case 'MEETING':
+      return <MaterialIcons name="people" size={scale(14)} color={iconColor} />;
+    case 'TASK':
+      return <MaterialIcons name="task-alt" size={scale(14)} color={iconColor} />;
+    default:
+      return <MaterialIcons name="event" size={scale(14)} color={iconColor} />;
+  }
+};
 
-    // Apply time filter
-    if (activeFilter === 'today') {
-      filtered = filtered.filter(item => {
-        const start = moment(item.StartDate);
-        const end = item.EndDate ? moment(item.EndDate) : start;
-        return (
-          start.isSameOrBefore(today, 'day') &&
-          end.isSameOrAfter(today, 'day') &&
-          item.IsComplete === false
-        );
-      });
-    } else if (activeFilter === 'future') {
-      filtered = filtered.filter(item => {
-        const start = moment(item.StartDate);
-        return start.isAfter(today, 'day') && item.IsComplete === false;
-      });
-    } else if (activeFilter === 'missed') {
-      filtered = filtered.filter(item => {
-        const end = item.EndDate ? moment(item.EndDate) : moment(item.StartDate);
-        return end.isBefore(today, 'day') && item.IsComplete === false;
-      });
-    } else if (activeFilter === 'completed') {
-      filtered = filtered.filter(item => {
-        return item.IsComplete === true;
-      });
-    } else {
-      // 'all' - show all activities
-      filtered = filtered;
-    }
-
-    return filtered;
-  }, [leadFollowups, activeFilter]);
-
-  // Sort followups based on selected sorting option
-  const sortedFollowups = useMemo(() => {
-    if (!filteredFollowups.length) return [];
-
-    const sorted = [...filteredFollowups];
-
-    sorted.sort((a, b) => {
-      let aValue, bValue;
-
-      switch (sortBy) {
-        case 'startDate':
-          aValue = moment(a.StartDate || a.Created);
-          bValue = moment(b.StartDate || b.Created);
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-
-        case 'endDate':
-          aValue = a.EndDate ? moment(a.EndDate) : moment(a.StartDate || a.Created);
-          bValue = b.EndDate ? moment(b.EndDate) : moment(b.StartDate || b.Created);
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-
-        case 'status':
-          // Sort by completion status (completed first or pending first)
-          if (a.IsComplete === b.IsComplete) {
-            // If same status, sort by start date
-            aValue = moment(a.StartDate || a.Created);
-            bValue = moment(b.StartDate || b.Created);
-            return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-          }
-          return sortOrder === 'asc' 
-            ? (a.IsComplete ? -1 : 1) // Completed first
-            : (a.IsComplete ? 1 : -1); // Pending first
-
-        default:
-          // Default sort by start date
-          aValue = moment(a.StartDate || a.Created);
-          bValue = moment(b.StartDate || b.Created);
-          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-      }
-    });
-
-    return sorted;
-  }, [filteredFollowups, sortBy, sortOrder]);
-
-  // Helper functions for activity styling
-  const getActivityColor = (type) => {
-    switch (type?.toUpperCase()) {
-      case 'EMAIL': return '#4F46E5';
-      case 'PHONE': return '#0EA5E9';
-      case 'MEETING': return '#F59E0B';
-      case 'TASK': return '#EC4899';
-      default: return '#6366F1';
-    }
-  };
-
-  const getActivityBgColor = (type) => {
-    switch (type?.toUpperCase()) {
-      case 'EMAIL': return '#EEF2FF';
-      case 'PHONE': return '#F0F9FF';
-      case 'MEETING': return '#FEF3C7';
-      case 'TASK': return '#FCE7F3';
-      default: return '#F5F3FF';
-    }
-  };
-
-  const getActivityIcon = (type) => {
-    const iconColor = getActivityColor(type);
-    switch (type?.toUpperCase()) {
-      case 'EMAIL':
-        return <MaterialIcons name="email" size={14} color={iconColor} />;
-      case 'PHONE':
-        return <MaterialIcons name="phone" size={14} color={iconColor} />;
-      case 'MEETING':
-        return <MaterialIcons name="people" size={14} color={iconColor} />;
-      case 'TASK':
-        return <MaterialIcons name="task-alt" size={14} color={iconColor} />;
-      default:
-        return <MaterialIcons name="event" size={14} color={iconColor} />;
-    }
-  };
-
-  // Define tab colors for active state
-  const getTabColor = (tabId) => {
-    switch (tabId) {
-      case 'missed':
-        return '#EF4444';
-      case 'today':
-        return '#3B82F6';
-      case 'completed':
-        return '#10B981';
-      case 'future':
-        return '#F59E0B';
-      case 'all':
-      default:
-        return '#8B5CF6';
-    }
-  };
-
-  // Get sort option display name
-  const getSortOptionName = (option) => {
-    switch (option) {
-      case 'startDate': return 'Start Date';
-      case 'endDate': return 'End Date';
-      case 'status': return 'Status';
-      default: return 'Start Date';
-    }
-  };
-
-  // Toggle sort order
-  const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-  };
-
-  // Sort options
-  const sortOptions = [
-    { id: 'startDate', label: 'Start Date', icon: 'calendar-clock' },
-    { id: 'endDate', label: 'End Date', icon: 'calendar-arrow-right' },
-    { id: 'status', label: 'Status', icon: 'check-circle' },
-  ];
-
-  // Filter tabs
-  const filterTabs = [
-    { id: 'all', label: 'All' },
-    { id: 'today', label: 'Today' },
-    { id: 'future', label: 'Future' },
-    { id: 'missed', label: 'Missed' },
-    { id: 'completed', label: 'Completed' },
-  ];
-
-  // Filter Tab component
-  const FilterTab = ({ tab, active, onPress }) => {
-    const tabColor = getTabColor(tab.id);
+// Tab Component with Integrated Arrow Connector
+const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
+  <View style={styles.tabButtonWrapper}>
+    <TouchableOpacity
+      style={[
+        styles.tabButton,
+        active && styles.tabButtonActive,
+        isFirst && styles.tabButtonFirst,
+        isLast && styles.tabButtonLast,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
+        {title}
+      </Text>
+    </TouchableOpacity>
     
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        style={[
-          styles.filterTab,
-          active && styles.filterTabActive,
-        ]}
-      >
-        {/* Tick Icon Container */}
-        <View style={[
-          styles.tickContainer,
-          active ? { backgroundColor: tabColor } : styles.tickContainerInactive
-        ]}>
-          <MaterialIcons 
-            name="check" 
-            size={12} 
-            color="#FFFFFF" 
-          />
-        </View>
-        
-        {/* Tab Text */}
-        <Text style={[
-          styles.filterText,
-          active ? [styles.filterTextActive, { color: tabColor }] : styles.filterTextInactive
-        ]}>
-          {tab.label}
-        </Text>
-      </TouchableOpacity>
-    );
+    {/* Integrated Arrow Connector - Part of Active Tab, Touches Card */}
+    {active && (
+      <View style={styles.activeTabArrowContainer}>
+        <View style={styles.activeTabArrow} />
+      </View>
+    )}
+  </View>
+);
+
+// Activity Item Component - For Completed Activities Only
+const ActivityItem = ({ activity }) => {
+  const getActivityIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'phone call':
+      case 'phone':
+        return 'phone';
+      case 'email':
+        return 'email';
+      case 'meeting':
+        return 'calendar';
+      case 'task':
+        return 'checkbox-marked-circle';
+      default:
+        return 'account';
+    }
   };
 
-  const renderFollowupCard = ({ item }) => {
-    const isComplete = item.IsComplete;
-    const activityType = item.ContactActivityType?.identifier || 'Task';
-    const activityIcon = getActivityIcon(activityType);
-
-    return (
-      <TouchableOpacity
-        style={styles.followupCard}
-        activeOpacity={0.9}
-        onPress={() => {
-          navigation.navigate('AddActivity', {
-            data: item,
-            mode: 'edit',
-            leadData: lead
-          });
-        }}
-      >
-        <View style={[
-          styles.cardContent,
-          { 
-            borderLeftWidth: 1, 
-            borderLeftColor: getActivityColor(activityType),
-            borderColor: '#4b4848',
-          }
-        ]}>
-
-          {/* Header Row - Activity Type on left, Status on right */}
-          <View style={styles.cardHeader}>
-            <View style={styles.typeRow}>
-              <View style={[styles.iconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
-                {activityIcon}
-              </View>
-              <Text style={styles.typeText}>
-                {activityType}
-              </Text>
-            </View>
-
-            {/* Right side: Status */}
-            <View style={styles.rightSide}>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: isComplete ? '#E6F4EA' : '#FDEAEA' }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  { color: isComplete ? '#2E7D32' : '#C62828' }
-                ]}>
-                  {isComplete ? 'Complete' : 'Pending'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Description */}
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.descriptionText} numberOfLines={2}>
-              {item.Description || 'No description provided'}
-            </Text>
-          </View>
-
-          {/* Bottom Row: Dates Only */}
-          <View style={styles.bottomRow}>
-            <View style={styles.datesContainer}>
-              <View style={styles.dateRow}>
-                <View style={styles.dateItem}>
-                  <MaterialIcons name="calendar-today" size={12} color="#666" />
-                  <Text style={styles.dateLabel}>Start: </Text>
-                  <Text style={styles.dateValue}>
-                    {moment(item.StartDate).format('DD MMM YY')}
-                  </Text>
-                </View>
-                <Text style={styles.dateSeparator}>|</Text>
-                <View style={styles.dateItem}>
-                  <MaterialIcons name="calendar-today" size={12} color="#666" />
-                  <Text style={styles.dateLabel}>End: </Text>
-                  <Text style={styles.dateValue}>
-                    {item.EndDate ? moment(item.EndDate).format('DD MMM YY') : 'N/A'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
+  // Format date properly
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No date';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <CustomHeader
-        title="Lead"
-        LeftIcon="arrow-left"
-        LeftPress={() => navigation.goBack()}
-        RightIcon="plus"
-        RightPress={() =>
-          navigation.navigate('AddActivity', {
-            data: lead,
-            mode: 'create',
-          })
-        }
-        MessageNameIcon="edit"
-        MessageOnPress={() =>
-          navigation.navigate('AddActivity', {
-            data: lead,
-            mode: 'create',
-          })
-        }
-      />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#2F4FE3']}
-            tintColor="#2F4FE3"
-          />
-        }
-      >
-        {/* LEAD CARD - Now clickable to go to LeadEdit */}
-        <TouchableOpacity 
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('LeadEdit', { data: lead })}
-        >
-          <CRMCard
-            header={lead.AD_Org_ID?.identifier || lead.AD_Client_ID?.identifier}
-            name={lead.Name}
-            email={lead.EMail}
-            cellNo={lead.Phone}
-            dateText={lead.Updated}
-            interactionType={lead.LastActivityType}
-            Description={lead?.Description}
-            count={lead.ActivityCount || 0}
-            status={lead.LeadStatus?.identifier}
-            leadId={lead.id}
-            collapsed={collapsed}
-            onToggle={() => setCollapsed(!collapsed)}
-            phone={() => Linking.openURL(`tel:${lead.Phone}`)}
-            mail={() => Linking.openURL(`mailto:${lead.EMail}`)}
-            actOnPress={() =>
-              navigation.navigate('AddActivity', {
-                data: lead,
-                mode: 'create',
-              })
-            }
-            // Remove the onPress prop from CRMCard since we're wrapping it with TouchableOpacity
-          />
-        </TouchableOpacity>
-
-        {/* FOLLOW UPS SECTION */}
-        <View style={styles.sectionContainer}>
-          {/* Section Header with Sort Button */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Follow-ups</Text>
-            <TouchableOpacity 
-              style={styles.sortButton}
-              onPress={() => setShowSortModal(true)}
-            >
-              <MaterialCommunityIcons name="sort" size={20} color="#2F4FE3" />
-              <Text style={styles.sortButtonText}>Sort</Text>
-              <MaterialIcons 
-                name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-                size={14} 
-                color="#2F4FE3" 
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Scrollable Filter Tabs */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.tabsContainer}
-            contentContainerStyle={styles.tabsContent}
-          >
-            {filterTabs.map((tab) => (
-              <FilterTab
-                key={tab.id}
-                tab={tab}
-                active={activeFilter === tab.id}
-                onPress={() => setActiveFilter(tab.id)}
-              />
-            ))}
-          </ScrollView>
-
-          {/* Active Filter and Sort Info */}
-          <View style={styles.filterSortInfo}>
-            <Text style={styles.activeFilterText}>
-              {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+    <View style={styles.activityItem}>
+      <View style={styles.activityIconContainer}>
+        <MaterialCommunityIcons
+          name={getActivityIcon(activity.ContactActivityType?.identifier)}
+          size={Layout.iconSize.md}
+          color={Colors.primary}
+        />
+      </View>
+      <View style={styles.activityContent}>
+        <View style={styles.activityHeader}>
+          <Text style={styles.activityTitle}>
+            {activity.ContactActivityType?.identifier || 'Activity'}
+          </Text>
+          <View style={[styles.activityStatusBadge, { backgroundColor: Colors.successLight }]}>
+            <Text style={[styles.activityStatusText, { color: Colors.success }]}>
+              Completed
             </Text>
-            <View style={styles.currentSortInfo}>
-              <Text style={styles.sortInfoText}>
-                Sorted by: {getSortOptionName(sortBy)} ({sortOrder === 'asc' ? 'Asc' : 'Desc'})
-              </Text>
-            </View>
-          </View>
-
-          {/* Follow-ups List */}
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#2F4FE3" style={styles.loader} />
-          ) : sortedFollowups.length > 0 ? (
-            <FlatList
-              data={sortedFollowups}
-              renderItem={renderFollowupCard}
-              keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false}
-              contentContainerStyle={styles.listContent}
-            />
-          ) : (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="event-note" size={40} color="#E5E7EB" />
-              <Text style={styles.emptyText}>
-                No {activeFilter !== 'all' ? activeFilter + ' ' : ''}follow-ups
-              </Text>
-              <Text style={styles.emptySubText}>
-                Tap the + icon in header to add follow-up
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Sort Modal */}
-      <Modal
-        visible={showSortModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowSortModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sort Follow-ups</Text>
-              <TouchableOpacity onPress={() => setShowSortModal(false)}>
-                <MaterialIcons name="close" size={24} color="#000" />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Sort Options */}
-            <ScrollView style={styles.sortOptionsList}>
-              {sortOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.id}
-                  style={[
-                    styles.sortOptionItem,
-                    sortBy === option.id && styles.sortOptionItemSelected
-                  ]}
-                  onPress={() => {
-                    setSortBy(option.id);
-                    setShowSortModal(false);
-                  }}
-                >
-                  <View style={styles.sortOptionContent}>
-                    <MaterialCommunityIcons 
-                      name={option.icon} 
-                      size={20} 
-                      color={sortBy === option.id ? '#2F4FE3' : '#666'} 
-                    />
-                    <Text style={[
-                      styles.sortOptionText,
-                      sortBy === option.id && styles.sortOptionTextSelected
-                    ]}>
-                      {option.label}
-                    </Text>
-                  </View>
-                  {sortBy === option.id && (
-                    <MaterialIcons 
-                      name="check" 
-                      size={20} 
-                      color="#2F4FE3" 
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            
-            {/* Sort Order Toggle */}
-            <View style={styles.sortOrderContainer}>
-              <Text style={styles.sortOrderLabel}>Sort Order:</Text>
-              <TouchableOpacity 
-                style={styles.sortOrderButton}
-                onPress={toggleSortOrder}
-              >
-                <Text style={styles.sortOrderText}>
-                  {sortOrder === 'asc' ? 'Ascending (Oldest First)' : 'Descending (Newest First)'}
-                </Text>
-                <MaterialIcons 
-                  name={sortOrder === 'asc' ? 'arrow-upward' : 'arrow-downward'} 
-                  size={18} 
-                  color="#2F4FE3" 
-                />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Close Button */}
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowSortModal(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+        <Text style={styles.activityDescription} numberOfLines={1}>
+          {activity.Description || 'No description'}
+        </Text>
+        <View style={styles.activityMeta}>
+          <View style={styles.activityMetaItem}>
+            <MaterialCommunityIcons name="calendar" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+            <Text style={styles.activityMetaText}>
+              {formatDate(activity.StartDate)}
+            </Text>
+          </View>
+        </View>
+      </View>
     </View>
   );
 };
 
+// View Mode Row Component - No Icons, Clear Label/Value Hierarchy
+const ViewRow = ({ label, value }) => (
+  <View style={styles.viewRow}>
+    <Text style={styles.viewLabel}>{label}</Text>
+    <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+  </View>
+);
+
+// Section Header Component - Larger Title
+const SectionHeader = ({ title, icon }) => (
+  <View style={styles.sectionHeader}>
+    <View style={styles.sectionHeaderLeft}>
+      <MaterialCommunityIcons name={icon} size={Layout.iconSize.lg} color={Colors.primary} />
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  </View>
+);
+
+const LeadDetailsScreen = ({ route, navigation }) => {
+  const { data: leadData, followupData } = route.params || {};
+  const queryClient = useQueryClient();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('basic');
+
+  // Use detailed data directly
+  const displayLead = leadData;
+
+  // Use completed activities hook
+  const { 
+    data: activities = [], 
+    isLoading: activitiesLoading, 
+    refetch: refetchActivities 
+  } = useCompletedLeadActivities(displayLead?.id);
+
+  // Handle add activity
+  const handleAddActivity = () => {
+    navigation.navigate('AddActivity', {
+      data: displayLead,
+      mode: 'create',
+      onGoBack: () => {
+        refetchActivities();
+        queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+      }
+    });
+  };
+
+  // Handle edit lead
+  const handleEditLead = () => {
+    navigation.navigate('LeadEdit', { 
+      data: displayLead,
+      onGoBack: () => {
+        // Refresh data if needed
+        queryClient.invalidateQueries(['lead', displayLead.id]);
+      }
+    });
+  };
+
+  // Handle edit followup
+  const handleEditFollowup = () => {
+    if (followupData) {
+      navigation.navigate('AddActivity', {
+        data: followupData,
+        mode: 'edit',
+        leadData: displayLead,
+        onGoBack: () => {
+          refetchActivities();
+        }
+      });
+    }
+  };
+
+  // Get activity type for the followup
+  const activityType = followupData?.ContactActivityType?.identifier || 'Task';
+  const isComplete = followupData?.IsComplete || false;
+
+  // Render content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'basic':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader 
+              title="Contact Information" 
+              icon="phone"
+            />
+            <View style={styles.sectionContent}>
+              <ViewRow 
+                label="Phone"
+                value={displayLead?.Phone}
+              />
+
+              <ViewRow 
+                label="Secondary Phone"
+                value={displayLead?.Phone2}
+              />
+
+              <ViewRow 
+                label="Birthday"
+                value={displayLead?.Birthday}
+              />
+
+              <ViewRow 
+                label="Lead Source"
+                value={displayLead?.LeadSource?.identifier || 'Not provided'}
+              />
+
+              <ViewRow 
+                label="Sales Representative"
+                value={displayLead?.SalesRep_ID?.identifier || 'Not assigned'}
+              />
+            </View>
+          </View>
+        );
+
+      case 'company':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader 
+              title="Company Information" 
+              icon="office-building"
+            />
+            <View style={styles.sectionContent}>
+              <ViewRow 
+                label="Company Name"
+                value={displayLead?.BPName}
+              />
+
+              <ViewRow 
+                label="Business Partner"
+                value={displayLead?.AD_Client_ID?.identifier || 'Not provided'}
+              />
+
+              <ViewRow 
+                label="Organization"
+                value={displayLead?.AD_Org_ID?.identifier || 'Not provided'}
+              />
+
+              <ViewRow 
+                label="Lead Source Description"
+                value={displayLead?.LeadSourceDescription}
+              />
+            </View>
+          </View>
+        );
+
+      case 'detailed':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader 
+              title="Detailed Information" 
+              icon="clipboard-text"
+            />
+            <View style={styles.sectionContent}>
+              <ViewRow 
+                label="Sales Lead"
+                value={displayLead?.IsSalesLead ? 'Yes' : 'No'}
+              />
+
+              <ViewRow 
+                label="Vendor Lead"
+                value={displayLead?.IsVendorLead ? 'Yes' : 'No'}
+              />
+
+              <ViewRow 
+                label="Description"
+                value={displayLead?.Description}
+              />
+
+              <ViewRow 
+                label="Comments"
+                value={displayLead?.Comments}
+              />
+            </View>
+          </View>
+        );
+
+      case 'activities':
+        return (
+          <View style={[styles.sectionCard, styles.activitySectionCard]}>
+            <SectionHeader 
+              title={`Completed Activities (${activities.length})`} 
+              icon="calendar-check"
+            />
+            <View style={styles.sectionContent}>
+              {activitiesLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Loading activities...</Text>
+                </View>
+              ) : activities.length > 0 ? (
+                <FlatList
+                  data={activities}
+                  keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                  renderItem={({ item }) => <ActivityItem activity={item} />}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.xl} color={Colors.border} />
+                  <Text style={styles.emptyStateText}>No completed activities</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (!displayLead) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title={'Follow Up Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+        />
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.xxl} color={Colors.error} />
+          <Text style={styles.errorText}>Failed to load lead details</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.keyboardView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+
+      <CustomHeader
+        title={'Lead Details'}
+        LeftIcon="arrow-left"
+        LeftPress={() => navigation.goBack()}
+        RightIcon="plus"
+        RightPress={handleAddActivity}
+      />
+
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}>
+
+        {/* Header Card - Shows Lead Info and Follow-up Card */}
+        <View style={styles.headerCard}>
+          {/* Lead Basic Info */}
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <View style={styles.avatarContainer}>
+                <Image
+                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+                  style={styles.avatar}
+                />
+              </View>
+              
+              <View style={styles.headerInfo}>
+                <Text style={styles.leadName}>{displayLead?.Name || 'Unnamed Lead'}</Text>
+                {displayLead?.BPName && (
+                  <View style={styles.companyBadge}>
+                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.primary} />
+                    <Text style={styles.companyBadgeText}>{displayLead.BPName}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Follow-up Status Badge - Only shown when coming from FollowupScreen */}
+            {followupData && (
+              <View style={[
+                styles.followupStatusBadge,
+                { backgroundColor: isComplete ? Colors.successLight : Colors.errorLight }
+              ]}>
+                <Text style={[
+                  styles.followupStatusText,
+                  { color: isComplete ? Colors.success : Colors.error }
+                ]}>
+                  {isComplete ? 'Completed' : 'Pending'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Contact Info Row - Compact */}
+          <View style={styles.contactInfoRow}>
+            {displayLead?.EMail && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="email" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{displayLead.EMail}</Text>
+              </View>
+            )}
+            {displayLead?.Phone && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="phone" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{displayLead.Phone}</Text>
+              </View>
+            )}
+            {displayLead?.SalesRep_ID?.identifier && (
+              <View style={styles.contactChip}>
+                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.xs} color={Colors.textSecondary} />
+                <Text style={styles.contactChipText}>{displayLead.SalesRep_ID.identifier}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Follow-up Card - Only shown when coming from FollowupScreen */}
+          {followupData && (
+            <TouchableOpacity
+              style={styles.followupCard}
+              activeOpacity={0.9}
+              onPress={handleEditFollowup}
+            >
+              <View style={[
+                styles.followupCardContent,
+                { 
+                  borderLeftWidth: 1, 
+                  borderLeftColor: getActivityColor(activityType),
+                  borderColor: Colors.borderDark,
+                }
+              ]}>
+                {/* Header Row - Activity Type on left, Pencil on right */}
+                <View style={styles.followupCardHeader}>
+                  <View style={styles.followupTypeRow}>
+                    <View style={[styles.followupIconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
+                      {getActivityIcon(activityType)}
+                    </View>
+                    <Text style={styles.followupTypeText}>
+                      {activityType}
+                    </Text>
+                  </View>
+
+                  {/* Pencil Icon for editing */}
+                  <MaterialCommunityIcons 
+                    name="pencil" 
+                    size={scale(18)} 
+                    color={Colors.primary} 
+                  />
+                </View>
+
+                {/* Description */}
+                <View style={styles.followupDescriptionContainer}>
+                  <Text style={styles.followupDescriptionText} numberOfLines={2}>
+                    {followupData.Description || 'No description provided'}
+                  </Text>
+                </View>
+
+                {/* Bottom Row: Dates Only */}
+                <View style={styles.followupBottomRow}>
+                  <View style={styles.followupDatesContainer}>
+                    <View style={styles.followupDateRow}>
+                      <View style={styles.followupDateItem}>
+                        <MaterialIcons name="calendar-today" size={scale(12)} color={Colors.textSecondary} />
+                        <Text style={styles.followupDateLabel}>Start: </Text>
+                        <Text style={styles.followupDateValue}>
+                          {moment(followupData.StartDate).format('DD MMM YY')}
+                        </Text>
+                      </View>
+                      <Text style={styles.followupDateSeparator}>|</Text>
+                      <View style={styles.followupDateItem}>
+                        <MaterialIcons name="calendar-today" size={scale(12)} color={Colors.textSecondary} />
+                        <Text style={styles.followupDateLabel}>End: </Text>
+                        <Text style={styles.followupDateValue}>
+                          {followupData.EndDate ? moment(followupData.EndDate).format('DD MMM YY') : 'N/A'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Tabs with Integrated Arrow Connector - Touches Card */}
+        <View style={styles.tabsWrapper}>
+          <View style={styles.tabsContainer}>
+            <TabButton 
+              title="Basic" 
+              active={activeTab === 'basic'} 
+              onPress={() => setActiveTab('basic')}
+              isFirst={true}
+              isLast={false}
+            />
+            <TabButton 
+              title="Company" 
+              active={activeTab === 'company'} 
+              onPress={() => setActiveTab('company')}
+              isFirst={false}
+              isLast={false}
+            />
+            <TabButton 
+              title="Details" 
+              active={activeTab === 'detailed'} 
+              onPress={() => setActiveTab('detailed')}
+              isFirst={false}
+              isLast={false}
+            />
+            <TabButton 
+              title="Activities" 
+              active={activeTab === 'activities'} 
+              onPress={() => setActiveTab('activities')}
+              isFirst={false}
+              isLast={true}
+            />
+          </View>
+        </View>
+
+        {/* Tab Content */}
+        {renderTabContent()}
+
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+};
+
 const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: 12,
-    paddingBottom: 20,
+    paddingBottom: verticalScale(30),
   },
-  sectionContainer: {
-    marginTop: 16,
-  },
-  // Section Header with Sort Button
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+
+  // Header Card
+  headerCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 6,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden',
   },
-  sortButtonText: {
-    fontSize: 12,
-    fontFamily: 'K2D-SemiBold',
-    color: '#2F4FE3',
-  },
-  // Filter and Sort Info
-  filterSortInfo: {
-    marginBottom: 12,
-  },
-  activeFilterText: {
-    fontSize: 14,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    marginBottom: 4,
-    paddingLeft: 4,
-  },
-  currentSortInfo: {
-    backgroundColor: '#F0F5FF',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginLeft: 4,
-  },
-  sortInfoText: {
-    fontSize: 11,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-Medium',
-  },
-  // Tabs Styles
-  tabsContainer: {
-    marginBottom: 8,
-  },
-  tabsContent: {
-    paddingRight: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  filterTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
-    elevation: 1,
-    minWidth: 120,
-  },
-  filterTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  tickContainer: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  tickContainerInactive: {
-    backgroundColor: '#6B7280',
-  },
-  filterText: {
-    fontSize: 12,
-    fontFamily: 'K2D-Medium',
-  },
-  filterTextActive: {
-    fontFamily: 'K2D-SemiBold',
-  },
-  filterTextInactive: {
-    color: '#6B7280',
-  },
-  // List Styles
-  listContent: {
-    paddingTop: 4,
-  },
-  followupCard: {
-    marginBottom: 12,
-  },
-  cardContent: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: '#807e7e',
-    borderLeftWidth: 1,
-  },
-  cardHeader: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xs,
   },
-  typeRow: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  iconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+  avatarContainer: {
+    marginRight: Spacing.md,
+  },
+  avatar: {
+    width: scale(48),
+    height: scale(48),
+    borderRadius: scale(24),
+    borderWidth: 2,
+    borderColor: Colors.borderLight,
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  leadName: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
+  },
+  companyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+  },
+  companyBadgeText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.primary,
+    marginLeft: Spacing.xxs,
+  },
+  
+  // Follow-up Status Badge (replaces lead status)
+  followupStatusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.round,
+    alignSelf: 'flex-start',
+  },
+  followupStatusText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  
+  // Contact Info Row
+  contactInfoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  contactChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    gap: Spacing.xxs,
+  },
+  contactChipText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+
+  // Follow-up Card - Styled like FollowupScreen cards
+  followupCard: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  followupCardContent: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 0.5,
+    borderColor: Colors.borderDark,
+    borderLeftWidth: 1,
+  },
+  followupCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: verticalScale(10),
+  },
+  followupTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  followupIconContainer: {
+    width: scale(24),
+    height: scale(24),
+    borderRadius: Layout.borderRadius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: Spacing.sm,
   },
-  typeText: {
-    fontSize: 13,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+  followupTypeText: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
-  rightSide: {
-    alignItems: 'flex-end',
+  followupDescriptionContainer: {
+    marginBottom: Spacing.md,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  followupDescriptionText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    lineHeight: Typography.lineHeight.small,
   },
-  statusText: {
-    fontSize: 10,
-    fontFamily: 'K2D-SemiBold',
-  },
-  descriptionContainer: {
-    marginBottom: 12,
-  },
-  descriptionText: {
-    fontSize: 12,
-    color: '#555',
-    fontFamily: 'K2D-Regular',
-    lineHeight: 16,
-  },
-  bottomRow: {
+  followupBottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  datesContainer: {
+  followupDatesContainer: {
     flex: 1,
   },
-  dateRow: {
+  followupDateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
   },
-  dateItem: {
+  followupDateItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  dateSeparator: {
-    marginHorizontal: 8,
-    color: '#999',
-    fontSize: 10,
+  followupDateSeparator: {
+    marginHorizontal: Spacing.sm,
+    color: Colors.textTertiary,
+    fontSize: Typography.fontSize.xsmall,
   },
-  dateLabel: {
-    fontSize: 11,
-    color: '#666',
-    fontFamily: 'K2D-Regular',
-    marginLeft: 4,
-    marginRight: 2,
+  followupDateLabel: {
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    marginLeft: Spacing.xs,
+    marginRight: Spacing.xxs,
   },
-  dateValue: {
-    fontSize: 11,
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
+  followupDateValue: {
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
-  loader: {
-    padding: 20,
+
+  // Tabs
+  tabsWrapper: {
+    marginHorizontal: Spacing.lg,
+    marginBottom: 0,
   },
-  emptyContainer: {
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    padding: Spacing.xxs,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    position: 'relative',
+    zIndex: 5,
+  },
+  tabButtonWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  tabButton: {
+    paddingVertical: verticalScale(10),
     alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+    position: 'relative',
   },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    fontFamily: 'K2D-Medium',
-    marginTop: 12,
-    marginBottom: 4,
+  tabButtonFirst: {
+    borderTopLeftRadius: Layout.borderRadius.md,
+    borderBottomLeftRadius: Layout.borderRadius.md,
   },
-  emptySubText: {
-    fontSize: 12,
-    color: '#BBB',
-    fontFamily: 'K2D-Regular',
+  tabButtonLast: {
+    borderTopRightRadius: Layout.borderRadius.md,
+    borderBottomRightRadius: Layout.borderRadius.md,
+  },
+  tabButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  tabButtonText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  
+  // Integrated Arrow
+  activeTabArrowContainer: {
+    position: 'absolute',
+    bottom: -verticalScale(14),
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  activeTabArrow: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: scale(10),
+    borderRightWidth: scale(10),
+    borderTopWidth: scale(12),
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: Colors.primary,
+  },
+
+  // Section Cards
+  sectionCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: verticalScale(14),
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden',
+  },
+  activitySectionCard: {
+    marginTop: verticalScale(14),
+    marginBottom: Spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.backgroundLight,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: Typography.fontSize.large,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
+  },
+  sectionContent: {
+    padding: Spacing.md,
+  },
+
+  // View Mode Row
+  viewRow: {
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  viewLabel: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  viewValue: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    lineHeight: Typography.lineHeight.h4,
+  },
+
+  // Activity Styles
+  activityItem: {
+    flexDirection: 'row',
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  activityIconContainer: {
+    width: scale(32),
+    height: scale(32),
+    borderRadius: scale(16),
+    backgroundColor: Colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xxs,
+  },
+  activityTitle: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  activityStatusBadge: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+  },
+  activityStatusText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  activityDescription: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
+  },
+  activityMeta: {
+    flexDirection: 'row',
+  },
+  activityMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xxs,
+  },
+  activityMetaText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: Spacing.xs,
+  },
+
+  // Loading & Empty States
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(20),
+  },
+  loadingText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(20),
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+
+  // Error States
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xxxxl,
+  },
+  errorText: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
     textAlign: 'center',
   },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    maxHeight: '60%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-Bold',
-    color: '#333',
-  },
-  sortOptionsList: {
-    maxHeight: 200,
-    marginBottom: 20,
-  },
-  sortOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  sortOptionItemSelected: {
-    backgroundColor: '#f0f7ff',
-    borderLeftWidth: 3,
-    borderLeftColor: '#2F4FE3',
-  },
-  sortOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sortOptionText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
-  },
-  sortOptionTextSelected: {
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
-  },
-  sortOrderContainer: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-  },
-  sortOrderLabel: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
-    marginBottom: 8,
-  },
-  sortOrderButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  sortOrderText: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
-    flex: 1,
-    marginRight: 8,
-  },
-  closeButton: {
-    backgroundColor: '#2F4FE3',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+  retryButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
 });
 

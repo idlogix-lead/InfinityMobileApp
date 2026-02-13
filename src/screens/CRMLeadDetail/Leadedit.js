@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Image,
   FlatList,
+  focusedField,
   Modal as RNModal,
 } from 'react-native';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -220,6 +221,119 @@ const ToggleButton = ({ label, value, onPress }) => (
   </View>
 );
 
+// Phone Input Component with Country Code Selection
+const PhoneInputField = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  error, 
+  focused, 
+  onFocus, 
+  onBlur,
+  editable = true,
+  ...props 
+}) => {
+  const [selectedCountry, setSelectedCountry] = useState('+92');
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  const COUNTRY_CODES = [
+    { code: 'PK', dialCode: '+92', name: 'Pakistan', flag: '🇵🇰' },
+    { code: 'US', dialCode: '+1', name: 'United States', flag: '🇺🇸' },
+    { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧' },
+    { code: 'AE', dialCode: '+971', name: 'UAE', flag: '🇦🇪' },
+    { code: 'SA', dialCode: '+966', name: 'Saudi Arabia', flag: '🇸🇦' },
+    { code: 'IN', dialCode: '+91', name: 'India', flag: '🇮🇳' },
+    { code: 'CA', dialCode: '+1', name: 'Canada', flag: '🇨🇦' },
+    { code: 'AU', dialCode: '+61', name: 'Australia', flag: '🇦🇺' },
+  ];
+
+  const handleCountrySelect = (country) => {
+    setSelectedCountry(country.dialCode);
+    setMenuVisible(false);
+  };
+
+  const selectedCountryObj = COUNTRY_CODES.find(c => c.dialCode === selectedCountry) || COUNTRY_CODES[0];
+
+  if (!editable) {
+    return (
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>{label}</Text>
+        <View style={styles.readOnlyContainer}>
+          <Text style={styles.readOnlyText}>{value || 'Not provided'}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <View style={styles.phoneInputRow}>
+        {/* Country Code Picker */}
+        <Menu
+          visible={menuVisible}
+          onDismiss={() => setMenuVisible(false)}
+          anchor={
+            <TouchableOpacity
+              style={[
+                styles.countryPicker,
+                focused && styles.countryPickerFocused,
+                error && styles.countryPickerError,
+              ]}
+              onPress={() => setMenuVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.countryFlag}>{selectedCountryObj.flag}</Text>
+              <Text style={styles.dialCode}>{selectedCountryObj.dialCode}</Text>
+              <MaterialCommunityIcons name="chevron-down" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          }
+          style={styles.countryMenu}
+        >
+          {COUNTRY_CODES.map((country, index) => (
+            <React.Fragment key={country.code}>
+              <Menu.Item
+                onPress={() => handleCountrySelect(country)}
+                title={`${country.flag} ${country.dialCode} ${country.name}`}
+                titleStyle={[
+                  styles.menuItemTitle,
+                  selectedCountry === country.dialCode && styles.menuItemSelected
+                ]}
+              />
+              {index < COUNTRY_CODES.length - 1 && <Divider />}
+            </React.Fragment>
+          ))}
+        </Menu>
+
+        {/* Phone Number Input */}
+        <View style={[
+          styles.phoneInputWrapper,
+          focused && styles.phoneInputWrapperFocused,
+          error && styles.phoneInputWrapperError,
+          styles.flexible,
+        ]}>
+          <TextInput
+            style={styles.phoneInput}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={Colors.textTertiary}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            keyboardType="phone-pad"
+            editable={editable}
+            {...props}
+          />
+        </View>
+      </View>
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+    </View>
+  );
+};
+
 const LeadEdit = ({ route, navigation }) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
@@ -303,7 +417,7 @@ const LeadEdit = ({ route, navigation }) => {
     { id: 'R', identifier: 'Referral' },
   ];
 
-  // Use the custom hooks from useCRM - Now using useCompletedLeadActivities
+  // Use the custom hooks from useCRM
   const updateLeadMutation = useUpdateLead();
   const { refetch: refetchLeadStatistics } = useLeadStatistics();
   const { 
@@ -548,7 +662,7 @@ const LeadEdit = ({ route, navigation }) => {
     return (
       <View style={styles.editField}>
         <Text style={styles.editLabel}>{label}</Text>
-        <View>
+        <View style={styles.inputWrapper}>
           <TextInput
             style={[
               styles.input,
@@ -562,10 +676,10 @@ const LeadEdit = ({ route, navigation }) => {
             autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
             editable={isEditMode}
           />
-          {errors[key] && (
-            <Text style={styles.errorText}>{errors[key]}</Text>
-          )}
         </View>
+        {errors[key] && (
+          <Text style={styles.errorText}>{errors[key]}</Text>
+        )}
       </View>
     );
   };
@@ -583,17 +697,19 @@ const LeadEdit = ({ route, navigation }) => {
     return (
       <View style={styles.editField}>
         <Text style={styles.editLabel}>{label}</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder={placeholder}
-          placeholderTextColor={Colors.textTertiary}
-          value={value}
-          onChangeText={(text) => updateFormData(key, text)}
-          multiline={true}
-          numberOfLines={4}
-          textAlignVertical="top"
-          editable={isEditMode}
-        />
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder={placeholder}
+            placeholderTextColor={Colors.textTertiary}
+            value={value}
+            onChangeText={(text) => updateFormData(key, text)}
+            multiline={true}
+            numberOfLines={4}
+            textAlignVertical="top"
+            editable={isEditMode}
+          />
+        </View>
       </View>
     );
   };
@@ -705,21 +821,29 @@ const LeadEdit = ({ route, navigation }) => {
               icon="phone"
             />
             <View style={styles.sectionContent}>
-              {renderTextField(
-                "Phone",
-                formData.phone,
-                'phone',
-                'Enter Phone',
-                'phone-pad'
-              )}
+              <PhoneInputField
+                label="Phone"
+                value={formData.phone}
+                onChangeText={(text) => updateFormData('phone', text)}
+                placeholder="Enter Phone"
+                error={errors.phone}
+                focused={focusedField === 'phone'}
+                onFocus={() => setFocusedField('phone')}
+                onBlur={() => setFocusedField(null)}
+                editable={isEditMode}
+              />
 
-              {renderTextField(
-                "Secondary Phone",
-                formData.phone2,
-                'phone2',
-                'Secondary Phone',
-                'phone-pad'
-              )}
+              <PhoneInputField
+                label="Secondary Phone"
+                value={formData.phone2}
+                onChangeText={(text) => updateFormData('phone2', text)}
+                placeholder="Secondary Phone"
+                error={errors.phone2}
+                focused={focusedField === 'phone2'}
+                onFocus={() => setFocusedField('phone2')}
+                onBlur={() => setFocusedField(null)}
+                editable={isEditMode}
+              />
 
               {renderTextField(
                 "Birthday",
@@ -1255,7 +1379,6 @@ const LeadEdit = ({ route, navigation }) => {
   );
 };
 
-
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
@@ -1279,6 +1402,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
@@ -1412,17 +1544,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.info,
   },
-  inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    marginTop: Spacing.xxs,
-    marginLeft: Spacing.xs,
-  },
+
   // Edit Mode Badge - Compact
   editBadge: {
     flexDirection: 'row',
@@ -1434,6 +1556,15 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.round,
     marginBottom: Spacing.sm,
     gap: Spacing.xs,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
   },
   editBadgeText: {
     fontSize: Typography.fontSize.xsmall,
@@ -1453,11 +1584,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     padding: Spacing.xxs,
+    
+    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
+    
     position: 'relative',
     zIndex: 5,
   },
@@ -1469,6 +1605,7 @@ const styles = StyleSheet.create({
     paddingVertical: verticalScale(10),
     alignItems: 'center',
     position: 'relative',
+    borderRadius: Layout.borderRadius.md,
   },
   tabButtonFirst: {
     borderTopLeftRadius: Layout.borderRadius.md,
@@ -1480,6 +1617,15 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     backgroundColor: Colors.primary,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 4,
   },
   tabButtonText: {
     fontSize: Typography.fontSize.small,
@@ -1523,6 +1669,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   
   // Activity Section Card - Minimized
@@ -1589,21 +1744,156 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  input: {
+  
+  // Input Wrapper with Shadow and Elevation
+  inputWrapper: {
     backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
+  },
+  input: {
+    height: 48,
     paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
   },
   textArea: {
-    minHeight: verticalScale(70),
+    minHeight: verticalScale(100),
     textAlignVertical: 'top',
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
+  inputError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
+
+  // Phone Input Styles
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  countryPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: verticalScale(12),
+    minWidth: scale(90),
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
+  },
+  countryPickerFocused: {
+    borderColor: Colors.primary,
+    
+    // Enhanced shadow for focused state
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  countryPickerError: {
+    borderColor: Colors.error,
+    shadowColor: Colors.error,
+  },
+  countryFlag: {
+    fontSize: 18,
+    marginRight: Spacing.xxs,
+  },
+  dialCode: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+    marginRight: Spacing.xxs,
+  },
+  countryMenu: {
+    marginTop: verticalScale(40),
+  },
+  phoneInputWrapper: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
+  },
+  phoneInputWrapperFocused: {
+    borderColor: Colors.primary,
+    
+    // Enhanced shadow for focused state
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  phoneInputWrapperError: {
+    borderColor: Colors.error,
+    shadowColor: Colors.error,
+  },
+  phoneInput: {
+    height: 48,
+    paddingHorizontal: Spacing.md,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  flexible: {
+    flex: 1,
+  },
+
+  // Read-only field styles
+  readOnlyContainer: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(12),
+    opacity: 0.8,
+  },
+  readOnlyText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+
+  // Dropdown Input
   dropdownInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1613,7 +1903,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(10),
+    paddingVertical: verticalScale(12),
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   dropdownText: {
     fontSize: Typography.fontSize.small,
@@ -1632,6 +1931,15 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: verticalScale(12),
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   selectorEmpty: {
     borderColor: Colors.errorLight,
@@ -1686,10 +1994,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundLight,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
   },
   toggleOptionActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
+    
+    // Enhanced shadow for active state
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   toggleOptionText: {
     fontSize: Typography.fontSize.medium,
@@ -1786,17 +2109,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     marginBottom: Spacing.sm,
   },
-  emptyStateButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: Layout.borderRadius.md,
-  },
-  emptyStateButtonText: {
-    color: Colors.textInverse,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
 
   // Action Buttons
   actionButtons: {
@@ -1810,12 +2122,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingVertical: verticalScale(14),
+    paddingVertical: verticalScale(16),
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    
+    // Elevation for Android
+    elevation: 6,
   },
   saveButtonDisabled: {
     opacity: 0.7,
+    backgroundColor: Colors.buttonDisabled,
+    shadowOpacity: 0.2,
+    elevation: 3,
   },
   saveButtonText: {
     color: Colors.textInverse,
@@ -1825,10 +2149,20 @@ const styles = StyleSheet.create({
   cancelButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(14),
+    paddingVertical: verticalScale(16),
     borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   cancelButtonText: {
     color: Colors.textSecondary,
@@ -1847,6 +2181,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Layout.borderRadius.xl,
     borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    
+    // Elevation for Android
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1871,6 +2214,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   modalSearchInput: {
     flex: 1,
@@ -1928,6 +2280,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 4,
   },
   repAvatarText: {
     fontSize: Typography.fontSize.medium,
@@ -1979,6 +2340,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: Layout.borderRadius.md,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    
+    // Elevation for Android
+    elevation: 6,
   },
   retryButtonText: {
     color: Colors.textInverse,
