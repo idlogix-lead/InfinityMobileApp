@@ -1,4 +1,4 @@
-// screens/CRM/FollowupScreen.js
+// screens/CRM/FollowupScreen.js - FIXED VERSION
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Text,
-  ScrollView,
   RefreshControl,
   ActivityIndicator,
   SafeAreaView,
   Alert,
   Modal,
   TextInput,
+  ScrollView
 } from 'react-native';
 import { useFollowups, useUpdateFollowup } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
@@ -32,7 +32,7 @@ const { scale, verticalScale, spacing } = Layout;
 const FollowupScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('latest'); // Default sort option
+  const [sortBy, setSortBy] = useState('latest');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearchResults, setLocalSearchResults] = useState([]);
@@ -79,24 +79,13 @@ const FollowupScreen = ({ navigation }) => {
     
     const searchTerm = query.toLowerCase().trim();
     
-    // Search in followups
     const results = followupsToSearch.filter(followup => {
-      // 1. Lead Name
       const leadName = (followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || '').toLowerCase();
-      
-      // 2. Company Name
       const companyName = (followup.AD_User_ID?.BPName || '').toLowerCase();
-      
-      // 3. Organization Name
       const orgName = (followup.AD_User_ID?.AD_Org_ID?.identifier || '').toLowerCase();
-      
-      // 4. Description
       const description = (followup.Description || '').toLowerCase();
-      
-      // 5. Activity Type
       const activityType = (getActivityTypeName(followup.ContactActivityType?.identifier) || '').toLowerCase();
       
-      // Search across all fields
       return leadName.includes(searchTerm) || 
              companyName.includes(searchTerm) ||
              orgName.includes(searchTerm) ||
@@ -134,7 +123,6 @@ const FollowupScreen = ({ navigation }) => {
     const today = moment().startOf('day');
     let filtered = [...allFollowups];
 
-    // Apply time filter
     if (activeFilter === 'today') {
       filtered = filtered.filter(item => {
         const start = moment(item.StartDate);
@@ -159,9 +147,6 @@ const FollowupScreen = ({ navigation }) => {
       filtered = filtered.filter(item => {
         return item.IsComplete === true;
       });
-    } else {
-      // 'all' - show all activities
-      filtered = filtered;
     }
 
     return filtered;
@@ -176,43 +161,31 @@ const FollowupScreen = ({ navigation }) => {
     sorted.sort((a, b) => {
       switch (sortBy) {
         case 'latest':
-          // Newest first (descending)
           return moment(b.StartDate || b.Created).valueOf() - moment(a.StartDate || a.Created).valueOf();
-
         case 'oldest':
-          // Oldest first (ascending)
           return moment(a.StartDate || a.Created).valueOf() - moment(b.StartDate || b.Created).valueOf();
-
         case 'nameAZ':
-          // A to Z
           const nameA = (a.AD_User_ID?.Name || a.AD_User_ID?.identifier || '').toLowerCase();
           const nameB = (b.AD_User_ID?.Name || b.AD_User_ID?.identifier || '').toLowerCase();
           if (nameA < nameB) return -1;
           if (nameA > nameB) return 1;
           return 0;
-
         case 'nameZA':
-          // Z to A
           const nameAZ = (a.AD_User_ID?.Name || a.AD_User_ID?.identifier || '').toLowerCase();
           const nameBZ = (b.AD_User_ID?.Name || b.AD_User_ID?.identifier || '').toLowerCase();
           if (nameAZ > nameBZ) return -1;
           if (nameAZ < nameBZ) return 1;
           return 0;
-
         case 'completedFirst':
-          // Completed first, then by date
           if (a.IsComplete === b.IsComplete) {
             return moment(b.StartDate || b.Created).valueOf() - moment(a.StartDate || a.Created).valueOf();
           }
           return a.IsComplete ? -1 : 1;
-
         case 'pendingFirst':
-          // Pending first, then by date
           if (a.IsComplete === b.IsComplete) {
             return moment(b.StartDate || b.Created).valueOf() - moment(a.StartDate || a.Created).valueOf();
           }
           return a.IsComplete ? 1 : -1;
-
         default:
           return moment(b.StartDate || b.Created).valueOf() - moment(a.StartDate || a.Created).valueOf();
       }
@@ -223,12 +196,9 @@ const FollowupScreen = ({ navigation }) => {
 
   // Determine which data to display
   const displayData = useMemo(() => {
-    // If there's a search query, show local search results
     if (searchQuery && searchQuery.trim() !== '') {
       return localSearchResults;
     }
-    
-    // No search query, show sorted followups
     return sortedFollowups;
   }, [sortedFollowups, localSearchResults, searchQuery]);
 
@@ -241,17 +211,19 @@ const FollowupScreen = ({ navigation }) => {
     }
   }, [searchQuery, sortedFollowups, debouncedSearch]);
 
-  // Handle refresh
-  const onRefresh = async () => {
+  // Handle refresh - FIXED
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await refetchFollowups();
+      // Clear search when refreshing
+      clearSearch();
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [refetchFollowups]);
 
   // Update followup field
   const updateFollowupField = (id, field, value) => {
@@ -275,10 +247,10 @@ const FollowupScreen = ({ navigation }) => {
       Name: followup.AD_User_ID?.Name || followup.AD_User_ID?.identifier || 'Unknown Lead',
     };
     
-     navigation.navigate('LeadsDetail', { 
-    data: leadData, // The lead object
-    followupData: followup // The specific follow-up data
-  });
+    navigation.navigate('LeadsDetail', { 
+      data: leadData,
+      followupData: followup 
+    });
   };
 
   // Helper function to get activity type name
@@ -367,7 +339,6 @@ const FollowupScreen = ({ navigation }) => {
           active && styles.filterTabActive,
         ]}
       >
-        {/* Tick Icon Container */}
         <View style={[
           styles.tickContainer,
           active ? { backgroundColor: tabColor } : styles.tickContainerInactive
@@ -379,7 +350,6 @@ const FollowupScreen = ({ navigation }) => {
           />
         </View>
         
-        {/* Tab Text */}
         <Text style={[
           styles.filterText,
           active ? [styles.filterTextActive, { color: tabColor }] : styles.filterTextInactive
@@ -410,7 +380,7 @@ const FollowupScreen = ({ navigation }) => {
             borderColor: Colors.borderDark,
           }
         ]}>
-          {/* Header Row - Lead Name and Status */}
+          {/* Header Row */}
           <View style={styles.cardHeader}>
             <View style={styles.typeRow}>
               <View style={[styles.iconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
@@ -487,7 +457,6 @@ const FollowupScreen = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>Follow ups</Text>
           </View>
@@ -504,98 +473,91 @@ const FollowupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
-            />
-          }
-        >
-          {/* SEARCH AND SORT IN ONE ROW */}
-          <View style={styles.searchContainer}>
-            <View style={[
-              styles.searchInputContainer,
-              searchFocused && styles.searchInputContainerFocused
-            ]}>
-              <Ionicons 
-                name="search" 
-                size={scale(20)} 
-                color={Colors.textSecondary} 
-                style={styles.searchIcon} 
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by lead name,company..."
-                placeholderTextColor={Colors.textTertiary}
-                value={searchQuery}
-                onChangeText={handleTextChange}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                returnKeyType="search"
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                  <Ionicons name="close-circle" size={scale(20)} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            
-            {/* Sort Dropdown */}
-            <Menu
-              visible={sortMenuVisible}
-              onDismiss={() => setSortMenuVisible(false)}
-              anchor={
-                <TouchableOpacity 
-                  style={styles.sortButton}
-                  onPress={() => setSortMenuVisible(true)}
-                >
-                  <MaterialCommunityIcons name="sort" size={scale(20)} color={Colors.primary} />
-                  <MaterialCommunityIcons name="chevron-down" size={scale(16)} color={Colors.primary} />
-                </TouchableOpacity>
-              }
-              style={styles.sortMenu}
-            >
-              {sortOptions.map((option, index) => (
-                <React.Fragment key={option.id}>
-                  <Menu.Item
-                    onPress={() => {
-                      setSortBy(option.id);
-                      setSortMenuVisible(false);
-                    }}
-                    title={option.label}
-                    titleStyle={[
-                      styles.menuItemTitle,
-                      sortBy === option.id && styles.menuItemSelected
-                    ]}
-                    left={() => (
-                      <MaterialCommunityIcons 
-                        name={option.icon} 
-                        size={scale(18)} 
-                        color={sortBy === option.id ? Colors.primary : Colors.textSecondary} 
-                      />
-                    )}
-                    right={() => sortBy === option.id && (
-                      <MaterialIcons name="check" size={scale(18)} color={Colors.primary} />
-                    )}
-                  />
-                  {index < sortOptions.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </Menu>
-          </View>
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Follow ups</Text>
+        </View>
 
-          {/* Scrollable Filter Tabs */}
+        {/* SEARCH AND SORT IN ONE ROW */}
+        <View style={styles.searchContainer}>
+          <View style={[
+            styles.searchInputContainer,
+            searchFocused && styles.searchInputContainerFocused
+          ]}>
+            <Ionicons 
+              name="search" 
+              size={scale(20)} 
+              color={Colors.textSecondary} 
+              style={styles.searchIcon} 
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by lead name, company..."
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={handleTextChange}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              returnKeyType="search"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={scale(20)} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Sort Dropdown */}
+          <Menu
+            visible={sortMenuVisible}
+            onDismiss={() => setSortMenuVisible(false)}
+            anchor={
+              <TouchableOpacity 
+                style={styles.sortButton}
+                onPress={() => setSortMenuVisible(true)}
+              >
+                <MaterialCommunityIcons name="sort" size={scale(20)} color={Colors.primary} />
+                <MaterialCommunityIcons name="chevron-down" size={scale(16)} color={Colors.primary} />
+              </TouchableOpacity>
+            }
+            style={styles.sortMenu}
+          >
+            {sortOptions.map((option, index) => (
+              <React.Fragment key={option.id}>
+                <Menu.Item
+                  onPress={() => {
+                    setSortBy(option.id);
+                    setSortMenuVisible(false);
+                  }}
+                  title={option.label}
+                  titleStyle={[
+                    styles.menuItemTitle,
+                    sortBy === option.id && styles.menuItemSelected
+                  ]}
+                  left={() => (
+                    <MaterialCommunityIcons 
+                      name={option.icon} 
+                      size={scale(18)} 
+                      color={sortBy === option.id ? Colors.primary : Colors.textSecondary} 
+                    />
+                  )}
+                  right={() => sortBy === option.id && (
+                    <MaterialIcons name="check" size={scale(18)} color={Colors.primary} />
+                  )}
+                />
+                {index < sortOptions.length - 1 && <Divider />}
+              </React.Fragment>
+            ))}
+          </Menu>
+        </View>
+
+        {/* Scrollable Filter Tabs - Horizontal ScrollView */}
+        <View style={styles.tabsContainer}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.tabsContainer}
             contentContainerStyle={styles.tabsContent}
           >
             {filterTabs.map((tab) => (
@@ -607,39 +569,53 @@ const FollowupScreen = ({ navigation }) => {
               />
             ))}
           </ScrollView>
+        </View>
 
-          {/* Search and Sort Info */}
-          <View style={styles.filterSortInfo}>
-            {searchQuery.length > 0 ? (
-              <View style={styles.searchHeader}>
-                <View>
-                  <Text style={styles.searchHeaderText}>
-                    {displayData.length} matching follow-ups found
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={clearSearch} style={styles.clearSearchButton}>
-                  <Text style={styles.clearSearchText}>Clear Search</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.sortInfoRow}>
-                <Text style={styles.activeFilterText}>
-                  {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+        {/* Search and Sort Info */}
+        <View style={styles.filterSortInfo}>
+          {searchQuery.length > 0 ? (
+            <View style={styles.searchHeader}>
+              <View>
+                <Text style={styles.searchHeaderText}>
+                  {displayData.length} matching follow-ups found
                 </Text>
               </View>
-            )}
-          </View>
-
-          {/* Follow-ups List */}
-          {displayData.length > 0 ? (
-            <FlatList
-              data={displayData}
-              renderItem={renderFollowupCard}
-              keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false}
-              contentContainerStyle={styles.listContent}
-            />
+              <TouchableOpacity onPress={clearSearch} style={styles.clearSearchButton}>
+                <Text style={styles.clearSearchText}>Clear Search</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
+            <View style={styles.sortInfoRow}>
+              <Text style={styles.activeFilterText}>
+                {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
+              </Text>
+              <View style={styles.currentSortInfo}>
+                <Text style={styles.sortInfoText}>
+                  Sorted: {currentSortOption.label}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Follow-ups List with Pull to Refresh */}
+        <FlatList
+          data={displayData}
+          renderItem={renderFollowupCard}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+              title="Pull to refresh"
+              titleColor={Colors.textSecondary}
+            />
+          }
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               {searchQuery.length > 0 ? (
                 <>
@@ -666,13 +642,14 @@ const FollowupScreen = ({ navigation }) => {
                 </>
               )}
             </View>
-          )}
-        </ScrollView>
+          }
+        />
       </View>
     </SafeAreaView>
   );
 };
 
+// Keep all your existing styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -681,10 +658,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  scrollContent: {
-    padding: spacing.sm,
-    paddingBottom: spacing.md,
   },
   // Title Styles
   titleContainer: {
@@ -784,6 +757,7 @@ const styles = StyleSheet.create({
   // Filter and Sort Info
   filterSortInfo: {
     marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   searchHeader: {
     flexDirection: 'row',
@@ -794,18 +768,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.infoLight,
     borderRadius: Layout.borderRadius.md,
     marginBottom: spacing.xs,
-    marginHorizontal: spacing.xs,
   },
   searchHeaderText: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.primary,
-  },
-  searchQueryText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginTop: spacing.xxs,
   },
   clearSearchButton: {
     paddingHorizontal: spacing.md,
@@ -846,6 +813,7 @@ const styles = StyleSheet.create({
   // Tabs Styles
   tabsContainer: {
     marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
   tabsContent: {
     paddingRight: spacing.xl,
@@ -898,7 +866,9 @@ const styles = StyleSheet.create({
   },
   // List Styles
   listContent: {
+    paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
+    paddingBottom: spacing.md,
   },
   emptyContainer: {
     alignItems: 'center',
