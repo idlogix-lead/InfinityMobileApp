@@ -1,4 +1,5 @@
-// hooks/useCRM.js
+// hooks/useCRM.js - FIXED VERSION
+
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 import { useAuthStore } from '../../store/authStore';
@@ -260,7 +261,7 @@ export const useCreateLead = () => {
   });
 };
 
-// Mutation for updating a lead
+// Mutation for updating a lead - FIXED: Removed refetch triggers
 export const useUpdateLead = () => {
   const queryClient = useQueryClient();
   
@@ -321,16 +322,18 @@ export const useUpdateLead = () => {
         });
       }
       
-      // Invalidate statistics
+      // Only invalidate statistics (lightweight), NOT leads
       queryClient.invalidateQueries(['lead-statistics']);
     },
     onError: (error) => {
       handleApiError(error, 'useUpdateLead');
     },
+    // Don't refetch after mutation
+    refetchQueries: false,
   });
 };
 
-// Mutation for updating lead status - UPDATED FOR IMMEDIATE UI UPDATES
+// Mutation for updating lead status - FIXED: Removed infinite loop
 export const useUpdateLeadStatus = () => {
   const queryClient = useQueryClient();
   
@@ -445,7 +448,7 @@ export const useUpdateLeadStatus = () => {
     onSuccess: (data, variables, context) => {
       console.log('✅ useUpdateLeadStatus onSuccess:', { data, variables, context });
       
-      // Invalidate statistics to refresh counts
+      // Only invalidate statistics, NOT leads
       queryClient.invalidateQueries(['lead-statistics']);
       
       // Show success message
@@ -467,9 +470,9 @@ export const useUpdateLeadStatus = () => {
       
       Alert.alert('Error', `Failed to update status: ${error.message}`);
     },
+    // CRITICAL FIX: Don't refetch leads here - this was causing infinite loop
     onSettled: () => {
-      // Always refetch after error or success to ensure consistency
-      queryClient.invalidateQueries(['leads']);
+      // Only invalidate statistics, NOT leads
       queryClient.invalidateQueries(['lead-statistics']);
     },
   });
@@ -689,6 +692,7 @@ export const useRefreshCRMData = () => {
     });
   };
 };
+
 // Hook for fetching completed activities for a specific lead
 export const useCompletedLeadActivities = (leadId, enabled = true) => {
   return useQuery({
@@ -725,7 +729,7 @@ export default {
   useSearchLeads,
   useLeadActivities,
   useActivityStatistics,
-    useCompletedLeadActivities,
+  useCompletedLeadActivities,
   useRefreshCRMData,
   getStatusId,
   getStatusIdentifier

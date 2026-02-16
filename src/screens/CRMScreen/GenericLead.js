@@ -1,4 +1,4 @@
-// screens/CRM/GenericLeadScreen.js - RESPONSIVE WITH SINGLE THEME
+// screens/CRM/GenericLeadScreen.js - COMPLETE FIXED VERSION
 import React, {useState, useMemo, useCallback, useEffect} from 'react';
 import {
   StyleSheet,
@@ -22,7 +22,6 @@ import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CRMCard from '../../components/CRMCard/CRMCard';
 import {
@@ -43,9 +42,8 @@ const {Colors, Typography, Layout} = theme;
 const {scale, verticalScale, spacing} = Layout;
 
 const GenericLead = ({navigation, route}) => {
-  // Get pre-filtered leads from navigation params
-  const {leads: preFilteredLeads = [], screenTitle: paramTitle} =
-    route.params || {};
+  // Get pre-filtered leads and screen title from navigation params
+  const {leads: initialLeads = [], screenTitle: paramTitle} = route.params || {};
 
   // Use paramTitle from route.params
   const actualScreenTitle = paramTitle || 'Leads';
@@ -54,21 +52,18 @@ const GenericLead = ({navigation, route}) => {
   const [filterVisible, setFilterVisible] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
-  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);
   const [selectStatus, setSelectStatus] = useState('select');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
   const [localSearchResults, setLocalSearchResults] = useState([]);
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [freshLeads, setFreshLeads] = useState(initialLeads);
 
   // Sorting state
-  const [sortBy, setSortBy] = useState('latest'); // Default sort option
+  const [sortBy, setSortBy] = useState('latest');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
-  const [endDate, setEndDate] = useState(moment().format('YYYY-MM-DD'));
-  const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
+  const [calendarMode, setCalendarMode] = useState('from');
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectDate, setSelectDate] = useState(null);
   
@@ -94,48 +89,72 @@ const GenericLead = ({navigation, route}) => {
 
   const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
 
-  // Sort options
-  const sortOptions = [
-    {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
-    {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
-    {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
-    {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
-    {id: 'statusNew', label: 'Status: New First', icon: 'star'},
-    {id: 'statusWorking', label: 'Status: Working First', icon: 'progress-clock'},
-    {id: 'statusConverted', label: 'Status: Converted First', icon: 'check-circle'},
-    {id: 'statusExpired', label: 'Status: Expired First', icon: 'clock-alert'},
-  ];
+  // ============================================
+  // CACHE ACCESS - BEST SOLUTION
+  // ============================================
+  
+  // Get fresh leads directly from cache (no API call)
+  const getFreshLeadsFromCache = useCallback(() => {
+    // Try to get from main leads cache
+    const cachedLeads = queryClient.getQueryData(['leads']);
+    if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
+      return cachedLeads;
+    }
+    
+    // Try to get from any leads query as fallback
+    const allQueries = queryClient.getQueryCache().findAll(['leads']);
+    for (const query of allQueries) {
+      if (Array.isArray(query.state.data)) {
+        return query.state.data;
+      }
+    }
+    
+    return initialLeads; // Fallback to initial leads
+  }, [queryClient, initialLeads]);
 
-  // Get current sort option display
-  const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
-
-  // Subscribe to query cache changes for real-time updates
+  // Update freshLeads whenever cache changes
   useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe(event => {
-      // When any leads query is updated, force a re-render
+    const updateLeadsFromCache = () => {
+      const leads = getFreshLeadsFromCache();
+      setFreshLeads(leads);
+      setForceUpdate(prev => prev + 1);
+    };
+    
+    // Initial load
+    updateLeadsFromCache();
+    
+    // Subscribe to query cache changes for real-time updates
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      // When any leads query is updated, refresh our data
       if (event?.query?.queryKey?.[0] === 'leads') {
-        setForceUpdate(prev => prev + 1);
+        updateLeadsFromCache();
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, getFreshLeadsFromCache]);
 
   // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // Refetch leads data when screen is focused
+      // Invalidate queries to trigger background refetch
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['lead-statistics']);
+      
+      // Also update from cache immediately
+      const leads = getFreshLeadsFromCache();
+      setFreshLeads(leads);
+      setForceUpdate(prev => prev + 1);
+      
       return () => {
         // Cleanup if needed
       };
-    }, [queryClient]),
+    }, [queryClient, getFreshLeadsFromCache]),
   );
 
-  // Get the latest lead data from cache
+  // Get the latest lead data from cache by ID
   const getLatestLeadData = useCallback(
     leadId => {
       if (!leadId) return null;
@@ -166,18 +185,56 @@ const GenericLead = ({navigation, route}) => {
     [queryClient],
   );
 
-  // Apply local filtering whenever filters change
-  useEffect(() => {
-    if (!Array.isArray(preFilteredLeads) || preFilteredLeads.length === 0) {
-      setFilteredLeads([]);
-      return;
+  // Sort options
+  const sortOptions = [
+    {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
+    {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
+    {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
+    {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
+    {id: 'statusNew', label: 'Status: New First', icon: 'star'},
+    {id: 'statusWorking', label: 'Status: Working First', icon: 'progress-clock'},
+    {id: 'statusConverted', label: 'Status: Converted First', icon: 'check-circle'},
+    {id: 'statusExpired', label: 'Status: Expired First', icon: 'clock-alert'},
+  ];
+
+  // Get current sort option display
+  const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
+
+  // ============================================
+  // FILTERING LOGIC
+  // ============================================
+  
+  // Apply screen-specific filter (based on which card was clicked)
+  const screenFilteredLeads = useMemo(() => {
+    if (!Array.isArray(freshLeads) || freshLeads.length === 0) {
+      return [];
     }
 
     // Get the latest data from cache for all leads
-    let filtered = preFilteredLeads.map(lead => {
+    let filtered = freshLeads.map(lead => {
       const cachedLead = getLatestLeadData(lead.id);
       return cachedLead || lead;
     });
+
+    // Apply the original filter based on screen title
+    if (actualScreenTitle.includes('Converted')) {
+      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'C');
+    } else if (actualScreenTitle.includes('Working')) {
+      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'W');
+    } else if (actualScreenTitle.includes('New')) {
+      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'N');
+    } else if (actualScreenTitle.includes('Expired')) {
+      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'E');
+    }
+
+    return filtered;
+  }, [freshLeads, actualScreenTitle, getLatestLeadData, forceUpdate]);
+
+  // Apply additional modal filters
+  const modalFilteredLeads = useMemo(() => {
+    if (!screenFilteredLeads.length) return [];
+
+    let filtered = [...screenFilteredLeads];
 
     // Apply status filter from modal
     if (selectStatus && selectStatus !== 'select') {
@@ -223,34 +280,24 @@ const GenericLead = ({navigation, route}) => {
       });
     }
 
-    setFilteredLeads(filtered);
-  }, [
-    preFilteredLeads,
-    selectStatus,
-    fromDate,
-    toDate,
-    forceUpdate,
-    getLatestLeadData,
-  ]);
+    return filtered;
+  }, [screenFilteredLeads, selectStatus, fromDate, toDate]);
 
   // Sort leads based on selected sorting option
   const sortedLeads = useMemo(() => {
-    if (!filteredLeads.length) return [];
+    if (!modalFilteredLeads.length) return [];
 
-    const sorted = [...filteredLeads];
+    const sorted = [...modalFilteredLeads];
 
     sorted.sort((a, b) => {
       switch (sortBy) {
         case 'latest':
-          // Newest first (descending)
           return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
         case 'oldest':
-          // Oldest first (ascending)
           return moment(a.Created || a.CreatedDate).valueOf() - moment(b.Created || b.CreatedDate).valueOf();
 
         case 'nameAZ':
-          // A to Z
           const nameA = (a.Name || '').toLowerCase();
           const nameB = (b.Name || '').toLowerCase();
           if (nameA < nameB) return -1;
@@ -258,7 +305,6 @@ const GenericLead = ({navigation, route}) => {
           return 0;
 
         case 'nameZA':
-          // Z to A
           const nameAZ = (a.Name || '').toLowerCase();
           const nameBZ = (b.Name || '').toLowerCase();
           if (nameAZ > nameBZ) return -1;
@@ -266,26 +312,21 @@ const GenericLead = ({navigation, route}) => {
           return 0;
 
         case 'statusNew':
-          // New first, then by date
           if (a.LeadStatus?.id === 'N' && b.LeadStatus?.id !== 'N') return -1;
           if (a.LeadStatus?.id !== 'N' && b.LeadStatus?.id === 'N') return 1;
-          // If same status, sort by date (newest first)
           return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
         case 'statusWorking':
-          // Working first, then by date
           if (a.LeadStatus?.id === 'W' && b.LeadStatus?.id !== 'W') return -1;
           if (a.LeadStatus?.id !== 'W' && b.LeadStatus?.id === 'W') return 1;
           return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
         case 'statusConverted':
-          // Converted first, then by date
           if (a.LeadStatus?.id === 'C' && b.LeadStatus?.id !== 'C') return -1;
           if (a.LeadStatus?.id !== 'C' && b.LeadStatus?.id === 'C') return 1;
           return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
 
         case 'statusExpired':
-          // Expired first, then by date
           if (a.LeadStatus?.id === 'E' && b.LeadStatus?.id !== 'E') return -1;
           if (a.LeadStatus?.id !== 'E' && b.LeadStatus?.id === 'E') return 1;
           return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
@@ -296,7 +337,7 @@ const GenericLead = ({navigation, route}) => {
     });
 
     return sorted;
-  }, [filteredLeads, sortBy]);
+  }, [modalFilteredLeads, sortBy]);
 
   // Enhanced search function
   const performSearch = useCallback(
@@ -361,7 +402,6 @@ const GenericLead = ({navigation, route}) => {
     setFromDate(null);
     setToDate(null);
     setSelectStatus('select');
-    setFilteredLeads(preFilteredLeads);
     setSearchQuery('');
     setLocalSearchResults([]);
     setFilterVisible(false);
@@ -373,15 +413,20 @@ const GenericLead = ({navigation, route}) => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        queryClient.invalidateQueries(['leads']),
-        queryClient.invalidateQueries(['lead-statistics']),
-        refetchFollowups(),
-        refetchStats(),
-      ]);
+      // Invalidate queries to trigger background refetch
+      await queryClient.invalidateQueries(['leads']);
+      await queryClient.invalidateQueries(['lead-statistics']);
+      await refetchFollowups();
+      await refetchStats();
+      
       if (searchQuery.length >= 2) {
         await refetchSearch();
       }
+      
+      // Update from cache immediately
+      const leads = getFreshLeadsFromCache();
+      setFreshLeads(leads);
+      setForceUpdate(prev => prev + 1);
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
@@ -412,8 +457,8 @@ const GenericLead = ({navigation, route}) => {
     return moment(date).format('DD MMM YYYY');
   };
 
-  // Updated renderLeadCard with live data and leadId
-  const renderLeadCard = item => {
+  // Render lead card with live data
+  const renderLeadCard = ({item}) => {
     // Get the latest lead data from cache
     const liveLead = getLatestLeadData(item.id) || item;
 
@@ -474,7 +519,7 @@ const GenericLead = ({navigation, route}) => {
   };
 
   // Loading state
-  if (!preFilteredLeads || preFilteredLeads.length === 0) {
+  if (!initialLeads || initialLeads.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <CustomHeader
@@ -483,6 +528,7 @@ const GenericLead = ({navigation, route}) => {
           RightPress={() => setFilterVisible(true)}
         />
         <View style={styles.loadingContent}>
+          <MaterialIcons name="group" size={scale(60)} color={Colors.border} />
           <Text style={styles.loadingText}>No leads found</Text>
           <Text style={styles.emptySubText}>{actualScreenTitle}</Text>
         </View>
@@ -750,10 +796,9 @@ const GenericLead = ({navigation, route}) => {
                 <View style={styles.sortInfoRow}>
                   <View style={styles.sortInfoContainer}>
                     <Text style={styles.totalCountText}>
-                    {filteredLeads.length} leads
-                  </Text>
+                      {displayData.length} leads
+                    </Text>
                   </View>
-                 
                 </View>
               )}
             </View>
@@ -764,7 +809,7 @@ const GenericLead = ({navigation, route}) => {
               keyExtractor={(item, index) =>
                 `${item.id || index}-${forceUpdate}`
               }
-              renderItem={({item}) => renderLeadCard(item)}
+              renderItem={renderLeadCard}
               extraData={forceUpdate}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -795,7 +840,7 @@ const GenericLead = ({navigation, route}) => {
                         color={Colors.border}
                       />
                       <Text style={styles.emptyText}>
-                        {filteredLeads.length === 0 && selectStatus !== 'select'
+                        {modalFilteredLeads.length === 0 && selectStatus !== 'select'
                           ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
                           : `No leads found in ${actualScreenTitle}`}
                       </Text>
@@ -862,6 +907,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
+    marginTop: spacing.lg,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -942,12 +988,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
-  searchQueryText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
   clearSearchButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: verticalScale(6),
@@ -972,14 +1012,9 @@ const styles = StyleSheet.create({
     paddingVertical: verticalScale(6),
     borderRadius: Layout.borderRadius.md,
   },
-  sortInfoText: {
-    fontSize: Typography.fontSize.xsmall,
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.medium,
-  },
   totalCountText: {
     fontSize: Typography.fontSize.xsmall,
-    color: Colors.textSecondary,
+    color: Colors.primary,
     fontFamily: Typography.fontFamily.medium,
   },
   cardContainer: {
@@ -1173,23 +1208,6 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: Typography.fontSize.medium,
-  },
-  calendarModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calendarModalContent: {
-    backgroundColor: '#fff',
-    width: '90%',
-    borderRadius: 10,
-    padding: 10,
-  },
-  calendarCloseButton: {
-    marginTop: 10,
-    alignSelf: 'center',
-    padding: 10,
   },
 });
 
