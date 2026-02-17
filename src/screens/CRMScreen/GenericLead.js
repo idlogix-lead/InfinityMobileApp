@@ -1007,16 +1007,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   sortInfoContainer: {
-    backgroundColor: Colors.infoLight,
     paddingHorizontal: spacing.md,
     paddingVertical: verticalScale(6),
     borderRadius: Layout.borderRadius.md,
   },
-  totalCountText: {
-    fontSize: Typography.fontSize.xsmall,
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.medium,
-  },
+  totalCountText: {},
   cardContainer: {
     marginHorizontal: spacing.xs,
     marginVertical: spacing.xxs,

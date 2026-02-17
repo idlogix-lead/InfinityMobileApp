@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   Image,
   FlatList,
-  focusedField,
   Modal as RNModal,
+  Switch,
 } from 'react-native';
 import React, { useState, useEffect, useMemo } from 'react';
 import CustomHeader from '../../components/CustomHeader';
@@ -145,7 +145,7 @@ const ActivityItem = ({ activity }) => {
       <View style={styles.activityIconContainer}>
         <MaterialCommunityIcons
           name={getActivityIcon(activity.ContactActivityType?.identifier)}
-          size={Layout.iconSize.md}
+          size={Layout.iconSize.sm}
           color={Colors.primary}
         />
       </View>
@@ -184,44 +184,48 @@ const ViewRow = ({ label, value }) => (
   </View>
 );
 
-// Section Header Component - Larger Title
-const SectionHeader = ({ title, icon }) => (
+// Section Header Component - Compact
+const SectionHeader = ({ title }) => (
   <View style={styles.sectionHeader}>
-    <View style={styles.sectionHeaderLeft}>
-      <MaterialCommunityIcons name={icon} size={Layout.iconSize.lg} color={Colors.primary} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
+    <Text style={styles.sectionTitle}>{title}</Text>
   </View>
 );
 
-// Toggle Button Component for Yes/No Fields
-const ToggleButton = ({ label, value, onPress }) => (
-  <View style={styles.toggleContainer}>
-    <Text style={styles.toggleLabel}>{label}</Text>
-    <View style={styles.toggleButtons}>
-      <TouchableOpacity
-        style={[styles.toggleOption, value === true && styles.toggleOptionActive]}
-        onPress={() => onPress(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.toggleOptionText, value === true && styles.toggleOptionTextActive]}>
-          Yes
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.toggleOption, value === false && styles.toggleOptionActive]}
-        onPress={() => onPress(false)}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.toggleOptionText, value === false && styles.toggleOptionTextActive]}>
-          No
-        </Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+// Attractive Swipe Button Component for Yes/No Fields (works in both edit and view)
+const SwipeButton = ({ label, value, onValueChange, editable = true }) => {
+  if (!editable) {
+    return (
+      <View style={styles.viewRowInline}>
+        <Text style={styles.viewLabelInline}>{label}</Text>
+        <View style={[styles.valueChipInline, value ? styles.valueChipSuccessInline : styles.valueChipDefaultInline]}>
+          <Text style={[styles.valueChipTextInline, value ? styles.valueChipTextSuccessInline : styles.valueChipTextDefaultInline]}>
+            {value ? 'Yes' : 'No'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
-// Phone Input Component with Country Code Selection
+  return (
+    <View style={styles.swipeContainer}>
+      <Text style={styles.swipeLabel}>{label}</Text>
+      <View style={styles.switchContainer}>
+        <Text style={[styles.switchLabel, !value && styles.switchLabelActive]}>No</Text>
+        <Switch
+          trackColor={{ false: Colors.border, true: Colors.primary }}
+          thumbColor={Colors.backgroundLight}
+          ios_backgroundColor={Colors.border}
+          onValueChange={onValueChange}
+          value={value}
+          style={styles.switch}
+        />
+        <Text style={[styles.switchLabel, value && styles.switchLabelActive]}>Yes</Text>
+      </View>
+    </View>
+  );
+};
+
+// Phone Input Component with Country Code Selection - Fixed with proper vertical padding
 const PhoneInputField = ({ 
   label, 
   value, 
@@ -257,11 +261,9 @@ const PhoneInputField = ({
 
   if (!editable) {
     return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.readOnlyContainer}>
-          <Text style={styles.readOnlyText}>{value || 'Not provided'}</Text>
-        </View>
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
       </View>
     );
   }
@@ -286,7 +288,7 @@ const PhoneInputField = ({
             >
               <Text style={styles.countryFlag}>{selectedCountryObj.flag}</Text>
               <Text style={styles.dialCode}>{selectedCountryObj.dialCode}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={18} color={Colors.textSecondary} />
+              <MaterialCommunityIcons name="chevron-down" size={14} color={Colors.textSecondary} />
             </TouchableOpacity>
           }
           style={styles.countryMenu}
@@ -306,7 +308,7 @@ const PhoneInputField = ({
           ))}
         </Menu>
 
-        {/* Phone Number Input */}
+        {/* Phone Number Input - Fixed with proper vertical padding */}
         <View style={[
           styles.phoneInputWrapper,
           focused && styles.phoneInputWrapperFocused,
@@ -323,6 +325,7 @@ const PhoneInputField = ({
             onBlur={onBlur}
             keyboardType="phone-pad"
             editable={editable}
+            textAlignVertical="center"
             {...props}
           />
         </View>
@@ -330,6 +333,149 @@ const PhoneInputField = ({
       {error && (
         <Text style={styles.errorText}>{error}</Text>
       )}
+    </View>
+  );
+};
+
+// Compact Text Input Field
+const TextField = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  error, 
+  editable = true, 
+  keyboardType = 'default',
+  ...props 
+}) => {
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <View style={[styles.inputWrapper, error && styles.inputError]}>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+          editable={editable}
+          textAlignVertical="center"
+          {...props}
+        />
+      </View>
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+    </View>
+  );
+};
+
+// Compact Text Area Field
+const TextAreaField = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  editable = true, 
+  ...props 
+}) => {
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          multiline={true}
+          numberOfLines={2}
+          textAlignVertical="top"
+          editable={editable}
+          {...props}
+        />
+      </View>
+    </View>
+  );
+};
+
+// Compact Dropdown Field - Fixed with proper vertical padding
+const DropdownField = ({ 
+  label, 
+  value, 
+  options, 
+  onSelect, 
+  editable = true, 
+  placeholder = 'Select option'
+}) => {
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}</Text>
+      <Menu
+        visible={menuVisible}
+        onDismiss={() => setMenuVisible(false)}
+        anchor={
+          <TouchableOpacity
+            onPress={() => setMenuVisible(true)}
+            style={styles.dropdownInput}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dropdownText, !value && styles.placeholderText]}>
+              {value || placeholder}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        }
+      >
+        {options.map((option, index) => (
+          <React.Fragment key={option.id}>
+            <Menu.Item
+              onPress={() => {
+                onSelect(option);
+                setMenuVisible(false);
+              }}
+              title={option.identifier}
+              titleStyle={[
+                styles.menuItemTitle,
+                value === option.identifier && styles.menuItemSelected
+              ]}
+            />
+            {index < options.length - 1 && <Divider />}
+          </React.Fragment>
+        ))}
+      </Menu>
     </View>
   );
 };
@@ -347,16 +493,14 @@ const LeadEdit = ({ route, navigation }) => {
   // Field errors state
   const [errors, setErrors] = useState({});
 
+  // Focus state
+  const [focusedField, setFocusedField] = useState(null);
+
   // Use detailed data directly
   const displayLead = leadData;
 
   // Menu visibility states
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
-  const [bpMenuVisible, setBpMenuVisible] = useState(false);
-  const [orgMenuVisible, setOrgMenuVisible] = useState(false);
-  const [leadSourceMenuVisible, setLeadSourceMenuVisible] = useState(false);
-
-  // Dynamic Sales Rep Modal state
   const [salesRepModalVisible, setSalesRepModalVisible] = useState(false);
   const [salesRepSearch, setSalesRepSearch] = useState('');
 
@@ -648,139 +792,6 @@ const LeadEdit = ({ route, navigation }) => {
     updateFormData(key, value);
   };
 
-  // RENDER FUNCTIONS FOR DIFFERENT FIELD TYPES
-  const renderTextField = (label, value, key, placeholder, keyboardType = 'default') => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={[
-              styles.input,
-              errors[key] && styles.inputError
-            ]}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
-            value={value}
-            onChangeText={(text) => updateFormData(key, text)}
-            keyboardType={keyboardType}
-            autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-            editable={isEditMode}
-          />
-        </View>
-        {errors[key] && (
-          <Text style={styles.errorText}>{errors[key]}</Text>
-        )}
-      </View>
-    );
-  };
-
-  const renderTextAreaField = (label, value, key, placeholder) => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
-            value={value}
-            onChangeText={(text) => updateFormData(key, text)}
-            multiline={true}
-            numberOfLines={4}
-            textAlignVertical="top"
-            editable={isEditMode}
-          />
-        </View>
-      </View>
-    );
-  };
-
-  const renderSalesRepField = () => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label="Sales Representative"
-          value={selectedRepName || 'Not assigned'}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>Sales Representative</Text>
-        <TouchableOpacity
-          style={[
-            styles.salesRepSelector,
-            !formData.salesRepId && styles.selectorEmpty
-          ]}
-          onPress={() => setSalesRepModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          {selectedRepName ? (
-            <View style={styles.selectedRepContainer}>
-              <View style={styles.selectedRepInfo}>
-                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
-                <Text style={styles.selectedRepText}>{selectedRepName}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleClearSalesRep();
-                }}
-              >
-                <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.placeholderText}>Select Sales Representative</Text>
-              <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderBooleanField = (label, value, key) => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value ? 'Yes' : 'No'}
-        />
-      );
-    }
-
-    return (
-      <ToggleButton
-        label={label}
-        value={value}
-        onPress={(val) => handleBooleanToggle(key, val)}
-      />
-    );
-  };
-
   // Render sales rep item in modal
   const renderSalesRepItem = ({ item }) => (
     <TouchableOpacity
@@ -805,7 +816,7 @@ const LeadEdit = ({ route, navigation }) => {
         </View>
       </View>
       {formData.salesRepId === item.id && (
-        <AntDesign name="checkcircle" size={Layout.iconSize.md} color={Colors.primary} />
+        <AntDesign name="checkcircle" size={Layout.iconSize.sm} color={Colors.primary} />
       )}
     </TouchableOpacity>
   );
@@ -816,11 +827,27 @@ const LeadEdit = ({ route, navigation }) => {
       case 'basic':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Contact Information" 
-              icon="phone"
-            />
+            <SectionHeader title="Contact Information" />
             <View style={styles.sectionContent}>
+              <TextField
+                label="Name"
+                value={formData.name}
+                onChangeText={(text) => updateFormData('name', text)}
+                placeholder="Enter name"
+                error={errors.name}
+                editable={isEditMode}
+              />
+
+              <TextField
+                label="Email"
+                value={formData.email}
+                onChangeText={(text) => updateFormData('email', text)}
+                placeholder="Enter email"
+                error={errors.email}
+                editable={isEditMode}
+                keyboardType="email-address"
+              />
+
               <PhoneInputField
                 label="Phone"
                 value={formData.phone}
@@ -845,51 +872,69 @@ const LeadEdit = ({ route, navigation }) => {
                 editable={isEditMode}
               />
 
-              {renderTextField(
-                "Birthday",
-                formData.birthday,
-                'birthday',
-                'YYYY-MM-DD'
+              <TextField
+                label="Birthday"
+                value={formData.birthday}
+                onChangeText={(text) => updateFormData('birthday', text)}
+                placeholder="YYYY-MM-DD"
+                error={errors.birthday}
+                editable={isEditMode}
+              />
+
+              <DropdownField
+                label="Lead Source"
+                value={formData.leadSourceLabel}
+                options={leadSourceOptions}
+                onSelect={(option) => {
+                  updateFormData('leadSourceId', option.id);
+                  updateFormData('leadSourceLabel', option.identifier);
+                }}
+                editable={isEditMode}
+                placeholder="Select Lead Source"
+              />
+
+              {/* Sales Representative Field */}
+              {isEditMode ? (
+                <View style={styles.editField}>
+                  <Text style={styles.editLabel}>Sales Representative</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.salesRepSelector,
+                      !formData.salesRepId && styles.selectorEmpty
+                    ]}
+                    onPress={() => setSalesRepModalVisible(true)}
+                    activeOpacity={0.7}
+                  >
+                    {selectedRepName ? (
+                      <View style={styles.selectedRepContainer}>
+                        <View style={styles.selectedRepInfo}>
+                          <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
+                          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.clearButton}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleClearSalesRep();
+                          }}
+                        >
+                          <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.placeholderText}>Select Sales Representative</Text>
+                        <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <ViewRow 
+                  label="Sales Representative"
+                  value={selectedRepName || 'Not assigned'}
+                />
               )}
-
-              {/* Lead Source Dropdown with Menu */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Lead Source</Text>
-                <Menu
-                  visible={leadSourceMenuVisible}
-                  onDismiss={() => setLeadSourceMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setLeadSourceMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.leadSourceLabel || 'Select Lead Source'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {leadSourceOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('leadSourceId', option.id);
-                          updateFormData('leadSourceLabel', option.identifier);
-                          setLeadSourceMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < leadSourceOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
-              </View>
-
-              {/* Dynamic Sales Representative Field */}
-              {renderSalesRepField()}
             </View>
           </View>
         );
@@ -897,96 +942,47 @@ const LeadEdit = ({ route, navigation }) => {
       case 'company':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Company Information" 
-              icon="office-building"
-            />
+            <SectionHeader title="Company Information" />
             <View style={styles.sectionContent}>
-              {renderTextField(
-                "Company Name",
-                formData.companyName,
-                'companyName',
-                'Enter company name'
-              )}
+              <TextField
+                label="Company Name"
+                value={formData.companyName}
+                onChangeText={(text) => updateFormData('companyName', text)}
+                placeholder="Enter company name"
+                editable={isEditMode}
+              />
 
-              {/* Business Partner Dropdown with Menu */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Business Partner</Text>
-                <Menu
-                  visible={bpMenuVisible}
-                  onDismiss={() => setBpMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setBpMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.businessPartnerLabel || 'Select Business Partner'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {businessPartnerOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('businessPartnerId', option.id);
-                          updateFormData('businessPartnerLabel', option.identifier);
-                          setBpMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < businessPartnerOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
-              </View>
+              <DropdownField
+                label="Business Partner"
+                value={formData.businessPartnerLabel}
+                options={businessPartnerOptions}
+                onSelect={(option) => {
+                  updateFormData('businessPartnerId', option.id);
+                  updateFormData('businessPartnerLabel', option.identifier);
+                }}
+                editable={isEditMode}
+                placeholder="Select Business Partner"
+              />
 
-              {/* Organization Dropdown with Menu */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Organization</Text>
-                <Menu
-                  visible={orgMenuVisible}
-                  onDismiss={() => setOrgMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setOrgMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.organizationLabel || 'Select Organization'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {organizationOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('organizationId', option.id);
-                          updateFormData('organizationLabel', option.identifier);
-                          setOrgMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < organizationOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
-              </View>
+              <DropdownField
+                label="Organization"
+                value={formData.organizationLabel}
+                options={organizationOptions}
+                onSelect={(option) => {
+                  updateFormData('organizationId', option.id);
+                  updateFormData('organizationLabel', option.identifier);
+                }}
+                editable={isEditMode}
+                placeholder="Select Organization"
+              />
 
-              {renderTextAreaField(
-                "Lead Source Description",
-                formData.leadSourceDesc,
-                'leadSourceDesc',
-                'Enter lead source description'
-              )}
+              <TextAreaField
+                label="Lead Source Description"
+                value={formData.leadSourceDesc}
+                onChangeText={(text) => updateFormData('leadSourceDesc', text)}
+                placeholder="Enter lead source description"
+                editable={isEditMode}
+              />
             </View>
           </View>
         );
@@ -994,36 +990,37 @@ const LeadEdit = ({ route, navigation }) => {
       case 'detailed':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Detailed Information" 
-              icon="clipboard-text"
-            />
+            <SectionHeader title="Detailed Information" />
             <View style={styles.sectionContent}>
-              {renderBooleanField(
-                "Sales Lead",
-                formData.salesLead,
-                'salesLead'
-              )}
+              <SwipeButton
+                label="Sales Lead"
+                value={formData.salesLead}
+                onValueChange={(val) => handleBooleanToggle('salesLead', val)}
+                editable={isEditMode}
+              />
 
-              {renderBooleanField(
-                "Vendor Lead",
-                formData.vendorLead,
-                'vendorLead'
-              )}
+              <SwipeButton
+                label="Vendor Lead"
+                value={formData.vendorLead}
+                onValueChange={(val) => handleBooleanToggle('vendorLead', val)}
+                editable={isEditMode}
+              />
 
-              {renderTextAreaField(
-                "Description",
-                formData.description,
-                'description',
-                'Enter description'
-              )}
+              <TextAreaField
+                label="Description"
+                value={formData.description}
+                onChangeText={(text) => updateFormData('description', text)}
+                placeholder="Enter description"
+                editable={isEditMode}
+              />
 
-              {renderTextAreaField(
-                "Comments",
-                formData.comments,
-                'comments',
-                'Enter comments'
-              )}
+              <TextAreaField
+                label="Comments"
+                value={formData.comments}
+                onChangeText={(text) => updateFormData('comments', text)}
+                placeholder="Enter comments"
+                editable={isEditMode}
+              />
             </View>
           </View>
         );
@@ -1031,10 +1028,7 @@ const LeadEdit = ({ route, navigation }) => {
       case 'activities':
         return (
           <View style={[styles.sectionCard, styles.activitySectionCard]}>
-            <SectionHeader 
-              title={`Completed Activities (${activities.length})`} 
-              icon="calendar-check"
-            />
+            <SectionHeader title={`Completed Activities (${activities.length})`} />
             <View style={styles.sectionContent}>
               {activitiesLoading ? (
                 <View style={styles.loadingContainer}>
@@ -1051,7 +1045,7 @@ const LeadEdit = ({ route, navigation }) => {
                 />
               ) : (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.xl} color={Colors.border} />
+                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.lg} color={Colors.border} />
                   <Text style={styles.emptyStateText}>No completed activities</Text>
                 </View>
               )}
@@ -1113,7 +1107,7 @@ const LeadEdit = ({ route, navigation }) => {
             <View style={styles.headerLeft}>
               <View style={styles.avatarContainer}>
                 <Image
-                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+                  source={{ uri: 'https://randomuser.me/api/portraits/men/1.jpg' }}
                   style={styles.avatar}
                 />
               </View>
@@ -1190,7 +1184,7 @@ const LeadEdit = ({ route, navigation }) => {
                 style={styles.activityIconWrapper}
               >
                 <View style={styles.addActivityIcon}>
-                  <Ionicons name="alarm-outline" size={Layout.iconSize.md} color={Colors.primary} />
+                  <Ionicons name="alarm-outline" size={Layout.iconSize.sm} color={Colors.primary} />
                   <AntDesign 
                     name="pluscircle" 
                     size={Layout.iconSize.xs} 
@@ -1226,19 +1220,11 @@ const LeadEdit = ({ route, navigation }) => {
 
           {isEditMode && formData.leadStatusDesc && (
             <View style={styles.statusNote}>
-              <MaterialCommunityIcons name="information" size={Layout.iconSize.sm} color={Colors.info} />
+              <MaterialCommunityIcons name="information" size={Layout.iconSize.xs} color={Colors.info} />
               <Text style={styles.statusNoteText}>{formData.leadStatusDesc}</Text>
             </View>
           )}
         </View>
-
-        {/* Edit Mode Badge - Compact */}
-        {isEditMode && (
-          <View style={styles.editBadge}>
-            <MaterialCommunityIcons name="pencil" size={Layout.iconSize.sm} color={Colors.primary} />
-            <Text style={styles.editBadgeText}>Editing Mode</Text>
-          </View>
-        )}
 
         {/* Tabs with Integrated Arrow Connector - Touches Card */}
         <View style={styles.tabsWrapper}>
@@ -1265,7 +1251,7 @@ const LeadEdit = ({ route, navigation }) => {
               isLast={false}
             />
             <TabButton 
-              title="Activities" 
+              title="Activity Log" 
               active={activeTab === 'activities'} 
               onPress={() => setActiveTab('activities')}
               isFirst={false}
@@ -1293,7 +1279,7 @@ const LeadEdit = ({ route, navigation }) => {
                 <ActivityIndicator size="small" color={Colors.textInverse} />
               ) : (
                 <>
-                  <MaterialCommunityIcons name="content-save" size={Layout.iconSize.md} color={Colors.textInverse} />
+                  <MaterialCommunityIcons name="content-save" size={Layout.iconSize.sm} color={Colors.textInverse} />
                   <Text style={styles.saveButtonText}>Save Changes</Text>
                 </>
               )}
@@ -1330,12 +1316,12 @@ const LeadEdit = ({ route, navigation }) => {
                   setSalesRepSearch('');
                 }}
               >
-                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.md} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearch}>
-              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.md} color={Colors.textSecondary} />
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
               <TextInput
                 style={styles.modalSearchInput}
                 placeholder="Search by name..."
@@ -1345,14 +1331,14 @@ const LeadEdit = ({ route, navigation }) => {
               />
               {salesRepSearch.length > 0 && (
                 <TouchableOpacity onPress={() => setSalesRepSearch('')}>
-                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
 
             {loadingSalesReps ? (
               <View style={styles.modalLoading}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+                <ActivityIndicator size="small" color={Colors.primary} />
                 <Text style={styles.modalLoadingText}>Loading...</Text>
               </View>
             ) : (
@@ -1362,7 +1348,7 @@ const LeadEdit = ({ route, navigation }) => {
                 keyExtractor={(item) => item.id.toString()}
                 ListEmptyComponent={
                   <View style={styles.modalEmpty}>
-                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xxl} color={Colors.border} />
+                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
                     <Text style={styles.modalEmptyText}>
                       {salesRepSearch.trim()
                         ? `No results for "${salesRepSearch}"`
@@ -1389,34 +1375,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingBottom: verticalScale(30),
+    paddingBottom: verticalScale(20),
   },
 
   // Header Card - Minimized Spacing
   headerCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.lg,
+    padding: Spacing.md,
     paddingBottom: Spacing.xs,
   },
   headerLeft: {
@@ -1425,13 +1411,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarContainer: {
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   avatar: {
-    width: scale(48),
-    height: scale(48),
-    borderRadius: scale(24),
-    borderWidth: 2,
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
+    borderWidth: 1,
     borderColor: Colors.borderLight,
   },
   headerInfo: {
@@ -1441,15 +1427,15 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
+   
   },
   companyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: Colors.backgroundLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
+    
+   
     borderRadius: Layout.borderRadius.round,
   },
   companyBadgeText: {
@@ -1473,15 +1459,15 @@ const styles = StyleSheet.create({
   contactInfoRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.xs,
   },
   contactChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
     gap: Spacing.xxs,
@@ -1496,8 +1482,8 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
     gap: Spacing.xxs,
   },
@@ -1516,8 +1502,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.md,
-    marginRight: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginRight: Spacing.md,
   },
   activityPlusIcon: {
     position: 'absolute',
@@ -1532,8 +1518,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.infoLight,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
     gap: Spacing.xs,
@@ -1545,17 +1531,18 @@ const styles = StyleSheet.create({
     color: Colors.info,
   },
 
-  // Edit Mode Badge - Compact
-  editBadge: {
+  // Tabs with Integrated Arrow Connector - Touches Card
+  tabsWrapper: {
+    marginHorizontal: Spacing.md,
+    marginBottom: 0,
+  },
+  tabsContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: Colors.infoLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.round,
-    marginBottom: Spacing.sm,
-    gap: Spacing.xs,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    padding: Spacing.xxs,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
@@ -1565,34 +1552,6 @@ const styles = StyleSheet.create({
     
     // Elevation for Android
     elevation: 2,
-  },
-  editBadgeText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.primary,
-  },
-
-  // Tabs with Integrated Arrow Connector - Touches Card
-  tabsWrapper: {
-    marginHorizontal: Spacing.lg,
-    marginBottom: 0,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    padding: Spacing.xxs,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
     
     position: 'relative',
     zIndex: 5,
@@ -1602,30 +1561,30 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabButton: {
-    paddingVertical: verticalScale(10),
+    paddingVertical: verticalScale(6),
     alignItems: 'center',
     position: 'relative',
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
   },
   tabButtonFirst: {
-    borderTopLeftRadius: Layout.borderRadius.md,
-    borderBottomLeftRadius: Layout.borderRadius.md,
+    borderTopLeftRadius: Layout.borderRadius.sm,
+    borderBottomLeftRadius: Layout.borderRadius.sm,
   },
   tabButtonLast: {
-    borderTopRightRadius: Layout.borderRadius.md,
-    borderBottomRightRadius: Layout.borderRadius.md,
+    borderTopRightRadius: Layout.borderRadius.sm,
+    borderBottomRightRadius: Layout.borderRadius.sm,
   },
   tabButtonActive: {
     backgroundColor: Colors.primary,
     
     // Shadow for iOS
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 4,
+    elevation: 2,
   },
   tabButtonText: {
     fontSize: Typography.fontSize.small,
@@ -1640,7 +1599,7 @@ const styles = StyleSheet.create({
   // Integrated Arrow - Part of Active Tab, Touches Both Tab and Card
   activeTabArrowContainer: {
     position: 'absolute',
-    bottom: -verticalScale(14),
+    bottom: -verticalScale(8),
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -1651,9 +1610,9 @@ const styles = StyleSheet.create({
     height: 0,
     backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderLeftWidth: scale(10),
-    borderRightWidth: scale(10),
-    borderTopWidth: scale(12),
+    borderLeftWidth: scale(8),
+    borderRightWidth: scale(8),
+    borderTopWidth: scale(8),
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: Colors.primary,
@@ -1662,63 +1621,55 @@ const styles = StyleSheet.create({
   // Section Cards
   sectionCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    marginHorizontal: Spacing.lg,
-    marginTop: verticalScale(14),
-    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginHorizontal: Spacing.md,
+    marginTop: verticalScale(8),
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   
   // Activity Section Card - Minimized
   activitySectionCard: {
-    marginTop: verticalScale(14),
-    marginBottom: Spacing.md,
+    marginTop: verticalScale(8),
+    marginBottom: Spacing.sm,
   },
   
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.backgroundLight,
   },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
   sectionTitle: {
-    fontSize: Typography.fontSize.large,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   sectionContent: {
-    padding: Spacing.md,
+    padding: Spacing.sm,
   },
 
   // View Mode Row - No Icons, Clear Label/Value Hierarchy
   viewRow: {
-    marginBottom: Spacing.md,
-    paddingBottom: Spacing.sm,
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
   viewLabel: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
@@ -1732,15 +1683,87 @@ const styles = StyleSheet.create({
     lineHeight: Typography.lineHeight.h4,
   },
 
+  // Inline View Row for Boolean Fields (label and value in same line)
+  viewRowInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  viewLabelInline: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  valueChipInline: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    minWidth: scale(60),
+    alignItems: 'center',
+  },
+  valueChipSuccessInline: {
+    backgroundColor: Colors.successLight,
+  },
+  valueChipDefaultInline: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  valueChipTextInline: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    textAlign: 'center',
+  },
+  valueChipTextSuccessInline: {
+    color: Colors.success,
+  },
+  valueChipTextDefaultInline: {
+    color: Colors.textSecondary,
+  },
+
+  // Value Chip for Boolean Fields in View Mode (kept for backward compatibility)
+  valueChip: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    marginTop: Spacing.xxs,
+  },
+  valueChipSuccess: {
+    backgroundColor: Colors.successLight,
+  },
+  valueChipDefault: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  valueChipText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  valueChipTextSuccess: {
+    color: Colors.success,
+  },
+  valueChipTextDefault: {
+    color: Colors.textSecondary,
+  },
+
   // Edit Mode Field Styles
   editField: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   editLabel: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1748,31 +1771,38 @@ const styles = StyleSheet.create({
   // Input Wrapper with Shadow and Elevation
   inputWrapper: {
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    justifyContent: 'center',
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   input: {
-    height: 48,
-    paddingHorizontal: Spacing.md,
-    fontSize: Typography.fontSize.small,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: verticalScale(8),
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  textAreaWrapper: {
+    minHeight: verticalScale(80),
   },
   textArea: {
-    minHeight: verticalScale(100),
+    minHeight: verticalScale(80),
     textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(10),
   },
   inputError: {
     borderColor: Colors.error,
@@ -1786,31 +1816,32 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
   },
 
-  // Phone Input Styles
+  // Phone Input Styles - Fixed with proper vertical padding
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   countryPicker: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: verticalScale(12),
-    minWidth: scale(90),
+    paddingVertical: verticalScale(10),
+    minWidth: scale(85),
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   countryPickerFocused: {
     borderColor: Colors.primary,
@@ -1818,40 +1849,42 @@ const styles = StyleSheet.create({
     // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   countryPickerError: {
     borderColor: Colors.error,
     shadowColor: Colors.error,
   },
   countryFlag: {
-    fontSize: 18,
-    marginRight: Spacing.xxs,
+    fontSize: 16,
+    marginRight: Spacing.xs,
   },
   dialCode: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textPrimary,
-    marginRight: Spacing.xxs,
+    marginRight: Spacing.xs,
   },
   countryMenu: {
     marginTop: verticalScale(40),
   },
   phoneInputWrapper: {
+    flex: 1,
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    justifyContent: 'center',
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   phoneInputWrapperFocused: {
     borderColor: Colors.primary,
@@ -1859,41 +1892,28 @@ const styles = StyleSheet.create({
     // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   phoneInputWrapperError: {
     borderColor: Colors.error,
     shadowColor: Colors.error,
   },
   phoneInput: {
-    height: 48,
-    paddingHorizontal: Spacing.md,
-    fontSize: Typography.fontSize.small,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: verticalScale(8),
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   flexible: {
     flex: 1,
   },
 
-  // Read-only field styles
-  readOnlyContainer: {
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
-    opacity: 0.8,
-  },
-  readOnlyText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-
-  // Dropdown Input
+  // Dropdown Input - Fixed with proper vertical padding
   dropdownInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1901,26 +1921,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   dropdownText: {
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.medium,
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
+    flex: 1,
   },
 
-  // Sales Rep Selector
+  // Sales Rep Selector - Fixed with proper vertical padding
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1928,18 +1950,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   selectorEmpty: {
     borderColor: Colors.errorLight,
@@ -1953,7 +1976,7 @@ const styles = StyleSheet.create({
   selectedRepInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   selectedRepText: {
     fontSize: Typography.fontSize.medium,
@@ -1969,31 +1992,29 @@ const styles = StyleSheet.create({
     padding: Spacing.xxs,
   },
 
-  // Toggle Button Styles for Yes/No Fields
-  toggleContainer: {
-    marginBottom: Spacing.lg,
+  // Swipe Button Styles for Yes/No Fields (using Switch)
+  swipeContainer: {
+    marginBottom: Spacing.md,
   },
-  toggleLabel: {
+  swipeLabel: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  toggleButtons: {
+  switchContainer: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  toggleOption: {
-    flex: 1,
-    paddingVertical: verticalScale(12),
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Layout.borderRadius.md,
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
@@ -2004,36 +2025,30 @@ const styles = StyleSheet.create({
     // Elevation for Android
     elevation: 2,
   },
-  toggleOptionActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    
-    // Enhanced shadow for active state
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+  switch: {
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
   },
-  toggleOptionText: {
+  switchLabel: {
     fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    paddingHorizontal: Spacing.xs,
   },
-  toggleOptionTextActive: {
-    color: Colors.textInverse,
+  switchLabelActive: {
+    color: Colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
   },
 
   // Activity Styles - Minimized
   activityItem: {
     flexDirection: 'row',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
     alignItems: 'center',
   },
   activityIconContainer: {
-    width: scale(32),
-    height: scale(32),
-    borderRadius: scale(16),
+    width: scale(28),
+    height: scale(28),
+    borderRadius: scale(14),
     backgroundColor: Colors.infoLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2049,12 +2064,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxs,
   },
   activityTitle: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
   activityStatusBadge: {
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: Spacing.xxs,
     paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
   },
@@ -2084,13 +2099,13 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.xs,
+    marginVertical: Spacing.xxs,
   },
 
   // Loading & Empty States - Minimized
   loadingContainer: {
     alignItems: 'center',
-    paddingVertical: verticalScale(20),
+    paddingVertical: verticalScale(16),
   },
   loadingText: {
     fontSize: Typography.fontSize.small,
@@ -2100,7 +2115,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: verticalScale(20),
+    paddingVertical: verticalScale(16),
   },
   emptyStateText: {
     fontSize: Typography.fontSize.small,
@@ -2112,9 +2127,9 @@ const styles = StyleSheet.create({
 
   // Action Buttons
   actionButtons: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    marginBottom: verticalScale(20),
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: verticalScale(16),
     gap: Spacing.sm,
   },
   saveButton: {
@@ -2122,24 +2137,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingVertical: verticalScale(16),
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
+    height: 48,
     
     // Shadow for iOS
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 4,
     
     // Elevation for Android
-    elevation: 6,
+    elevation: 4,
   },
   saveButtonDisabled: {
     opacity: 0.7,
     backgroundColor: Colors.buttonDisabled,
     shadowOpacity: 0.2,
-    elevation: 3,
+    elevation: 2,
   },
   saveButtonText: {
     color: Colors.textInverse,
@@ -2149,20 +2165,21 @@ const styles = StyleSheet.create({
   cancelButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(16),
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundLight,
+    height: 48,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   cancelButtonText: {
     color: Colors.textSecondary,
@@ -2178,24 +2195,24 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.xl,
-    borderTopRightRadius: Layout.borderRadius.xl,
+    borderTopLeftRadius: Layout.borderRadius.lg,
+    borderTopRightRadius: Layout.borderRadius.lg,
     maxHeight: '80%',
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowRadius: 4,
     
     // Elevation for Android
-    elevation: 12,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.lg,
+    padding: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -2207,48 +2224,52 @@ const styles = StyleSheet.create({
   modalSearch: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: Spacing.lg,
-    paddingHorizontal: Spacing.md,
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    gap: Spacing.sm,
+    borderRadius: Layout.borderRadius.sm,
+    gap: Spacing.xs,
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 2,
   },
   modalSearchInput: {
     flex: 1,
-    height: verticalScale(44),
+    height: 42,
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    paddingVertical: verticalScale(8),
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   modalLoading: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(40),
+    paddingVertical: verticalScale(32),
   },
   modalLoadingText: {
     marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
   modalEmpty: {
     alignItems: 'center',
-    paddingVertical: verticalScale(40),
+    paddingVertical: verticalScale(32),
   },
   modalEmptyText: {
     marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textTertiary,
     textAlign: 'center',
@@ -2259,8 +2280,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -2273,22 +2294,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   repAvatar: {
-    width: scale(44),
-    height: scale(44),
-    borderRadius: scale(22),
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
     
     // Shadow for iOS
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 2,
     
     // Elevation for Android
-    elevation: 4,
+    elevation: 2,
   },
   repAvatarText: {
     fontSize: Typography.fontSize.medium,
@@ -2312,7 +2333,7 @@ const styles = StyleSheet.create({
 
   // Menu Styles
   menuItemTitle: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
   },
   menuItemSelected: {
@@ -2331,24 +2352,26 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   retryButton: {
     backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
+    height: 48,
+    justifyContent: 'center',
     
     // Shadow for iOS
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowRadius: 4,
     
     // Elevation for Android
-    elevation: 6,
+    elevation: 4,
   },
   retryButtonText: {
     color: Colors.textInverse,
