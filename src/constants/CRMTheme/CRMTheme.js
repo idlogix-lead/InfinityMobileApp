@@ -51,6 +51,12 @@ const Colors = {
   errorLight: '#FDEAEA',
   info: '#3B82F6',
   infoLight: '#F0F9FF',
+  //Lead status colors
+  statusNew: '#60A5FA',
+  statusWorking: '#FBBF24',
+  statusConverted: '#34D399', 
+  statusSalesOpportunity: '#C084FC',
+  statusExpired: '#F87171',
   
   // UI Colors
   border: '#E0E0E0',
@@ -59,11 +65,7 @@ const Colors = {
   shadow: 'rgba(0, 0, 0, 0.1)',
   overlay: 'rgba(0, 0, 0, 0.5)',
   
-  // Status Specific
-  statusNew: '#3B82F6',
-  statusWorking: '#F59E0B',
-  statusConverted: '#10B981',
-  statusExpired: '#EF4444',
+
   
   // Button Colors
   buttonPrimary: '#2F4FE3',

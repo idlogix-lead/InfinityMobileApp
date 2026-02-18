@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,29 +10,57 @@ import {
   Switch,
   StatusBar,
   Pressable,
+  ActivityIndicator,
+  Modal,
+  FlatList,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import CustomHeader from '../../components/CustomHeader';
-import {Picker} from '@react-native-picker/picker';
+import { Picker } from '@react-native-picker/picker';
+import { useAuthStore } from '../../store/authStore';
+import { useCreateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
+import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
+import theme from '../../constants/CRMTheme/CRMTheme';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const BASE_URL = 'http://116.58.53.114:9999/api/v1/models';
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale } = Layout;
 
-const AddSaleOppor = ({navigation}) => {
-  /* ---------------- LOGIN ---------------- */
-  const [tenantId, setTenantId] = useState('');
-  const [tenantName, setTenantName] = useState('');
-  const [orgId, setOrgId] = useState('');
-  const [salesRepId, setSalesRepId] = useState('');
-  const [salesRepName, setSalesRepName] = useState('');
+const AddSaleOppor = ({ navigation }) => {
+  const createOpportunity = useCreateSalesOpportunity();
+  
+  // Safely use sales representatives hook with error handling
+  let salesRepsData = [];
+  let loadingSalesReps = false;
+  
+  try {
+    const result = useSalesRepresentatives();
+    if (result && typeof result === 'object') {
+      salesRepsData = result.data || [];
+      loadingSalesReps = result.isLoading || false;
+    }
+  } catch (error) {
+    console.error('Error loading sales representatives:', error);
+  }
+  
+  /* ---------------- AUTH STORE ---------------- */
+  const authState = useAuthStore();
+  const userId = authState?.userId;
+  const userName = authState?.userName;
+  const clientId = authState?.clientId;
+  const clientName = authState?.clientName;
+  const organizationId = authState?.organizationId;
+  const organizationName = authState?.organizationName;
+  // warehouseName doesn't exist, use a default or remove
+  const warehouseName = 'Default'; // Hardcoded default
 
-  /* ---------------- OPPORTUNITY ---------------- */
+  /* ---------------- OPPORTUNITY STATE ---------------- */
   const [selectedBPId, setSelectedBPId] = useState(null);
   const [selectedBPName, setSelectedBPName] = useState('');
   const [bpQuery, setBpQuery] = useState('');
   const [bpResults, setBpResults] = useState([]);
   const [showBPList, setShowBPList] = useState(false);
+  const [isLoadingBP, setIsLoadingBP] = useState(false);
 
   const [bpContacts, setBpContacts] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -47,59 +75,88 @@ const AddSaleOppor = ({navigation}) => {
   const [stages, setStages] = useState([]);
   const [selectedStageId, setSelectedStageId] = useState(null);
   const [probability, setProbability] = useState('0');
+  const [isLoadingStages, setIsLoadingStages] = useState(false);
 
-  /* ---------------- CURRENCY STATES ---------------- */
+  /* ---------------- CURRENCY ---------------- */
   const [currencyQuery, setCurrencyQuery] = useState('');
   const [currencyResults, setCurrencyResults] = useState([]);
   const [showCurrencyList, setShowCurrencyList] = useState(false);
-
-  /* ---------------- OTHERS ---------------- */
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [active] = useState(true);
-
   const [currencies, setCurrencies] = useState([]);
   const [selectedCurrencyId, setSelectedCurrencyId] = useState(null);
+  const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
+  /* ---------------- CAMPAIGNS ---------------- */
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
 
-  const [organization, setOrganization] = useState('');
-  const [organizationID, setOrganizationID] = useState(null);
+  /* ---------------- SALES REP ---------------- */
+  const [showSalesRepModal, setShowSalesRepModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSalesRepId, setSelectedSalesRepId] = useState(userId || null);
+  const [selectedSalesRepName, setSelectedSalesRepName] = useState(userName || '');
 
+  /* ---------------- UI STATE ---------------- */
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [active] = useState(true);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ---------------- INIT ---------------- */
   useEffect(() => {
-    loadLoginData();
-    fetchUserOrg();
     fetchStages();
     fetchCurrencies();
     fetchCampaigns();
     setDocumentNo('Auto Generated');
   }, []);
 
-  const loadLoginData = async () => {
-    setTenantId(await AsyncStorage.getItem('clientId'));
-    setTenantName(await AsyncStorage.getItem('clientName'));
-    setOrgId(await AsyncStorage.getItem('organizationId'));
-    setSalesRepId(await AsyncStorage.getItem('userId'));
-    setSalesRepName(await AsyncStorage.getItem('userName'));
-  };
+  /* ---------------- API HELPER ---------------- */
+  const makeAuthenticatedRequest = async (url, options = {}) => {
+    const token = authState?.token;
+    if (!token) {
+      throw new Error('Authentication token missing');
+    }
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options.headers,
+        },
+      });
 
-  const fetchUserOrg = async () => {
-    const orgData = await AsyncStorage.getItem('orgs');
-    if (orgData) {
-      const orgs = JSON.parse(orgData).filter(o => !o.name.includes('*'));
-      if (orgs.length) {
-        setOrganization(orgs[0].name);
-        setOrganizationID(orgs[0].id);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('API Request Failed:', error.message);
+      throw error;
     }
   };
 
+  const buildApiUrl = (endpoint, filter = '') => {
+    const serverConfig = authState?.serverConfig;
+    if (!serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
+      throw new Error('Server configuration missing');
+    }
+    const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+    const url = `${baseUrl}/${endpoint}`;
+    return filter ? `${url}?$filter=${encodeURIComponent(filter)}` : url;
+  };
+
   /* ---------------- SEARCH BUSINESS PARTNER ---------------- */
-  const searchBusinessPartner = async text => {
+  const searchBusinessPartner = async (text) => {
     setBpQuery(text);
+    setSelectedBPName('');
+    setSelectedBPId(null);
+    setErrors(prev => ({ ...prev, bp: null }));
 
     if (text.length < 2) {
       setBpResults([]);
@@ -107,52 +164,74 @@ const AddSaleOppor = ({navigation}) => {
       return;
     }
 
+    setIsLoadingBP(true);
     try {
-      const token = await AsyncStorage.getItem('token');
-      const res = await axios.get(
-        `${BASE_URL}/C_BPartner?$filter=contains(Name,'${text}')&$select=Name,Value`,
-        {headers: {Authorization: `Bearer ${token}`}},
-      );
-      setBpResults(res.data.records || []);
+      const url = buildApiUrl('models/C_BPartner', `contains(Name,'${text}')`);
+      const data = await makeAuthenticatedRequest(url);
+      setBpResults(data.records || []);
       setShowBPList(true);
-    } catch (e) {
-      console.log('BP search error', e.message);
+    } catch (error) {
+      console.log('BP search error', error.message);
+      Alert.alert('Error', 'Failed to search business partners');
+    } finally {
+      setIsLoadingBP(false);
     }
   };
 
-  /* ---------------- BP USERS ---------------- */
-  const fetchBpUsers = async bpId => {
+  /* ---------------- FETCH BP USERS ---------------- */
+  const fetchBpUsers = async (bpId) => {
     if (!bpId) return;
-    const token = await AsyncStorage.getItem('token');
-    const res = await axios.get(
-      `${BASE_URL}/AD_User?$filter=C_BPartner_ID eq ${bpId}&$select=Name`,
-      {headers: {Authorization: `Bearer ${token}`}},
-    );
-    const users = res.data.records || [];
-    setBpContacts(users);
-    setSelectedUserId(users[0]?.id || null);
+    try {
+      const url = buildApiUrl('models/AD_User', `C_BPartner_ID eq ${bpId}`);
+      const data = await makeAuthenticatedRequest(url);
+      const users = data.records || [];
+      setBpContacts(users);
+      setSelectedUserId(users[0]?.id || null);
+    } catch (error) {
+      console.log('BP users fetch error', error.message);
+    }
   };
 
-  /* ---------------- STAGES ---------------- */
+  /* ---------------- FETCH STAGES ---------------- */
   const fetchStages = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const res = await axios.get(
-      `${BASE_URL}/C_SalesStage?$select=Name,Probability`,
-      {headers: {Authorization: `Bearer ${token}`}},
-    );
-    setStages(res.data.records || []);
+    setIsLoadingStages(true);
+    try {
+      const url = buildApiUrl('models/C_SalesStage');
+      const data = await makeAuthenticatedRequest(url);
+      setStages(data.records || []);
+    } catch (error) {
+      console.log('Stages fetch error', error.message);
+      Alert.alert('Error', 'Failed to load sales stages');
+    } finally {
+      setIsLoadingStages(false);
+    }
   };
 
-  const handleStageChange = id => {
+  const handleStageChange = (id) => {
     setSelectedStageId(id);
     const stage = stages.find(s => s.id === id);
     setProbability(stage?.Probability?.toString() || '0');
+    setErrors(prev => ({ ...prev, stage: null }));
   };
 
-  /* ---------------- CURRENCY ---------------- */
+  /* ---------------- FETCH CURRENCIES ---------------- */
+  const fetchCurrencies = async () => {
+    setIsLoadingCurrencies(true);
+    try {
+      const url = buildApiUrl('models/C_Currency');
+      const data = await makeAuthenticatedRequest(url);
+      setCurrencies(data.records || []);
+    } catch (error) {
+      console.log('Currencies fetch error', error.message);
+    } finally {
+      setIsLoadingCurrencies(false);
+    }
+  };
 
-  const searchCurrency = text => {
+  const searchCurrency = (text) => {
     setCurrencyQuery(text);
+    setSelectedCurrencyId(null);
+    setErrors(prev => ({ ...prev, currency: null }));
 
     if (text.length < 1) {
       setCurrencyResults([]);
@@ -162,507 +241,1120 @@ const AddSaleOppor = ({navigation}) => {
 
     const filtered = currencies.filter(
       c =>
-        c.ISO_Code.toLowerCase().includes(text.toLowerCase()) ||
-        c.Description.toLowerCase().includes(text.toLowerCase()),
+        c.ISO_Code?.toLowerCase().includes(text.toLowerCase()) ||
+        c.Description?.toLowerCase().includes(text.toLowerCase())
     );
     setCurrencyResults(filtered);
     setShowCurrencyList(true);
   };
-  const fetchCurrencies = async () => {
-    const token = await AsyncStorage.getItem('token');
-    const res = await axios.get(
-      `${BASE_URL}/C_Currency?$select=ISO_Code,Description`,
-      {headers: {Authorization: `Bearer ${token}`}},
-    );
-    setCurrencies(res.data.records || []);
+
+  /* ---------------- FETCH CAMPAIGNS ---------------- */
+  const fetchCampaigns = async () => {
+    setIsLoadingCampaigns(true);
+    try {
+      const url = buildApiUrl('models/C_Campaign');
+      const data = await makeAuthenticatedRequest(url);
+      setCampaigns(data.records || []);
+    } catch (error) {
+      console.log('Campaigns fetch error', error.message);
+    } finally {
+      setIsLoadingCampaigns(false);
+    }
   };
 
-  /* ---------------- CAMPAIGNS ---------------- */
-  const fetchCampaigns = async () => {
-    const protocol = await AsyncStorage.getItem('protocol');
-    const host = await AsyncStorage.getItem('host');
-    const port = await AsyncStorage.getItem('port');
-    const token = await AsyncStorage.getItem('token');
-
-    const res = await axios.get(
-      `${protocol}://${host}:${port}/api/v1/models/C_Campaign`,
-      {headers: {Authorization: `Bearer ${token}`}},
+  /* ---------------- SALES REP HANDLERS ---------------- */
+  const filteredSalesReps = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return salesRepsData;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return salesRepsData.filter(rep => 
+      rep.Name && rep.Name.toLowerCase().includes(query)
     );
-    setCampaigns(res.data.records || []);
+  }, [salesRepsData, searchQuery]);
+
+  const handleSelectSalesRep = (rep) => {
+    setSelectedSalesRepId(rep.id);
+    setSelectedSalesRepName(rep.Name);
+    setShowSalesRepModal(false);
+    setSearchQuery('');
+  };
+
+  const handleClearSalesRep = () => {
+    setSelectedSalesRepId(null);
+    setSelectedSalesRepName('');
   };
 
   /* ---------------- VALIDATION ---------------- */
   const validate = () => {
-    let e = {};
-    if (!selectedBPId) e.bp = 'Field required';
-    if (!selectedStageId) e.stage = 'Field required';
-    if (!expectedCloseDate) e.date = 'Field required';
-    if (!amount) e.amount = 'Field required';
-    if (!selectedCurrencyId) e.currency = 'Field required';
+    const e = {};
+    if (!selectedBPId) e.bp = 'Business Partner is required';
+    if (!selectedStageId) e.stage = 'Sales Stage is required';
+    if (!expectedCloseDate) e.date = 'Expected Close Date is required';
+    if (!amount) e.amount = 'Opportunity Amount is required';
+    if (!selectedCurrencyId) e.currency = 'Currency is required';
+    if (!selectedSalesRepId) e.salesRep = 'Sales Representative is required';
+    if (amount && isNaN(Number(amount))) e.amount = 'Amount must be a valid number';
 
     setErrors(e);
 
     if (Object.keys(e).length) {
-      Alert.alert('Missing Information', 'Please provide all required fields');
-      return;
+      Alert.alert('Missing Information', 'Please fill in all required fields');
+      return false;
     }
-    submitOpportunity();
+    return true;
   };
 
   /* ---------------- SUBMIT ---------------- */
-  const submitOpportunity = async () => {
-    const payload = {
-      AD_Client_ID: tenantId,
-      AD_Org_ID: {id: organizationID},
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    
+    const opportunityData = {
+      AD_Client_ID: { id: clientId },
+      AD_Org_ID: { id: organizationId },
       C_BPartner_ID: selectedBPId,
       AD_User_ID: selectedUserId,
-      SalesRep_ID: salesRepId,
+      SalesRep_ID: selectedSalesRepId,
       C_SalesStage_ID: selectedStageId,
       Probability: Number(probability),
       ExpectedCloseDate: expectedCloseDate,
       OpportunityAmt: Number(amount),
       C_Currency_ID: selectedCurrencyId,
+      C_Campaign_ID: selectedCampaign,
       Description: description,
       Comments: comments,
       IsActive: active,
     };
 
-    const token = await AsyncStorage.getItem('token');
-    await axios.post(`${BASE_URL}/C_Opportunity`, payload, {
-      headers: {Authorization: `Bearer ${token}`},
-    });
-
-    Alert.alert('Success', 'Sales Opportunity Created');
-    navigation.goBack();
+    try {
+      await createOpportunity.mutateAsync(opportunityData);
+      Alert.alert('Success', 'Sales Opportunity created successfully!', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('Create opportunity error:', error);
+      Alert.alert('Error', error.message || 'Failed to create opportunity');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  /* ---------------- UI ---------------- */
+  /* ---------------- UI COMPONENTS ---------------- */
+  const Label = ({ title, required }) => (
+    <Text style={styles.label}>
+      {title}
+      {required && <Text style={styles.requiredStar}> *</Text>}
+    </Text>
+  );
+
+  const Input = ({ error, icon, ...props }) => (
+    <View>
+      <View style={[styles.inputContainer, error && styles.inputError]}>
+        {icon && (
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={Layout.iconSize.sm} 
+            color={Colors.textSecondary} 
+            style={styles.inputIcon}
+          />
+        )}
+        <TextInput
+          {...props}
+          placeholderTextColor={Colors.textTertiary}
+          style={[styles.input, icon && styles.inputWithIcon]}
+        />
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+
+  const ReadOnly = ({ value, icon }) => (
+    <View style={[styles.inputContainer, styles.readOnlyContainer]}>
+      {icon && (
+        <MaterialCommunityIcons 
+          name={icon} 
+          size={Layout.iconSize.sm} 
+          color={Colors.textSecondary} 
+          style={styles.inputIcon}
+        />
+      )}
+      <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>{value || 'Not provided'}</Text>
+    </View>
+  );
+
+  const PickerField = ({ selectedValue, onValueChange, children, error, icon, placeholder }) => (
+    <View>
+      <View style={[styles.pickerContainer, error && styles.inputError]}>
+        {icon && (
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={Layout.iconSize.sm} 
+            color={Colors.textSecondary} 
+            style={styles.pickerIcon}
+          />
+        )}
+        <Picker
+          selectedValue={selectedValue}
+          onValueChange={onValueChange}
+          style={[styles.picker, icon && styles.pickerWithIcon]}
+          dropdownIconColor={Colors.textSecondary}
+        >
+          {placeholder && (
+            <Picker.Item 
+              label={placeholder} 
+              value={null} 
+              color={Colors.textTertiary}
+            />
+          )}
+          {children}
+        </Picker>
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+
+  const SearchField = ({ 
+    value, 
+    onChangeText, 
+    placeholder, 
+    error, 
+    icon,
+    showResults,
+    results,
+    onSelectItem,
+    isLoading,
+    renderItem
+  }) => (
+    <View style={styles.searchContainer}>
+      <View style={[styles.inputContainer, error && styles.inputError]}>
+        {icon && (
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={Layout.iconSize.sm} 
+            color={Colors.textSecondary} 
+            style={styles.inputIcon}
+          />
+        )}
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
+          style={[styles.input, icon && styles.inputWithIcon]}
+        />
+        {isLoading && (
+          <ActivityIndicator size="small" color={Colors.primary} style={styles.searchLoader} />
+        )}
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+      
+      {showResults && results.length > 0 && (
+        <View style={styles.searchResults}>
+          <ScrollView nestedScrollEnabled style={styles.searchResultsScroll} keyboardShouldPersistTaps="handled">
+            {results.map((item) => (
+              <Pressable
+                key={item.id}
+                style={({ pressed }) => [
+                  styles.searchResultItem,
+                  pressed && styles.searchResultItemPressed,
+                ]}
+                onPress={() => onSelectItem(item)}
+              >
+                <Text style={styles.searchResultText}>
+                  {renderItem ? renderItem(item) : item.Name || item.ISO_Code}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+
+  const DatePickerField = ({ value, onPress, error, icon }) => (
+    <View>
+      <TouchableOpacity 
+        style={[styles.inputContainer, error && styles.inputError]} 
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {icon && (
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={Layout.iconSize.sm} 
+            color={Colors.textSecondary} 
+            style={styles.inputIcon}
+          />
+        )}
+        <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
+          {value || 'Select date'}
+        </Text>
+        <MaterialCommunityIcons 
+          name="calendar-month" 
+          size={Layout.iconSize.sm} 
+          color={Colors.textSecondary} 
+          style={styles.dateIcon}
+        />
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+
+  const SalesRepSelector = ({ error }) => (
+    <View style={styles.editField}>
+      <View style={styles.labelContainer}>
+        <Text style={styles.label}>Sales Representative</Text>
+        <Text style={styles.requiredStar}> *</Text>
+      </View>
+      <TouchableOpacity
+        style={[
+          styles.salesRepSelector,
+          error && styles.selectorError,
+        ]}
+        onPress={() => setShowSalesRepModal(true)}
+        activeOpacity={0.7}
+      >
+        {selectedSalesRepName ? (
+          <View style={styles.selectedRepContainer}>
+            <View style={styles.selectedRepInfo}>
+              <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
+              <Text style={styles.selectedRepText}>{selectedSalesRepName}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleClearSalesRep();
+              }}
+            >
+              <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.placeholderText}>Select Sales Representative</Text>
+            <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </>
+        )}
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+
+  const renderSalesRepItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.repItem,
+        selectedSalesRepId === item.id && styles.selectedRepItem,
+      ]}
+      onPress={() => handleSelectSalesRep(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.repItemContent}>
+        <View style={styles.repAvatar}>
+          <Text style={styles.repAvatarText}>
+            {item.Name?.charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.repDetails}>
+          <Text style={styles.repName}>{item.Name}</Text>
+          {item.Email && (
+            <Text style={styles.repEmail}>{item.Email}</Text>
+          )}
+        </View>
+      </View>
+      {selectedSalesRepId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  );
+
+  const SwitchRow = ({ label, value, onValueChange, disabled }) => (
+    <View style={styles.switchRow}>
+      <Text style={styles.switchLabel}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: Colors.border, true: Colors.primary }}
+        thumbColor={Colors.backgroundLight}
+      />
+    </View>
+  );
+
+  /* ---------------- MAIN RENDER ---------------- */
+  const isLoading = loadingSalesReps || isLoadingStages || isLoadingCurrencies || isLoadingCampaigns;
+
   return (
     <>
       <StatusBar translucent backgroundColor="transparent" />
       <CustomHeader title="Add Sale Opportunity" />
 
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading data...</Text>
+        </View>
+      )}
+
       <ScrollView
-        style={styles.formWrapper}
-        contentContainerStyle={{paddingBottom: 100}}
-        showsVerticalScrollIndicator={false}>
-        <Label title="Document No" />
-        <ReadOnly value={documentNo} />
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.formCard}>
+          {/* Document No */}
+          <Label title="Document No" />
+          <ReadOnly value={documentNo} icon="file-document" />
 
-        {/* 🔍 BUSINESS PARTNER SEARCH */}
-        <Label title="Business Partner" required />
-        <View style={{position: 'relative', marginTop: 4, zIndex: 10}}>
-          <TextInput
-            style={[styles.input, errors.bp && styles.errorBorder]}
-            placeholder="Search Business Partner"
-            placeholderTextColor="#9E9E9E"
+          {/* Business Partner Search */}
+          <Label title="Business Partner" required />
+          <SearchField
             value={selectedBPName || bpQuery}
-            onChangeText={text => {
-              setSelectedBPName('');
-              setSelectedBPId(null);
-              searchBusinessPartner(text);
-              setErrors(p => ({...p, bp: null}));
+            onChangeText={searchBusinessPartner}
+            placeholder="Search Business Partner"
+            error={errors.bp}
+            icon="office-building"
+            showResults={showBPList}
+            results={bpResults}
+            isLoading={isLoadingBP}
+            onSelectItem={(item) => {
+              setSelectedBPId(item.id);
+              setSelectedBPName(item.Name);
+              setShowBPList(false);
+              fetchBpUsers(item.id);
             }}
+            renderItem={(item) => `${item.Name} (${item.Value || ''})`}
           />
-          {showBPList && (
-            <View style={styles.searchList}>
-              {bpResults.map(item => (
-                <Pressable
-                  key={item.id}
-                  style={({pressed}) => [
-                    styles.searchItem,
-                    {backgroundColor: pressed ? '#EAF0FF' : '#fff'},
-                  ]}
-                  onPress={() => {
-                    setSelectedBPId(item.id);
-                    setSelectedBPName(item.Name);
-                    setShowBPList(false);
-                    fetchBpUsers(item.id);
-                  }}>
-                  <Text style={styles.searchItemTxt}>{item.Name}</Text>
-                </Pressable>
-              ))}
+
+          {/* User / Contact */}
+          <Label title="User / Contact" />
+          <PickerField
+            selectedValue={selectedUserId}
+            onValueChange={(value) => value !== null && setSelectedUserId(value)}
+            icon="account"
+            placeholder="Auto select"
+          >
+            {bpContacts.map(user => (
+              <Picker.Item 
+                key={user.id} 
+                label={user.Name} 
+                value={user.id} 
+                color={Colors.textPrimary}
+              />
+            ))}
+          </PickerField>
+
+          {/* Sales Representative - Dynamic Searchable Picker */}
+          <SalesRepSelector error={errors.salesRep} />
+
+          {/* Sales Stage */}
+          <Label title="Sales Stage" required />
+          {isLoadingStages ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={Colors.primary} />
             </View>
+          ) : (
+            <PickerField
+              selectedValue={selectedStageId}
+              onValueChange={handleStageChange}
+              error={errors.stage}
+              icon="chart-line"
+              placeholder="Select Stage"
+            >
+              {stages.map(stage => (
+                <Picker.Item 
+                  key={stage.id} 
+                  label={stage.Name} 
+                  value={stage.id} 
+                  color={Colors.textPrimary}
+                />
+              ))}
+            </PickerField>
           )}
-        </View>
 
-        {/* CONTACT */}
-        {/* <Label title="User / Contact" />
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={selectedUserId}
-            onValueChange={setSelectedUserId}
-            style={{
-              height: 40,
-              color: '#000', // ✅ picker text black
-            }}
-            itemStyle={{
-              height: 40,
-              color: '#000',
-              fontSize: 13,
-            }}>
-            {bpContacts.map(u => (
-              <Picker.Item
-                key={u.id}
-                label={u.Name || 'Auto selected'}
-                value={u.id}
-                style={styles.searchItemTxt}
-              />
-            ))}
-          </Picker>
-        </View> */}
+          {/* Probability */}
+          <Label title="Probability" />
+          <ReadOnly value={`${probability}%`} icon="percent" />
 
-        <Label title="User / Contact" />
+          {/* Campaign */}
+          <Label title="Campaign" />
+          {isLoadingCampaigns ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+            </View>
+          ) : (
+            <PickerField
+              selectedValue={selectedCampaign}
+              onValueChange={setSelectedCampaign}
+              icon="bullhorn"
+              placeholder="Select Campaign"
+            >
+              {campaigns.map(campaign => (
+                <Picker.Item 
+                  key={campaign.id} 
+                  label={campaign.Name} 
+                  value={campaign.id} 
+                  color={Colors.textPrimary}
+                />
+              ))}
+            </PickerField>
+          )}
 
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={selectedUserId}
-            onValueChange={value => {
-              if (value !== null) {
-                setSelectedUserId(value);
-              }
-            }}
-            style={{
-              height: 40,
-              color: selectedUserId ? '#000' : '#9E9E9E', // ✅ placeholder gray
-            }}
-            itemStyle={{
-              height: 40,
-              fontSize: 13,
-              color: '#000',
-            }}>
-            {/* ✅ Placeholder item */}
-            <Picker.Item
-              label="Auto select"
-              value={null}
-              color="#9E9E9E"
-              style={styles.searchItemTxt}
-            />
+          {/* Expected Close Date */}
+          <Label title="Expected Close Date" required />
+          <DatePickerField
+            value={expectedCloseDate}
+            onPress={() => setShowDatePicker(true)}
+            error={errors.date}
+            icon="calendar-clock"
+          />
 
-            {/* ✅ Real values */}
-            {bpContacts.map(u => (
-              <Picker.Item
-                key={u.id}
-                label={u.Name}
-                value={u.id}
-                color="#000"
-                style={styles.searchItemTxt}
-              />
-            ))}
-          </Picker>
-        </View>
-
-        {/* REST SAME AS BEFORE */}
-        <Label title="Sales Rep" />
-        <ReadOnly value={salesRepName} />
-        <Label title="Sales Stage" required />
-        <PickerWrap error={errors.stage}>
-          <Picker
-            selectedValue={selectedStageId}
-            onValueChange={handleStageChange}
-            style={{
-              height: 40,
-              width: '100%',
-            }}
-            itemStyle={{
-              height: 40,
-              fontSize: 13,
-              color: '#555',
-              fontFamily: 'K2D-Medium',
-            }}>
-            <Picker.Item
-              label="Select Stage"
-              value={null}
-              style={styles.searchItemTxt}
-            />
-            {stages.map(s => (
-              <Picker.Item
-                key={s.id}
-                label={s.Name}
-                value={s.id}
-                style={styles.searchItemTxt}
-              />
-            ))}
-          </Picker>
-        </PickerWrap>
-        <ErrorText error={errors.stage} />
-        <Label title="Campaign" />
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={selectedCampaign}
-            onValueChange={itemValue => setSelectedCampaign(itemValue)}
-            style={{
-              height: 40,
-              width: '100%',
-            }}
-            itemStyle={{
-              height: 40,
-              fontSize: 13,
-              color: '#555',
-              fontFamily: 'K2D-Medium',
-            }}>
-            <Picker.Item
-              label="Select Campaign"
-              value={null}
-              style={{
-                color: '#555',
-                fontSize: 14,
-                fontFamily: 'K2D-Medium',
+          {showDatePicker && (
+            <DateTimePicker
+              value={expectedCloseDate ? new Date(expectedCloseDate) : new Date()}
+              mode="date"
+              display="default"
+              onChange={(event, date) => {
+                setShowDatePicker(false);
+                if (date) {
+                  const formattedDate = date.toISOString().split('T')[0];
+                  setExpectedCloseDate(formattedDate);
+                  setErrors(prev => ({ ...prev, date: null }));
+                }
               }}
             />
-
-            {campaigns.map(item => (
-              <Picker.Item
-                key={item.id}
-                label={item.Name}
-                value={item.id}
-                style={{
-                  color: '#555',
-                  fontSize: 14,
-                  fontFamily: 'K2D-Medium',
-                }}
-              />
-            ))}
-          </Picker>
-        </View>
-
-        <Label title="Probability" />
-        <ReadOnly value={`${probability}%`} />
-
-        <Label title="Expected Close Date" required />
-        <TouchableOpacity
-          style={[styles.input, errors.date && styles.errorBorder]}
-          onPress={() => setShowDatePicker(true)}>
-          <Text
-            style={{
-              color: expectedCloseDate ? '#000' : '#9E9E9E',
-              fontSize: 14,
-            }}>
-            {expectedCloseDate || 'Select date'}
-          </Text>
-        </TouchableOpacity>
-        <ErrorText error={errors.date} />
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={expectedCloseDate ? new Date(expectedCloseDate) : new Date()}
-            mode="date"
-            onChange={(e, d) => {
-              setShowDatePicker(false);
-              if (d) setExpectedCloseDate(d.toISOString().split('T')[0]);
-            }}
-          />
-        )}
-
-        <Label title="Opportunity Amount" required />
-        <Input
-          value={amount}
-          keyboardType="numeric"
-          onChangeText={v => {
-            setAmount(v);
-            setErrors(prev => ({...prev, amount: null}));
-          }}
-          error={errors.amount}
-        />
-        <ErrorText error={errors.amount} />
-        {/* <Label title="Currency" required />
-        <PickerWrap error={errors.currency}>
-          <Picker
-            selectedValue={selectedCurrencyId}
-            onValueChange={v => {
-              setSelectedCurrencyId(v);
-              setErrors(prev => ({...prev, currency: null}));
-            }}>
-            <Picker.Item label="Select Currency" value={null} />
-            {currencies.map(c => (
-              <Picker.Item
-                key={c.id}
-                label={`${c.ISO_Code} - ${c.Description}`}
-                value={c.id}
-              />
-            ))}
-          </Picker>
-        </PickerWrap>
-        <ErrorText error={errors.currency} /> */}
-        <Label title="Currency" required />
-        <View style={{position: 'relative', marginTop: 4, zIndex: 10}}>
-          <Input
-            value={
-              currencyQuery ||
-              currencies.find(c => c.id === selectedCurrencyId)?.ISO_Code ||
-              ''
-            }
-            placeholder="Search Currency"
-            onChangeText={text => {
-              setSelectedCurrencyId(null);
-              searchCurrency(text);
-              setErrors(prev => ({...prev, currency: null}));
-            }}
-            error={errors.currency}
-          />
-          <ErrorText error={errors.currency} />
-
-          {showCurrencyList && (
-            <View style={styles.searchList}>
-              {currencyResults.map(c => (
-                <Pressable
-                  key={c.id}
-                  style={({pressed}) => [
-                    styles.searchItem,
-                    {backgroundColor: pressed ? '#EAFOFF' : '#fff'},
-                  ]}
-                  onPress={() => {
-                    setSelectedCurrencyId(c.id);
-                    setCurrencyQuery(`${c.ISO_Code}`);
-                    setShowCurrencyList(false);
-                  }}>
-                  <Text
-                    style={
-                      styles.searchItemTxt
-                    }>{`${c.ISO_Code} - ${c.Description}`}</Text>
-                </Pressable>
-              ))}
-            </View>
           )}
-        </View>
 
-        <Label title="Description" />
-        <Input
-          value={description}
-          placeholder={'enter description'}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={4}
-          style={{height: 90, textAlignVertical: 'center'}}
-        />
-        <Label title="Comments" />
-        <Input
-          placeholder={'give comments'}
-          value={comments}
-          onChangeText={setComments}
-          multiline
-          numberOfLines={4}
-          style={{height: 90, textAlignVertical: 'center'}}
-        />
-
-        <Label title="Tenant" />
-        <ReadOnly value={tenantName} />
-
-        <Label title="Organization" />
-        <ReadOnly value={organization} />
-
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Active</Text>
-          <Switch
-            value={active}
-            disabled
-            trackColor={{false: '#ccc', true: '#2F4FE3'}} // background track colors
-            thumbColor={active ? '#fff' : '#f4f3f4'} // knob color
+          {/* Opportunity Amount */}
+          <Label title="Opportunity Amount" required />
+          <Input
+            value={amount}
+            onChangeText={(v) => {
+              setAmount(v);
+              setErrors(prev => ({ ...prev, amount: null }));
+            }}
+            placeholder="Enter amount"
+            keyboardType="numeric"
+            error={errors.amount}
+            icon="currency-usd"
           />
+
+          {/* Currency */}
+          <Label title="Currency" required />
+          {isLoadingCurrencies ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+            </View>
+          ) : (
+            <SearchField
+              value={currencyQuery || currencies.find(c => c.id === selectedCurrencyId)?.ISO_Code || ''}
+              onChangeText={searchCurrency}
+              placeholder="Search Currency"
+              error={errors.currency}
+              icon="currency-sign"
+              showResults={showCurrencyList}
+              results={currencyResults}
+              onSelectItem={(item) => {
+                setSelectedCurrencyId(item.id);
+                setCurrencyQuery(item.ISO_Code);
+                setShowCurrencyList(false);
+              }}
+              renderItem={(item) => `${item.ISO_Code} - ${item.Description}`}
+            />
+          )}
+
+          {/* Description */}
+          <Label title="Description" />
+          <Input
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Enter description"
+            multiline
+            numberOfLines={3}
+            style={styles.textArea}
+            icon="text"
+          />
+
+          {/* Comments */}
+          <Label title="Comments" />
+          <Input
+            value={comments}
+            onChangeText={setComments}
+            placeholder="Enter comments"
+            multiline
+            numberOfLines={3}
+            style={styles.textArea}
+            icon="comment-text"
+          />
+
+          {/* Tenant */}
+          <Label title="Tenant" />
+          <ReadOnly value={clientName} icon="domain" />
+
+          {/* Organization */}
+          <Label title="Organization" />
+          <ReadOnly value={organizationName} icon="office-building" />
+
+          {/* Company - Using organization name instead of warehouse */}
+          <Label title="Company" />
+          <ReadOnly value={organizationName || 'Default'} icon="warehouse" />
+
+          {/* Active Switch */}
+          <SwitchRow label="Active" value={active} disabled />
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.submitBtn} onPress={validate}>
-        <Text style={styles.submitText}>Create Opportunity</Text>
+      <TouchableOpacity 
+        style={[styles.submitButton, (isSubmitting || isLoading) && styles.submitButtonDisabled]} 
+        onPress={handleSubmit}
+        disabled={isSubmitting || isLoading}
+        activeOpacity={0.8}
+      >
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color={Colors.textInverse} />
+        ) : (
+          <>
+            <MaterialCommunityIcons name="plus-circle" size={Layout.iconSize.md} color={Colors.textInverse} />
+            <Text style={styles.submitButtonText}>Create Opportunity</Text>
+          </>
+        )}
       </TouchableOpacity>
+
+      {/* Sales Representative Selection Modal */}
+      <Modal
+        visible={showSalesRepModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSalesRepModal(false);
+          setSearchQuery('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Representative</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSalesRepModal(false);
+                  setSearchQuery('');
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by name..."
+                placeholderTextColor={Colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {loadingSalesReps ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredSalesReps}
+                renderItem={renderSalesRepItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {searchQuery.trim()
+                        ? `No results for "${searchQuery}"`
+                        : 'No sales representatives available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
 
-/* ---------------- COMMON ---------------- */
-const Label = ({title, required}) => (
-  <Text style={styles.label}>
-    {title}
-    {required && <Text style={{color: 'red'}}> *</Text>}
-  </Text>
-);
-const Input = ({error, ...props}) => (
-  <TextInput
-    {...props}
-    placeholderTextColor="#9E9E9E"
-    style={[styles.input, error && styles.errorBorder, {color: '#000'}]}
-  />
-);
-const ReadOnly = ({value}) => (
-  <View style={[styles.input, styles.readOnly]}>
-    <Text style={{color: '#555'}}>{value}</Text>
-  </View>
-);
-
-const PickerWrap = ({children, error}) => (
-  <View style={[styles.pickerWrap, error && styles.errorBorder]}>
-    {children}
-  </View>
-);
-const ErrorText = ({error}) =>
-  error ? <Text style={styles.errorText}>{error}</Text> : null;
-
 /* ---------------- STYLES ---------------- */
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#fff', padding: 16},
-  formWrapper: {
-    backgroundColor: '#fff',
-    elevation: 6,
-    shadowColor: '#333',
-    width: '90%',
-    paddingBottom: '5%',
-    marginLeft: '5%',
-    marginTop: '9%',
-    marginBottom: '5%',
-    borderRadius: 6,
-    padding: '5%',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  contentContainer: {
+    paddingBottom: verticalScale(100),
+  },
+  formCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    padding: Spacing.lg,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
   label: {
-    fontSize: 12,
-    color: '#000',
-    marginTop: 12,
-    fontFamily: 'K2D-Bold',
-    paddingTop: '2%',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  requiredStar: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    minHeight: 42,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  inputError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  inputIcon: {
+    paddingLeft: Spacing.sm,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 12,
-    borderRadius: 6,
-    marginTop: 4,
-    height: 45,
-    fontSize: 14,
-    color: '#000',
+    flex: 1,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
-  readOnly: {backgroundColor: '#f1f1f1'},
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    marginTop: 4,
+  inputWithIcon: {
+    paddingLeft: Spacing.xs,
   },
-  errorBorder: {borderColor: 'red'},
-  errorText: {color: 'red', fontSize: 11},
-  searchItem: {padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee'},
-  searchItemTxt: {color: '#000', fontSize: 13},
-  submitBtn: {
+  readOnlyContainer: {
+    backgroundColor: Colors.backgroundLight,
+    opacity: 0.9,
+  },
+  readOnlyText: {
+    flex: 1,
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    textAlignVertical: 'center',
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    minHeight: 42,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  pickerIcon: {
+    paddingLeft: Spacing.sm,
+  },
+  picker: {
+    flex: 1,
+    height: 42,
+    color: Colors.textPrimary,
+  },
+  pickerWithIcon: {
+    marginLeft: -Spacing.xs,
+  },
+  searchContainer: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  searchLoader: {
+    marginRight: Spacing.sm,
+  },
+  searchResults: {
     position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: '#2F4FE3',
-    padding: 16,
-    borderRadius: 10,
-  },
-  submitText: {color: '#fff', textAlign: 'center', fontWeight: 'bold'},
-  searchList: {
-    position: 'absolute', // float over other content
-    top: 60, // adjust relative to the input field
+    top: 45,
     left: 0,
     right: 0,
+    backgroundColor: Colors.cardBackground,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    maxHeight: 180,
-    backgroundColor: '#fff',
-    zIndex: 10, // make sure it stays on top
-    overflow: 'hidden',
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    maxHeight: verticalScale(200),
+    zIndex: 20,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 5,
+  },
+  searchResultsScroll: {
+    maxHeight: verticalScale(200),
+  },
+  searchResultItem: {
+    padding: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  searchResultItemPressed: {
+    backgroundColor: Colors.primaryLight + '20',
+  },
+  searchResultText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  dateText: {
+    flex: 1,
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+  dateIcon: {
+    paddingRight: Spacing.sm,
+  },
+  textArea: {
+    minHeight: verticalScale(80),
+    textAlignVertical: 'top',
+    paddingTop: Spacing.sm,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  switchLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  loaderContainer: {
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textPrimary,
+  },
+  submitButton: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    left: Spacing.md,
+    right: Spacing.md,
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    gap: Spacing.sm,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    
+    // Elevation for Android
+    elevation: 6,
+  },
+  submitButtonDisabled: {
+    opacity: 0.7,
+    backgroundColor: Colors.buttonDisabled,
+    shadowOpacity: 0.2,
+    elevation: 3,
+  },
+  submitButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  
+  // Sales Rep Selector Styles
+  editField: {
+    marginBottom: Spacing.sm,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xxs,
+  },
+  salesRepSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
     elevation: 2,
+  },
+  selectorError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  selectedRepText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  placeholderText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  clearButton: {
+    padding: Spacing.xxs,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: Colors.cardBackground,
+    borderTopLeftRadius: Layout.borderRadius.lg,
+    borderTopRightRadius: Layout.borderRadius.lg,
+    maxHeight: '80%',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    
+    // Elevation for Android
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  modalSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    gap: Spacing.xs,
+    height: 42,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  modalSearchInput: {
+    flex: 1,
+    height: 42,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    paddingVertical: verticalScale(8),
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  modalLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(32),
+  },
+  modalLoadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(32),
+  },
+  modalEmptyText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+  },
+  
+  // Rep Item Styles
+  repItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  selectedRepItem: {
+    backgroundColor: Colors.infoLight,
+  },
+  repItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  repAvatar: {
+    width: scale(36),
+    height: scale(36),
+    borderRadius: scale(18),
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  repAvatarText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textInverse,
+  },
+  repDetails: {
+    flex: 1,
+  },
+  repName: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
+  },
+  repEmail: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
   },
 });
 

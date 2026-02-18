@@ -473,11 +473,6 @@ const FollowupScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Follow ups</Text>
-        </View>
-
         {/* SEARCH AND SORT IN ONE ROW */}
         <View style={styles.searchContainer}>
           <View style={[
@@ -589,11 +584,6 @@ const FollowupScreen = ({ navigation }) => {
               <Text style={styles.activeFilterText}>
                 {activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Follow-ups
               </Text>
-              <View style={styles.currentSortInfo}>
-                <Text style={styles.sortInfoText}>
-                  Sorted: {currentSortOption.label}
-                </Text>
-              </View>
             </View>
           )}
         </View>

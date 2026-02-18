@@ -137,7 +137,7 @@ const CRMCard = ({
           
           <Image
             source={{
-              uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+              uri: 'https://randomuser.me/api/portraits/men/1.jpg',
             }}
             style={styles.avatar}
           />
@@ -196,7 +196,7 @@ const CRMCard = ({
                   <Ionicons
                     name="call-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                 </TouchableOpacity>
               )}
@@ -206,7 +206,7 @@ const CRMCard = ({
                   <Ionicons
                     name="mail-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                 </TouchableOpacity>
               )}
@@ -216,12 +216,12 @@ const CRMCard = ({
                   <Ionicons
                     name="alarm-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                   <AntDesign
                     name="pluscircle"
                     size={scale(10)}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                     style={styles.plus}
                   />
                 </View>
@@ -318,6 +318,7 @@ const styles = StyleSheet.create({
   iconRow: {
     flexDirection: 'row',
     gap: Spacing.md,
+    marginTop: Spacing.md,
   },
   iconButton: {
     padding: Spacing.xxs,

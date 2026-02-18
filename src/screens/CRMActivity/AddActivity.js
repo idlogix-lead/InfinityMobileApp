@@ -1,5 +1,5 @@
 // screens/CRM/AddActivity.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,11 +12,16 @@ import {
   Platform,
   Keyboard,
   Alert,
+  Modal,
+  FlatList,
+  ActivityIndicator,
+  TextInput as RNTextInput,
 } from 'react-native';
 import { useMutation, useQueryClient } from 'react-query';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { TextInput } from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
 import { 
@@ -24,6 +29,7 @@ import {
   useUpdateFollowup,
   useDeleteFollowup 
 } from '../../hooks/CRMhooks/useCRM';
+import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useCRMStore } from '../../store/crmStore';
 import moment from 'moment';
 
@@ -46,6 +52,12 @@ const AddActivity = ({ route, navigation }) => {
   const [selectedActivity, setSelectedActivity] = useState('Select Activity Type');
   const [description, setDescription] = useState('');
 
+  // Sales Representative State
+  const [selectedSalesRepId, setSelectedSalesRepId] = useState(null);
+  const [selectedSalesRepName, setSelectedSalesRepName] = useState('');
+  const [showSalesRepModal, setShowSalesRepModal] = useState(false);
+  const [salesRepSearch, setSalesRepSearch] = useState('');
+
   // Calendar state
   const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
   const [showCalendar, setShowCalendar] = useState(false);
@@ -53,6 +65,9 @@ const AddActivity = ({ route, navigation }) => {
 
   // Animations
   const activityAnim = React.useRef(new Animated.Value(0)).current;
+
+  // Hooks
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
 
   // Mutations
   const createFollowupMutation = useCreateFollowup();
@@ -75,6 +90,17 @@ const AddActivity = ({ route, navigation }) => {
     'TA': 'Task',
   };
 
+  // Filter sales reps based on search query
+  const filteredSalesReps = useMemo(() => {
+    if (!salesRepSearch.trim()) {
+      return salesReps;
+    }
+    const query = salesRepSearch.toLowerCase();
+    return salesReps.filter(rep =>
+      rep.Name && rep.Name.toLowerCase().includes(query)
+    );
+  }, [salesReps, salesRepSearch]);
+
   // Initialize form for edit mode
   useEffect(() => {
     if (mode === 'edit' && data) {
@@ -92,6 +118,12 @@ const AddActivity = ({ route, navigation }) => {
         setToDate(new Date(data.EndDate));
       }
       
+      // Set sales rep
+      if (data.SalesRep_ID?.id) {
+        setSelectedSalesRepId(data.SalesRep_ID.id);
+        setSelectedSalesRepName(data.SalesRep_ID.identifier || '');
+      }
+      
       // Set other fields
       setDescription(data.Description || '');
       setIsComplete(data.IsComplete || false);
@@ -103,6 +135,8 @@ const AddActivity = ({ route, navigation }) => {
       setToDate(new Date());
       setDescription('');
       setIsComplete(false);
+      setSelectedSalesRepId(null);
+      setSelectedSalesRepName('');
     }
   }, [mode, data]);
 
@@ -129,6 +163,11 @@ const AddActivity = ({ route, navigation }) => {
       return;
     }
 
+    if (!selectedSalesRepId) {
+      Alert.alert('Validation Error', 'Please select a sales representative.');
+      return;
+    }
+
     const activityId = activityTypeMap[selectedActivity];
 
     // Prepare payload
@@ -137,6 +176,10 @@ const AddActivity = ({ route, navigation }) => {
       EndDate: formatDate(toDate),
       Description: description.trim(),
       IsComplete: isComplete,
+      SalesRep_ID: {
+        id: selectedSalesRepId,
+        identifier: selectedSalesRepName
+      }
     };
 
     // For create mode, add activity type and lead ID
@@ -272,6 +315,49 @@ const AddActivity = ({ route, navigation }) => {
     setActivityCollapsed(true);
   };
 
+  // Handle sales rep selection
+  const handleSelectSalesRep = (rep) => {
+    setSelectedSalesRepId(rep.id);
+    setSelectedSalesRepName(rep.Name);
+    setShowSalesRepModal(false);
+    setSalesRepSearch('');
+  };
+
+  // Clear selected sales rep
+  const handleClearSalesRep = () => {
+    setSelectedSalesRepId(null);
+    setSelectedSalesRepName('');
+  };
+
+  // Render sales rep item
+  const renderSalesRepItem = ({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.repItem,
+        selectedSalesRepId === item.id && styles.selectedRepItem,
+      ]}
+      onPress={() => handleSelectSalesRep(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.repItemContent}>
+        <View style={styles.repAvatar}>
+          <Text style={styles.repAvatarText}>
+            {item.Name?.charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.repDetails}>
+          <Text style={styles.repName}>{item.Name}</Text>
+          {item.Email && (
+            <Text style={styles.repEmail}>{item.Email}</Text>
+          )}
+        </View>
+      </View>
+      {selectedSalesRepId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -302,6 +388,72 @@ const AddActivity = ({ route, navigation }) => {
               title={calendarTitle}
               minDate={calendarMode === 'to' ? fromDate : undefined}
             />
+
+            {/* Sales Representative Modal */}
+            <Modal
+              visible={showSalesRepModal}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => {
+                setShowSalesRepModal(false);
+                setSalesRepSearch('');
+              }}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Select Sales Representative</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowSalesRepModal(false);
+                        setSalesRepSearch('');
+                      }}
+                    >
+                      <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.modalSearch}>
+                    <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                    <RNTextInput
+                      style={styles.modalSearchInput}
+                      placeholder="Search by name..."
+                      placeholderTextColor={Colors.textTertiary}
+                      value={salesRepSearch}
+                      onChangeText={setSalesRepSearch}
+                    />
+                    {salesRepSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setSalesRepSearch('')}>
+                        <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {loadingSalesReps ? (
+                    <View style={styles.modalLoading}>
+                      <ActivityIndicator size="large" color={Colors.primary} />
+                      <Text style={styles.modalLoadingText}>Loading...</Text>
+                    </View>
+                  ) : (
+                    <FlatList
+                      data={filteredSalesReps}
+                      renderItem={renderSalesRepItem}
+                      keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                      ListEmptyComponent={
+                        <View style={styles.modalEmpty}>
+                          <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
+                          <Text style={styles.modalEmptyText}>
+                            {salesRepSearch.trim()
+                              ? `No results for "${salesRepSearch}"`
+                              : 'No sales representatives available'}
+                          </Text>
+                        </View>
+                      }
+                    />
+                  )}
+                </View>
+              </View>
+            </Modal>
 
             {/* Form Container */}
             <View style={styles.formContainer}>
@@ -346,6 +498,42 @@ const AddActivity = ({ route, navigation }) => {
                   )}
                 </>
               )}
+
+              {/* Sales Representative - Dynamic Searchable Picker */}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Sales Representative *</Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.salesRepSelector,
+                  !selectedSalesRepId && styles.selectorEmpty
+                ]}
+                onPress={() => setShowSalesRepModal(true)}
+                activeOpacity={0.7}
+              >
+                {selectedSalesRepName ? (
+                  <View style={styles.selectedRepContainer}>
+                    <View style={styles.selectedRepInfo}>
+                      <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
+                      <Text style={styles.selectedRepText}>{selectedSalesRepName}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.clearButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleClearSalesRep();
+                      }}
+                    >
+                      <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.placeholderText}>Select Sales Representative</Text>
+                    <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                  </>
+                )}
+              </TouchableOpacity>
 
               {/* Start Date */}
               <View style={styles.sectionHeader}>
@@ -588,6 +776,195 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
+  },
+
+  // Sales Rep Selector Styles
+  salesRepSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(12),
+    marginBottom: Spacing.md,
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  selectorEmpty: {
+    borderColor: Colors.errorLight,
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  selectedRepText: {
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+  clearButton: {
+    padding: Spacing.xxs,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: Colors.cardBackground,
+    borderTopLeftRadius: Layout.borderRadius.lg,
+    borderTopRightRadius: Layout.borderRadius.lg,
+    maxHeight: '80%',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    
+    // Elevation for Android
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  modalSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    gap: Spacing.xs,
+    height: verticalScale(42),
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  modalSearchInput: {
+    flex: 1,
+    height: verticalScale(42),
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  modalLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(32),
+  },
+  modalLoadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(32),
+  },
+  modalEmptyText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+  },
+
+  // Rep Item Styles
+  repItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  selectedRepItem: {
+    backgroundColor: Colors.infoLight,
+  },
+  repItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  repAvatar: {
+    width: scale(36),
+    height: scale(36),
+    borderRadius: scale(18),
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+    
+    // Shadow for iOS
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  repAvatarText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textInverse,
+  },
+  repDetails: {
+    flex: 1,
+  },
+  repName: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
+  },
+  repEmail: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
   },
 });
 

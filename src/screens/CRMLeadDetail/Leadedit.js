@@ -191,14 +191,14 @@ const SectionHeader = ({ title }) => (
   </View>
 );
 
-// Attractive Swipe Button Component for Yes/No Fields (works in both edit and view)
-const SwipeButton = ({ label, value, onValueChange, editable = true }) => {
+// Swipe Button Component for Yes/No Fields (inline version)
+const InlineSwipeButton = ({ label, value, onValueChange, editable = true }) => {
   if (!editable) {
     return (
-      <View style={styles.viewRowInline}>
-        <Text style={styles.viewLabelInline}>{label}</Text>
-        <View style={[styles.valueChipInline, value ? styles.valueChipSuccessInline : styles.valueChipDefaultInline]}>
-          <Text style={[styles.valueChipTextInline, value ? styles.valueChipTextSuccessInline : styles.valueChipTextDefaultInline]}>
+      <View style={styles.inlineContainer}>
+        <Text style={styles.inlineLabel}>{label}</Text>
+        <View style={[styles.valueChip, value ? styles.valueChipSuccess : styles.valueChipDefault]}>
+          <Text style={[styles.valueChipText, value ? styles.valueChipTextSuccess : styles.valueChipTextDefault]}>
             {value ? 'Yes' : 'No'}
           </Text>
         </View>
@@ -207,20 +207,16 @@ const SwipeButton = ({ label, value, onValueChange, editable = true }) => {
   }
 
   return (
-    <View style={styles.swipeContainer}>
-      <Text style={styles.swipeLabel}>{label}</Text>
-      <View style={styles.switchContainer}>
-        <Text style={[styles.switchLabel, !value && styles.switchLabelActive]}>No</Text>
-        <Switch
-          trackColor={{ false: Colors.border, true: Colors.primary }}
-          thumbColor={Colors.backgroundLight}
-          ios_backgroundColor={Colors.border}
-          onValueChange={onValueChange}
-          value={value}
-          style={styles.switch}
-        />
-        <Text style={[styles.switchLabel, value && styles.switchLabelActive]}>Yes</Text>
-      </View>
+    <View style={styles.inlineContainer}>
+      <Text style={styles.inlineLabel}>{label}</Text>
+      <Switch
+        trackColor={{ false: Colors.border, true: Colors.primary }}
+        thumbColor={Colors.backgroundLight}
+        ios_backgroundColor={Colors.border}
+        onValueChange={onValueChange}
+        value={value}
+        style={styles.inlineSwitch}
+      />
     </View>
   );
 };
@@ -992,19 +988,23 @@ const LeadEdit = ({ route, navigation }) => {
           <View style={styles.sectionCard}>
             <SectionHeader title="Detailed Information" />
             <View style={styles.sectionContent}>
-              <SwipeButton
-                label="Sales Lead"
-                value={formData.salesLead}
-                onValueChange={(val) => handleBooleanToggle('salesLead', val)}
-                editable={isEditMode}
-              />
-
-              <SwipeButton
-                label="Vendor Lead"
-                value={formData.vendorLead}
-                onValueChange={(val) => handleBooleanToggle('vendorLead', val)}
-                editable={isEditMode}
-              />
+              <View style={styles.booleanRow}>
+                <InlineSwipeButton
+                  label="Sales Lead"
+                  value={formData.salesLead}
+                  onValueChange={(val) => handleBooleanToggle('salesLead', val)}
+                  editable={isEditMode}
+                />
+                
+                <View style={styles.booleanSpacer} />
+                
+                <InlineSwipeButton
+                  label="Vendor Lead"
+                  value={formData.vendorLead}
+                  onValueChange={(val) => handleBooleanToggle('vendorLead', val)}
+                  editable={isEditMode}
+                />
+              </View>
 
               <TextAreaField
                 label="Description"
@@ -1116,7 +1116,7 @@ const LeadEdit = ({ route, navigation }) => {
                 <Text style={styles.leadName}>{formData.name || 'Unnamed Lead'}</Text>
                 {formData.companyName && (
                   <View style={styles.companyBadge}>
-                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.primary} />
+                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.textPrimary} />
                     <Text style={styles.companyBadgeText}>{formData.companyName}</Text>
                   </View>
                 )}
@@ -1184,11 +1184,11 @@ const LeadEdit = ({ route, navigation }) => {
                 style={styles.activityIconWrapper}
               >
                 <View style={styles.addActivityIcon}>
-                  <Ionicons name="alarm-outline" size={Layout.iconSize.sm} color={Colors.primary} />
+                  <Ionicons name="alarm-outline" size={Layout.iconSize.sm} color={Colors.textPrimary} />
                   <AntDesign 
                     name="pluscircle" 
                     size={Layout.iconSize.xs} 
-                    color={Colors.primary} 
+                    color={Colors.textPrimary} 
                     style={styles.activityPlusIcon}
                   />
                 </View>
@@ -1251,7 +1251,7 @@ const LeadEdit = ({ route, navigation }) => {
               isLast={false}
             />
             <TabButton 
-              title="Activity Log" 
+              title="Activities" 
               active={activeTab === 'activities'} 
               onPress={() => setActiveTab('activities')}
               isFirst={false}
@@ -1427,21 +1427,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
-   
   },
   companyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: Colors.backgroundLight,
-    
-   
     borderRadius: Layout.borderRadius.round,
   },
   companyBadgeText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
     marginLeft: Spacing.xxs,
   },
   
@@ -1474,7 +1471,7 @@ const styles = StyleSheet.create({
   },
   contactChipText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
   },
 
@@ -1489,7 +1486,7 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
   },
   dot: {
     width: scale(6),
@@ -1527,7 +1524,7 @@ const styles = StyleSheet.create({
   statusNoteText: {
     flex: 1,
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.info,
   },
 
@@ -1653,12 +1650,22 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight,
   },
   sectionTitle: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.bold,
+    fontSize: Typography.fontSize.large,
+    fontFamily: Typography.fontFamily.bold, // Already bold
     color: Colors.textPrimary,
   },
   sectionContent: {
     padding: Spacing.sm,
+  },
+
+  // Boolean Row for two swipe buttons side by side
+  booleanRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  booleanSpacer: {
+    width: Spacing.md,
   },
 
   // View Mode Row - No Icons, Clear Label/Value Hierarchy
@@ -1669,72 +1676,45 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   viewLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   viewValue: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     lineHeight: Typography.lineHeight.h4,
   },
 
-  // Inline View Row for Boolean Fields (label and value in same line)
-  viewRowInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-    paddingBottom: Spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  viewLabelInline: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  // Inline Container for Boolean Fields (label on top, switch/chip below)
+  inlineContainer: {
     flex: 1,
   },
-  valueChipInline: {
+  inlineLabel: {
+    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inlineSwitch: {
+    alignSelf: 'flex-start',
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+  },
+
+  // Value Chip for Boolean Fields in View Mode
+  valueChip: {
+    alignSelf: 'flex-start',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xxs,
+    paddingVertical: Spacing.xs,
     borderRadius: Layout.borderRadius.round,
     minWidth: scale(60),
     alignItems: 'center',
-  },
-  valueChipSuccessInline: {
-    backgroundColor: Colors.successLight,
-  },
-  valueChipDefaultInline: {
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  valueChipTextInline: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
-    textAlign: 'center',
-  },
-  valueChipTextSuccessInline: {
-    color: Colors.success,
-  },
-  valueChipTextDefaultInline: {
-    color: Colors.textSecondary,
-  },
-
-  // Value Chip for Boolean Fields in View Mode (kept for backward compatibility)
-  valueChip: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
-    borderRadius: Layout.borderRadius.round,
-    marginTop: Spacing.xxs,
   },
   valueChipSuccess: {
     backgroundColor: Colors.successLight,
@@ -1745,8 +1725,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   valueChipText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
+    textAlign: 'center',
   },
   valueChipTextSuccess: {
     color: Colors.success,
@@ -1760,8 +1741,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   editLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
@@ -1789,7 +1770,7 @@ const styles = StyleSheet.create({
     height: 42,
     paddingHorizontal: Spacing.sm,
     paddingVertical: verticalScale(8),
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     textAlignVertical: 'center',
@@ -1811,7 +1792,7 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.error,
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     marginTop: Spacing.xxs,
     marginLeft: Spacing.xs,
   },
@@ -1859,10 +1840,11 @@ const styles = StyleSheet.create({
   countryFlag: {
     fontSize: 16,
     marginRight: Spacing.xs,
+    fontFamily: Typography.fontFamily.regular,
   },
   dialCode: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     marginRight: Spacing.xs,
   },
@@ -1903,7 +1885,7 @@ const styles = StyleSheet.create({
     height: 42,
     paddingHorizontal: Spacing.sm,
     paddingVertical: verticalScale(8),
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     textAlignVertical: 'center',
@@ -1936,9 +1918,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   dropdownText: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.bold, // BOLD
     flex: 1,
   },
 
@@ -1979,64 +1961,17 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   selectedRepText: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.bold, // BOLD
   },
   placeholderText: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
   },
   clearButton: {
     padding: Spacing.xxs,
-  },
-
-  // Swipe Button Styles for Yes/No Fields (using Switch)
-  swipeContainer: {
-    marginBottom: Spacing.md,
-  },
-  swipeLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xxs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 0,
-    height: 42,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  switch: {
-    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
-  },
-  switchLabel: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
-    paddingHorizontal: Spacing.xs,
-  },
-  switchLabelActive: {
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
   },
 
   // Activity Styles - Minimized
@@ -2065,7 +2000,7 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.bold, // Only activity titles are BOLD
     color: Colors.textPrimary,
   },
   activityStatusBadge: {
@@ -2075,11 +2010,11 @@ const styles = StyleSheet.create({
   },
   activityStatusText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
   },
   activityDescription: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
   },
@@ -2093,7 +2028,7 @@ const styles = StyleSheet.create({
   },
   activityMetaText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textSecondary,
   },
   separator: {
@@ -2159,8 +2094,8 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold, // Keep as is
   },
   cancelButton: {
     alignItems: 'center',
@@ -2183,8 +2118,8 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: Colors.textSecondary,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold, // Keep as is
   },
 
   // Modal Styles
@@ -2218,7 +2153,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.bold, // Only title is bold
     color: Colors.textPrimary,
   },
   modalSearch: {
@@ -2245,8 +2180,8 @@ const styles = StyleSheet.create({
   modalSearchInput: {
     flex: 1,
     height: 42,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textPrimary,
     paddingVertical: verticalScale(8),
     textAlignVertical: 'center',
@@ -2260,7 +2195,7 @@ const styles = StyleSheet.create({
   modalLoadingText: {
     marginTop: Spacing.sm,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textSecondary,
   },
   modalEmpty: {
@@ -2270,7 +2205,7 @@ const styles = StyleSheet.create({
   modalEmptyText: {
     marginTop: Spacing.sm,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textTertiary,
     textAlign: 'center',
   },
@@ -2312,22 +2247,22 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   repAvatarText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold, // Keep as is
     color: Colors.textInverse,
   },
   repDetails: {
     flex: 1,
   },
   repName: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold, // BOLD
     color: Colors.textPrimary,
     marginBottom: Spacing.xxs,
   },
   repEmail: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular, // NOT bold
     color: Colors.textSecondary,
   },
 
@@ -2350,7 +2285,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.semiBold, // Keep as is
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
@@ -2375,8 +2310,8 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold, // Keep as is
   },
 });
 
