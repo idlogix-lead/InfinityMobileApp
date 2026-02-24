@@ -1,4 +1,4 @@
-// screens/CrmScreen.js - Updated with full blue tab container and LeadTab component
+// screens/CrmScreen.js - COMPLETE FIXED VERSION with debug and force refresh
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -25,7 +25,7 @@ import {
   useSalesOpportunities,
 } from '../../hooks/CRMhooks/useCRM';
 import Loader from '../../components/Loader';
-import LeadTab from '../CRMScreen/LeadTab'; // Import the new component
+import LeadTab from '../CRMScreen/LeadTab';
 import SalesTab from '../../screens/SalesOppertunity/SalesTab';
 import FollowupScreen from '../CRMFollowupsScreen/FollowupScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -39,6 +39,20 @@ const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const scrollViewRef = useRef(null);
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0);
+
+  // DEBUG: Check auth state on mount
+  useEffect(() => {
+    const authState = useAuthStore.getState();
+    console.log('🔐 Auth State in CrmScreen:', {
+      userId: authState.userId,
+      userName: authState.userName,
+      hasToken: !!authState.token,
+      tokenLength: authState.token?.length,
+      isCompleteAuthenticated: authState.isCompleteAuthenticated,
+      serverConfig: authState.serverConfig
+    });
+  }, []);
 
   // Add this useEffect to handle Android back button
   useEffect(() => {
@@ -80,7 +94,9 @@ const CrmScreen = ({ navigation }) => {
   useEffect(() => {
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
       // When any leads query is updated, force a re-render
-      if (event?.query?.queryKey?.[0] === 'leads') {
+      if (event?.query?.queryKey?.[0] === 'leads' || 
+          event?.query?.queryKey?.[0] === 'sales-opportunities') {
+        console.log('🔄 Cache update detected for:', event?.query?.queryKey?.[0]);
         setForceUpdate(prev => prev + 1);
       }
     });
@@ -132,13 +148,49 @@ const CrmScreen = ({ navigation }) => {
     isRefetching: followupsRefetching,
   } = useFollowups();
 
+  // FIXED: Get sales opportunities with proper error handling and logging
   const {
     data: salesOpportunities = [],
     isLoading: salesLoading,
     error: salesError,
     refetch: refetchSales,
     isRefetching: salesRefetching,
-  } = useSalesOpportunities();
+  } = useSalesOpportunities({}, true); // Empty filters, enabled true
+
+  // FORCE REFETCH on component mount and when tab changes
+  useEffect(() => {
+    console.log('🔄 CrmScreen - Forcing sales opportunities refetch on mount');
+    refetchSales();
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'SalesOpportunity') {
+      console.log('🔄 Sales tab activated, forcing refetch');
+      refetchSales();
+    }
+  }, [activeTab]);
+
+  // Manual refresh trigger
+  useEffect(() => {
+    if (manualRefreshTrigger > 0) {
+      console.log('🔄 Manual refresh triggered for sales opportunities');
+      refetchSales();
+    }
+  }, [manualRefreshTrigger]);
+
+  // Log sales opportunities for debugging
+  useEffect(() => {
+    console.log('📊 Sales Opportunities in CrmScreen:', {
+      count: salesOpportunities.length,
+      data: salesOpportunities.map(opp => ({
+        id: opp.id,
+        documentNo: opp.DocumentNo,
+        businessPartner: opp.businessPartnerName || opp.C_BPartner_ID?.identifier,
+        amount: opp.OpportunityAmt,
+        stage: opp.salesStageName || opp.C_SalesStage_ID?.identifier
+      }))
+    });
+  }, [salesOpportunities]);
 
   // Combined refreshing state
   const isRefreshing = leadsRefetching || followupsRefetching || salesRefetching || manualRefreshing;
@@ -234,6 +286,7 @@ const CrmScreen = ({ navigation }) => {
     setManualRefreshing(true);
     
     try {
+      console.log('🔄 Manual refresh started');
       await Promise.all([
         refetchLeads(),
         refetchFollowups(),
@@ -242,7 +295,9 @@ const CrmScreen = ({ navigation }) => {
       
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['salesOpportunities']);
+      queryClient.invalidateQueries(['sales-opportunities']);
+      
+      console.log('✅ Manual refresh completed');
     } catch (error) {
       console.error('Refresh error:', error);
       Alert.alert('Refresh Failed', 'Could not update data. Please try again.');
@@ -265,6 +320,10 @@ const CrmScreen = ({ navigation }) => {
         setShowCRMCard(false);
         setShowSalesCard(true);
         setShowOverviewCard(false);
+        // Force refresh when switching to Sales tab
+        setTimeout(() => {
+          refetchSales();
+        }, 100);
         break;
       case 'FollowUps':
         setShowCRMCard(false);
@@ -378,7 +437,8 @@ const CrmScreen = ({ navigation }) => {
           onPress={() => {
             queryClient.invalidateQueries(['leads']);
             queryClient.invalidateQueries(['followups']);
-            queryClient.invalidateQueries(['salesOpportunities']);
+            queryClient.invalidateQueries(['sales-opportunities']);
+            setManualRefreshTrigger(prev => prev + 1);
           }}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -396,7 +456,7 @@ const CrmScreen = ({ navigation }) => {
         {/* Custom Header */}
         <CustomHeader title="CRM Board" 
           RightIcon="home" 
-  RightPress={() => navigation.navigate('Home')} />
+          RightPress={() => navigation.navigate('Home')} />
         
         {/* Content */}
         <View style={styles.container}>
@@ -453,16 +513,18 @@ const CrmScreen = ({ navigation }) => {
                 }
                 key={`sales-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* Custom Sales Tab Component */}
+                {/* FIXED: Pass salesOpportunities to SalesTab */}
                 <SalesTab
                   navigation={navigation}
-                  salesSummary={salesSummary}
-                  leads={leads}
+                  salesOpportunities={salesOpportunities}
                   circularChartData={circularChartData}
                   circularChartLabels={circularChartLabels}
                   isRefreshing={isRefreshing}
-                  handleSalesSummaryPress={handleSalesSummaryPress}
-                  handleSalesBlueCardPress={handleSalesBlueCardPress}
+                  onRefresh={() => {
+                    console.log('🔄 Manual refresh from SalesTab');
+                    refetchSales();
+                    setManualRefreshTrigger(prev => prev + 1);
+                  }}
                 />
               </ScrollView>
             </View>

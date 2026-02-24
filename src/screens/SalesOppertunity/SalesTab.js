@@ -1,4 +1,4 @@
-// components/CRMSearch/SalesTab.js - Custom component for Sales tab
+// components/CRMSearch/SalesTab.js - Updated with better data display
 import React from 'react';
 import {
   View,
@@ -7,168 +7,72 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CenterCircularChart from '../../components/CRMSearch/CRMChart/SalesChart';
-import CRMCard from '../../components/CRMCard/CRMCard';
+import OpportunityCard from '../../components/CRMCard/SalesCard';
 
 const SalesTab = ({
   navigation,
-  salesSummary,
-  leads = [],
+  salesOpportunities = [],
   circularChartData,
   circularChartLabels,
   isRefreshing,
-  handleSalesSummaryPress,
-  handleSalesBlueCardPress,
 }) => {
-  // Combined single card with individual touchable opacities
-  const renderCombinedOpportunityCard = () => {
-    return (
-      <View style={styles.combinedCard}>
-        {/* Total Opportunities Card */}
-        <TouchableOpacity 
-          style={styles.opportunityItem}
-          onPress={() => handleSalesSummaryPress('total')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#f0f9ff'}]}>
-                <Ionicons name="briefcase" size={22} color="#000000" />
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardCount}>Total Opportunities</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#111111" />
-          </View>
-        </TouchableOpacity>
+  // Log received opportunities
+  React.useEffect(() => {
+    console.log('📊 SalesTab received opportunities:', {
+      count: salesOpportunities.length,
+      data: salesOpportunities.map(opp => ({
+        id: opp.id,
+        docNo: opp.DocumentNo,
+        amount: opp.OpportunityAmt,
+        stage: opp.salesStageName || opp.C_SalesStage_ID?.identifier
+      }))
+    });
+  }, [salesOpportunities]);
 
-        {/* Separator */}
-        <View style={styles.separator} />
-
-        {/* Won Opportunities Card */}
-        <TouchableOpacity 
-          style={styles.opportunityItem}
-          onPress={() => handleSalesSummaryPress('won')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#f0fdf4'}]}>
-                <MaterialIcons name="emoji-events" size={22} color="#000000" />
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardCount}>Won</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#111111" />
-          </View>
-        </TouchableOpacity>
-
-        {/* Separator */}
-        <View style={styles.separator} />
-
-        {/* In Progress Card */}
-        <TouchableOpacity 
-          style={styles.opportunityItem}
-          onPress={() => handleSalesSummaryPress('progress')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#fffbeb'}]}>
-                <Ionicons name="timer" size={22} color="#000000" />
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardCount}>In Progress</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#111111" />
-          </View>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // Render leads list using CRMCard component
-  const renderLeadsList = () => {
-    if (!leads || leads.length === 0) {
+  // Render opportunities list
+  const renderOpportunitiesList = () => {
+    if (!salesOpportunities || salesOpportunities.length === 0) {
       return (
-        <View style={styles.emptyLeadsContainer}>
-          <MaterialIcons name="people" size={40} color="#ccc" />
-          <Text style={styles.emptyLeadsText}>No leads found</Text>
+        <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="briefcase-off" size={60} color="#ccc" />
+          <Text style={styles.emptyText}>No sales opportunities found</Text>
+          <Text style={styles.emptySubText}>Pull down to refresh or create a new opportunity</Text>
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={() => navigation.navigate('AddSaleOppor')}
+          >
+            <Text style={styles.createButtonText}>Create Opportunity</Text>
+          </TouchableOpacity>
         </View>
       );
     }
 
     return (
-      <View style={styles.leadsListContainer}>
-        {leads.slice(0, 5).map((lead, index) => (
-          <View key={lead.id || index} style={styles.cardContainer}>
-            <TouchableOpacity 
-              style={styles.cardTouchable}
-              onPress={() => navigation.navigate('LeadsDetail', { data: lead })}
-              activeOpacity={0.7}
-            >
-              <CRMCard
-                leadId={lead.id}
-                header={lead.AD_Org_ID?.identifier || lead.AD_Client_ID?.identifier}
-                name={lead?.Name || lead?.ContactName}
-                email={lead?.EMail || lead?.Email}
-                cellNo={lead?.Phone}
-                status={lead?.LeadStatus?.identifier}
-                Description={lead?.Description}
-                company={lead.BPName || lead.AD_Client_ID?.identifier || lead.AD_Org_ID?.identifier}
-                mail={() => {
-                  const email = lead?.EMail || lead?.Email;
-                  if (email) {
-                    // Handle mail action
-                    console.log('Mail to:', email);
-                  }
-                }}
-                phone={() => {
-                  const phone = lead?.Phone;
-                  if (phone) {
-                    // Handle phone action
-                    console.log('Call:', phone);
-                  }
-                }}
-                dateText={lead?.Updated || lead?.Created}
-                actOnPress={() => {
-                  navigation.navigate('AddActivity', {
-                    data: lead,
-                    mode: 'create',
-                  });
-                }}
-                onPress={() => {
-                  navigation.navigate('LeadEdit', { data: lead });
-                }}
+      <View style={styles.opportunitiesListContainer}>
+        {salesOpportunities.map((opportunity, index) => {
+          // Ensure we have a unique key
+          const key = opportunity.id || `opp-${index}-${opportunity.DocumentNo || Date.now()}`;
+          
+          return (
+            <View key={key} style={styles.opportunityCardWrapper}>
+              <OpportunityCard 
+                opportunity={opportunity}
+                onPress={(opp) => navigation.navigate('SalesDetail', { data: opp })}
+                showLeadInfo={true}
+                compact={false}
               />
-            </TouchableOpacity>
-          </View>
-        ))}
-        
-        {leads.length > 5 && (
-          <TouchableOpacity
-            style={styles.viewAllButton}
-            onPress={() => navigation.navigate('GenericLead', { 
-              leads: leads,
-              screenTitle: "All Sales Opportunities"
-            })}
-          >
-            <Text style={styles.viewAllText}>View All Opportunities ({leads.length})</Text>
-            <MaterialIcons name="arrow-forward" size={18} color="#2F4FE3" />
-          </TouchableOpacity>
-        )}
+            </View>
+          );
+        })}
       </View>
     );
   };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} style={styles.contentContainer}>
-      <View style={{ marginVertical: '4%' }}>
+      <View style={styles.container}>
         {/* Center Circular Chart for Sales */}
         <CenterCircularChart
           data={circularChartData}
@@ -176,21 +80,14 @@ const SalesTab = ({
           isRefreshing={isRefreshing}
         />
 
-        {/* Sales Opportunities Section with CRMCard */}
+        {/* Sales Opportunities List */}
         <View style={styles.opportunitiesSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Sales Opportunities</Text>
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('GenericLead', { 
-                leads: leads,
-                screenTitle: "All Sales Opportunities"
-              })}
-            >
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>All Sales Opportunities</Text>
+            <Text style={styles.countText}>{salesOpportunities.length} total</Text>
           </View>
           
-          {renderLeadsList()}
+          {renderOpportunitiesList()}
         </View>
       </View>
     </ScrollView>
@@ -200,71 +97,16 @@ const SalesTab = ({
 const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+
   },
-  // Combined Card Styles
-  combinedCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    marginTop: 10,
-    marginBottom: 16,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  container: {
+    marginVertical: '4%',
   },
-  opportunityItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#f0f0f0',
-    marginHorizontal: 16,
-  },
-  // Card Content Styles
-  cardContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    flex: 1,
-  },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  cardIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#000000',
-  },
-  cardTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flex: 1,
-  },
-  cardCount: {
-    fontSize: 18,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
-  },
-  // Opportunities Section - Updated for CRMCard
   opportunitiesSection: {
     backgroundColor: '#fff',
+  
     borderRadius: 8,
-    marginHorizontal: 5,
+    marginHorizontal: 2,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -290,49 +132,48 @@ const styles = StyleSheet.create({
     fontFamily: 'K2D-Bold',
     color: '#333',
   },
-  seeAllText: {
+  countText: {
     fontSize: 14,
     fontFamily: 'K2D-Medium',
-    color: '#2F4FE3',
+    color: '#666',
   },
-  // Leads List - CRMCard Container Styles (minimized margins)
-  leadsListContainer: {
+  opportunitiesListContainer: {
     paddingVertical: 8,
   },
-  cardContainer: {
-    marginHorizontal: 4, // Reduced from spacing.xs (4px)
-    marginVertical: 2, // Reduced from spacing.xxs (2px)
+  opportunityCardWrapper: {
+    marginHorizontal: 12,
+    marginVertical: 6,
   },
-  cardTouchable: {
-    // No additional margins
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    backgroundColor: '#fafafa',
-    marginTop: 8,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#2F4FE3',
-    marginRight: 8,
-  },
-  emptyLeadsContainer: {
+  emptyContainer: {
     alignItems: 'center',
     paddingVertical: 40,
     paddingHorizontal: 16,
   },
-  emptyLeadsText: {
+  emptyText: {
     fontSize: 16,
     fontFamily: 'K2D-Medium',
     color: '#999',
     marginTop: 12,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  emptySubText: {
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  createButton: {
+    backgroundColor: '#2F4FE3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
+    color: '#fff',
   },
 });
 

@@ -1,3 +1,5 @@
+// screens/CRM/AddSaleOppor.js - FIXED validation for pre-filled business partner with CalendarModal
+
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
@@ -14,7 +16,6 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '../../components/CustomHeader';
 import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '../../store/authStore';
@@ -22,11 +23,19 @@ import { useCreateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import theme from '../../constants/CRMTheme/CRMTheme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
+import moment from 'moment';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
-const AddSaleOppor = ({ navigation }) => {
+const AddSaleOppor = ({ navigation, route }) => {
+  // Get params from route
+  const { leadData, followupData, mode } = route.params || {};
+  
+  // Log the incoming leadData for debugging
+  console.log('📦 AddSaleOppor - Received leadData:', JSON.stringify(leadData, null, 2));
+  
   const createOpportunity = useCreateSalesOpportunity();
   
   // Safely use sales representatives hook with error handling
@@ -51,10 +60,10 @@ const AddSaleOppor = ({ navigation }) => {
   const clientName = authState?.clientName;
   const organizationId = authState?.organizationId;
   const organizationName = authState?.organizationName;
-  // warehouseName doesn't exist, use a default or remove
-  const warehouseName = 'Default'; // Hardcoded default
+  const warehouseName = 'Default';
 
   /* ---------------- OPPORTUNITY STATE ---------------- */
+  // Initialize with pre-filled data if available - FIXED: Set both ID and name
   const [selectedBPId, setSelectedBPId] = useState(null);
   const [selectedBPName, setSelectedBPName] = useState('');
   const [bpQuery, setBpQuery] = useState('');
@@ -93,21 +102,138 @@ const AddSaleOppor = ({ navigation }) => {
   /* ---------------- SALES REP ---------------- */
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSalesRepId, setSelectedSalesRepId] = useState(userId || null);
-  const [selectedSalesRepName, setSelectedSalesRepName] = useState(userName || '');
+  const [selectedSalesRepId, setSelectedSalesRepId] = useState(null);
+  const [selectedSalesRepName, setSelectedSalesRepName] = useState('');
 
   /* ---------------- UI STATE ---------------- */
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [active] = useState(true);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // FIXED: Initialize state from leadData on component mount
+  useEffect(() => {
+    if (leadData) {
+      console.log('🔄 Initializing from leadData:', leadData);
+      
+      // Set Business Partner - FIXED: Set both ID and name
+      if (leadData.businessPartnerId) {
+        console.log('✅ Setting business partner ID:', leadData.businessPartnerId);
+        setSelectedBPId(leadData.businessPartnerId);
+        setSelectedBPName(leadData.businessPartnerName || leadData.companyName || '');
+      } else if (leadData.C_BPartner_ID?.id) {
+        console.log('✅ Setting business partner from nested object:', leadData.C_BPartner_ID);
+        setSelectedBPId(leadData.C_BPartner_ID.id);
+        setSelectedBPName(leadData.C_BPartner_ID.identifier || '');
+      }
+      
+      // Set User/Contact
+      if (leadData.userId) {
+        console.log('✅ Setting user ID:', leadData.userId);
+        setSelectedUserId(leadData.userId);
+      } else if (leadData.id) {
+        console.log('✅ Setting user ID from lead.id:', leadData.id);
+        setSelectedUserId(leadData.id);
+      }
+      
+      // Set Description from followup
+      if (followupData?.description) {
+        console.log('✅ Setting description from followup:', followupData.description);
+        setDescription(followupData.description);
+      } else if (leadData.description) {
+        setDescription(leadData.description);
+      }
+      
+      // Set Comments
+      if (leadData.comments) {
+        setComments(leadData.comments);
+      }
+      
+      // Set Sales Rep
+      if (leadData.salesRepId) {
+        console.log('✅ Setting sales rep ID:', leadData.salesRepId);
+        setSelectedSalesRepId(leadData.salesRepId);
+        setSelectedSalesRepName(leadData.salesRepLabel || '');
+      }
+    }
+  }, [leadData, followupData]);
+
+  // Clear BP error on mount if we have pre-filled data
+  useEffect(() => {
+    if (selectedBPId) {
+      console.log('✅ Business partner already set, clearing error');
+      setErrors(prev => ({ ...prev, bp: null }));
+    }
+  }, [selectedBPId]);
+
+  /* ---------------- FETCH BUSINESS PARTNER DETAILS ---------------- */
+  const fetchBusinessPartnerDetails = async (bpId) => {
+    if (!bpId) return;
+    
+    setIsLoadingBP(true);
+    try {
+      const url = buildApiUrl(`models/C_BPartner/${bpId}`);
+      const data = await makeAuthenticatedRequest(url);
+      if (data) {
+        setSelectedBPName(data.Name || '');
+        // Clear error when we successfully set the business partner
+        setErrors(prev => ({ ...prev, bp: null }));
+      }
+    } catch (error) {
+      console.log('BP fetch error', error.message);
+    } finally {
+      setIsLoadingBP(false);
+    }
+  };
+
+  /* ---------------- FETCH BP USERS AND SET CONTACT ---------------- */
+  const fetchBpUsers = async (bpId) => {
+    if (!bpId) return;
+    try {
+      const url = buildApiUrl('models/AD_User', `C_BPartner_ID eq ${bpId}`);
+      const data = await makeAuthenticatedRequest(url);
+      const users = data.records || [];
+      setBpContacts(users);
+      
+      // If we have a specific userId from leadData, try to select that user
+      if (leadData?.userId) {
+        const matchingUser = users.find(u => u.id === leadData.userId);
+        if (matchingUser) {
+          setSelectedUserId(matchingUser.id);
+        } else {
+          setSelectedUserId(users[0]?.id || null);
+        }
+      } else {
+        setSelectedUserId(users[0]?.id || null);
+      }
+    } catch (error) {
+      console.log('BP users fetch error', error.message);
+    }
+  };
+
   /* ---------------- INIT ---------------- */
+  useEffect(() => {
+    // If we have businessPartnerId, fetch its details for the name
+    if (selectedBPId && !selectedBPName) {
+      fetchBusinessPartnerDetails(selectedBPId);
+    }
+  }, [selectedBPId]);
+
   useEffect(() => {
     fetchStages();
     fetchCurrencies();
     fetchCampaigns();
     setDocumentNo('Auto Generated');
+    
+    // If we have lead data with business partner, fetch its contacts
+    if (selectedBPId) {
+      fetchBpUsers(selectedBPId);
+    }
+    
+    // Show a message if coming from follow-up
+    if (mode === 'fromFollowup' && leadData) {
+      console.log('Creating opportunity from follow-up for lead:', leadData.name);
+    }
   }, []);
 
   /* ---------------- API HELPER ---------------- */
@@ -175,20 +301,6 @@ const AddSaleOppor = ({ navigation }) => {
       Alert.alert('Error', 'Failed to search business partners');
     } finally {
       setIsLoadingBP(false);
-    }
-  };
-
-  /* ---------------- FETCH BP USERS ---------------- */
-  const fetchBpUsers = async (bpId) => {
-    if (!bpId) return;
-    try {
-      const url = buildApiUrl('models/AD_User', `C_BPartner_ID eq ${bpId}`);
-      const data = await makeAuthenticatedRequest(url);
-      const users = data.records || [];
-      setBpContacts(users);
-      setSelectedUserId(users[0]?.id || null);
-    } catch (error) {
-      console.log('BP users fetch error', error.message);
     }
   };
 
@@ -279,6 +391,7 @@ const AddSaleOppor = ({ navigation }) => {
     setSelectedSalesRepName(rep.Name);
     setShowSalesRepModal(false);
     setSearchQuery('');
+    setErrors(prev => ({ ...prev, salesRep: null }));
   };
 
   const handleClearSalesRep = () => {
@@ -286,10 +399,23 @@ const AddSaleOppor = ({ navigation }) => {
     setSelectedSalesRepName('');
   };
 
+  /* ---------------- FORMAT DATE ---------------- */
+  const formatDate = (date) => {
+    if (!date) return '';
+    return moment(date).format('DD MMM YYYY');
+  };
+
   /* ---------------- VALIDATION ---------------- */
   const validate = () => {
     const e = {};
-    if (!selectedBPId) e.bp = 'Business Partner is required';
+    // Business Partner is REQUIRED for iDempiere
+    if (!selectedBPId) {
+      console.log('❌ Validation failed: Business Partner ID is missing');
+      e.bp = 'Business Partner is required';
+    } else {
+      console.log('✅ Validation passed: Business Partner ID =', selectedBPId);
+    }
+    
     if (!selectedStageId) e.stage = 'Sales Stage is required';
     if (!expectedCloseDate) e.date = 'Expected Close Date is required';
     if (!amount) e.amount = 'Opportunity Amount is required';
@@ -300,6 +426,7 @@ const AddSaleOppor = ({ navigation }) => {
     setErrors(e);
 
     if (Object.keys(e).length) {
+      console.log('❌ Validation errors:', e);
       Alert.alert('Missing Information', 'Please fill in all required fields');
       return false;
     }
@@ -308,35 +435,59 @@ const AddSaleOppor = ({ navigation }) => {
 
   /* ---------------- SUBMIT ---------------- */
   const handleSubmit = async () => {
+    console.log('📝 Submitting form with selectedBPId:', selectedBPId);
+    
     if (!validate()) return;
 
     setIsSubmitting(true);
     
+    // Build payload dynamically, only including fields with values
     const opportunityData = {
       AD_Client_ID: { id: clientId },
       AD_Org_ID: { id: organizationId },
-      C_BPartner_ID: selectedBPId,
-      AD_User_ID: selectedUserId,
-      SalesRep_ID: selectedSalesRepId,
-      C_SalesStage_ID: selectedStageId,
+      AD_User_ID: { id: selectedUserId },
+      SalesRep_ID: { id: selectedSalesRepId },
+      C_SalesStage_ID: { id: selectedStageId },
       Probability: Number(probability),
       ExpectedCloseDate: expectedCloseDate,
       OpportunityAmt: Number(amount),
-      C_Currency_ID: selectedCurrencyId,
-      C_Campaign_ID: selectedCampaign,
+      C_Currency_ID: { id: selectedCurrencyId },
       Description: description,
       Comments: comments,
       IsActive: active,
     };
 
+    // Add C_BPartner_ID - it should exist because validation passed
+    if (selectedBPId) {
+      opportunityData.C_BPartner_ID = { id: selectedBPId };
+      console.log('✅ Adding C_BPartner_ID to payload:', selectedBPId);
+    } else {
+      console.log('❌ CRITICAL: selectedBPId is missing in submit!');
+    }
+
+    // Add C_Campaign_ID if it has a value
+    if (selectedCampaign) {
+      opportunityData.C_Campaign_ID = { id: selectedCampaign };
+    }
+
+    console.log('Sending opportunity data:', JSON.stringify(opportunityData, null, 2));
+
     try {
-      await createOpportunity.mutateAsync(opportunityData);
+      const result = await createOpportunity.mutateAsync(opportunityData);
+      console.log('✅ Success result:', result);
       Alert.alert('Success', 'Sales Opportunity created successfully!', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
-      console.error('Create opportunity error:', error);
-      Alert.alert('Error', error.message || 'Failed to create opportunity');
+      console.error('❌ Create opportunity error:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to create opportunity';
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -490,7 +641,7 @@ const AddSaleOppor = ({ navigation }) => {
           />
         )}
         <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
-          {value || 'Select date'}
+          {value ? formatDate(value) : 'Select date'}
         </Text>
         <MaterialCommunityIcons 
           name="calendar-month" 
@@ -588,10 +739,25 @@ const AddSaleOppor = ({ navigation }) => {
   /* ---------------- MAIN RENDER ---------------- */
   const isLoading = loadingSalesReps || isLoadingStages || isLoadingCurrencies || isLoadingCampaigns;
 
+  // Debug render
+  console.log('🎨 Rendering with selectedBPId:', selectedBPId, 'selectedBPName:', selectedBPName);
+
   return (
     <>
       <StatusBar translucent backgroundColor="transparent" />
       <CustomHeader title="Add Sale Opportunity" />
+
+      {/* Calendar Modal */}
+      <CalendarModal
+        visible={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        onSelectDate={(date) => {
+          setExpectedCloseDate(date);
+          setErrors(prev => ({ ...prev, date: null }));
+          setShowCalendar(false);
+        }}
+        title="Select Expected Close Date"
+      />
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
@@ -611,7 +777,7 @@ const AddSaleOppor = ({ navigation }) => {
           <Label title="Document No" />
           <ReadOnly value={documentNo} icon="file-document" />
 
-          {/* Business Partner Search */}
+          {/* Business Partner Search - Required */}
           <Label title="Business Partner" required />
           <SearchField
             value={selectedBPName || bpQuery}
@@ -623,10 +789,13 @@ const AddSaleOppor = ({ navigation }) => {
             results={bpResults}
             isLoading={isLoadingBP}
             onSelectItem={(item) => {
+              console.log('✅ Selected business partner:', item.id, item.Name);
               setSelectedBPId(item.id);
               setSelectedBPName(item.Name);
               setShowBPList(false);
               fetchBpUsers(item.id);
+              // Clear error when selected
+              setErrors(prev => ({ ...prev, bp: null }));
             }}
             renderItem={(item) => `${item.Name} (${item.Value || ''})`}
           />
@@ -709,26 +878,10 @@ const AddSaleOppor = ({ navigation }) => {
           <Label title="Expected Close Date" required />
           <DatePickerField
             value={expectedCloseDate}
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => setShowCalendar(true)}
             error={errors.date}
             icon="calendar-clock"
           />
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={expectedCloseDate ? new Date(expectedCloseDate) : new Date()}
-              mode="date"
-              display="default"
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) {
-                  const formattedDate = date.toISOString().split('T')[0];
-                  setExpectedCloseDate(formattedDate);
-                  setErrors(prev => ({ ...prev, date: null }));
-                }
-              }}
-            />
-          )}
 
           {/* Opportunity Amount */}
           <Label title="Opportunity Amount" required />
@@ -763,12 +916,13 @@ const AddSaleOppor = ({ navigation }) => {
                 setSelectedCurrencyId(item.id);
                 setCurrencyQuery(item.ISO_Code);
                 setShowCurrencyList(false);
+                setErrors(prev => ({ ...prev, currency: null }));
               }}
               renderItem={(item) => `${item.ISO_Code} - ${item.Description}`}
             />
           )}
 
-          {/* Description */}
+          {/* Description - Pre-filled from follow-up */}
           <Label title="Description" />
           <Input
             value={description}
@@ -894,7 +1048,7 @@ const AddSaleOppor = ({ navigation }) => {
   );
 };
 
-/* ---------------- STYLES ---------------- */
+// Keep all your existing styles - they remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,

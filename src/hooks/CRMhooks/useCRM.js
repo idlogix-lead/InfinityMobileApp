@@ -1,4 +1,5 @@
-// hooks/useCRM.js - FIXED VERSION
+// hooks/useCRM.js - COMPLETE FIXED VERSION with proper sales opportunity handling
+// ADDED: useUpdateSalesOpportunity hook
 
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import crmApiService from '../../services/CRMAPI/crmApiService';
@@ -14,8 +15,6 @@ const handleApiError = (error, context) => {
   // Handle specific error types
   if (error.message === 'SESSION_EXPIRED') {
     console.log('⚠️ Session expired, triggering logout...');
-    // You could trigger a logout action here
-    // useAuthStore.getState().logout();
     throw new Error('Your session has expired. Please login again.');
   } else if (error.message === 'PERMISSION_DENIED') {
     throw new Error('You do not have permission to access this resource.');
@@ -26,6 +25,103 @@ const handleApiError = (error, context) => {
   }
   
   throw error;
+};
+
+// ============================================
+// DATA TRANSFORMATION HELPERS
+// ============================================
+
+// Transform lead data to extract nested properties
+const transformLeadData = (lead) => {
+  if (!lead) return null;
+  
+  return {
+    ...lead,
+    // Extract business partner info from nested object
+    businessPartnerId: lead.C_BPartner_ID?.id || null,
+    businessPartnerName: lead.C_BPartner_ID?.identifier || '',
+    businessPartnerLabel: lead.C_BPartner_ID?.identifier || '',
+    
+    // Extract client info
+    clientId: lead.AD_Client_ID?.id || null,
+    clientName: lead.AD_Client_ID?.identifier || '',
+    
+    // Extract organization info
+    organizationId: lead.AD_Org_ID?.id || null,
+    organizationName: lead.AD_Org_ID?.identifier || '',
+    
+    // Extract sales rep info
+    salesRepId: lead.SalesRep_ID?.id || null,
+    salesRepName: lead.SalesRep_ID?.identifier || '',
+    
+    // Extract lead source info
+    leadSourceId: lead.LeadSource?.id || null,
+    leadSourceName: lead.LeadSource?.identifier || '',
+    
+    // Extract status info
+    statusId: lead.LeadStatus?.id || 'N',
+    statusName: lead.LeadStatus?.identifier || 'New',
+    
+    // Ensure boolean fields are properly handled
+    IsSalesLead: lead.IsSalesLead === true,
+    IsVendorLead: lead.IsVendorLead === true,
+    IsActive: lead.IsActive === true,
+  };
+};
+
+// Transform array of leads
+const transformLeadsData = (leads) => {
+  if (!Array.isArray(leads)) return [];
+  return leads.map(transformLeadData);
+};
+
+// Transform sales opportunity data to extract nested properties
+const transformSalesOpportunityData = (opportunity) => {
+  if (!opportunity) return null;
+  
+  return {
+    ...opportunity,
+    // Extract business partner info
+    businessPartnerId: opportunity.C_BPartner_ID?.id || null,
+    businessPartnerName: opportunity.C_BPartner_ID?.identifier || '',
+    
+    // Extract sales stage info
+    salesStageId: opportunity.C_SalesStage_ID?.id || null,
+    salesStageName: opportunity.C_SalesStage_ID?.identifier || '',
+    
+    // Extract currency info
+    currencyId: opportunity.C_Currency_ID?.id || null,
+    currencyCode: opportunity.C_Currency_ID?.identifier || '',
+    
+    // Extract sales rep info
+    salesRepId: opportunity.SalesRep_ID?.id || null,
+    salesRepName: opportunity.SalesRep_ID?.identifier || '',
+    
+    // Extract user/contact info
+    userId: opportunity.AD_User_ID?.id || null,
+    userName: opportunity.AD_User_ID?.identifier || '',
+    
+    // Extract client/org info
+    clientId: opportunity.AD_Client_ID?.id || null,
+    clientName: opportunity.AD_Client_ID?.identifier || '',
+    organizationId: opportunity.AD_Org_ID?.id || null,
+    organizationName: opportunity.AD_Org_ID?.identifier || '',
+    
+    // Ensure numeric fields are properly handled
+    OpportunityAmt: opportunity.OpportunityAmt || 0,
+    Probability: opportunity.Probability || 0,
+    WeightedAmt: opportunity.WeightedAmt || 0,
+    Cost: opportunity.Cost || 0,
+    
+    // Ensure boolean fields
+    IsActive: opportunity.IsActive === true,
+  };
+};
+
+// Transform array of sales opportunities
+const transformSalesOpportunitiesData = (opportunities) => {
+  if (!Array.isArray(opportunities)) return [];
+  return opportunities.map(transformSalesOpportunityData);
 };
 
 // ============================================
@@ -79,8 +175,11 @@ export const useLeads = (filters = {}, enabled = true) => {
           return [];
         }
         
-        console.log(`✅ useLeads success, data length: ${data.length}`);
-        return data;
+        // Transform the data to extract nested properties
+        const transformedData = transformLeadsData(data);
+        
+        console.log(`✅ useLeads success, data length: ${transformedData.length}`);
+        return transformedData;
       } catch (error) {
         handleApiError(error, 'useLeads');
         return []; // Fallback to empty array
@@ -103,11 +202,8 @@ export const useLeadsByStatus = (status, enabled = true) => {
     filters.status = status;
   }
   
-  const queryClient = useQueryClient();
-  const queryKey = ['leads', status ? { status } : {}];
-  
   return useQuery({
-    queryKey,
+    queryKey: ['leads', status ? { status } : {}],
     queryFn: async () => {
       console.log(`🔍 Fetching leads with status: ${status || 'All'}`);
       try {
@@ -118,7 +214,10 @@ export const useLeadsByStatus = (status, enabled = true) => {
           ...lead,
           LeadStatus: lead.LeadStatus || { id: 'N', identifier: 'New' },
           statusId: lead.LeadStatus?.id || 'N',
-          statusLabel: lead.LeadStatus?.identifier || 'New'
+          statusLabel: lead.LeadStatus?.identifier || 'New',
+          // Extract business partner info
+          businessPartnerId: lead.C_BPartner_ID?.id || null,
+          businessPartnerName: lead.C_BPartner_ID?.identifier || '',
         }));
         
         console.log(`✅ Retrieved ${processedData.length} leads for status: ${status || 'All'}`);
@@ -179,41 +278,137 @@ export const useFollowups = (filters = {}, enabled = true) => {
   });
 };
 
+// Hook for fetching a single lead by ID - FIXED with proper transformation
+export const useLeadById = (leadId, enabled = true) => {
+  return useQuery({
+    queryKey: ['lead', leadId],
+    queryFn: async () => {
+      try {
+        if (!leadId) return null;
+        console.log(`🔍 Fetching lead with ID: ${leadId}`);
+        const data = await crmApiService.getLeadById(leadId);
+        
+        // Transform the data to extract nested properties
+        const transformedData = transformLeadData(data);
+        
+        console.log('✅ Transformed lead data:', transformedData);
+        return transformedData;
+      } catch (error) {
+        console.error('Get lead by ID failed:', error.message);
+        handleApiError(error, 'useLeadById');
+        return null;
+      }
+    },
+    enabled: enabled && !!leadId,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+    cacheTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1,
+    retryDelay: 1000,
+  });
+};
+
 // Hook for fetching sales opportunities
 export const useSalesOpportunities = (filters = {}, enabled = true) => {
-  console.log('📞 useSalesOpportunities called, enabled:', enabled);
+  console.log('📞 useSalesOpportunities called, enabled:', enabled, 'filters:', filters);
   
   return useQuery({
     queryKey: ['sales-opportunities', filters],
     queryFn: async () => {
-      console.log('🔍 useSalesOpportunities queryFn executing with filters:', filters);
+      console.log('🔍 useSalesOpportunities queryFn executing - ATTEMPTING TO FETCH DATA');
       try {
         // Get auth state to ensure we're authenticated
-        const isCompleteAuthenticated = useAuthStore.getState().isCompleteAuthenticated;
-        if (!isCompleteAuthenticated) {
-          console.log('🛑 useSalesOpportunities: Not authenticated, returning empty array');
+        const authState = useAuthStore.getState();
+        const userId = authState.userId;
+        const token = authState.token;
+        
+        console.log('🔐 Auth state in useSalesOpportunities:', { 
+          userId, 
+          hasToken: !!token,
+          tokenLength: token?.length,
+        });
+        
+        // Check for token instead of isCompleteAuthenticated
+        if (!token) {
+          console.log('🛑 useSalesOpportunities: No token, returning empty array');
           return [];
         }
         
+        if (!userId) {
+          console.log('⚠️ useSalesOpportunities: No userId, but continuing with empty filter');
+        }
+        
         // Add user ID to filters if not present
-        const userId = useAuthStore.getState().userId;
         const finalFilters = {
           ...filters,
           userId: filters.userId || userId,
         };
         
+        console.log('📤 Calling API with filters:', finalFilters);
         const data = await crmApiService.getSalesOpportunities(finalFilters);
         
-        // SAFETY: Critical fix for destructuring errors
+        // SAFETY: Ensure we always return an array
         if (!Array.isArray(data)) {
           console.warn('⚠️ useSalesOpportunities: API returned non-array, type:', typeof data);
           console.log('⚠️ Data received:', data);
           return [];
         }
         
-        console.log(`✅ useSalesOpportunities success, data length: ${data.length}`);
-        return data;
+        console.log(`✅ useSalesOpportunities received ${data.length} raw records`);
+        
+        // Transform the data to extract nested properties
+        const transformedData = data.map(opp => {
+          // Create a transformed object with flattened properties
+          const transformed = {
+            ...opp,
+            // Business Partner
+            businessPartnerId: opp.C_BPartner_ID?.id,
+            businessPartnerName: opp.C_BPartner_ID?.identifier,
+            
+            // Sales Stage
+            salesStageId: opp.C_SalesStage_ID?.id,
+            salesStageName: opp.C_SalesStage_ID?.identifier,
+            
+            // Currency
+            currencyId: opp.C_Currency_ID?.id,
+            currencyCode: opp.C_Currency_ID?.identifier,
+            
+            // Sales Rep
+            salesRepId: opp.SalesRep_ID?.id,
+            salesRepName: opp.SalesRep_ID?.identifier,
+            
+            // User/Contact (if any)
+            userId: opp.AD_User_ID?.id,
+            userName: opp.AD_User_ID?.identifier,
+            
+            // Client/Org
+            clientId: opp.AD_Client_ID?.id,
+            clientName: opp.AD_Client_ID?.identifier,
+            organizationId: opp.AD_Org_ID?.id,
+            organizationName: opp.AD_Org_ID?.identifier,
+          };
+          
+          return transformed;
+        });
+        
+        console.log(`✅ Transformed ${transformedData.length} opportunities`);
+        
+        // Log first few transformed opportunities for debugging
+        if (transformedData.length > 0) {
+          console.log('📊 First transformed opportunity:', {
+            id: transformedData[0].id,
+            documentNo: transformedData[0].DocumentNo,
+            businessPartner: transformedData[0].businessPartnerName,
+            stage: transformedData[0].salesStageName,
+            amount: transformedData[0].OpportunityAmt
+          });
+        } else {
+          console.log('⚠️ No opportunities found in API response');
+        }
+        
+        return transformedData;
       } catch (error) {
+        console.error('❌ useSalesOpportunities error:', error);
+        console.error('❌ Error stack:', error.stack);
         handleApiError(error, 'useSalesOpportunities');
         return []; // Always return empty array on error
       }
@@ -221,8 +416,14 @@ export const useSalesOpportunities = (filters = {}, enabled = true) => {
     enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
     cacheTime: 1000 * 60 * 10, // 10 minutes
-    retry: 1,
+    retry: 2,
     retryDelay: 1000,
+    onError: (error) => {
+      console.error('🔥 useSalesOpportunities query error:', error);
+    },
+    onSuccess: (data) => {
+      console.log('✅ useSalesOpportunities query successful, data length:', data?.length);
+    }
   });
 };
 
@@ -239,17 +440,20 @@ export const useCreateLead = () => {
     onSuccess: (newLead) => {
       console.log('✅ Lead created successfully, updating cache');
       
+      // Transform the new lead
+      const transformedLead = transformLeadData(newLead);
+      
       // Update all leads queries
       queryClient.setQueriesData(['leads'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
-        return [newLead, ...oldData];
+        return [transformedLead, ...oldData];
       });
       
       // Update status-specific queries
       const status = newLead.LeadStatus?.identifier || 'New';
       queryClient.setQueriesData(['leads', { status }], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
-        return [newLead, ...oldData];
+        return [transformedLead, ...oldData];
       });
       
       // Invalidate statistics
@@ -261,7 +465,7 @@ export const useCreateLead = () => {
   });
 };
 
-// Mutation for updating a lead - FIXED: Removed refetch triggers
+// Mutation for updating a lead
 export const useUpdateLead = () => {
   const queryClient = useQueryClient();
   
@@ -269,6 +473,12 @@ export const useUpdateLead = () => {
     mutationFn: ({ id, updates }) => crmApiService.updateLead(id, updates),
     onSuccess: (updatedLead, variables) => {
       console.log('✅ Lead updated successfully, updating cache');
+      
+      // Transform the updated lead
+      const transformedLead = transformLeadData(updatedLead);
+      
+      // Update the specific lead cache
+      queryClient.setQueryData(['lead', variables.id], transformedLead);
       
       // Get old lead data to check if status changed
       const oldLeads = queryClient.getQueryData(['leads']);
@@ -287,7 +497,7 @@ export const useUpdateLead = () => {
         if (!Array.isArray(oldData)) return oldData;
         
         return oldData.map(lead => 
-          lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
+          lead.id === transformedLead.id ? transformedLead : lead
         );
       });
       
@@ -296,20 +506,20 @@ export const useUpdateLead = () => {
         // Remove from old status cache
         queryClient.setQueriesData(['leads', { status: oldStatus }], (oldData) => {
           if (!Array.isArray(oldData)) return oldData;
-          return oldData.filter(lead => lead.id !== updatedLead.id);
+          return oldData.filter(lead => lead.id !== transformedLead.id);
         });
         
         // Add to new status cache
         queryClient.setQueriesData(['leads', { status: newStatus }], (oldData) => {
           if (!Array.isArray(oldData)) return oldData;
           // Check if lead already exists in new status cache
-          const exists = oldData.some(lead => lead.id === updatedLead.id);
+          const exists = oldData.some(lead => lead.id === transformedLead.id);
           if (exists) {
             return oldData.map(lead => 
-              lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
+              lead.id === transformedLead.id ? transformedLead : lead
             );
           } else {
-            return [...oldData, updatedLead];
+            return [...oldData, transformedLead];
           }
         });
       } else {
@@ -317,7 +527,7 @@ export const useUpdateLead = () => {
         queryClient.setQueriesData(['leads', { status: newStatus }], (oldData) => {
           if (!Array.isArray(oldData)) return oldData;
           return oldData.map(lead => 
-            lead.id === updatedLead.id ? { ...lead, ...updatedLead } : lead
+            lead.id === transformedLead.id ? transformedLead : lead
           );
         });
       }
@@ -333,7 +543,7 @@ export const useUpdateLead = () => {
   });
 };
 
-// Mutation for updating lead status - FIXED: Removed infinite loop
+// Mutation for updating lead status
 export const useUpdateLeadStatus = () => {
   const queryClient = useQueryClient();
   
@@ -406,6 +616,18 @@ export const useUpdateLeadStatus = () => {
       
       // Update all leads queries
       queryClient.setQueriesData(['leads'], optimisticUpdate);
+      
+      // Update the specific lead cache
+      const currentLead = queryClient.getQueryData(['lead', leadId]);
+      if (currentLead) {
+        queryClient.setQueryData(['lead', leadId], {
+          ...currentLead,
+          LeadStatus: {
+            id: statusId,
+            identifier: statusIdentifier
+          }
+        });
+      }
       
       // Update status-specific queries
       if (oldStatus && oldStatus !== statusIdentifier) {
@@ -599,14 +821,112 @@ export const useCreateSalesOpportunity = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (opportunityData) => crmApiService.createSalesOpportunity(opportunityData),
-    onSuccess: () => {
-      // Invalidate sales opportunities queries
+    mutationFn: async (opportunityData) => {
+      console.log('📤 Creating sales opportunity with data:', JSON.stringify(opportunityData, null, 2));
+      
+      // Validate required fields
+      if (!opportunityData.C_BPartner_ID?.id) {
+        console.error('❌ Missing C_BPartner_ID');
+        throw new Error('Business Partner is required');
+      }
+      
+      if (!opportunityData.C_SalesStage_ID?.id) {
+        console.error('❌ Missing C_SalesStage_ID');
+        throw new Error('Sales Stage is required');
+      }
+      
+      if (!opportunityData.C_Currency_ID?.id) {
+        console.error('❌ Missing C_Currency_ID');
+        throw new Error('Currency is required');
+      }
+      
+      if (!opportunityData.SalesRep_ID?.id) {
+        console.error('❌ Missing SalesRep_ID');
+        throw new Error('Sales Representative is required');
+      }
+      
+      try {
+        const result = await crmApiService.createSalesOpportunity(opportunityData);
+        console.log('✅ Sales opportunity created successfully:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Failed to create sales opportunity:', error);
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      console.log('🎉 Sales opportunity created, invalidating queries');
+      // Invalidate sales opportunities queries to refresh the list
       queryClient.invalidateQueries(['sales-opportunities']);
+      
+      // Show success message
+      Alert.alert('Success', 'Sales opportunity created successfully!');
     },
     onError: (error) => {
+      console.error('💥 useCreateSalesOpportunity error:', error);
       handleApiError(error, 'useCreateSalesOpportunity');
+      
+      // Show error message
+      Alert.alert('Error', error.message || 'Failed to create sales opportunity');
     },
+    retry: 1,
+    retryDelay: 1000,
+  });
+};
+
+// ============================================
+// ADDED: Mutation for updating sales opportunity
+// ============================================
+export const useUpdateSalesOpportunity = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, updates }) => {
+      console.log('📤 Updating sales opportunity:', { id, updates });
+      
+      if (!id) {
+        throw new Error('Opportunity ID is required to update');
+      }
+      
+      try {
+        const result = await crmApiService.updateSalesOpportunity(id, updates);
+        console.log('✅ Sales opportunity updated successfully:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Failed to update sales opportunity:', error);
+        throw error;
+      }
+    },
+    onSuccess: (updatedData, variables) => {
+      console.log('🎉 Sales opportunity updated, updating cache');
+      
+      // Transform the updated data
+      const transformedData = transformSalesOpportunityData(updatedData);
+      
+      // Update the specific opportunity cache
+      queryClient.setQueryData(['sales-opportunity', variables.id], transformedData);
+      
+      // Update the list cache
+      queryClient.setQueriesData(['sales-opportunities'], (oldData) => {
+        if (!Array.isArray(oldData)) return oldData;
+        
+        return oldData.map(opp => 
+          opp.id === transformedData.id ? transformedData : opp
+        );
+      });
+      
+      // Show success message
+      Alert.alert('Success', 'Sales opportunity updated successfully!');
+    },
+    onError: (error) => {
+      console.error('💥 useUpdateSalesOpportunity error:', error);
+      handleApiError(error, 'useUpdateSalesOpportunity');
+      
+      // Show error message
+      Alert.alert('Error', error.message || 'Failed to update sales opportunity');
+    },
+    retry: 1,
+    retryDelay: 1000,
   });
 };
 
@@ -623,7 +943,8 @@ export const useSearchLeads = (searchTerm, enabled = true) => {
         if (!searchTerm || searchTerm.trim() === '') {
           return [];
         }
-        return await crmApiService.searchLeads(searchTerm);
+        const data = await crmApiService.searchLeads(searchTerm);
+        return transformLeadsData(data);
       } catch (error) {
         console.error('Search leads failed:', error.message);
         return [];
@@ -712,12 +1033,16 @@ export const useCompletedLeadActivities = (leadId, enabled = true) => {
   });
 };
 
+// ============================================
+// EXPORTS
+// ============================================
 export default {
   useLeads,
   useLeadsByStatus,
   useLeadStatistics,
   useFollowups,
   useSalesOpportunities,
+  useLeadById,
   useCreateLead,
   useUpdateLead,
   useUpdateLeadStatus,
@@ -726,6 +1051,7 @@ export default {
   useDeleteFollowup,
   useUpdateFollowupStatus,
   useCreateSalesOpportunity,
+  useUpdateSalesOpportunity, // ADDED
   useSearchLeads,
   useLeadActivities,
   useActivityStatistics,

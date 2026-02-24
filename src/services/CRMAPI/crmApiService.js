@@ -228,7 +228,6 @@ const crmApiService = {
     }
   },
 
-  
   /**
    * Fetch single lead by ID
    */
@@ -244,78 +243,81 @@ const crmApiService = {
       throw error;
     }
   },
+  
   /**
- * Fetch sales representatives (AD_Users)
- */
-getSalesRepresentatives: async (filters = {}) => {
-  try {
-    // Build filter for sales reps (you might want to filter only active users or specific roles)
-    let filterParts = ['IsActive eq true'];
-    
-    // Optionally add role filter if you have a specific sales role
-    // if (filters.salesRole) {
-    //   filterParts.push(`AD_Role_ID/id eq '${filters.salesRole}'`);
-    // }
-    
-    const filterString = filterParts.join(' and ');
-    const url = buildUrl('models/AD_User', {}, filterString);
-    
-    console.log('👥 Sales Reps API URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} sales representatives`);
-    return records;
-  } catch (error) {
-    console.error('Get sales representatives failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
+   * Fetch sales representatives (AD_Users)
+   */
+  getSalesRepresentatives: async (filters = {}) => {
+    try {
+      // Build filter for sales reps (you might want to filter only active users or specific roles)
+      let filterParts = ['IsActive eq true'];
+      
+      // Optionally add role filter if you have a specific sales role
+      // if (filters.salesRole) {
+      //   filterParts.push(`AD_Role_ID/id eq '${filters.salesRole}'`);
+      // }
+      
+      const filterString = filterParts.join(' and ');
+      const url = buildUrl('models/AD_User', {}, filterString);
+      
+      console.log('👥 Sales Reps API URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} sales representatives`);
+      return records;
+    } catch (error) {
+      console.error('Get sales representatives failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
+    }
+  },
+  
+  /**
+   * Unified update lead method - handles both status and other field updates
+   */
+  updateLeadUnified: async (leadId, updates) => {
+    try {
+      const url = buildUrl(`models/AD_User/${leadId}`);
+      console.log('✏️ Unified update lead URL:', url, 'Updates:', updates);
+      
+      const data = await makeRequest(url, {
+        method: 'PUT',
+        body: updates,
+      });
+      
+      console.log('✅ Lead updated successfully via unified method');
+      return data;
+    } catch (error) {
+      console.error('Unified update lead failed:', error.message);
       throw error;
     }
-    return [];
-  }
-},
-/**
- * Unified update lead method - handles both status and other field updates
- */
-updateLeadUnified: async (leadId, updates) => {
-  try {
-    const url = buildUrl(`models/AD_User/${leadId}`);
-    console.log('✏️ Unified update lead URL:', url, 'Updates:', updates);
-    
-    const data = await makeRequest(url, {
-      method: 'PUT',
-      body: updates,
-    });
-    
-    console.log('✅ Lead updated successfully via unified method');
-    return data;
-  } catch (error) {
-    console.error('Unified update lead failed:', error.message);
-    throw error;
-  }
-},
-/**
- * Create a new location
- */
-createLocation: async (locationData) => {
-  try {
-    const url = buildUrl('models/C_Location');
-    console.log('📍 Create location URL:', url);
-    
-    const data = await makeRequest(url, {
-      method: 'POST',
-      body: locationData,
-    });
-    
-    console.log('✅ Location created successfully:', data);
-    return data;
-  } catch (error) {
-    console.error('Create location failed:', error.message);
-    throw error;
-  }
-},
+  },
+  
+  /**
+   * Create a new location
+   */
+  createLocation: async (locationData) => {
+    try {
+      const url = buildUrl('models/C_Location');
+      console.log('📍 Create location URL:', url);
+      
+      const data = await makeRequest(url, {
+        method: 'POST',
+        body: locationData,
+      });
+      
+      console.log('✅ Location created successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('Create location failed:', error.message);
+      throw error;
+    }
+  },
 
   /**
    * Create a new lead
@@ -389,80 +391,32 @@ createLocation: async (locationData) => {
       throw error;
     }
   },
-/**
- * Fetch completed activities for a specific lead
- */
-getCompletedLeadActivities: async (leadId) => {
-  try {
-    if (!leadId) return [];
-    
-    // Build filter for completed activities of this specific lead
-    const filterParts = [
-      `AD_User_ID eq ${leadId}`,
-      `IsComplete eq true`
-    ];
-    
-    const filterString = filterParts.join(' and ');
-    const url = buildUrl('models/C_ContactActivity', {}, filterString);
-    
-    console.log('🔍 Completed Activities API URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} completed activities for lead ${leadId}`);
-    return records;
-  } catch (error) {
-    console.error('Get completed lead activities failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
-    }
-    return [];
-  }
-},
+  
   /**
-   * Fetch all followups/activities
+   * Fetch completed activities for a specific lead
    */
-  getFollowups: async (filters = {}) => {
+  getCompletedLeadActivities: async (leadId) => {
     try {
-      // Build filter parts
-      const filterParts = [];
+      if (!leadId) return [];
       
-      if (filters.userId) {
-        filterParts.push(`AD_User_ID eq ${filters.userId}`);
-      }
+      // Build filter for completed activities of this specific lead
+      const filterParts = [
+        `AD_User_ID eq ${leadId}`,
+        `IsComplete eq true`
+      ];
       
-      if (filters.isComplete !== undefined) {
-        filterParts.push(`IsComplete eq ${filters.isComplete}`);
-      }
+      const filterString = filterParts.join(' and ');
+      const url = buildUrl('models/C_ContactActivity', {}, filterString);
       
-      if (filters.startDate) {
-        filterParts.push(`StartDate ge '${filters.startDate}'`);
-      }
-      
-      if (filters.endDate) {
-        filterParts.push(`EndDate le '${filters.endDate}'`);
-      }
-      
-      if (filters.activityType) {
-        filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
-      }
-
-      // Build URL with filters
-      const url = buildUrl('models/C_ContactActivity', {}, 
-        filterParts.length > 0 ? filterParts.join(' and ') : null
-      );
-      
-      console.log('🔍 Followups API URL:', url);
+      console.log('🔍 Completed Activities API URL:', url);
       
       const data = await makeRequest(url);
-      
       const records = Array.isArray(data.records) ? data.records : [];
-      console.log(`✅ Retrieved ${records.length} followups`);
+      
+      console.log(`✅ Retrieved ${records.length} completed activities for lead ${leadId}`);
       return records;
     } catch (error) {
-      console.error('Get followups failed:', error.message);
+      console.error('Get completed lead activities failed:', error.message);
       
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
@@ -470,6 +424,101 @@ getCompletedLeadActivities: async (leadId) => {
       return [];
     }
   },
+  
+  /**
+   * Fetch all followups/activities
+   */
+  // services/CRMAPI/crmApiService.js - FIXED getFollowups method
+
+/**
+ * Fetch all followups/activities - FIXED to filter by user's leads
+ */
+// services/CRMAPI/crmApiService.js - FIXED getFollowups method to filter by user's created leads
+
+/**
+ * Fetch all followups/activities - FIXED to filter by leads created by the user
+ */
+getFollowups: async (filters = {}) => {
+  try {
+    const authState = getAuthState();
+    const userId = authState.userId;
+    
+    console.log('🔍 getFollowups - Current user ID:', userId);
+    
+    // First, get all leads created by this user (based on CreatedBy)
+    let userLeadIds = [];
+    try {
+      // Get leads created by this user
+      // Using CreatedBy field to filter leads created by this user
+      const leadsFilter = `IsSalesLead eq true and CreatedBy eq ${userId}`;
+      const leadsUrl = buildUrl('models/AD_User', {}, leadsFilter);
+      console.log('🔍 Getting leads created by user:', leadsUrl);
+      
+      const leadsResponse = await makeRequest(leadsUrl);
+      const userLeads = Array.isArray(leadsResponse.records) ? leadsResponse.records : [];
+      userLeadIds = userLeads.map(lead => lead.id);
+      
+      console.log(`✅ Found ${userLeadIds.length} leads created by user ${userId}`);
+    } catch (leadError) {
+      console.error('❌ Failed to fetch user leads for followup filtering:', leadError.message);
+      // Continue with empty array - will return no followups
+    }
+    
+    // If no leads found, return empty array
+    if (userLeadIds.length === 0) {
+      console.log('⚠️ No leads created by this user, returning empty followups');
+      return [];
+    }
+    
+    // Build filter parts for followups
+    const filterParts = [];
+    
+    // CRITICAL FIX: Only include followups for leads created by this user
+    // Create an OR condition for all lead IDs that this user created
+    if (userLeadIds.length > 0) {
+      // Create an OR condition for all lead IDs
+      const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
+      filterParts.push(`(${leadIdConditions.join(' or ')})`);
+    }
+    
+    // Add other filters
+    if (filters.isComplete !== undefined) {
+      filterParts.push(`IsComplete eq ${filters.isComplete}`);
+    }
+    
+    if (filters.startDate) {
+      filterParts.push(`StartDate ge '${filters.startDate}'`);
+    }
+    
+    if (filters.endDate) {
+      filterParts.push(`EndDate le '${filters.endDate}'`);
+    }
+    
+    if (filters.activityType) {
+      filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
+    }
+
+    // Build URL with filters
+    const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
+    const url = buildUrl('models/C_ContactActivity', {}, filterString);
+    
+    console.log('🔍 Followups API URL with user-created lead filter:', url);
+    
+    const data = await makeRequest(url);
+    
+    const records = Array.isArray(data.records) ? data.records : [];
+    console.log(`✅ Retrieved ${records.length} followups for leads created by user ${userId}`);
+    
+    return records;
+  } catch (error) {
+    console.error('Get followups failed:', error.message);
+    
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    }
+    return [];
+  }
+},
 
   /**
    * Fetch followup by ID
@@ -544,99 +593,185 @@ getCompletedLeadActivities: async (leadId) => {
   /**
    * Fetch sales opportunities
    * FIXED: Correct filter field names and structure
-   */
-  getSalesOpportunities: async (filters = {}) => {
+ // services/CRMAPI/crmApiService.js - FIXED getSalesOpportunities method
+
+/**
+ * Fetch sales opportunities - FIXED to only show opportunities for leads created by the user
+ */
+getSalesOpportunities: async (filters = {}) => {
+  try {
+    const authState = getAuthState();
+    const userId = authState.userId;
+    
+    console.log('🔍 getSalesOpportunities - Current user ID:', userId);
+    
+    // First, get all leads created by this user (based on CreatedBy)
+    let userLeadIds = [];
     try {
-      const authState = getAuthState();
-      const userId = authState.userId;
+      // Get leads created by this user
+      const leadsFilter = `IsSalesLead eq true and CreatedBy eq ${userId}`;
+      const leadsUrl = buildUrl('models/AD_User', {}, leadsFilter);
+      console.log('🔍 Getting leads created by user for sales opportunities:', leadsUrl);
       
-      // Build filter parts - CRITICAL FIX: Use correct field names
-      const filterParts = [];
+      const leadsResponse = await makeRequest(leadsUrl);
+      const userLeads = Array.isArray(leadsResponse.records) ? leadsResponse.records : [];
+      userLeadIds = userLeads.map(lead => lead.id);
       
-      // Option 1: Try with SalesRep_ID (most common)
-      if (userId) {
-        filterParts.push(`SalesRep_ID eq ${userId}`);
-      }
-      
-      // Option 2: Try with AD_User_ID if SalesRep_ID doesn't work
-      // filterParts.push(`AD_User_ID eq ${userId}`);
-      
-      // Stage filter
-      if (filters.stage) {
-        filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
-      }
-      
-      // Opportunity status filter
-      if (filters.status) {
-        filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
-      }
-      
-      // Date filters
-      if (filters.startDate) {
-        filterParts.push(`Created ge '${filters.startDate}'`);
-      }
-      if (filters.endDate) {
-        filterParts.push(`Created le '${filters.endDate}'`);
-      }
-      
-      // Always include active records
-      filterParts.push(`IsActive eq true`);
-      
-      const url = buildUrl('models/C_Opportunity', {}, 
-        filterParts.length > 0 ? filterParts.join(' and ') : null
-      );
-      
-      console.log('🔍 Sales Opportunities URL:', url);
-      
-      const data = await makeRequest(url);
-      
-      // SAFE data extraction
-      const records = Array.isArray(data.records) ? data.records : [];
-      
-      console.log(`✅ Retrieved ${records.length} sales opportunities`);
-      
-      // DEBUG: If no records, try without user filter to check permissions
-      if (records.length === 0) {
-        console.log('🔄 Debug: Trying without user filter...');
-        const debugUrl = buildUrl('models/C_Opportunity', {}, 'IsActive eq true');
-        const debugData = await makeRequest(debugUrl);
-        console.log(`🔄 Debug: Found ${debugData.records?.length || 0} total opportunities in system`);
-      }
-      
-      return records;
-    } catch (error) {
-      console.error('❌ Get sales opportunities failed:', error.message);
-      
-      // Handle specific errors
-      if (error.message === 'SESSION_EXPIRED') {
-        throw error;
-      } else if (error.message === 'RESOURCE_NOT_FOUND') {
-        console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
-        return [];
-      } else if (error.message === 'PERMISSION_DENIED') {
-        console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
-        return [];
-      }
-      
+      console.log(`✅ Found ${userLeadIds.length} leads created by user ${userId} for sales opportunities`);
+    } catch (leadError) {
+      console.error('❌ Failed to fetch user leads for sales opportunities filtering:', leadError.message);
+      // Continue with empty array - will return no opportunities
+    }
+    
+    // If no leads found, return empty array
+    if (userLeadIds.length === 0) {
+      console.log('⚠️ No leads created by this user, returning empty sales opportunities');
       return [];
     }
-  },
+    
+    // Build filter parts for sales opportunities
+    const filterParts = [];
+    
+    // CRITICAL FIX: Only include opportunities associated with leads created by this user
+    // Create an OR condition for all lead IDs that this user created
+    if (userLeadIds.length > 0) {
+      // Create an OR condition for all lead IDs
+      // Assuming AD_User_ID in C_Opportunity links to the lead
+      const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
+      filterParts.push(`(${leadIdConditions.join(' or ')})`);
+    }
+    
+    // Stage filter
+    if (filters.stage) {
+      filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
+    }
+    
+    // Opportunity status filter
+    if (filters.status) {
+      filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
+    }
+    
+    // Date filters
+    if (filters.startDate) {
+      filterParts.push(`Created ge '${filters.startDate}'`);
+    }
+    if (filters.endDate) {
+      filterParts.push(`Created le '${filters.endDate}'`);
+    }
+    
+    // Always include active records
+    filterParts.push(`IsActive eq true`);
+    
+    const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
+    const url = buildUrl('models/C_Opportunity', {}, filterString);
+    
+    console.log('🔍 Sales Opportunities URL with user-created lead filter:', url);
+    console.log('🔍 Filter parts:', filterParts);
+    
+    const data = await makeRequest(url);
+    
+    // SAFE data extraction
+    const records = Array.isArray(data.records) ? data.records : [];
+    
+    console.log(`✅ Retrieved ${records.length} sales opportunities for leads created by user ${userId}`);
+    
+    // Log each opportunity's details
+    if (records.length > 0) {
+      records.forEach((opp, index) => {
+        console.log(`📊 Opportunity ${index + 1}:`, {
+          id: opp.id,
+          documentNo: opp.DocumentNo,
+          name: opp.Name,
+          businessPartner: opp.C_BPartner_ID?.identifier,
+          amount: opp.OpportunityAmt,
+          stage: opp.C_SalesStage_ID?.identifier,
+          leadId: opp.AD_User_ID?.id, // This should match one of userLeadIds
+          salesRepId: opp.SalesRep_ID?.id
+        });
+      });
+    } else {
+      console.log('⚠️ No opportunities found for leads created by this user');
+    }
+    
+    return records;
+  } catch (error) {
+    console.error('❌ Get sales opportunities failed:', error.message);
+    console.error('❌ Error details:', error);
+    
+    // Handle specific errors
+    if (error.message === 'SESSION_EXPIRED') {
+      throw error;
+    } else if (error.message === 'RESOURCE_NOT_FOUND') {
+      console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
+      return [];
+    } else if (error.message === 'PERMISSION_DENIED') {
+      console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
+      return [];
+    }
+    
+    return [];
+  }
+},
 
   /**
    * Create sales opportunity
+   * FIXED: Properly format the request body for iDempiere
    */
   createSalesOpportunity: async (opportunityData) => {
     try {
       const url = buildUrl('models/C_Opportunity');
+      
+      // Ensure the data is properly formatted for iDempiere
+      // The API expects nested objects for foreign key relationships
+      const formattedData = {
+        ...opportunityData,
+        // Ensure these are properly formatted as objects with id
+        AD_Client_ID: opportunityData.AD_Client_ID?.id ? 
+          { id: opportunityData.AD_Client_ID.id } : 
+          opportunityData.AD_Client_ID,
+        
+        AD_Org_ID: opportunityData.AD_Org_ID?.id ? 
+          { id: opportunityData.AD_Org_ID.id } : 
+          opportunityData.AD_Org_ID,
+        
+        AD_User_ID: opportunityData.AD_User_ID?.id ? 
+          { id: opportunityData.AD_User_ID.id } : 
+          opportunityData.AD_User_ID,
+        
+        SalesRep_ID: opportunityData.SalesRep_ID?.id ? 
+          { id: opportunityData.SalesRep_ID.id } : 
+          opportunityData.SalesRep_ID,
+        
+        C_BPartner_ID: opportunityData.C_BPartner_ID?.id ? 
+          { id: opportunityData.C_BPartner_ID.id } : 
+          opportunityData.C_BPartner_ID,
+        
+        C_SalesStage_ID: opportunityData.C_SalesStage_ID?.id ? 
+          { id: opportunityData.C_SalesStage_ID.id } : 
+          opportunityData.C_SalesStage_ID,
+        
+        C_Currency_ID: opportunityData.C_Currency_ID?.id ? 
+          { id: opportunityData.C_Currency_ID.id } : 
+          opportunityData.C_Currency_ID,
+        
+        C_Campaign_ID: opportunityData.C_Campaign_ID?.id ? 
+          { id: opportunityData.C_Campaign_ID.id } : 
+          opportunityData.C_Campaign_ID,
+      };
+      
+      console.log('📝 Create Sales Opportunity URL:', url);
+      console.log('📦 Formatted opportunity data:', JSON.stringify(formattedData, null, 2));
+      
       const data = await makeRequest(url, {
         method: 'POST',
-        body: opportunityData,
+        body: formattedData,
       });
       
-      console.log('✅ Sales opportunity created successfully');
+      console.log('✅ Sales opportunity created successfully:', data);
       return data;
     } catch (error) {
-      console.error('Create sales opportunity failed:', error.message);
+      console.error('❌ Create sales opportunity failed:', error.message);
+      console.error('❌ Error details:', error);
       throw error;
     }
   },
@@ -647,9 +782,25 @@ getCompletedLeadActivities: async (leadId) => {
   updateSalesOpportunity: async (opportunityId, updates) => {
     try {
       const url = buildUrl(`models/C_Opportunity/${opportunityId}`);
+      
+      // Format updates similarly to create
+      const formattedUpdates = {
+        ...updates,
+        AD_Client_ID: updates.AD_Client_ID?.id ? { id: updates.AD_Client_ID.id } : updates.AD_Client_ID,
+        AD_Org_ID: updates.AD_Org_ID?.id ? { id: updates.AD_Org_ID.id } : updates.AD_Org_ID,
+        AD_User_ID: updates.AD_User_ID?.id ? { id: updates.AD_User_ID.id } : updates.AD_User_ID,
+        SalesRep_ID: updates.SalesRep_ID?.id ? { id: updates.SalesRep_ID.id } : updates.SalesRep_ID,
+        C_BPartner_ID: updates.C_BPartner_ID?.id ? { id: updates.C_BPartner_ID.id } : updates.C_BPartner_ID,
+        C_SalesStage_ID: updates.C_SalesStage_ID?.id ? { id: updates.C_SalesStage_ID.id } : updates.C_SalesStage_ID,
+        C_Currency_ID: updates.C_Currency_ID?.id ? { id: updates.C_Currency_ID.id } : updates.C_Currency_ID,
+        C_Campaign_ID: updates.C_Campaign_ID?.id ? { id: updates.C_Campaign_ID.id } : updates.C_Campaign_ID,
+      };
+      
+      console.log('✏️ Update Sales Opportunity URL:', url);
+      
       const data = await makeRequest(url, {
         method: 'PUT',
-        body: updates,
+        body: formattedUpdates,
       });
       
       console.log('✅ Sales opportunity updated successfully');
@@ -697,150 +848,189 @@ getCompletedLeadActivities: async (leadId) => {
   /**
    * Search leads by name, email, or phone
    */
- searchLeads: async (searchTerm) => {
-  try {
-    const authState = getAuthState();
-    const userId = authState.userId;
-    
-    if (!searchTerm || searchTerm.trim() === '') {
-      return await crmApiService.getLeads();
-    }
-    
-    // Clean and prepare search term
-    const cleanSearchTerm = searchTerm.trim();
-    
-    // DEBUG: Log what we're searching for
-    console.log('🔍 Searching for term:', cleanSearchTerm);
-    
-    // Build search filter - Use tolower for case-insensitive search
-    // Option 1: Using tolower() for case-insensitive search
-    const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
-      contains(tolower(Name), tolower('${cleanSearchTerm}')) or 
-      contains(tolower(EMail), tolower('${cleanSearchTerm}')) or 
-      contains(tolower(Phone), tolower('${cleanSearchTerm}'))
-    )`;
-    
-    // Option 2: If tolower() doesn't work with your API, try substringof
-    // const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
-    //   substringof('${cleanSearchTerm}', Name) ne false or 
-    //   substringof('${cleanSearchTerm}', EMail) ne false or 
-    //   substringof('${cleanSearchTerm}', Phone) ne false
-    // )`;
-    
-    const url = buildUrl('models/AD_User', {}, searchFilter);
-    console.log('🔍 Search leads URL:', url);
-    
-    const data = await makeRequest(url);
-    
-    const records = Array.isArray(data.records) ? data.records : [];
-    console.log(`✅ Found ${records.length} leads matching search for "${cleanSearchTerm}"`);
-    
-    // DEBUG: Log the names of found records to verify
-    if (records.length > 0) {
-      console.log('📋 Found leads:', records.map(r => r.Name));
-    }
-    
-    return records;
-  } catch (error) {
-    console.error('Search leads failed:', error.message);
-    
-    // If the first approach fails, try a simpler search
+  searchLeads: async (searchTerm) => {
     try {
-      console.log('🔄 Trying alternative search method...');
       const authState = getAuthState();
       const userId = authState.userId;
-      const cleanSearchTerm = searchTerm.trim().toLowerCase();
       
-      // Get all leads and filter locally
-      const allLeads = await crmApiService.getLeads();
+      if (!searchTerm || searchTerm.trim() === '') {
+        return await crmApiService.getLeads();
+      }
       
-      const filteredLeads = allLeads.filter(lead => {
-        const name = (lead.Name || '').toLowerCase();
-        const email = (lead.EMail || '').toLowerCase();
-        const phone = (lead.Phone || '').toLowerCase();
+      // Clean and prepare search term
+      const cleanSearchTerm = searchTerm.trim();
+      
+      // DEBUG: Log what we're searching for
+      console.log('🔍 Searching for term:', cleanSearchTerm);
+      
+      // Build search filter - Use tolower for case-insensitive search
+      const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
+        contains(tolower(Name), tolower('${cleanSearchTerm}')) or 
+        contains(tolower(EMail), tolower('${cleanSearchTerm}')) or 
+        contains(tolower(Phone), tolower('${cleanSearchTerm}'))
+      )`;
+      
+      const url = buildUrl('models/AD_User', {}, searchFilter);
+      console.log('🔍 Search leads URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      const records = Array.isArray(data.records) ? data.records : [];
+      console.log(`✅ Found ${records.length} leads matching search for "${cleanSearchTerm}"`);
+      
+      // DEBUG: Log the names of found records to verify
+      if (records.length > 0) {
+        console.log('📋 Found leads:', records.map(r => r.Name));
+      }
+      
+      return records;
+    } catch (error) {
+      console.error('Search leads failed:', error.message);
+      
+      // If the first approach fails, try a simpler search
+      try {
+        console.log('🔄 Trying alternative search method...');
+        const authState = getAuthState();
+        const userId = authState.userId;
+        const cleanSearchTerm = searchTerm.trim().toLowerCase();
         
-        return name.includes(cleanSearchTerm) || 
-               email.includes(cleanSearchTerm) || 
-               phone.includes(cleanSearchTerm);
-      });
+        // Get all leads and filter locally
+        const allLeads = await crmApiService.getLeads();
+        
+        const filteredLeads = allLeads.filter(lead => {
+          const name = (lead.Name || '').toLowerCase();
+          const email = (lead.EMail || '').toLowerCase();
+          const phone = (lead.Phone || '').toLowerCase();
+          
+          return name.includes(cleanSearchTerm) || 
+                 email.includes(cleanSearchTerm) || 
+                 phone.includes(cleanSearchTerm);
+        });
+        
+        console.log(`✅ Local filtering found ${filteredLeads.length} leads for "${searchTerm}"`);
+        
+        return filteredLeads;
+      } catch (fallbackError) {
+        console.error('Fallback search also failed:', fallbackError.message);
+        return [];
+      }
+    }
+  },
+  
+  /**
+   * Get campaigns
+   */
+  getCampaigns: async () => {
+    try {
+      const url = buildUrl('models/C_Campaign');
+      console.log('🎯 Get campaigns URL:', url);
       
-      console.log(`✅ Local filtering found ${filteredLeads.length} leads for "${searchTerm}"`);
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
       
-      return filteredLeads;
-    } catch (fallbackError) {
-      console.error('Fallback search also failed:', fallbackError.message);
+      console.log(`✅ Retrieved ${records.length} campaigns`);
+      return records;
+    } catch (error) {
+      console.error('Get campaigns failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
       return [];
     }
-  }
-},
+  },
+
   /**
- * Get campaigns
- */
-getCampaigns: async () => {
-  try {
-    const url = buildUrl('models/C_Campaign');
-    console.log('🎯 Get campaigns URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} campaigns`);
-    return records;
-  } catch (error) {
-    console.error('Get campaigns failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+   * Get lead sources
+   */
+  getLeadSources: async () => {
+    try {
+      const url = buildUrl('models/C_LeadSource');
+      console.log('📞 Get lead sources URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} lead sources`);
+      return records;
+    } catch (error) {
+      console.error('Get lead sources failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
 
-/**
- * Get lead sources
- */
-getLeadSources: async () => {
-  try {
-    const url = buildUrl('models/C_LeadSource');
-    console.log('📞 Get lead sources URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} lead sources`);
-    return records;
-  } catch (error) {
-    console.error('Get lead sources failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+  /**
+   * Get lead statuses
+   */
+  getLeadStatuses: async () => {
+    try {
+      const url = buildUrl('models/C_LeadStatus');
+      console.log('📊 Get lead statuses URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} lead statuses`);
+      return records;
+    } catch (error) {
+      console.error('Get lead statuses failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
 
-/**
- * Get lead statuses
- */
-getLeadStatuses: async () => {
-  try {
-    const url = buildUrl('models/C_LeadStatus');
-    console.log('📊 Get lead statuses URL:', url);
-    
-    const data = await makeRequest(url);
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} lead statuses`);
-    return records;
-  } catch (error) {
-    console.error('Get lead statuses failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
+  /**
+   * Get currencies
+   */
+  getCurrencies: async () => {
+    try {
+      const url = buildUrl('models/C_Currency');
+      console.log('💰 Get currencies URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} currencies`);
+      return records;
+    } catch (error) {
+      console.error('Get currencies failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
     }
-    return [];
-  }
-},
+  },
+
+  /**
+   * Get sales stages
+   */
+  getSalesStages: async () => {
+    try {
+      const url = buildUrl('models/C_SalesStage');
+      console.log('📈 Get sales stages URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} sales stages`);
+      return records;
+    } catch (error) {
+      console.error('Get sales stages failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return [];
+    }
+  },
 };
 
 export default crmApiService;
