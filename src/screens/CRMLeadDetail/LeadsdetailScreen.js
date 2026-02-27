@@ -1,5 +1,4 @@
-// screens/CRM/LeadDetailsScreen.js - FIXED business partner detection
-
+// screens/CRM/LeadDetailsScreen.js - REMOVED opportunity creation functionality
 import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
@@ -18,7 +17,7 @@ import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { useCompletedLeadActivities, useCreateSalesOpportunity, useLeadById } from '../../hooks/CRMhooks/useCRM';
+import { useCompletedLeadActivities, useLeadById } from '../../hooks/CRMhooks/useCRM';
 import { useQueryClient } from 'react-query';
 import moment from 'moment';
 import theme from '../../constants/CRMTheme/CRMTheme';
@@ -225,7 +224,6 @@ const BooleanChip = ({ label, value }) => (
 const LeadDetailsScreen = ({ route, navigation }) => {
   const { data: leadData, followupData } = route.params || {};
   const queryClient = useQueryClient();
-  const createOpportunity = useCreateSalesOpportunity();
 
   // Get lead ID from passed data
   const leadId = leadData?.id;
@@ -242,7 +240,6 @@ const LeadDetailsScreen = ({ route, navigation }) => {
 
   // Tab state
   const [activeTab, setActiveTab] = useState('basic');
-  const [isCreatingOpportunity, setIsCreatingOpportunity] = useState(false);
 
   // Use completed activities hook
   const { 
@@ -335,123 +332,6 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       lead.clientName ||
       ''
     );
-  };
-
-  // Handle create opportunity from follow-up - FIXED with better business partner detection
-  const handleCreateOpportunity = () => {
-    if (!followupData || !displayLead) return;
-    
-    // Check if we're still loading lead data
-    if (isLoadingLead) {
-      Alert.alert('Please Wait', 'Loading complete lead data...');
-      return;
-    }
-    
-    // Log the complete lead data for debugging
-    console.log('Complete lead data for opportunity:', JSON.stringify(displayLead, null, 2));
-    console.log('Has Business Partner:', hasBusinessPartner(displayLead));
-    console.log('Business Partner ID:', getBusinessPartnerId(displayLead));
-    console.log('Business Partner Name:', getBusinessPartnerName(displayLead));
-    
-    // Check if business partner exists using our helper function
-    if (!hasBusinessPartner(displayLead)) {
-      Alert.alert(
-        'Warning', 
-        'This lead does not have a business partner associated. You will need to select one manually.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => proceedToCreateOpportunity() }
-        ]
-      );
-    } else {
-      proceedToCreateOpportunity();
-    }
-  };
-
-  const proceedToCreateOpportunity = () => {
-    setIsCreatingOpportunity(true);
-    
-    try {
-      console.log('Complete lead data:', JSON.stringify(displayLead, null, 2));
-      
-      // FIXED: Properly extract business partner information from transformed data
-      const leadDataToSend = {
-        id: displayLead.id,
-        name: displayLead.Name,
-        companyName: displayLead.BPName || getBusinessPartnerName(displayLead) || '',
-        
-        // Business Partner - use helper functions to ensure we get the ID
-        businessPartnerId: getBusinessPartnerId(displayLead),
-        businessPartnerName: getBusinessPartnerName(displayLead),
-        businessPartnerLabel: getBusinessPartnerName(displayLead),
-        
-        // Also include the original nested structure for compatibility
-        C_BPartner_ID: displayLead.C_BPartner_ID || {
-          id: getBusinessPartnerId(displayLead),
-          identifier: getBusinessPartnerName(displayLead)
-        },
-        
-        // User/Contact
-        userId: displayLead.id,
-        
-        // Contact info
-        email: displayLead.EMail,
-        phone: displayLead.Phone,
-        phone2: displayLead.Phone2,
-        birthday: displayLead.Birthday,
-        
-        // Description and comments
-        description: displayLead.Description || followupData?.Description || '',
-        comments: displayLead.Comments,
-        
-        // Sales Rep
-        salesRepId: displayLead.salesRepId || displayLead.SalesRep_ID?.id,
-        salesRepLabel: displayLead.salesRepName || displayLead.SalesRep_ID?.identifier,
-        
-        // Organization
-        organizationId: displayLead.organizationId || displayLead.AD_Org_ID?.id,
-        organizationLabel: displayLead.organizationName || displayLead.AD_Org_ID?.identifier,
-        
-        // Client/Tenant
-        clientId: displayLead.clientId || displayLead.AD_Client_ID?.id,
-        clientLabel: displayLead.clientName || displayLead.AD_Client_ID?.identifier,
-        
-        // Lead Source
-        leadSource: displayLead.leadSourceName || displayLead.LeadSource?.identifier,
-        leadSourceId: displayLead.leadSourceId || displayLead.LeadSource?.id,
-        leadSourceDesc: displayLead.LeadSourceDescription,
-        
-        // Status
-        status: displayLead.statusName || displayLead.LeadStatus?.identifier,
-        statusId: displayLead.statusId || displayLead.LeadStatus?.id,
-        statusDesc: displayLead.LeadStatusDescription,
-        
-        // Flags
-        salesLead: displayLead.IsSalesLead,
-        vendorLead: displayLead.IsVendorLead,
-        
-        // Other
-        searchKey: displayLead.Value,
-        active: displayLead.IsActive,
-      };
-      
-      console.log('Sending lead data to AddSaleOppor:', JSON.stringify(leadDataToSend, null, 2));
-      console.log('Business Partner ID being sent:', leadDataToSend.businessPartnerId);
-      
-      navigation.navigate('AddSaleOppor', {
-        leadData: leadDataToSend,
-        followupData: {
-          description: followupData.Description,
-          date: followupData.StartDate,
-        },
-        mode: 'fromFollowup',
-      });
-    } catch (error) {
-      console.error('Navigation error:', error);
-      Alert.alert('Error', 'Failed to navigate to opportunity creation');
-    } finally {
-      setIsCreatingOpportunity(false);
-    }
   };
 
   // Get activity type for the followup
@@ -649,7 +529,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
 
       <CustomHeader
-        title={'Lead Details'}
+        title={'Follow Up Details'}
         LeftIcon="arrow-left"
         LeftPress={() => navigation.goBack()}
         RightIcon="plus"
@@ -676,7 +556,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
               <View style={styles.headerInfo}>
                 <Text style={styles.leadName}>{displayLead?.Name || 'Unnamed Lead'}</Text>
                 
-              
+               
               </View>
             </View>
 
@@ -723,30 +603,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
                   </View>
 
                   <View style={styles.followupActions}>
-                    {/* Create Opportunity Button - Only show for completed follow-ups */}
-                    {isComplete && (
-                      <TouchableOpacity
-                        style={styles.opportunityButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleCreateOpportunity();
-                        }}
-                        disabled={isCreatingOpportunity || isLoadingLead}
-                      >
-                        {isCreatingOpportunity ? (
-                          <ActivityIndicator size="small" color={Colors.primary} />
-                        ) : (
-                          <>
-                            <MaterialCommunityIcons 
-                              name="star-plus" 
-                              size={scale(18)} 
-                              color={Colors.primary} 
-                            />
-                            <Text style={styles.opportunityButtonText}>Opportunity</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
+                    {/* REMOVED: Create Opportunity Button */}
                     
                     {/* Pencil Icon for editing */}
                     <MaterialCommunityIcons 

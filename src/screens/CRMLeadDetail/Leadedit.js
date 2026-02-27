@@ -1,3 +1,5 @@
+// LeadEdit.js - Updated to navigate to AddSaleOppor with proper business partner data
+
 import {
   ScrollView,
   StyleSheet,
@@ -24,6 +26,7 @@ import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities } from '..
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
+import { useAuthStore } from '../../store/authStore';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -479,6 +482,7 @@ const DropdownField = ({
 const LeadEdit = ({ route, navigation }) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
+  const authState = useAuthStore();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -499,6 +503,9 @@ const LeadEdit = ({ route, navigation }) => {
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
   const [salesRepModalVisible, setSalesRepModalVisible] = useState(false);
   const [salesRepSearch, setSalesRepSearch] = useState('');
+
+  // State to track if we're processing a conversion
+  const [isConverting, setIsConverting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -678,6 +685,174 @@ const LeadEdit = ({ route, navigation }) => {
     return true;
   };
 
+  // ============================================
+  // Navigate to AddSaleOppor with lead data
+  // ============================================
+  const navigateToAddOpportunity = () => {
+    console.log('🔄 Navigating to AddSaleOppor with lead data:', displayLead.id);
+    
+    // Prepare lead data for the opportunity form
+    // CRITICAL: In iDempiere, opportunities are linked to Business Partners (C_BPartner)
+    // So we need to pass the business partner information from the lead
+    const opportunityLeadData = {
+      id: displayLead.id,
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      companyName: formData.companyName,
+      description: formData.description,
+      comments: formData.comments,
+      
+      // Business Partner info - This is what the AddSaleOppor screen needs for C_BPartner_ID
+      businessPartnerId: formData.businessPartnerId, // This will be used for C_BPartner_ID.id
+      businessPartnerName: formData.businessPartnerLabel, // This will be displayed in the search field
+      
+      // Sales Rep info
+      salesRepId: formData.salesRepId,
+      salesRepLabel: formData.salesRepLabel,
+      
+      // Organization info
+      organizationId: formData.organizationId,
+      organizationName: formData.organizationLabel,
+      
+      // Lead source info
+      leadSourceId: formData.leadSourceId,
+      leadSourceLabel: formData.leadSourceLabel,
+      
+      // The lead ID itself - will be used for AD_User_ID
+      userId: displayLead.id,
+    };
+
+    console.log('📦 Sending to AddSaleOppor:', {
+      businessPartnerId: opportunityLeadData.businessPartnerId,
+      businessPartnerName: opportunityLeadData.businessPartnerName,
+      salesRepId: opportunityLeadData.salesRepId,
+      userId: opportunityLeadData.userId
+    });
+
+    navigation.navigate('AddSaleOppor', {
+      leadData: opportunityLeadData,
+      mode: 'fromLeadConversion'
+    });
+  };
+
+  // ============================================
+  // Handle status update with opportunity navigation
+  // ============================================
+  const handleStatusUpdate = (statusOption) => {
+    console.log('🔄 Status update requested:', statusOption);
+    
+    const newStatus = statusOption.identifier;
+    const oldStatus = formData.statusLabel;
+    
+    // If we're changing to "Converted" and we're in edit mode
+    if (isEditMode && newStatus === 'Converted' && oldStatus !== 'Converted') {
+      console.log('🎯 Status changing to Converted in edit mode');
+      
+      // First validate the form
+      if (!validateForm()) {
+        return; // Don't proceed if validation fails
+      }
+      
+      // Set converting state to show loading
+      setIsConverting(true);
+      
+      // First save the lead with the new status
+      const payload = {
+        Name: formData.name,
+        EMail: formData.email,
+        Phone: formData.phone || '',
+        Phone2: formData.phone2 || '',
+        Birthday: formData.birthday || null,
+        IsSalesLead: formData.salesLead,
+        IsVendorLead: formData.vendorLead,
+        BPName: formData.companyName || '',
+        AD_Org_ID: {
+          id: formData.organizationId,
+          identifier: formData.organizationLabel
+        },
+        SalesRep_ID: formData.salesRepId ? {
+          id: formData.salesRepId,
+          identifier: formData.salesRepLabel
+        } : null,
+        AD_Client_ID: {
+          id: formData.businessPartnerId,
+          identifier: formData.businessPartnerLabel
+        },
+        Description: formData.description || '',
+        IsActive: formData.active,
+        Value: formData.searchKey || '',
+        LeadSourceDescription: formData.leadSourceDesc || '',
+        LeadStatusDescription: formData.leadStatusDesc || '',
+        Comments: formData.comments || '',
+        LeadStatus: {
+          id: statusOption.id,
+          identifier: statusOption.identifier
+        },
+        LeadSource: {
+          id: formData.leadSourceId,
+          identifier: formData.leadSourceLabel
+        }
+      };
+
+      updateLeadMutation.mutate({
+        id: displayLead.id,
+        updates: payload
+      }, {
+        onSuccess: () => {
+          console.log('✅ Lead saved with Converted status');
+          
+          // Update local form state
+          setFormData(prev => ({
+            ...prev,
+            statusId: statusOption.id,
+            statusLabel: statusOption.identifier
+          }));
+          
+          // Close the status menu
+          setStatusMenuVisible(false);
+          
+          // Exit edit mode
+          setIsEditMode(false);
+          
+          // Refresh data
+          refetchLeadStatistics();
+          queryClient.invalidateQueries(['leads']);
+          queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+          
+          // Clear converting state
+          setIsConverting(false);
+          
+          // Show success message with option to create opportunity
+          Alert.alert(
+            'Lead Converted',
+            'Lead has been successfully converted. Would you like to create a sales opportunity now?',
+            [
+              {
+                text: 'Create Opportunity',
+                onPress: navigateToAddOpportunity
+              },
+              {
+                text: 'Later',
+                style: 'cancel'
+              }
+            ]
+          );
+        },
+        onError: (error) => {
+          console.error('❌ Failed to update lead status:', error);
+          Alert.alert('Error', 'Failed to update lead status. Please try again.');
+          setIsConverting(false);
+        }
+      });
+    } else {
+      // For other status changes or if not in edit mode, just update the form
+      updateFormData('statusId', statusOption.id);
+      updateFormData('statusLabel', statusOption.identifier);
+      setStatusMenuVisible(false);
+    }
+  };
+
   const handleSave = () => {
     // Validate form first
     if (!validateForm()) {
@@ -726,7 +901,28 @@ const LeadEdit = ({ route, navigation }) => {
       updates: payload
     }, {
       onSuccess: () => {
-        Alert.alert('Success', 'Lead updated successfully!');
+        console.log('✅ Lead updated successfully');
+        
+        // Check if status is Converted and we need to ask about opportunity
+        if (formData.statusLabel === 'Converted') {
+          Alert.alert(
+            'Lead Converted',
+            'Lead has been successfully converted. Would you like to create a sales opportunity now?',
+            [
+              {
+                text: 'Create Opportunity',
+                onPress: navigateToAddOpportunity
+              },
+              {
+                text: 'Later',
+                style: 'cancel'
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Success', 'Lead updated successfully!');
+        }
+        
         setIsEditMode(false);
         refetchLeadStatistics();
         queryClient.invalidateQueries(['leads']);
@@ -771,13 +967,6 @@ const LeadEdit = ({ route, navigation }) => {
   const handleClearSalesRep = () => {
     updateFormData('salesRepId', '');
     updateFormData('salesRepLabel', '');
-  };
-
-  // Handle status update
-  const handleStatusUpdate = (statusOption) => {
-    updateFormData('statusId', statusOption.id);
-    updateFormData('statusLabel', statusOption.identifier);
-    setStatusMenuVisible(false);
   };
 
   // Get current status UI config
@@ -831,7 +1020,7 @@ const LeadEdit = ({ route, navigation }) => {
                 onChangeText={(text) => updateFormData('name', text)}
                 placeholder="Enter name"
                 error={errors.name}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <TextField
@@ -840,7 +1029,7 @@ const LeadEdit = ({ route, navigation }) => {
                 onChangeText={(text) => updateFormData('email', text)}
                 placeholder="Enter email"
                 error={errors.email}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
                 keyboardType="email-address"
               />
 
@@ -853,7 +1042,7 @@ const LeadEdit = ({ route, navigation }) => {
                 focused={focusedField === 'phone'}
                 onFocus={() => setFocusedField('phone')}
                 onBlur={() => setFocusedField(null)}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <PhoneInputField
@@ -865,7 +1054,7 @@ const LeadEdit = ({ route, navigation }) => {
                 focused={focusedField === 'phone2'}
                 onFocus={() => setFocusedField('phone2')}
                 onBlur={() => setFocusedField(null)}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <TextField
@@ -874,7 +1063,7 @@ const LeadEdit = ({ route, navigation }) => {
                 onChangeText={(text) => updateFormData('birthday', text)}
                 placeholder="YYYY-MM-DD"
                 error={errors.birthday}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <DropdownField
@@ -885,7 +1074,7 @@ const LeadEdit = ({ route, navigation }) => {
                   updateFormData('leadSourceId', option.id);
                   updateFormData('leadSourceLabel', option.identifier);
                 }}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
                 placeholder="Select Lead Source"
               />
 
@@ -900,6 +1089,7 @@ const LeadEdit = ({ route, navigation }) => {
                     ]}
                     onPress={() => setSalesRepModalVisible(true)}
                     activeOpacity={0.7}
+                    disabled={isConverting}
                   >
                     {selectedRepName ? (
                       <View style={styles.selectedRepContainer}>
@@ -913,6 +1103,7 @@ const LeadEdit = ({ route, navigation }) => {
                             e.stopPropagation();
                             handleClearSalesRep();
                           }}
+                          disabled={isConverting}
                         >
                           <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
                         </TouchableOpacity>
@@ -945,7 +1136,7 @@ const LeadEdit = ({ route, navigation }) => {
                 value={formData.companyName}
                 onChangeText={(text) => updateFormData('companyName', text)}
                 placeholder="Enter company name"
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <DropdownField
@@ -956,7 +1147,7 @@ const LeadEdit = ({ route, navigation }) => {
                   updateFormData('businessPartnerId', option.id);
                   updateFormData('businessPartnerLabel', option.identifier);
                 }}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
                 placeholder="Select Business Partner"
               />
 
@@ -968,7 +1159,7 @@ const LeadEdit = ({ route, navigation }) => {
                   updateFormData('organizationId', option.id);
                   updateFormData('organizationLabel', option.identifier);
                 }}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
                 placeholder="Select Organization"
               />
 
@@ -977,7 +1168,7 @@ const LeadEdit = ({ route, navigation }) => {
                 value={formData.leadSourceDesc}
                 onChangeText={(text) => updateFormData('leadSourceDesc', text)}
                 placeholder="Enter lead source description"
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
             </View>
           </View>
@@ -993,7 +1184,7 @@ const LeadEdit = ({ route, navigation }) => {
                   label="Sales Lead"
                   value={formData.salesLead}
                   onValueChange={(val) => handleBooleanToggle('salesLead', val)}
-                  editable={isEditMode}
+                  editable={isEditMode && !isConverting}
                 />
                 
                 <View style={styles.booleanSpacer} />
@@ -1002,7 +1193,7 @@ const LeadEdit = ({ route, navigation }) => {
                   label="Vendor Lead"
                   value={formData.vendorLead}
                   onValueChange={(val) => handleBooleanToggle('vendorLead', val)}
-                  editable={isEditMode}
+                  editable={isEditMode && !isConverting}
                 />
               </View>
 
@@ -1011,7 +1202,7 @@ const LeadEdit = ({ route, navigation }) => {
                 value={formData.description}
                 onChangeText={(text) => updateFormData('description', text)}
                 placeholder="Enter description"
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <TextAreaField
@@ -1019,7 +1210,7 @@ const LeadEdit = ({ route, navigation }) => {
                 value={formData.comments}
                 onChangeText={(text) => updateFormData('comments', text)}
                 placeholder="Enter comments"
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
             </View>
           </View>
@@ -1134,17 +1325,24 @@ const LeadEdit = ({ route, navigation }) => {
                       style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
                       onPress={() => setStatusMenuVisible(true)}
                       activeOpacity={0.7}
+                      disabled={isConverting}
                     >
-                      {statusUI.showDot && (
-                        <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                      {isConverting ? (
+                        <ActivityIndicator size="small" color={statusUI.badgeColor} />
+                      ) : (
+                        <>
+                          {statusUI.showDot && (
+                            <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                          )}
+                          {statusUI.showCheck && (
+                            <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                          )}
+                          <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
+                            {statusUI.badgeText}
+                          </Text>
+                          <AntDesign name="down" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                        </>
                       )}
-                      {statusUI.showCheck && (
-                        <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
-                      )}
-                      <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                        {statusUI.badgeText}
-                      </Text>
-                      <AntDesign name="down" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
                     </TouchableOpacity>
                   }
                 >
@@ -1182,6 +1380,7 @@ const LeadEdit = ({ route, navigation }) => {
                 activeOpacity={0.7}
                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 style={styles.activityIconWrapper}
+                disabled={isConverting}
               >
                 <View style={styles.addActivityIcon}>
                   <Ionicons name="alarm-outline" size={Layout.iconSize.sm} color={Colors.textPrimary} />
@@ -1269,13 +1468,13 @@ const LeadEdit = ({ route, navigation }) => {
             <TouchableOpacity
               style={[
                 styles.saveButton,
-                updateLeadMutation.isLoading && styles.saveButtonDisabled
+                (updateLeadMutation.isLoading || isConverting) && styles.saveButtonDisabled
               ]}
               onPress={handleSave}
-              disabled={updateLeadMutation.isLoading}
+              disabled={updateLeadMutation.isLoading || isConverting}
               activeOpacity={0.7}
             >
-              {updateLeadMutation.isLoading ? (
+              {updateLeadMutation.isLoading || isConverting ? (
                 <ActivityIndicator size="small" color={Colors.textInverse} />
               ) : (
                 <>
@@ -1289,6 +1488,7 @@ const LeadEdit = ({ route, navigation }) => {
               style={styles.cancelButton}
               onPress={() => setIsEditMode(false)}
               activeOpacity={0.7}
+              disabled={isConverting}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -1353,7 +1553,7 @@ const LeadEdit = ({ route, navigation }) => {
                       {salesRepSearch.trim()
                         ? `No results for "${salesRepSearch}"`
                         : 'No sales representatives available'}
-                    </Text>
+                      </Text>
                   </View>
                 }
               />
@@ -1365,6 +1565,7 @@ const LeadEdit = ({ route, navigation }) => {
   );
 };
 
+// All your existing styles remain exactly the same
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
@@ -1377,8 +1578,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: verticalScale(20),
   },
-
-  // Header Card - Minimized Spacing
   headerCard: {
     backgroundColor: Colors.cardBackground,
     borderRadius: Layout.borderRadius.md,
@@ -1388,14 +1587,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   headerContent: {
@@ -1441,8 +1636,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginLeft: Spacing.xxs,
   },
-  
-  // Header Right - Status and Activity Stacked with No Space
   headerRight: {
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
@@ -1451,8 +1644,6 @@ const styles = StyleSheet.create({
     marginTop: 0,
     paddingTop: 0,
   },
-
-  // Contact Info Row - Compact
   contactInfoRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1474,8 +1665,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
   },
-
-  // Status Badge
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1486,15 +1675,13 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
   },
   dot: {
     width: scale(6),
     height: scale(6),
     borderRadius: scale(3),
   },
-  
-  // Activity Icon - Clean, No Background
   addActivityIcon: {
     position: 'relative',
     flexDirection: 'row',
@@ -1509,8 +1696,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderRadius: scale(8),
   },
-
-  // Status Note
   statusNote: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1524,11 +1709,9 @@ const styles = StyleSheet.create({
   statusNoteText: {
     flex: 1,
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.info,
   },
-
-  // Tabs with Integrated Arrow Connector - Touches Card
   tabsWrapper: {
     marginHorizontal: Spacing.md,
     marginBottom: 0,
@@ -1540,16 +1723,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     padding: Spacing.xxs,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
-    
     position: 'relative',
     zIndex: 5,
   },
@@ -1573,14 +1751,10 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     backgroundColor: Colors.primary,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   tabButtonText: {
@@ -1592,8 +1766,6 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontFamily: Typography.fontFamily.semiBold,
   },
-  
-  // Integrated Arrow - Part of Active Tab, Touches Both Tab and Card
   activeTabArrowContainer: {
     position: 'absolute',
     bottom: -verticalScale(8),
@@ -1614,8 +1786,6 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     borderTopColor: Colors.primary,
   },
-
-  // Section Cards
   sectionCard: {
     backgroundColor: Colors.cardBackground,
     borderRadius: Layout.borderRadius.md,
@@ -1625,23 +1795,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
-  
-  // Activity Section Card - Minimized
   activitySectionCard: {
     marginTop: verticalScale(8),
     marginBottom: Spacing.sm,
   },
-  
   sectionHeader: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -1651,14 +1814,12 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: Typography.fontSize.large,
-    fontFamily: Typography.fontFamily.bold, // Already bold
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   sectionContent: {
     padding: Spacing.sm,
   },
-
-  // Boolean Row for two swipe buttons side by side
   booleanRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1667,8 +1828,6 @@ const styles = StyleSheet.create({
   booleanSpacer: {
     width: Spacing.md,
   },
-
-  // View Mode Row - No Icons, Clear Label/Value Hierarchy
   viewRow: {
     marginBottom: Spacing.sm,
     paddingBottom: Spacing.xs,
@@ -1676,7 +1835,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   viewLabel: {
-    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
@@ -1684,18 +1843,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   viewValue: {
-    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     lineHeight: Typography.lineHeight.h4,
   },
-
-  // Inline Container for Boolean Fields (label on top, switch/chip below)
   inlineContainer: {
     flex: 1,
   },
   inlineLabel: {
-    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
@@ -1706,8 +1863,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
   },
-
-  // Value Chip for Boolean Fields in View Mode
   valueChip: {
     alignSelf: 'flex-start',
     paddingHorizontal: Spacing.md,
@@ -1726,7 +1881,7 @@ const styles = StyleSheet.create({
   },
   valueChipText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     textAlign: 'center',
   },
   valueChipTextSuccess: {
@@ -1735,42 +1890,34 @@ const styles = StyleSheet.create({
   valueChipTextDefault: {
     color: Colors.textSecondary,
   },
-
-  // Edit Mode Field Styles
   editField: {
     marginBottom: Spacing.sm,
   },
   editLabel: {
-    fontSize: Typography.fontSize.small, // SMALL and BOLD
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  
-  // Input Wrapper with Shadow and Elevation
   inputWrapper: {
     backgroundColor: Colors.backgroundLight,
     borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
     justifyContent: 'center',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   input: {
     height: 42,
     paddingHorizontal: Spacing.sm,
     paddingVertical: verticalScale(8),
-    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     textAlignVertical: 'center',
@@ -1792,12 +1939,10 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.error,
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     marginTop: Spacing.xxs,
     marginLeft: Spacing.xs,
   },
-
-  // Phone Input Styles - Fixed with proper vertical padding
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1814,20 +1959,14 @@ const styles = StyleSheet.create({
     paddingVertical: verticalScale(10),
     minWidth: scale(85),
     height: 42,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   countryPickerFocused: {
     borderColor: Colors.primary,
-    
-    // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -1858,20 +1997,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     justifyContent: 'center',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   phoneInputWrapperFocused: {
     borderColor: Colors.primary,
-    
-    // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -1885,7 +2018,7 @@ const styles = StyleSheet.create({
     height: 42,
     paddingHorizontal: Spacing.sm,
     paddingVertical: verticalScale(8),
-    fontSize: Typography.fontSize.small, // Same size as label but NOT bold
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     textAlignVertical: 'center',
@@ -1894,8 +2027,6 @@ const styles = StyleSheet.create({
   flexible: {
     flex: 1,
   },
-
-  // Dropdown Input - Fixed with proper vertical padding
   dropdownInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1907,24 +2038,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 0,
     height: 42,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   dropdownText: {
     fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.bold, // BOLD
+    fontFamily: Typography.fontFamily.bold,
     flex: 1,
   },
-
-  // Sales Rep Selector - Fixed with proper vertical padding
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1936,14 +2061,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: 0,
     height: 42,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   selectorEmpty: {
@@ -1963,7 +2084,7 @@ const styles = StyleSheet.create({
   selectedRepText: {
     fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.bold, // BOLD
+    fontFamily: Typography.fontFamily.bold,
   },
   placeholderText: {
     fontSize: Typography.fontSize.small,
@@ -1973,8 +2094,6 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: Spacing.xxs,
   },
-
-  // Activity Styles - Minimized
   activityItem: {
     flexDirection: 'row',
     paddingVertical: Spacing.xs,
@@ -2000,7 +2119,7 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold, // Only activity titles are BOLD
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   activityStatusBadge: {
@@ -2010,11 +2129,11 @@ const styles = StyleSheet.create({
   },
   activityStatusText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
   },
   activityDescription: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
   },
@@ -2028,7 +2147,7 @@ const styles = StyleSheet.create({
   },
   activityMetaText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
   separator: {
@@ -2036,8 +2155,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
     marginVertical: Spacing.xxs,
   },
-
-  // Loading & Empty States - Minimized
   loadingContainer: {
     alignItems: 'center',
     paddingVertical: verticalScale(16),
@@ -2059,8 +2176,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     marginBottom: Spacing.sm,
   },
-
-  // Action Buttons
   actionButtons: {
     marginHorizontal: Spacing.md,
     marginTop: Spacing.sm,
@@ -2076,14 +2191,10 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
     height: 48,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 4,
   },
   saveButtonDisabled: {
@@ -2095,7 +2206,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: Colors.textInverse,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold, // Keep as is
+    fontFamily: Typography.fontFamily.semiBold,
   },
   cancelButton: {
     alignItems: 'center',
@@ -2106,23 +2217,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundLight,
     height: 48,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   cancelButtonText: {
     color: Colors.textSecondary,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold, // Keep as is
+    fontFamily: Typography.fontFamily.semiBold,
   },
-
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
@@ -2133,14 +2238,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Layout.borderRadius.lg,
     borderTopRightRadius: Layout.borderRadius.lg,
     maxHeight: '80%',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 8,
   },
   modalHeader: {
@@ -2153,7 +2254,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.bold, // Only title is bold
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   modalSearch: {
@@ -2167,21 +2268,17 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.sm,
     gap: Spacing.xs,
     height: 42,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   modalSearchInput: {
     flex: 1,
     height: 42,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     paddingVertical: verticalScale(8),
     textAlignVertical: 'center',
@@ -2195,7 +2292,7 @@ const styles = StyleSheet.create({
   modalLoadingText: {
     marginTop: Spacing.sm,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
   modalEmpty: {
@@ -2205,12 +2302,10 @@ const styles = StyleSheet.create({
   modalEmptyText: {
     marginTop: Spacing.sm,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textTertiary,
     textAlign: 'center',
   },
-
-  // Rep Item Styles
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2236,19 +2331,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   repAvatarText: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold, // Keep as is
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textInverse,
   },
   repDetails: {
@@ -2256,17 +2347,15 @@ const styles = StyleSheet.create({
   },
   repName: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold, // BOLD
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
     marginBottom: Spacing.xxs,
   },
   repEmail: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular, // NOT bold
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
-
-  // Menu Styles
   menuItemTitle: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
@@ -2275,8 +2364,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
   },
-
-  // Error States
   errorContainer: {
     flex: 1,
     alignItems: 'center',
@@ -2285,7 +2372,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.semiBold, // Keep as is
+    fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
     marginTop: Spacing.md,
     marginBottom: Spacing.sm,
@@ -2298,20 +2385,16 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     height: 48,
     justifyContent: 'center',
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 4,
   },
   retryButtonText: {
     color: Colors.textInverse,
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold, // Keep as is
+    fontFamily: Typography.fontFamily.semiBold,
   },
 });
 

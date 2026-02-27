@@ -1,4 +1,5 @@
-// screens/CrmScreen.js - COMPLETE FIXED VERSION with debug and force refresh
+// screens/CrmScreen.js - UPDATED with minimal blue indicator line design
+
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -31,9 +32,14 @@ import FollowupScreen from '../CRMFollowupsScreen/FollowupScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import moment from 'moment';
-import CustomHeader from '../../components/CustomHeader'; 
+import CustomHeader from '../../components/CustomHeader';
 
-const screenWidth = Dimensions.get('window').width;
+// Import theme
+import theme from '../../constants/CRMTheme/CRMTheme';
+
+// Destructure theme for easy access
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale, screen } = Layout;
 
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
@@ -460,41 +466,78 @@ const CrmScreen = ({ navigation }) => {
         
         {/* Content */}
         <View style={styles.container}>
-          {/* UPDATED: Full Blue Tab Container with active indicator */}
-          <View style={styles.tabContainer}>
-            {/* Full Blue Background for active tab */}
-            <View 
-              style={[
-                styles.activeTabBackground,
-                activeTab === 'Leads' && styles.activeTabLeads,
-                activeTab === 'SalesOpportunity' && styles.activeTabSales,
-                activeTab === 'FollowUps' && styles.activeTabFollowups,
-              ]} 
-            />
-            
-            <TouchableOpacity
-              onPress={() => handleTabPress('Leads')}
-              style={[styles.tabButton, activeTab === 'Leads' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'Leads' && styles.activeTabText]}>
-                Leads
-              </Text>
-            </TouchableOpacity>
+          {/* MINIMAL TAB DESIGN - Blue indicator line only */}
+          <View style={styles.tabsWrapper}>
+            <View style={styles.tabsContainer}>
+              {/* Leads Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('Leads')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons 
+                    name="people-outline" 
+                    size={scale(20)} 
+                    color={activeTab === 'Leads' ? Colors.primary : Colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'Leads' && styles.activeTabText
+                  ]}>
+                    Leads
+                  </Text>
+                </View>
+                {activeTab === 'Leads' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleTabPress('SalesOpportunity')}
-              style={[styles.tabButton, activeTab === 'SalesOpportunity' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'SalesOpportunity' && styles.activeTabText]}>
-                Sales Opportunity
-              </Text>
-            </TouchableOpacity>
+              {/* Sales Opportunity Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('SalesOpportunity')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons 
+                    name="trending-up-outline" 
+                    size={scale(20)} 
+                    color={activeTab === 'SalesOpportunity' ? Colors.primary : Colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'SalesOpportunity' && styles.activeTabText,
+                    styles.salesTabText
+                  ]} 
+                  numberOfLines={1}
+                  ellipsizeMode="tail">
+                    Opportunities
+                  </Text>
+                </View>
+                {activeTab === 'SalesOpportunity' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleTabPress('FollowUps')}
-              style={[styles.tabButton, activeTab === 'FollowUps' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]}>
-                Follow ups
-              </Text>
-            </TouchableOpacity>
+              {/* Follow Ups Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('FollowUps')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons 
+                    name="alarm-outline" 
+                    size={scale(20)} 
+                    color={activeTab === 'FollowUps' ? Colors.primary : Colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'FollowUps' && styles.activeTabText
+                  ]}>
+                    Follow Ups
+                  </Text>
+                </View>
+                {activeTab === 'FollowUps' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Content based on active tab */}
@@ -507,8 +550,8 @@ const CrmScreen = ({ navigation }) => {
                   <RefreshControl
                     refreshing={isRefreshing}
                     onRefresh={handleRefresh}
-                    colors={['#2F4FE3']}
-                    tintColor="#2F4FE3"
+                    colors={[Colors.primary]}
+                    tintColor={Colors.primary}
                   />
                 }
                 key={`sales-${forceUpdate}`} // Force re-render on cache update
@@ -539,8 +582,8 @@ const CrmScreen = ({ navigation }) => {
                   <RefreshControl
                     refreshing={isRefreshing}
                     onRefresh={handleRefresh}
-                    colors={['#2F4FE3']}
-                    tintColor="#2F4FE3"
+                    colors={[Colors.primary]}
+                    tintColor={Colors.primary}
                   />
                 }
                 key={`leads-${forceUpdate}`} // Force re-render on cache update
@@ -580,7 +623,7 @@ const CrmScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('AddLeads')}
             style={styles.floatingButton}
             disabled={isRefreshing}>
-            <Text style={styles.floatingButtonText}>+</Text>
+            <Ionicons name="add" size={scale(30)} color={Colors.textInverse} />
           </TouchableOpacity>
         )}
 
@@ -588,9 +631,9 @@ const CrmScreen = ({ navigation }) => {
         {showSalesCard && (
           <TouchableOpacity
             onPress={() => navigation.navigate('AddSaleOppor')}
-            style={[styles.floatingButton, {backgroundColor: '#2F4FE3'}]}
+            style={styles.floatingButton}
             disabled={isRefreshing}>
-            <Text style={styles.floatingButtonText}>+</Text>
+            <Ionicons name="add" size={scale(30)} color={Colors.textInverse} />
           </TouchableOpacity>
         )}
       </>
@@ -598,127 +641,118 @@ const CrmScreen = ({ navigation }) => {
   );
 };
 
-// UPDATED: Styles with full blue tab container
+// MINIMAL TAB STYLES - Blue indicator line only
 const styles = StyleSheet.create({
-   container: {
+  container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   tabContentContainer: {
     flex: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: Spacing.md,
   },
   followupsContainer: {
     flex: 1,
   },
-  // UPDATED: Responsive Tab Container
-  tabContainer: {
+  
+  // MINIMAL TAB DESIGN
+  tabsWrapper: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    marginTop: screenWidth * 0.05, // 5% of screen width
-    marginBottom: screenWidth * 0.03, // 3% of screen width
-    marginHorizontal: screenWidth * 0.08, // 8% of screen width
-    borderRadius: 20,
-    height: screenWidth * 0.08, // 10% of screen width (responsive height)
-    minHeight: 35, // Minimum height
-    overflow: 'hidden',
-    position: 'relative',
-    justifyContent: 'space-between', // Distribute space evenly
-    alignItems: 'center', // Center items vertically
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.round,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xxs,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  // Active tab blue background
-  activeTabBackground: {
-    position: 'absolute',
-    backgroundColor: '#2F4FE3',
-    height: '100%',
-    width: '33.33%', // Each tab takes 1/3 of the width
-    top: 0,
-    transition: 'left 0.3s ease-in-out',
-    borderRadius: 20,
-  },
-  // Positions for active tab
-  activeTabLeads: {
-    left: 0,
-  },
-  activeTabSales: {
-    left: '33.33%',
-  },
-  activeTabFollowups: {
-    left: '66.66%',
-  },
-  tabButton: {
+  tabItem: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2,
-    height: '100%',
-    minWidth: screenWidth * 0.25, // Minimum width for each tab
-    paddingHorizontal: screenWidth * 0.01, // Small horizontal padding
+    paddingVertical: verticalScale(8),
+    position: 'relative',
   },
-  activeTabButton: {
-    // Additional styles for active tab button if needed
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   tabText: {
-    color: '#333',
-    fontSize: screenWidth * 0.030, // Responsive font size (3.5% of screen width)
-    fontFamily: 'K2D-Medium',
-    textAlign: 'left', // Small padding to prevent text cut-off
-    includeFontPadding: false, // Remove extra font padding
-    textAlignVertical: 'center', // Center text vertically
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   activeTabText: {
-    color: '#fff',
-    fontFamily: 'K2D-Medium',
-    fontSize: screenWidth * 0.030, // Same as inactive tabs
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
+  // Special style for sales tab
+  salesTabText: {
+    fontSize: Typography.fontSize.xsmall,
+    maxWidth: Layout.screen.width * 0.25,
+  },
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    left: '20%',
+    right: '20%',
+    height: 3,
+    backgroundColor: Colors.primary,
+    borderRadius: Layout.borderRadius.round,
+  },
+  
   // Floating Action Button
   floatingButton: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#2F4FE3',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: Layout.floatingButton.bottom,
+    right: Layout.floatingButton.right,
+    backgroundColor: Colors.primary,
+    width: Layout.floatingButton.size,
+    height: Layout.floatingButton.size,
+    borderRadius: Layout.borderRadius.round,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: Colors.shadow,
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.3,
     shadowRadius: 3,
-    zIndex: 10,
+    zIndex: 1000,
   },
-  floatingButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-Bold',
-    fontSize: 20,
-  },
+  
+  // Error states
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.xl,
   },
   errorText: {
-    fontSize: 16,
-    color: '#ff0000',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.error,
     textAlign: 'center',
-    marginBottom: 20,
-    fontFamily: 'K2D-Medium',
+    marginBottom: Spacing.lg,
+    fontFamily: Typography.fontFamily.medium,
   },
   retryButton: {
-    backgroundColor: '#2F4FE3',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Layout.borderRadius.md,
   },
   retryButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
 });
 

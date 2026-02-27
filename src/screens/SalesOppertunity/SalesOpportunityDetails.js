@@ -848,42 +848,53 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             <View style={styles.headerLeft}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  {(isEditMode ? formData.name : opportunityName).charAt(0).toUpperCase()}
+                  {/* Show first letter of company name instead of opportunity name */}
+                  {businessPartnerName && businessPartnerName !== 'No Company' 
+                    ? businessPartnerName.charAt(0).toUpperCase()
+                    : opportunityName.charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View style={styles.headerInfo}>
                 {isEditMode ? (
-                  <TextInput
-                    style={styles.editNameInput}
-                    value={formData.name}
-                    onChangeText={(text) => setFormData({ ...formData, name: text })}
-                    placeholder="Opportunity Name"
-                    placeholderTextColor={Colors.textTertiary}
-                  />
+                  <>
+                    <TextInput
+                      style={styles.editNameInput}
+                      value={formData.name}
+                      onChangeText={(text) => setFormData({ ...formData, name: text })}
+                      placeholder="Opportunity Name"
+                      placeholderTextColor={Colors.textTertiary}
+                    />
+                    <TextInput
+                      style={styles.editCompanyInput}
+                      value={formData.businessPartnerName}
+                      onChangeText={(text) => setFormData({ ...formData, businessPartnerName: text })}
+                      placeholder="Company Name"
+                      placeholderTextColor={Colors.textTertiary}
+                      editable={false}
+                    />
+                  </>
                 ) : (
-                  <Text style={styles.opportunityName} numberOfLines={1}>
-                    {opportunityName}
-                  </Text>
-                )}
-                
-                {/* Business Partner under name */}
-                {isEditMode ? (
-                  <TextInput
-                    style={styles.editCompanyInput}
-                    value={formData.businessPartnerName}
-                    onChangeText={(text) => setFormData({ ...formData, businessPartnerName: text })}
-                    placeholder="Company Name"
-                    placeholderTextColor={Colors.textTertiary}
-                    editable={false}
-                  />
-                ) : (
-                  businessPartnerName && businessPartnerName !== 'No Company' && (
-                    <TouchableOpacity onPress={handleBusinessPartnerPress} activeOpacity={0.7}>
-                      <Text style={styles.companyName} numberOfLines={1}>
-                        {businessPartnerName}
+                  <>
+                    {/* Show Company Name as main header instead of Opportunity Name */}
+                    {businessPartnerName && businessPartnerName !== 'No Company' ? (
+                      <TouchableOpacity onPress={handleBusinessPartnerPress} activeOpacity={0.7}>
+                        <Text style={styles.companyNameHeader} numberOfLines={1}>
+                          {businessPartnerName}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.companyNameHeader} numberOfLines={1}>
+                        No Company
+                      </Text>
+                    )}
+                    
+                    {/* Show Opportunity Name as subtitle below */}
+                    <TouchableOpacity onPress={() => {}} activeOpacity={0.7}>
+                      <Text style={styles.opportunitySubtitle} numberOfLines={1}>
+                        {opportunityName}
                       </Text>
                     </TouchableOpacity>
-                  )
+                  </>
                 )}
               </View>
             </View>
@@ -1062,35 +1073,35 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm || 8,
   },
   avatar: {
-    width: scale(36),
-    height: scale(36),
-    borderRadius: scale(18),
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
     backgroundColor: Colors.primary || '#2F4FE3',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm || 8,
   },
   avatarText: {
-    fontSize: Typography.fontSize.medium || 14,
+    fontSize: Typography.fontSize.h4 || 16,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textInverse || '#FFFFFF',
   },
   headerInfo: {
     flex: 1,
   },
-  opportunityName: {
-    fontSize: Typography.fontSize.medium || 14,
+  companyNameHeader: {
+    fontSize: Typography.fontSize.h4 || 16,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textPrimary || '#333333',
     marginBottom: 2,
   },
-  companyName: {
-    fontSize: Typography.fontSize.xsmall || 10,
+  opportunitySubtitle: {
+    fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
     color: Colors.textSecondary || '#666666',
   },
   editNameInput: {
-    fontSize: Typography.fontSize.medium || 14,
+    fontSize: Typography.fontSize.h4 || 16,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textPrimary || '#333333',
     padding: 0,
@@ -1099,7 +1110,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border || '#E0E0E0',
   },
   editCompanyInput: {
-    fontSize: Typography.fontSize.xsmall || 10,
+    fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
     color: Colors.textSecondary || '#666666',
     padding: 0,

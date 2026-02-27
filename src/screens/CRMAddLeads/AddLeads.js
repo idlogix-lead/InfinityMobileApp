@@ -497,18 +497,7 @@ const AddLeads = () => {
             </View>
           </View>
 
-          {/* Read-only fields */}
-          <FormInput
-            label="Organization"
-            value={formData.organization}
-            editable={false}
-          />
-          
-          <FormInput
-            label="Is Active"
-            value="True"
-            editable={false}
-          />
+  
         </FormSection>
 
         {/* Submit Button */}

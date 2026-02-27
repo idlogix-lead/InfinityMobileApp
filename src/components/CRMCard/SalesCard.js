@@ -1,13 +1,20 @@
 // components/CRMCard/MinimalOpportunityCard.js - Status top, amount middle, probability bottom with dynamic currency
+// UPDATED: Added phone and mail icons matching CRMCard
 import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  Linking,
+  Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import AntDesign from 'react-native-vector-icons/AntDesign';
 import theme from '../../constants/CRMTheme/CRMTheme';
+import moment from 'moment';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -15,9 +22,12 @@ const { scale, verticalScale } = Layout;
 const OpportunityCard = ({ 
   opportunity,
   onPress,
+  onActivityPress,
   showStatus = true,
   showAmount = true,
 }) => {
+  const navigation = useNavigation();
+
   // Extract opportunity data with fallbacks for both original and transformed data
   const opportunityName = opportunity?.Name || 
                          opportunity?.DocumentNo || 
@@ -46,6 +56,22 @@ const OpportunityCard = ({
     opportunity?.ContactName || 
     'Unknown Contact';
 
+  // Extract contact info for phone and email
+  const leadEmail = opportunity?.AD_User_ID?.EMail || opportunity?.ContactEmail;
+  const leadPhone = opportunity?.AD_User_ID?.Phone || opportunity?.ContactPhone;
+
+  // Extract lead/contact ID for navigation
+  const leadId = opportunity?.AD_User_ID?.id || opportunity?.userId;
+
+  // Extract lead/contact data for activity creation
+  const leadData = {
+    id: leadId,
+    Name: leadName,
+    EMail: leadEmail,
+    Phone: leadPhone,
+    BPName: businessPartner,
+  };
+
   // Get status
   const status = 
     opportunity?.C_OpportunityStatus?.identifier || 
@@ -69,11 +95,12 @@ const OpportunityCard = ({
 
   // Format date
   const formattedDate = expectedCloseDate 
-    ? new Date(expectedCloseDate).toLocaleDateString('en-PK', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      })
+    ? moment(expectedCloseDate).format('DD MMM YYYY')
+    : 'No date';
+
+  // Format relative time for activity
+  const relativeTime = expectedCloseDate 
+    ? moment(expectedCloseDate).fromNow()
     : 'No date';
 
   // Get status color
@@ -88,14 +115,56 @@ const OpportunityCard = ({
 
   const statusColor = getStatusColor(status);
 
+  // Handle phone press
+  const handlePhonePress = (e) => {
+    e.stopPropagation();
+    if (leadPhone) {
+      Linking.openURL(`tel:${leadPhone}`);
+    } else {
+      Alert.alert('Info', 'No phone number available');
+    }
+  };
+
+  // Handle email press
+  const handleEmailPress = (e) => {
+    e.stopPropagation();
+    if (leadEmail) {
+      Linking.openURL(`mailto:${leadEmail}`);
+    } else {
+      Alert.alert('Info', 'No email address available');
+    }
+  };
+
+  // Handle activity icon press - navigates to Add Activity form
+  const handleActivityPress = (e) => {
+    e.stopPropagation(); // Prevent triggering the card's onPress
+    
+    if (onActivityPress) {
+      // If custom onActivityPress is provided, use it
+      onActivityPress(opportunity, leadData);
+    } else if (leadId) {
+      // Default behavior: navigate to AddActivity with lead data
+      navigation.navigate('AddActivity', {
+        data: leadData,
+        mode: 'create',
+        onGoBack: () => {
+          // Optional: Add any refresh logic here
+          console.log('Activity added for opportunity:', opportunity.id);
+        }
+      });
+    } else {
+      console.warn('Cannot add activity: No lead ID found');
+    }
+  };
+
   return (
     <TouchableOpacity
       style={styles.container}
       onPress={() => onPress && onPress(opportunity)}
       activeOpacity={0.7}
     >
-      {/* Left Section - Icon and Main Info */}
-      <View style={styles.leftSection}>
+      <View style={styles.row}>
+        {/* Left Section - Avatar/Icon */}
         <View style={[styles.iconContainer, { backgroundColor: statusColor + '20' }]}>
           <MaterialCommunityIcons 
             name="star" 
@@ -103,43 +172,88 @@ const OpportunityCard = ({
             color={statusColor} 
           />
         </View>
-        
-        <View style={styles.infoContainer}>
-          <Text style={styles.opportunityName} numberOfLines={1}>
-            {opportunityName}
+
+        {/* Center Section - Name, Company, Last Activity */}
+        <View style={styles.center}>
+          
+          <Text style={styles.company} numberOfLines={1}>
+            {businessPartner}
           </Text>
-          <View style={styles.subInfoRow}>
-            <MaterialCommunityIcons name="office-building" size={scale(12)} color={Colors.textTertiary} />
-            <Text style={styles.subInfoText} numberOfLines={1}>
-              {businessPartner}
-            </Text>
-          </View>
-          <View style={styles.subInfoRow}>
-            <MaterialCommunityIcons name="account" size={scale(12)} color={Colors.textTertiary} />
-            <Text style={styles.subInfoText} numberOfLines={1}>
-              {leadName}
-            </Text>
+          <Text style={styles.lastText} numberOfLines={1}>
+            Lead: {leadName} · Expected: {relativeTime}
+          </Text>
+        </View>
+
+        {/* Right Section - Status Badge and Icons */}
+        <View style={styles.right}>
+          {/* Status Badge */}
+          {showStatus && (
+            <View style={[styles.badge, { backgroundColor: statusColor + '20' }]}>
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: statusColor },
+                ]}
+              />
+              <Text style={[styles.badgeText, { color: statusColor }]}>
+                {status}
+              </Text>
+            </View>
+          )}
+
+          {/* Icon Row - Phone, Mail, Activity - Matching CRMCard */}
+          <View style={styles.iconRow}>
+            {/* Phone Icon */}
+            {leadPhone && (
+              <TouchableOpacity onPress={handlePhonePress} style={styles.iconButton}>
+                <Ionicons
+                  name="call-outline"
+                  size={Layout.iconSize.sm}
+                  color={Colors.textPrimary}
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* Email Icon */}
+            {leadEmail && (
+              <TouchableOpacity onPress={handleEmailPress} style={styles.iconButton}>
+                <Ionicons
+                  name="mail-outline"
+                  size={Layout.iconSize.sm}
+                  color={Colors.textPrimary}
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* Activity Icon with Plus */}
+            <TouchableOpacity 
+              onPress={handleActivityPress} 
+              style={styles.iconButton}
+            >
+              <View style={styles.addActivity}>
+                <Ionicons
+                  name="alarm-outline"
+                  size={Layout.iconSize.sm}
+                  color={Colors.textPrimary}
+                />
+                <AntDesign
+                  name="pluscircle"
+                  size={scale(10)}
+                  color={Colors.textPrimary}
+                  style={styles.plus}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Right Section - Status at top, Amount middle, Probability bottom */}
-      <View style={styles.rightSection}>
-        {/* Status at top */}
-        {showStatus && (
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {status}
-            </Text>
-          </View>
-        )}
-        
-        {/* Amount in middle - with dynamic currency from opportunity */}
+      {/* Bottom Row - Amount and Probability */}
+      <View style={styles.bottomRow}>
         {showAmount && (
           <Text style={styles.amount}>{formattedAmount}</Text>
         )}
         
-        {/* Probability with bar at bottom */}
         {probability > 0 && (
           <View style={styles.probabilityContainer}>
             <View style={styles.probabilityHeader}>
@@ -155,13 +269,6 @@ const OpportunityCard = ({
             </View>
           </View>
         )}
-        
-        {/* Expected Closing Date at bottom right */}
-        <View style={styles.dateContainer}>
-          <MaterialCommunityIcons name="calendar" size={scale(10)} color={Colors.textTertiary} />
-          <Text style={styles.dateLabel}>Expected closing date:</Text>
-          <Text style={styles.dateText}>{formattedDate}</Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -169,7 +276,6 @@ const OpportunityCard = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     backgroundColor: Colors.cardBackground || '#FFFFFF',
     borderRadius: Layout.borderRadius.md || 6,
     padding: Spacing.sm || 8,
@@ -187,70 +293,108 @@ const styles = StyleSheet.create({
     // Elevation for Android
     elevation: 2,
   },
-  leftSection: {
+  row: {
     flexDirection: 'row',
-    flex: 1,
+    alignItems: 'center',
   },
   iconContainer: {
     width: scale(40),
     height: scale(40),
-    borderRadius: Layout.borderRadius.sm || 4,
+    borderRadius: Layout.borderRadius.round || 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm || 8,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
-  infoContainer: {
+  center: {
     flex: 1,
-    justifyContent: 'center',
+    marginRight: Spacing.xs,
   },
   opportunityName: {
-    fontSize: Typography.fontSize.small || 12,
+    fontSize: Typography.fontSize.medium || 14,
     fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
     color: Colors.textPrimary || '#333333',
     marginBottom: Spacing.xxs || 2,
   },
-  subInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xxs || 2,
-    marginBottom: Spacing.xxs || 1,
-  },
-  subInfoText: {
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textSecondary || '#666666',
-    flex: 1,
-  },
-  rightSection: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    minWidth: scale(130),
-  },
-  
-  // Status Badge at top
-  statusBadge: {
-    paddingHorizontal: Spacing.xs || 4,
-    paddingVertical: Spacing.xxs || 1,
-    borderRadius: Layout.borderRadius.round || 20,
+  company: {
+    fontSize: Typography.fontSize.medium || 14,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textPrimary || '#33333333',
     marginBottom: Spacing.xxs || 2,
   },
-  statusText: {
-    fontSize: Typography.fontSize.xsmall || 8,
-    fontFamily: Typography.fontFamily.medium || 'K2D-Medium',
+  lastText: {
+    fontSize: Typography.fontSize.xsmall || 10,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textTertiary || '#999999',
+  },
+  right: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   
-  // Amount in middle - with dynamic currency
+  // Status Badge - Matching CRMCard exactly
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm || 8,
+    paddingVertical: Spacing.xxs || 2,
+    borderRadius: Layout.borderRadius.round || 20,
+    marginBottom: Spacing.xs || 4,
+  },
+  badgeText: {
+    fontSize: Typography.fontSize.xsmall || 10,
+    fontFamily: Typography.fontFamily.medium || 'K2D-Medium',
+  },
+  dot: {
+    width: scale(8),
+    height: scale(8),
+    borderRadius: scale(4),
+    marginRight: Spacing.xxs || 2,
+  },
+  
+  // Icon Row - Matching CRMCard exactly
+  iconRow: {
+    flexDirection: 'row',
+    gap: Spacing.md || 12,
+    marginTop: Spacing.md || 12,
+  },
+  iconButton: {
+    padding: Spacing.xxs || 2,
+  },
+  addActivity: {
+    position: 'relative',
+  },
+  plus: {
+    position: 'absolute',
+    right: -scale(5),
+    bottom: -scale(5),
+    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    borderRadius: scale(10),
+  },
+  
+  // Bottom Row - Amount and Probability
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.sm || 8,
+    paddingTop: Spacing.xs || 4,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight || '#F0F0F0',
+  },
+  
+  // Amount
   amount: {
     fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.primary || '#2F4FE3',
-    marginBottom: Spacing.xxs || 2,
   },
   
-  // Probability at bottom
+  // Probability
   probabilityContainer: {
-    width: '100%',
-    marginBottom: Spacing.xxs || 1,
+    flex: 1,
+    marginLeft: Spacing.sm || 8,
   },
   probabilityHeader: {
     flexDirection: 'row',
@@ -275,26 +419,6 @@ const styles = StyleSheet.create({
     color: Colors.primary || '#2F4FE3',
     minWidth: scale(30),
     textAlign: 'right',
-  },
-  
-  // Expected Closing Date at bottom right
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xxs || 2,
-    marginTop: Spacing.xxs || 1,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-  },
-  dateLabel: {
-    fontSize: Typography.fontSize.xsmall || 8,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textTertiary || '#999999',
-  },
-  dateText: {
-    fontSize: Typography.fontSize.xsmall || 8,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textTertiary || '#999999',
   },
 });
 

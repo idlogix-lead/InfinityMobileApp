@@ -1,4 +1,4 @@
-// services/CRMAPI/crmApiService.js
+// services/CRMAPI/crmApiService.js - UPDATED to show user-created AND user-as-salesrep opportunities
 
 // ============================================
 // AUTH STATE HELPER (No React Hook Issues)
@@ -168,19 +168,21 @@ const crmApiService = {
   
   /**
    * Fetch leads with optional filters
-   * FIXED: Proper OData filter syntax
+   * FIXED: Show leads where user is creator OR sales rep
    */
   getLeads: async (filters = {}) => {
     try {
       const authState = getAuthState();
       const userId = authState.userId;
       
+      console.log('🔍 getLeads - Current user ID:', userId);
+      
       // Build comprehensive filter
       let filterParts = ['IsSalesLead eq true'];
       
-      // Add user filter if available - FIXED: Use correct field name
+      // FIXED: User should see leads they created OR where they are the sales rep
       if (userId) {
-        filterParts.push(`SalesRep_ID eq ${userId}`);
+        filterParts.push(`(CreatedBy eq ${userId} or SalesRep_ID eq ${userId})`);
       }
       
       // Add status filter
@@ -207,24 +209,37 @@ const crmApiService = {
       const filterString = filterParts.join(' and ');
       
       const url = buildUrl('models/AD_User', {}, filterString);
-      console.log('🔍 Leads API URL:', url);
+      console.log('🔍 Leads API URL (CreatedBy OR SalesRep_ID):', url);
       
       const data = await makeRequest(url);
       
       // SAFE data extraction with fallback
       const records = Array.isArray(data.records) ? data.records : [];
       
-      console.log(`✅ Retrieved ${records.length} leads`);
+      console.log(`✅ Retrieved ${records.length} leads where user is creator OR sales rep`);
+      
+      // Log details for debugging
+      if (records.length > 0) {
+        records.forEach((lead, index) => {
+          console.log(`📊 Lead ${index + 1}:`, {
+            id: lead.id,
+            name: lead.Name,
+            createdBy: lead.CreatedBy?.id || lead.CreatedBy,
+            salesRepId: lead.SalesRep_ID?.id
+          });
+        });
+      }
+      
       return records;
     } catch (error) {
       console.error('❌ Get leads failed:', error.message);
       
       // Return empty array for non-auth errors
       if (error.message === 'SESSION_EXPIRED') {
-        throw error; // Let react-query handle auth errors
+        throw error;
       }
       
-      return []; // Return empty array for other errors
+      return [];
     }
   },
 
@@ -251,11 +266,6 @@ const crmApiService = {
     try {
       // Build filter for sales reps (you might want to filter only active users or specific roles)
       let filterParts = ['IsActive eq true'];
-      
-      // Optionally add role filter if you have a specific sales role
-      // if (filters.salesRole) {
-      //   filterParts.push(`AD_Role_ID/id eq '${filters.salesRole}'`);
-      // }
       
       const filterString = filterParts.join(' and ');
       const url = buildUrl('models/AD_User', {}, filterString);
@@ -347,6 +357,7 @@ const crmApiService = {
     try {
       const url = buildUrl(`models/AD_User/${leadId}`);
       console.log('✏️ Update lead URL:', url);
+      console.log('📦 Update payload:', JSON.stringify(updates, null, 2));
       
       const data = await makeRequest(url, {
         method: 'PUT',
@@ -357,6 +368,7 @@ const crmApiService = {
       return data;
     } catch (error) {
       console.error('Update lead failed:', error.message);
+      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
       throw error;
     }
   },
@@ -426,99 +438,86 @@ const crmApiService = {
   },
   
   /**
-   * Fetch all followups/activities
+   * Fetch all followups/activities - FIXED to show followups for leads user can see
    */
-  // services/CRMAPI/crmApiService.js - FIXED getFollowups method
-
-/**
- * Fetch all followups/activities - FIXED to filter by user's leads
- */
-// services/CRMAPI/crmApiService.js - FIXED getFollowups method to filter by user's created leads
-
-/**
- * Fetch all followups/activities - FIXED to filter by leads created by the user
- */
-getFollowups: async (filters = {}) => {
-  try {
-    const authState = getAuthState();
-    const userId = authState.userId;
-    
-    console.log('🔍 getFollowups - Current user ID:', userId);
-    
-    // First, get all leads created by this user (based on CreatedBy)
-    let userLeadIds = [];
+  getFollowups: async (filters = {}) => {
     try {
-      // Get leads created by this user
-      // Using CreatedBy field to filter leads created by this user
-      const leadsFilter = `IsSalesLead eq true and CreatedBy eq ${userId}`;
-      const leadsUrl = buildUrl('models/AD_User', {}, leadsFilter);
-      console.log('🔍 Getting leads created by user:', leadsUrl);
+      const authState = getAuthState();
+      const userId = authState.userId;
       
-      const leadsResponse = await makeRequest(leadsUrl);
-      const userLeads = Array.isArray(leadsResponse.records) ? leadsResponse.records : [];
-      userLeadIds = userLeads.map(lead => lead.id);
+      console.log('🔍 getFollowups - Current user ID:', userId);
       
-      console.log(`✅ Found ${userLeadIds.length} leads created by user ${userId}`);
-    } catch (leadError) {
-      console.error('❌ Failed to fetch user leads for followup filtering:', leadError.message);
-      // Continue with empty array - will return no followups
-    }
-    
-    // If no leads found, return empty array
-    if (userLeadIds.length === 0) {
-      console.log('⚠️ No leads created by this user, returning empty followups');
+      // First, get all leads this user can see (created by OR sales rep)
+      let userLeadIds = [];
+      try {
+        // Get leads where user is creator OR sales rep
+        const leadsFilter = `IsSalesLead eq true and (CreatedBy eq ${userId} or SalesRep_ID eq ${userId})`;
+        const leadsUrl = buildUrl('models/AD_User', {}, leadsFilter);
+        console.log('🔍 Getting leads user can see:', leadsUrl);
+        
+        const leadsResponse = await makeRequest(leadsUrl);
+        const userLeads = Array.isArray(leadsResponse.records) ? leadsResponse.records : [];
+        userLeadIds = userLeads.map(lead => lead.id);
+        
+        console.log(`✅ Found ${userLeadIds.length} leads user can see (created by OR sales rep)`);
+      } catch (leadError) {
+        console.error('❌ Failed to fetch user leads for followup filtering:', leadError.message);
+        return [];
+      }
+      
+      // If no leads found, return empty array
+      if (userLeadIds.length === 0) {
+        console.log('⚠️ No leads found for this user, returning empty followups');
+        return [];
+      }
+      
+      // Build filter parts for followups
+      const filterParts = [];
+      
+      // CRITICAL FIX: Only include followups for leads this user can see
+      if (userLeadIds.length > 0) {
+        const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
+        filterParts.push(`(${leadIdConditions.join(' or ')})`);
+      }
+      
+      // Add other filters
+      if (filters.isComplete !== undefined) {
+        filterParts.push(`IsComplete eq ${filters.isComplete}`);
+      }
+      
+      if (filters.startDate) {
+        filterParts.push(`StartDate ge '${filters.startDate}'`);
+      }
+      
+      if (filters.endDate) {
+        filterParts.push(`EndDate le '${filters.endDate}'`);
+      }
+      
+      if (filters.activityType) {
+        filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
+      }
+
+      // Build URL with filters
+      const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
+      const url = buildUrl('models/C_ContactActivity', {}, filterString);
+      
+      console.log('🔍 Followups API URL:', url);
+      
+      const data = await makeRequest(url);
+      
+      const records = Array.isArray(data.records) ? data.records : [];
+      console.log(`✅ Retrieved ${records.length} followups for leads user can see`);
+      
+      return records;
+    } catch (error) {
+      console.error('Get followups failed:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
       return [];
     }
-    
-    // Build filter parts for followups
-    const filterParts = [];
-    
-    // CRITICAL FIX: Only include followups for leads created by this user
-    // Create an OR condition for all lead IDs that this user created
-    if (userLeadIds.length > 0) {
-      // Create an OR condition for all lead IDs
-      const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
-      filterParts.push(`(${leadIdConditions.join(' or ')})`);
-    }
-    
-    // Add other filters
-    if (filters.isComplete !== undefined) {
-      filterParts.push(`IsComplete eq ${filters.isComplete}`);
-    }
-    
-    if (filters.startDate) {
-      filterParts.push(`StartDate ge '${filters.startDate}'`);
-    }
-    
-    if (filters.endDate) {
-      filterParts.push(`EndDate le '${filters.endDate}'`);
-    }
-    
-    if (filters.activityType) {
-      filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
-    }
-
-    // Build URL with filters
-    const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
-    const url = buildUrl('models/C_ContactActivity', {}, filterString);
-    
-    console.log('🔍 Followups API URL with user-created lead filter:', url);
-    
-    const data = await makeRequest(url);
-    
-    const records = Array.isArray(data.records) ? data.records : [];
-    console.log(`✅ Retrieved ${records.length} followups for leads created by user ${userId}`);
-    
-    return records;
-  } catch (error) {
-    console.error('Get followups failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
-    }
-    return [];
-  }
-},
+  },
 
   /**
    * Fetch followup by ID
@@ -591,127 +590,102 @@ getFollowups: async (filters = {}) => {
   },
 
   /**
-   * Fetch sales opportunities
-   * FIXED: Correct filter field names and structure
- // services/CRMAPI/crmApiService.js - FIXED getSalesOpportunities method
-
-/**
- * Fetch sales opportunities - FIXED to only show opportunities for leads created by the user
- */
-getSalesOpportunities: async (filters = {}) => {
-  try {
-    const authState = getAuthState();
-    const userId = authState.userId;
-    
-    console.log('🔍 getSalesOpportunities - Current user ID:', userId);
-    
-    // First, get all leads created by this user (based on CreatedBy)
-    let userLeadIds = [];
+   * Fetch sales opportunities - FIXED to show opportunities where user is creator OR sales rep
+   */
+  getSalesOpportunities: async (filters = {}) => {
     try {
-      // Get leads created by this user
-      const leadsFilter = `IsSalesLead eq true and CreatedBy eq ${userId}`;
-      const leadsUrl = buildUrl('models/AD_User', {}, leadsFilter);
-      console.log('🔍 Getting leads created by user for sales opportunities:', leadsUrl);
+      const authState = getAuthState();
+      const userId = authState.userId;
       
-      const leadsResponse = await makeRequest(leadsUrl);
-      const userLeads = Array.isArray(leadsResponse.records) ? leadsResponse.records : [];
-      userLeadIds = userLeads.map(lead => lead.id);
+      console.log('🔍 getSalesOpportunities - Current user ID:', userId);
       
-      console.log(`✅ Found ${userLeadIds.length} leads created by user ${userId} for sales opportunities`);
-    } catch (leadError) {
-      console.error('❌ Failed to fetch user leads for sales opportunities filtering:', leadError.message);
-      // Continue with empty array - will return no opportunities
-    }
-    
-    // If no leads found, return empty array
-    if (userLeadIds.length === 0) {
-      console.log('⚠️ No leads created by this user, returning empty sales opportunities');
-      return [];
-    }
-    
-    // Build filter parts for sales opportunities
-    const filterParts = [];
-    
-    // CRITICAL FIX: Only include opportunities associated with leads created by this user
-    // Create an OR condition for all lead IDs that this user created
-    if (userLeadIds.length > 0) {
-      // Create an OR condition for all lead IDs
-      // Assuming AD_User_ID in C_Opportunity links to the lead
-      const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
-      filterParts.push(`(${leadIdConditions.join(' or ')})`);
-    }
-    
-    // Stage filter
-    if (filters.stage) {
-      filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
-    }
-    
-    // Opportunity status filter
-    if (filters.status) {
-      filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
-    }
-    
-    // Date filters
-    if (filters.startDate) {
-      filterParts.push(`Created ge '${filters.startDate}'`);
-    }
-    if (filters.endDate) {
-      filterParts.push(`Created le '${filters.endDate}'`);
-    }
-    
-    // Always include active records
-    filterParts.push(`IsActive eq true`);
-    
-    const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
-    const url = buildUrl('models/C_Opportunity', {}, filterString);
-    
-    console.log('🔍 Sales Opportunities URL with user-created lead filter:', url);
-    console.log('🔍 Filter parts:', filterParts);
-    
-    const data = await makeRequest(url);
-    
-    // SAFE data extraction
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} sales opportunities for leads created by user ${userId}`);
-    
-    // Log each opportunity's details
-    if (records.length > 0) {
-      records.forEach((opp, index) => {
-        console.log(`📊 Opportunity ${index + 1}:`, {
-          id: opp.id,
-          documentNo: opp.DocumentNo,
-          name: opp.Name,
-          businessPartner: opp.C_BPartner_ID?.identifier,
-          amount: opp.OpportunityAmt,
-          stage: opp.C_SalesStage_ID?.identifier,
-          leadId: opp.AD_User_ID?.id, // This should match one of userLeadIds
-          salesRepId: opp.SalesRep_ID?.id
+      if (!userId) {
+        console.log('⚠️ No userId found, returning empty opportunities');
+        return [];
+      }
+      
+      // Build filter parts for sales opportunities
+      const filterParts = [];
+      
+      // ============================================
+      // FIXED: Show opportunities where user is creator OR sales rep
+      // ============================================
+      if (userId) {
+        filterParts.push(`(CreatedBy eq ${userId} or SalesRep_ID eq ${userId})`);
+      }
+      
+      // Stage filter
+      if (filters.stage) {
+        filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
+      }
+      
+      // Opportunity status filter
+      if (filters.status) {
+        filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
+      }
+      
+      // Date filters
+      if (filters.startDate) {
+        filterParts.push(`Created ge '${filters.startDate}'`);
+      }
+      if (filters.endDate) {
+        filterParts.push(`Created le '${filters.endDate}'`);
+      }
+      
+      // Always include active records
+      filterParts.push(`IsActive eq true`);
+      
+      const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
+      const url = buildUrl('models/C_Opportunity', {}, filterString);
+      
+      console.log('🔍 Sales Opportunities URL:', url);
+      console.log('🔍 Filter parts:', filterParts);
+      
+      const data = await makeRequest(url);
+      
+      // SAFE data extraction
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} sales opportunities where user is creator OR sales rep`);
+      
+      // Log each opportunity's details
+      if (records.length > 0) {
+        records.forEach((opp, index) => {
+          console.log(`📊 Opportunity ${index + 1}:`, {
+            id: opp.id,
+            documentNo: opp.DocumentNo,
+            name: opp.Name,
+            businessPartner: opp.C_BPartner_ID?.identifier,
+            amount: opp.OpportunityAmt,
+            stage: opp.C_SalesStage_ID?.identifier,
+            leadId: opp.AD_User_ID?.id,
+            salesRepId: opp.SalesRep_ID?.id,
+            createdBy: opp.CreatedBy?.id || opp.CreatedBy
+          });
         });
-      });
-    } else {
-      console.log('⚠️ No opportunities found for leads created by this user');
-    }
-    
-    return records;
-  } catch (error) {
-    console.error('❌ Get sales opportunities failed:', error.message);
-    console.error('❌ Error details:', error);
-    
-    // Handle specific errors
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
-    } else if (error.message === 'RESOURCE_NOT_FOUND') {
-      console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
+      } else {
+        console.log('⚠️ No opportunities found for this user');
+      }
+      
+      return records;
+    } catch (error) {
+      console.error('❌ Get sales opportunities failed:', error.message);
+      console.error('❌ Error details:', error);
+      
+      // Handle specific errors
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      } else if (error.message === 'RESOURCE_NOT_FOUND') {
+        console.log('⚠️ C_Opportunity endpoint may not exist. Check iDempiere REST API.');
+        return [];
+      } else if (error.message === 'PERMISSION_DENIED') {
+        console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
+        return [];
+      }
+      
       return [];
-    } else if (error.message === 'PERMISSION_DENIED') {
-      console.log('⚠️ Permission denied for sales opportunities. Check role permissions.');
-      return [];
     }
-    
-    return [];
-  }
-},
+  },
 
   /**
    * Create sales opportunity
@@ -721,43 +695,59 @@ getSalesOpportunities: async (filters = {}) => {
     try {
       const url = buildUrl('models/C_Opportunity');
       
+      // Get auth state for default values
+      const authState = getAuthState();
+      const userId = authState.userId;
+      
       // Ensure the data is properly formatted for iDempiere
-      // The API expects nested objects for foreign key relationships
       const formattedData = {
         ...opportunityData,
         // Ensure these are properly formatted as objects with id
         AD_Client_ID: opportunityData.AD_Client_ID?.id ? 
           { id: opportunityData.AD_Client_ID.id } : 
-          opportunityData.AD_Client_ID,
+          { id: 1000000 }, // Default client
         
         AD_Org_ID: opportunityData.AD_Org_ID?.id ? 
           { id: opportunityData.AD_Org_ID.id } : 
-          opportunityData.AD_Org_ID,
+          { id: 1000000 }, // Default organization
         
         AD_User_ID: opportunityData.AD_User_ID?.id ? 
           { id: opportunityData.AD_User_ID.id } : 
-          opportunityData.AD_User_ID,
+          null,
         
         SalesRep_ID: opportunityData.SalesRep_ID?.id ? 
           { id: opportunityData.SalesRep_ID.id } : 
-          opportunityData.SalesRep_ID,
+          userId ? { id: userId } : null,
         
         C_BPartner_ID: opportunityData.C_BPartner_ID?.id ? 
           { id: opportunityData.C_BPartner_ID.id } : 
-          opportunityData.C_BPartner_ID,
+          null,
         
         C_SalesStage_ID: opportunityData.C_SalesStage_ID?.id ? 
           { id: opportunityData.C_SalesStage_ID.id } : 
-          opportunityData.C_SalesStage_ID,
+          { id: 1000000 }, // Default sales stage
         
         C_Currency_ID: opportunityData.C_Currency_ID?.id ? 
           { id: opportunityData.C_Currency_ID.id } : 
-          opportunityData.C_Currency_ID,
+          { id: 306 }, // Default PKR
         
         C_Campaign_ID: opportunityData.C_Campaign_ID?.id ? 
           { id: opportunityData.C_Campaign_ID.id } : 
           opportunityData.C_Campaign_ID,
       };
+      
+      // Validate required fields
+      if (!formattedData.AD_User_ID) {
+        throw new Error('Lead (AD_User_ID) is required to create an opportunity');
+      }
+      
+      if (!formattedData.C_BPartner_ID) {
+        throw new Error('Business Partner is required to create an opportunity');
+      }
+      
+      if (!formattedData.SalesRep_ID) {
+        throw new Error('Sales Representative is required to create an opportunity');
+      }
       
       console.log('📝 Create Sales Opportunity URL:', url);
       console.log('📦 Formatted opportunity data:', JSON.stringify(formattedData, null, 2));
@@ -847,6 +837,7 @@ getSalesOpportunities: async (filters = {}) => {
 
   /**
    * Search leads by name, email, or phone
+   * FIXED: Use combined filter for search
    */
   searchLeads: async (searchTerm) => {
     try {
@@ -857,14 +848,12 @@ getSalesOpportunities: async (filters = {}) => {
         return await crmApiService.getLeads();
       }
       
-      // Clean and prepare search term
       const cleanSearchTerm = searchTerm.trim();
       
-      // DEBUG: Log what we're searching for
       console.log('🔍 Searching for term:', cleanSearchTerm);
       
-      // Build search filter - Use tolower for case-insensitive search
-      const searchFilter = `IsSalesLead eq true and SalesRep_ID eq ${userId} and (
+      // Build search filter - Use combined filter for leads user can see
+      const searchFilter = `IsSalesLead eq true and (CreatedBy eq ${userId} or SalesRep_ID eq ${userId}) and (
         contains(tolower(Name), tolower('${cleanSearchTerm}')) or 
         contains(tolower(EMail), tolower('${cleanSearchTerm}')) or 
         contains(tolower(Phone), tolower('${cleanSearchTerm}'))
@@ -878,7 +867,6 @@ getSalesOpportunities: async (filters = {}) => {
       const records = Array.isArray(data.records) ? data.records : [];
       console.log(`✅ Found ${records.length} leads matching search for "${cleanSearchTerm}"`);
       
-      // DEBUG: Log the names of found records to verify
       if (records.length > 0) {
         console.log('📋 Found leads:', records.map(r => r.Name));
       }
@@ -894,7 +882,7 @@ getSalesOpportunities: async (filters = {}) => {
         const userId = authState.userId;
         const cleanSearchTerm = searchTerm.trim().toLowerCase();
         
-        // Get all leads and filter locally
+        // Get all leads user can see and filter locally
         const allLeads = await crmApiService.getLeads();
         
         const filteredLeads = allLeads.filter(lead => {

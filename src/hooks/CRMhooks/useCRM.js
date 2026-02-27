@@ -1014,6 +1014,7 @@ export const useRefreshCRMData = () => {
   };
 };
 
+
 // Hook for fetching completed activities for a specific lead
 export const useCompletedLeadActivities = (leadId, enabled = true) => {
   return useQuery({
