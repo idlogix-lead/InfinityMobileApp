@@ -22,6 +22,22 @@ import {Dropdown} from 'react-native-element-dropdown';
 import {Swipeable} from 'react-native-gesture-handler';
 import {Animated} from 'react-native';
 
+const COLORS = {
+  bg2: '#77DD7722',
+  bg: '#F2FBF5',
+  lightBg: '#E9F5DB',
+  card: '#FFFFFF',
+  border: '#D8EFE0',
+  mint: '#E6F7ED',
+  primary: '#4CAF7D',
+  darkGreen: '#2E7D57',
+  pastelGreen: '#77DD77',
+  textDark: '#1F2D2A',
+  textLight: '#5F7D75',
+  dangerBg: '#FFEAEA',
+  dangerText: '#C62828',
+};
+
 const WFStatusList = ({route}) => {
   const {title} = route.params;
   const {data: data = []} = useWFAct();
@@ -188,12 +204,16 @@ const WFStatusList = ({route}) => {
   };
 
   return (
-    <View style={{flex: 1, backgroundColor: '#F7F8FA'}}>
-      <StatusBar translucent barStyle="dark-content" />
+    <View style={{flex: 1, backgroundColor: COLORS.bg2}}>
+      <StatusBar
+        translucent
+        barStyle="dark-content"
+        backgroundColor={COLORS.bg2}
+      />
       <ReqHeader title={title} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{flex: 1, backgroundColor: '#F7F8FA'}}>
+        <View style={{flex: 1, backgroundColor: COLORS.bg2}}>
           {/* FILTERS */}
           <View style={{paddingHorizontal: 12, paddingVertical: 8}}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -276,7 +296,7 @@ const WFStatusList = ({route}) => {
           {filteredData.length === 0 ? (
             <View style={styles.emptyBox}>
               <View style={styles.emptyIconWrap}>
-                <MaterialIcons name="inbox" size={80} color="#CBD5E1" />
+                <MaterialIcons name="inbox" size={80} color="#77DD77" /> 
               </View>
               <Text style={styles.emptyTitle}>No Approvals Found</Text>
               <Text style={styles.emptySub}>
@@ -477,16 +497,18 @@ const styles = StyleSheet.create({
   filterDropdown: {
     height: 38,
     backgroundColor: '#FFFFFF',
-    borderRadius: 50,
+    // backgroundColor: COLORS.pastelGreen,
+    borderRadius: 20,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    // borderColor: '#E2E8F0',
+    borderColor: COLORS.border,
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    // shadowColor: '#000',
+    // shadowOffset: {width: 0, height: 2},
+    // shadowOpacity: 0.05,
+    // shadowRadius: 4,
+    // elevation: 2,
   },
 
   dropdownContainer: {
@@ -497,13 +519,14 @@ const styles = StyleSheet.create({
   },
 
   dropdownSelectedText: {
-    color: '#0F172A',
+    // color: '#0F172A',
+    color: COLORS.textDark,
     fontSize: 13,
     fontFamily: 'K2D-SemiBold',
   },
 
   dropdownPlaceholder: {
-    color: '#555', // placeholder gray
+    color: COLORS.textLight, // placeholder gray
     fontSize: 13,
     fontFamily: 'K2D-Medium',
   },
@@ -524,24 +547,27 @@ const styles = StyleSheet.create({
     marginTop: 12,
     height: 44,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    // borderColor: '#E2E8F0',
+    borderColor: COLORS.border,
+    // shadowColor: '#000',
+    shadowColor: COLORS.darkGreen,
+    // shadowOffset: {width: 0, height: 2},
+    // shadowOpacity: 0.05,
+    // shadowRadius: 4,
+    // elevation: 2,
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: '#0F172A',
+    color: COLORS.textLight,
     fontFamily: 'K2D-Medium',
   },
   tabRow: {
     flexDirection: 'row',
     marginTop: 16,
-    backgroundColor: '#E2E8F0',
+    // backgroundColor: '#E2E8F0',
+    backgroundColor: COLORS.mint,
     borderRadius: 50,
     padding: 4,
   },
@@ -553,16 +579,21 @@ const styles = StyleSheet.create({
   },
 
   tabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    // backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.pastelGreen,
+    // shadowColor: '#000',
+    // shadowOffset: {width: 0, height: 2},
+    // shadowOpacity: 0.1,
+    // shadowRadius: 4,
+    // elevation: 3,
   },
 
-  tabText: {fontSize: 13, color: '#222', fontFamily: 'K2D-SemiBold'},
-  tabActiveText: {color: '#222', fontFamily: 'K2D-SemiBold', fontSize: 13},
+  tabText: {fontSize: 13, color: COLORS.textDark, fontFamily: 'K2D-SemiBold'},
+  tabActiveText: {
+    color: COLORS.textDark,
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 13,
+  },
 
   emptyBox: {
     flex: 1,
@@ -613,7 +644,7 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.06,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 1,
   },
 
   cardContent: {flexDirection: 'row', alignItems: 'center'},
@@ -652,32 +683,46 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     marginTop: 14,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
     gap: 12,
+    // paddingHorizontal: '15%',
   },
   approveBtn: {
-    flex: 1,
-    backgroundColor: '#DCFCE7',
-    paddingVertical: 10,
-    borderRadius: 10,
+    // flex: 1,
+    // backgroundColor: '#DCFCE7',
+    backgroundColor: COLORS.darkGreen,
+    paddingVertical: 3,
+    paddingHorizontal: '5%',
+    height: 35,
+    borderRadius: 20,
     alignItems: 'center',
   },
 
   approveText: {
-    color: '#16A34A',
+    // color: '#16A34A',
+    color: COLORS.mint,
     fontFamily: 'K2D-SemiBold',
     fontSize: 13,
+    textAlignVertical: 'center',
+    textAlign: 'center',
   },
 
   rejectBtn: {
-    flex: 1,
-    backgroundColor: '#FEE2E2',
-    paddingVertical: 10,
-    borderRadius: 10,
+    // flex: 1,
+    // backgroundColor: '#FEE2E2',
+    backgroundColor: COLORS.dangerText,
+    paddingHorizontal: '7%',
+    paddingVertical: 3,
+    borderRadius: 20,
+    height: 35,
+
     alignItems: 'center',
   },
 
   rejectText: {
-    color: '#DC2626',
+    // color: '#DC2626',
+    color: COLORS.dangerBg,
     fontFamily: 'K2D-SemiBold',
     fontSize: 13,
   },
@@ -699,7 +744,8 @@ const styles = StyleSheet.create({
   },
   multiApprove: {
     flex: 1,
-    backgroundColor: '#16A34A',
+    // backgroundColor: '#16A34A',
+    backgroundColor: COLORS.darkGreen,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -708,7 +754,8 @@ const styles = StyleSheet.create({
 
   multiReject: {
     flex: 1,
-    backgroundColor: '#DC2626',
+    // backgroundColor: '#DC2626',
+    backgroundColor: COLORS.dangerText,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
