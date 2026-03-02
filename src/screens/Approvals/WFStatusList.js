@@ -202,7 +202,23 @@ const WFStatusList = ({route}) => {
     if (name.includes('payment')) return 'payments';
     return 'assignment';
   };
+  useEffect(() => {
+    const backAction = () => {
+      navigation.goBack();
+      return true;
+    };
 
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
+    );
+
+    return () => backHandler.remove();
+  }, []);
+
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
   return (
     <View style={{flex: 1, backgroundColor: COLORS.bg2}}>
       <StatusBar
@@ -210,7 +226,32 @@ const WFStatusList = ({route}) => {
         barStyle="dark-content"
         backgroundColor={COLORS.bg2}
       />
-      <ReqHeader title={title} />
+      {/* <ReqHeader title={title} /> */}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          paddingHorizontal: '5%',
+          paddingTop: '10%',
+          backgroundColor:'#77DD7722'
+        }}>
+        <TouchableOpacity onPress={handleBackPress}>
+          <MaterialIcons name="chevron-left" size={30} color={'#000'} />
+        </TouchableOpacity>
+        <Text
+          style={{
+            fontSize: 20,
+            color: '#222',
+            fontFamily: 'K2D-Medium',
+          }}>
+          {' '}
+          Apprrovals
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('approvalNotification')}>
+          <MaterialIcons name="notifications" color={'#000'} size={25} />
+        </TouchableOpacity>
+      </View>
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={{flex: 1, backgroundColor: COLORS.bg2}}>
@@ -296,7 +337,7 @@ const WFStatusList = ({route}) => {
           {filteredData.length === 0 ? (
             <View style={styles.emptyBox}>
               <View style={styles.emptyIconWrap}>
-                <MaterialIcons name="inbox" size={80} color="#77DD77" /> 
+                <MaterialIcons name="inbox" size={80} color="#77DD77" />
               </View>
               <Text style={styles.emptyTitle}>No Approvals Found</Text>
               <Text style={styles.emptySub}>
