@@ -1,4 +1,4 @@
-// screens/CRM/GenericLeadScreen.js - COMPLETE FIXED VERSION
+// screens/CRM/GenericLeadScreen.js - UPDATED for dynamic statuses
 import React, {useState, useMemo, useCallback, useEffect} from 'react';
 import {
   StyleSheet,
@@ -28,6 +28,7 @@ import {
   useFollowups,
   useLeadStatistics,
   useSearchLeads,
+  useLeadStatuses, // Add this import
 } from '../../hooks/CRMhooks/useCRM';
 import {useLeadActions} from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
@@ -43,16 +44,20 @@ const {scale, verticalScale, spacing} = Layout;
 
 const GenericLead = ({navigation, route}) => {
   // Get pre-filtered leads and screen title from navigation params
-  const {leads: initialLeads = [], screenTitle: paramTitle} = route.params || {};
+  const {leads: initialLeads = [], screenTitle: paramTitle, statusId: paramStatusId} = route.params || {};
 
   // Use paramTitle from route.params
   const actualScreenTitle = paramTitle || 'Leads';
+
+  // Fetch dynamic lead statuses
+  const {data: leadStatuses = []} = useLeadStatuses();
 
   // State
   const [filterVisible, setFilterVisible] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
-  const [selectStatus, setSelectStatus] = useState('select');
+  const [selectedStatusId, setSelectedStatusId] = useState(paramStatusId || 'select');
+  const [selectedStatusName, setSelectedStatusName] = useState('select');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearchResults, setLocalSearchResults] = useState([]);
@@ -90,7 +95,41 @@ const GenericLead = ({navigation, route}) => {
   const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
 
   // ============================================
-  // CACHE ACCESS - BEST SOLUTION
+  // DYNAMIC STATUS OPTIONS
+  // ============================================
+  
+  // Generate status options dynamically from leadStatuses
+  const statusOptions = useMemo(() => {
+    const options = [
+      {label: '-- All Statuses --', value: 'select', id: 'select'},
+    ];
+    
+    leadStatuses.forEach(status => {
+      options.push({
+        label: status.name,
+        value: status.name,
+        id: status.id,
+        color: status.color
+      });
+    });
+    
+    return options;
+  }, [leadStatuses]);
+
+  // Get status name by ID
+  const getStatusNameById = useCallback((id) => {
+    const status = leadStatuses.find(s => s.id === id);
+    return status?.name || id;
+  }, [leadStatuses]);
+
+  // Get status ID by name
+  const getStatusIdByName = useCallback((name) => {
+    const status = leadStatuses.find(s => s.name === name);
+    return status?.id || name;
+  }, [leadStatuses]);
+
+  // ============================================
+  // CACHE ACCESS
   // ============================================
   
   // Get fresh leads directly from cache (no API call)
@@ -169,15 +208,12 @@ const GenericLead = ({navigation, route}) => {
       }
 
       // Try to get from status-specific caches
-      const statuses = ['New', 'Working', 'Converted', 'Expired'];
-      for (const status of statuses) {
-        const cachedStatusLeads = queryClient.getQueryData(['leads', {status}]);
-        if (Array.isArray(cachedStatusLeads)) {
-          const cachedLead = cachedStatusLeads.find(
-            lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
-          );
-          if (cachedLead) return cachedLead;
-        }
+      const cachedLeadsByStatus = queryClient.getQueryData(['leads-by-status']);
+      if (Array.isArray(cachedLeadsByStatus)) {
+        const cachedLead = cachedLeadsByStatus.find(
+          lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
+        );
+        if (cachedLead) return cachedLead;
       }
 
       return null;
@@ -185,17 +221,32 @@ const GenericLead = ({navigation, route}) => {
     [queryClient],
   );
 
-  // Sort options
-  const sortOptions = [
-    {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
-    {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
-    {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
-    {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
-    {id: 'statusNew', label: 'Status: New First', icon: 'star'},
-    {id: 'statusWorking', label: 'Status: Working First', icon: 'progress-clock'},
-    {id: 'statusConverted', label: 'Status: Converted First', icon: 'check-circle'},
-    {id: 'statusExpired', label: 'Status: Expired First', icon: 'clock-alert'},
-  ];
+  // ============================================
+  // DYNAMIC SORT OPTIONS
+  // ============================================
+  
+  // Sort options - now includes dynamic status sorting
+  const sortOptions = useMemo(() => {
+    const baseOptions = [
+      {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
+      {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
+      {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
+      {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
+    ];
+    
+    // Add dynamic status sort options
+    leadStatuses.forEach(status => {
+      baseOptions.push({
+        id: `status_${status.id}`,
+        label: `${status.name} First`,
+        icon: 'format-list-bulleted',
+        statusId: status.id,
+        statusName: status.name
+      });
+    });
+    
+    return baseOptions;
+  }, [leadStatuses]);
 
   // Get current sort option display
   const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
@@ -216,19 +267,22 @@ const GenericLead = ({navigation, route}) => {
       return cachedLead || lead;
     });
 
-    // Apply the original filter based on screen title
-    if (actualScreenTitle.includes('Converted')) {
-      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'C');
+    // Apply filter based on screen title or status ID
+    if (paramStatusId) {
+      // If we have a specific status ID, filter by that
+      filtered = filtered.filter(lead => lead?.statusId === paramStatusId);
+    } else if (actualScreenTitle.includes('Converted')) {
+      filtered = filtered.filter(lead => lead?.statusId === 'C');
     } else if (actualScreenTitle.includes('Working')) {
-      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'W');
+      filtered = filtered.filter(lead => lead?.statusId === 'W');
     } else if (actualScreenTitle.includes('New')) {
-      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'N');
+      filtered = filtered.filter(lead => lead?.statusId === 'N');
     } else if (actualScreenTitle.includes('Expired')) {
-      filtered = filtered.filter(lead => lead?.LeadStatus?.id === 'E');
+      filtered = filtered.filter(lead => lead?.statusId === 'E');
     }
 
     return filtered;
-  }, [freshLeads, actualScreenTitle, getLatestLeadData, forceUpdate]);
+  }, [freshLeads, actualScreenTitle, paramStatusId, getLatestLeadData, forceUpdate]);
 
   // Apply additional modal filters
   const modalFilteredLeads = useMemo(() => {
@@ -236,24 +290,11 @@ const GenericLead = ({navigation, route}) => {
 
     let filtered = [...screenFilteredLeads];
 
-    // Apply status filter from modal
-    if (selectStatus && selectStatus !== 'select') {
-      const statusMap = {
-        New: 'N',
-        new: 'N',
-        Working: 'W',
-        working: 'W',
-        Converted: 'C',
-        converted: 'C',
-        Expired: 'E',
-        expired: 'E',
-      };
-
-      const statusId = statusMap[selectStatus] || selectStatus;
-
+    // Apply status filter from modal using status ID
+    if (selectedStatusId && selectedStatusId !== 'select') {
       filtered = filtered.filter(lead => {
-        const leadStatusId = lead?.LeadStatus?.id;
-        return leadStatusId === statusId;
+        const leadStatusId = lead?.statusId;
+        return leadStatusId === selectedStatusId;
       });
     }
 
@@ -263,7 +304,7 @@ const GenericLead = ({navigation, route}) => {
       start.setHours(0, 0, 0, 0);
       filtered = filtered.filter(lead => {
         const leadDate = new Date(
-          lead.Created || lead.Updated || lead.CreatedDate,
+          lead.Created || lead.Updated || lead.createdDate,
         );
         return leadDate >= start;
       });
@@ -274,14 +315,14 @@ const GenericLead = ({navigation, route}) => {
       end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(lead => {
         const leadDate = new Date(
-          lead.Created || lead.Updated || lead.CreatedDate,
+          lead.Created || lead.Updated || lead.createdDate,
         );
         return leadDate <= end;
       });
     }
 
     return filtered;
-  }, [screenFilteredLeads, selectStatus, fromDate, toDate]);
+  }, [screenFilteredLeads, selectedStatusId, fromDate, toDate]);
 
   // Sort leads based on selected sorting option
   const sortedLeads = useMemo(() => {
@@ -292,10 +333,10 @@ const GenericLead = ({navigation, route}) => {
     sorted.sort((a, b) => {
       switch (sortBy) {
         case 'latest':
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+          return moment(b.Created || b.createdDate).valueOf() - moment(a.Created || a.createdDate).valueOf();
 
         case 'oldest':
-          return moment(a.Created || a.CreatedDate).valueOf() - moment(b.Created || b.CreatedDate).valueOf();
+          return moment(a.Created || a.createdDate).valueOf() - moment(b.Created || b.createdDate).valueOf();
 
         case 'nameAZ':
           const nameA = (a.Name || '').toLowerCase();
@@ -311,28 +352,14 @@ const GenericLead = ({navigation, route}) => {
           if (nameAZ < nameBZ) return 1;
           return 0;
 
-        case 'statusNew':
-          if (a.LeadStatus?.id === 'N' && b.LeadStatus?.id !== 'N') return -1;
-          if (a.LeadStatus?.id !== 'N' && b.LeadStatus?.id === 'N') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusWorking':
-          if (a.LeadStatus?.id === 'W' && b.LeadStatus?.id !== 'W') return -1;
-          if (a.LeadStatus?.id !== 'W' && b.LeadStatus?.id === 'W') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusConverted':
-          if (a.LeadStatus?.id === 'C' && b.LeadStatus?.id !== 'C') return -1;
-          if (a.LeadStatus?.id !== 'C' && b.LeadStatus?.id === 'C') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusExpired':
-          if (a.LeadStatus?.id === 'E' && b.LeadStatus?.id !== 'E') return -1;
-          if (a.LeadStatus?.id !== 'E' && b.LeadStatus?.id === 'E') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
         default:
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+          // Handle dynamic status sorting
+          if (sortBy.startsWith('status_')) {
+            const statusId = sortBy.replace('status_', '');
+            if (a.statusId === statusId && b.statusId !== statusId) return -1;
+            if (a.statusId !== statusId && b.statusId === statusId) return 1;
+          }
+          return moment(b.Created || b.createdDate).valueOf() - moment(a.Created || a.createdDate).valueOf();
       }
     });
 
@@ -351,15 +378,21 @@ const GenericLead = ({navigation, route}) => {
 
       const results = sortedLeads.filter(lead => {
         const name = (lead.Name || '').toLowerCase();
-        const companyName = (lead.BPName || '').toLowerCase();
-        const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
-        const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
+        const companyName = (lead.companyName || lead.BPName || '').toLowerCase();
+        const orgName = (lead.organizationName || lead.AD_Org_ID?.identifier || '').toLowerCase();
+        const clientName = (lead.clientName || lead.AD_Client_ID?.identifier || '').toLowerCase();
+        const statusName = (lead.statusName || '').toLowerCase();
+        const email = (lead.email || lead.EMail || '').toLowerCase();
+        const phone = (lead.phone || lead.Phone || '').toLowerCase();
 
         return (
           name.includes(searchTerm) ||
           companyName.includes(searchTerm) ||
           orgName.includes(searchTerm) ||
-          clientName.includes(searchTerm)
+          clientName.includes(searchTerm) ||
+          statusName.includes(searchTerm) ||
+          email.includes(searchTerm) ||
+          phone.includes(searchTerm)
         );
       });
 
@@ -401,7 +434,8 @@ const GenericLead = ({navigation, route}) => {
   const resetFilter = () => {
     setFromDate(null);
     setToDate(null);
-    setSelectStatus('select');
+    setSelectedStatusId('select');
+    setSelectedStatusName('select');
     setSearchQuery('');
     setLocalSearchResults([]);
     setFilterVisible(false);
@@ -416,6 +450,7 @@ const GenericLead = ({navigation, route}) => {
       // Invalidate queries to trigger background refetch
       await queryClient.invalidateQueries(['leads']);
       await queryClient.invalidateQueries(['lead-statistics']);
+      await queryClient.invalidateQueries(['lead-statuses']); // Add this
       await refetchFollowups();
       await refetchStats();
       
@@ -442,15 +477,6 @@ const GenericLead = ({navigation, route}) => {
     return sortedLeads;
   }, [sortedLeads, localSearchResults, searchQuery]);
 
-  // Status options for custom picker
-  const statusOptions = [
-    {label: '-- All Statuses --', value: 'select'},
-    {label: 'New', value: 'New'},
-    {label: 'Working', value: 'Working'},
-    {label: 'Converted', value: 'Converted'},
-    {label: 'Expired', value: 'Expired'},
-  ];
-
   // Format date for display
   const formatDate = date => {
     if (!date) return '';
@@ -474,6 +500,9 @@ const GenericLead = ({navigation, route}) => {
       lastActivity?.ContactActivityType?.identifier || 'N/A';
     const activityCount = userActivity.length;
 
+    // Get status color from leadStatuses
+    const statusColor = leadStatuses.find(s => s.id === liveLead.statusId)?.color || Colors.primary;
+
     return (
       <View style={styles.cardContainer} key={`${liveLead.id}-${forceUpdate}`}>
         <TouchableOpacity
@@ -483,21 +512,27 @@ const GenericLead = ({navigation, route}) => {
           }}
           activeOpacity={0.7}>
           <CRMCard
-            leadId={liveLead.id} // CRITICAL: Always pass leadId for cache lookup
+            leadId={liveLead.id}
             header={
+              liveLead.organizationName ||
               liveLead.AD_Org_ID?.identifier ||
+              liveLead.clientName ||
               liveLead.AD_Client_ID?.identifier
             }
             name={liveLead?.Name}
-            email={liveLead?.EMail}
-            cellNo={liveLead?.Phone}
+            email={liveLead?.email || liveLead?.EMail}
+            cellNo={liveLead?.phone || liveLead?.Phone}
             count={activityCount}
             interactionType={lastActivityType}
-            status={liveLead?.LeadStatus?.identifier}
+            status={liveLead?.statusName || liveLead?.LeadStatus?.identifier}
+            statusColor={statusColor} // Pass status color to CRMCard
             Description={liveLead?.Description}
             company={
+              liveLead.companyName ||
               liveLead.BPName ||
+              liveLead.clientName ||
               liveLead.AD_Client_ID?.identifier ||
+              liveLead.organizationName ||
               liveLead.AD_Org_ID?.identifier
             }
             mail={() => handleMail(liveLead?.EMail)}
@@ -567,27 +602,35 @@ const GenericLead = ({navigation, route}) => {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}>
-                {/* Status Picker */}
+                {/* Dynamic Status Picker */}
                 <Text style={styles.sectionTitle}>Filter by Status</Text>
                 <View style={styles.customPickerContainer}>
                   {statusOptions.map(option => (
                     <TouchableOpacity
-                      key={option.value}
+                      key={option.id || option.value}
                       style={[
                         styles.statusOption,
-                        selectStatus === option.value &&
+                        selectedStatusId === option.id &&
                           styles.statusOptionSelected,
                       ]}
-                      onPress={() => setSelectStatus(option.value)}>
-                      <Text
-                        style={[
-                          styles.statusOptionText,
-                          selectStatus === option.value &&
-                            styles.statusOptionTextSelected,
-                        ]}>
-                        {option.label}
-                      </Text>
-                      {selectStatus === option.value && (
+                      onPress={() => {
+                        setSelectedStatusId(option.id);
+                        setSelectedStatusName(option.value);
+                      }}>
+                      <View style={styles.statusOptionLeft}>
+                        {option.color && (
+                          <View style={[styles.statusDot, {backgroundColor: option.color}]} />
+                        )}
+                        <Text
+                          style={[
+                            styles.statusOptionText,
+                            selectedStatusId === option.id &&
+                              styles.statusOptionTextSelected,
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </View>
+                      {selectedStatusId === option.id && (
                         <MaterialIcons
                           name="check"
                           size={scale(20)}
@@ -824,7 +867,7 @@ const GenericLead = ({navigation, route}) => {
                         No leads found for "{searchQuery}"
                       </Text>
                       <Text style={styles.emptySubText}>
-                        Searched in: Name, Company and Organization
+                        Searched in: Name, Company, Organization, Status, Email, Phone
                       </Text>
                       <TouchableOpacity
                         onPress={clearSearch}
@@ -840,9 +883,9 @@ const GenericLead = ({navigation, route}) => {
                         color={Colors.border}
                       />
                       <Text style={styles.emptyText}>
-                        {modalFilteredLeads.length === 0 && selectStatus !== 'select'
-                          ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
-                          : `No leads found in ${actualScreenTitle}`}
+                        {modalFilteredLeads.length === 0 && selectedStatusId !== 'select'
+                          ? `No ${selectedStatusName} leads found`
+                          : `No leads found`}
                       </Text>
                       <Text style={styles.emptySubText}>
                         Try changing your filter or sort settings
@@ -880,6 +923,7 @@ const GenericLead = ({navigation, route}) => {
   );
 };
 
+// Add new styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1136,6 +1180,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.backgroundDark,
     backgroundColor: Colors.background,
+  },
+  statusOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: scale(12),
+    height: scale(12),
+    borderRadius: scale(6),
+    marginRight: spacing.sm,
   },
   statusOptionSelected: {
     backgroundColor: Colors.infoLight,

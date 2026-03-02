@@ -1,4 +1,4 @@
-// LeadEdit.js - Updated to navigate to AddSaleOppor with proper business partner data
+// LeadEdit.js - COMPLETE FIXED VERSION with no render-time state updates
 
 import {
   ScrollView,
@@ -22,7 +22,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Menu, Divider } from 'react-native-paper';
-import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities, useLeadStatuses } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
@@ -30,39 +30,6 @@ import { useAuthStore } from '../../store/authStore';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
-
-/* ================= STATUS CONFIG WITH THEME COLORS ================= */
-const STATUS_CONFIG = {
-  New: {
-    barColor: Colors.statusNew,
-    badgeText: 'New',
-    badgeBg: Colors.infoLight,
-    badgeColor: Colors.statusNew,
-    showDot: true,
-  },
-  Working: {
-    barColor: Colors.statusWorking,
-    badgeText: 'Working',
-    badgeBg: Colors.warningLight,
-    badgeColor: Colors.statusWorking,
-    showDot: true,
-  },
-  Converted: {
-    barColor: Colors.statusConverted,
-    badgeText: 'Converted',
-    badgeBg: Colors.successLight,
-    badgeColor: Colors.statusConverted,
-    showDot: false,
-    showCheck: true,
-  },
-  Expired: {
-    barColor: Colors.statusExpired,
-    badgeText: 'Expired',
-    badgeBg: Colors.errorLight,
-    badgeColor: Colors.statusExpired,
-    showDot: true,
-  },
-};
 
 // Validation functions (same as useAddLeadForm)
 const validateEmail = (email) => {
@@ -465,10 +432,10 @@ const DropdownField = ({
                 onSelect(option);
                 setMenuVisible(false);
               }}
-              title={option.identifier}
+              title={option.name || option.identifier}
               titleStyle={[
                 styles.menuItemTitle,
-                value === option.identifier && styles.menuItemSelected
+                value === (option.name || option.identifier) && styles.menuItemSelected
               ]}
             />
             {index < options.length - 1 && <Divider />}
@@ -483,6 +450,20 @@ const LeadEdit = ({ route, navigation }) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
   const authState = useAuthStore();
+
+  // ADDED: State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ADDED: useEffect to set mounted state after first render
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
+
+  // Fetch dynamic lead statuses from backend
+  const { data: leadStatuses = [], isLoading: statusesLoading } = useLeadStatuses();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -531,21 +512,15 @@ const LeadEdit = ({ route, navigation }) => {
     comments: '',
     statusId: 'N',
     statusLabel: 'New',
+    statusColor: Colors.statusNew,
     leadSourceId: 'CC',
     leadSourceLabel: 'Cold Call',
   });
 
-  // Use dynamic sales representatives
-  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+  // FIXED: Only enable sales representatives query after component is mounted
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
-  // Static dropdown options
-  const leadStatusOptions = [
-    { id: 'N', identifier: 'New' },
-    { id: 'W', identifier: 'Working' },
-    { id: 'C', identifier: 'Converted' },
-    { id: 'E', identifier: 'Expired' },
-  ];
-
+  // Static dropdown options (these might also come from backend in future)
   const businessPartnerOptions = [
     { id: '1000000', identifier: 'Starlet Innovations Pvt Ltd' },
     { id: '1000001', identifier: 'Other Client' },
@@ -591,9 +566,23 @@ const LeadEdit = ({ route, navigation }) => {
     return rep ? rep.Name : '';
   }, [formData.salesRepId, salesReps]);
 
+  // Get current status object from dynamic statuses
+  const currentStatus = useMemo(() => {
+    if (!formData.statusId) return null;
+    return leadStatuses.find(s => s.id === formData.statusId) || {
+      id: formData.statusId,
+      name: formData.statusLabel,
+      color: formData.statusColor || Colors.statusNew
+    };
+  }, [formData.statusId, formData.statusLabel, leadStatuses]);
+
   // Initialize form data
   useEffect(() => {
     if (displayLead) {
+      // Find matching status in dynamic statuses
+      const leadStatusId = displayLead?.LeadStatus?.id || 'N';
+      const matchingStatus = leadStatuses.find(s => s.id === leadStatusId);
+      
       setFormData({
         name: displayLead?.Name || '',
         email: displayLead?.EMail || '',
@@ -615,8 +604,9 @@ const LeadEdit = ({ route, navigation }) => {
         leadSourceDesc: displayLead?.LeadSourceDescription || '',
         leadStatusDesc: displayLead?.LeadStatusDescription || '',
         comments: displayLead?.Comments || '',
-        statusId: displayLead?.LeadStatus?.id || 'N',
-        statusLabel: displayLead?.LeadStatus?.identifier || 'New',
+        statusId: leadStatusId,
+        statusLabel: matchingStatus?.name || displayLead?.LeadStatus?.identifier || 'New',
+        statusColor: matchingStatus?.color || Colors.statusNew,
         leadSourceId: displayLead?.LeadSource?.id || 'CC',
         leadSourceLabel: displayLead?.LeadSource?.identifier || 'Cold Call',
       });
@@ -624,7 +614,7 @@ const LeadEdit = ({ route, navigation }) => {
       // Clear errors when initializing
       setErrors({});
     }
-  }, [displayLead]);
+  }, [displayLead, leadStatuses]);
 
   // Clear error for a field when it's updated
   const updateFormData = (key, value) => {
@@ -692,8 +682,6 @@ const LeadEdit = ({ route, navigation }) => {
     console.log('🔄 Navigating to AddSaleOppor with lead data:', displayLead.id);
     
     // Prepare lead data for the opportunity form
-    // CRITICAL: In iDempiere, opportunities are linked to Business Partners (C_BPartner)
-    // So we need to pass the business partner information from the lead
     const opportunityLeadData = {
       id: displayLead.id,
       name: formData.name,
@@ -703,9 +691,9 @@ const LeadEdit = ({ route, navigation }) => {
       description: formData.description,
       comments: formData.comments,
       
-      // Business Partner info - This is what the AddSaleOppor screen needs for C_BPartner_ID
-      businessPartnerId: formData.businessPartnerId, // This will be used for C_BPartner_ID.id
-      businessPartnerName: formData.businessPartnerLabel, // This will be displayed in the search field
+      // Business Partner info
+      businessPartnerId: formData.businessPartnerId,
+      businessPartnerName: formData.businessPartnerLabel,
       
       // Sales Rep info
       salesRepId: formData.salesRepId,
@@ -719,7 +707,7 @@ const LeadEdit = ({ route, navigation }) => {
       leadSourceId: formData.leadSourceId,
       leadSourceLabel: formData.leadSourceLabel,
       
-      // The lead ID itself - will be used for AD_User_ID
+      // The lead ID itself
       userId: displayLead.id,
     };
 
@@ -739,14 +727,19 @@ const LeadEdit = ({ route, navigation }) => {
   // ============================================
   // Handle status update with opportunity navigation
   // ============================================
-  const handleStatusUpdate = (statusOption) => {
-    console.log('🔄 Status update requested:', statusOption);
+  const handleStatusUpdate = (status) => {
+    console.log('🔄 Status update requested:', status);
     
-    const newStatus = statusOption.identifier;
-    const oldStatus = formData.statusLabel;
+    const newStatusId = status.id;
+    const newStatusName = status.name;
+    const oldStatusName = formData.statusLabel;
+    
+    // If we're changing to a status that might be considered "converted"
+    // You can define which statuses trigger opportunity creation
+    const isConvertedStatus = newStatusName.toLowerCase() === 'converted';
     
     // If we're changing to "Converted" and we're in edit mode
-    if (isEditMode && newStatus === 'Converted' && oldStatus !== 'Converted') {
+    if (isEditMode && isConvertedStatus && oldStatusName !== 'Converted') {
       console.log('🎯 Status changing to Converted in edit mode');
       
       // First validate the form
@@ -786,8 +779,8 @@ const LeadEdit = ({ route, navigation }) => {
         LeadStatusDescription: formData.leadStatusDesc || '',
         Comments: formData.comments || '',
         LeadStatus: {
-          id: statusOption.id,
-          identifier: statusOption.identifier
+          id: newStatusId,
+          identifier: newStatusName
         },
         LeadSource: {
           id: formData.leadSourceId,
@@ -805,8 +798,9 @@ const LeadEdit = ({ route, navigation }) => {
           // Update local form state
           setFormData(prev => ({
             ...prev,
-            statusId: statusOption.id,
-            statusLabel: statusOption.identifier
+            statusId: newStatusId,
+            statusLabel: newStatusName,
+            statusColor: status.color
           }));
           
           // Close the status menu
@@ -847,8 +841,9 @@ const LeadEdit = ({ route, navigation }) => {
       });
     } else {
       // For other status changes or if not in edit mode, just update the form
-      updateFormData('statusId', statusOption.id);
-      updateFormData('statusLabel', statusOption.identifier);
+      updateFormData('statusId', newStatusId);
+      updateFormData('statusLabel', newStatusName);
+      updateFormData('statusColor', status.color);
       setStatusMenuVisible(false);
     }
   };
@@ -903,8 +898,10 @@ const LeadEdit = ({ route, navigation }) => {
       onSuccess: () => {
         console.log('✅ Lead updated successfully');
         
-        // Check if status is Converted and we need to ask about opportunity
-        if (formData.statusLabel === 'Converted') {
+        // Check if status is "Converted" and we need to ask about opportunity
+        const isConverted = formData.statusLabel.toLowerCase() === 'converted';
+        
+        if (isConverted) {
           Alert.alert(
             'Lead Converted',
             'Lead has been successfully converted. Would you like to create a sales opportunity now?',
@@ -968,9 +965,6 @@ const LeadEdit = ({ route, navigation }) => {
     updateFormData('salesRepId', '');
     updateFormData('salesRepLabel', '');
   };
-
-  // Get current status UI config
-  const statusUI = STATUS_CONFIG[formData.statusLabel] || STATUS_CONFIG.New;
 
   // Handle boolean field toggle
   const handleBooleanToggle = (key, value) => {
@@ -1212,6 +1206,14 @@ const LeadEdit = ({ route, navigation }) => {
                 placeholder="Enter comments"
                 editable={isEditMode && !isConverting}
               />
+
+              <TextAreaField
+                label="Lead Status Description"
+                value={formData.leadStatusDesc}
+                onChangeText={(text) => updateFormData('leadStatusDesc', text)}
+                placeholder="Enter status description"
+                editable={isEditMode && !isConverting}
+              />
             </View>
           </View>
         );
@@ -1273,6 +1275,24 @@ const LeadEdit = ({ route, navigation }) => {
     );
   }
 
+  if (statusesLoading) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title={'Lead Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+          RightIcon={null}
+          RightPress={null}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading statuses...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
@@ -1322,54 +1342,62 @@ const LeadEdit = ({ route, navigation }) => {
                   onDismiss={() => setStatusMenuVisible(false)}
                   anchor={
                     <TouchableOpacity
-                      style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
+                      style={[
+                        styles.statusBadge, 
+                        { backgroundColor: currentStatus?.color ? `${currentStatus.color}20` : Colors.infoLight }
+                      ]}
                       onPress={() => setStatusMenuVisible(true)}
                       activeOpacity={0.7}
                       disabled={isConverting}
                     >
                       {isConverting ? (
-                        <ActivityIndicator size="small" color={statusUI.badgeColor} />
+                        <ActivityIndicator size="small" color={currentStatus?.color || Colors.primary} />
                       ) : (
                         <>
-                          {statusUI.showDot && (
-                            <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
-                          )}
-                          {statusUI.showCheck && (
-                            <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
-                          )}
-                          <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                            {statusUI.badgeText}
+                          <View style={[
+                            styles.dot, 
+                            { backgroundColor: currentStatus?.color || Colors.primary }
+                          ]} />
+                          <Text style={[
+                            styles.statusBadgeText, 
+                            { color: currentStatus?.color || Colors.primary }
+                          ]}>
+                            {currentStatus?.name || formData.statusLabel}
                           </Text>
-                          <AntDesign name="down" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
+                          <AntDesign name="down" size={Layout.iconSize.xs} color={currentStatus?.color || Colors.primary} />
                         </>
                       )}
                     </TouchableOpacity>
                   }
                 >
-                  {leadStatusOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
+                  {leadStatuses.map((status, index) => (
+                    <React.Fragment key={status.id}>
                       <Menu.Item
-                        onPress={() => handleStatusUpdate(option)}
-                        title={option.identifier}
+                        onPress={() => handleStatusUpdate(status)}
+                        title={status.name}
                         titleStyle={[
                           styles.menuItemTitle,
-                          formData.statusId === option.id && styles.menuItemSelected
+                          formData.statusId === status.id && styles.menuItemSelected
                         ]}
                       />
-                      {index < leadStatusOptions.length - 1 && <Divider />}
+                      {index < leadStatuses.length - 1 && <Divider />}
                     </React.Fragment>
                   ))}
                 </Menu>
               ) : (
-                <View style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}>
-                  {statusUI.showDot && (
-                    <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
-                  )}
-                  {statusUI.showCheck && (
-                    <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
-                  )}
-                  <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                    {statusUI.badgeText}
+                <View style={[
+                  styles.statusBadge, 
+                  { backgroundColor: currentStatus?.color ? `${currentStatus.color}20` : Colors.infoLight }
+                ]}>
+                  <View style={[
+                    styles.dot, 
+                    { backgroundColor: currentStatus?.color || Colors.primary }
+                  ]} />
+                  <Text style={[
+                    styles.statusBadgeText, 
+                    { color: currentStatus?.color || Colors.primary }
+                  ]}>
+                    {currentStatus?.name || formData.statusLabel}
                   </Text>
                 </View>
               )}
@@ -1565,7 +1593,6 @@ const LeadEdit = ({ route, navigation }) => {
   );
 };
 
-// All your existing styles remain exactly the same
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,

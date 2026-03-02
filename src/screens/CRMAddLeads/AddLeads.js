@@ -1,5 +1,6 @@
-// screens/AddLeads.js
-import React, { useEffect, useState, useMemo } from 'react';
+// screens/AddLeads.js - COMPLETE FIXED VERSION
+
+import React, { useState, useMemo, useEffect } from 'react'; // ADDED useEffect
 import {
   StyleSheet,
   View,
@@ -16,7 +17,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../../components/CustomHeader';
 import { useAddLeadForm } from '../../hooks/CRMhooks/useAddLeadForm';
-import { useCreateLead, useCampaigns, useSalesRepresentatives } from '../../services/CRMAPI/useLead';
+import { useCreateLead, useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
 import FormSection from '../../components/AddLead/FormSection';
 import { FormInput, PhoneInput } from '../../components/AddLead/LeadForm';
 import SelectPicker from '../../components/AddLead/SelectPicker';
@@ -26,7 +27,18 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 const AddLeads = () => {
   const navigation = useNavigation();
   
-  // Use custom form hook
+  // ADDED: State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ADDED: useEffect to set mounted state after first render
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
+
+  // Use custom form hook - this should now handle initialization internally
   const {
     formData,
     errors,
@@ -38,24 +50,23 @@ const AddLeads = () => {
     validateRequiredFields,
     copyContactToBusinessPartner,
     prepareSubmitData,
-    initializeForm,
   } = useAddLeadForm();
 
-  // Use React Query mutations
   const createLeadMutation = useCreateLead();
-  const { data: campaigns = [], isLoading: loadingCampaigns } = useCampaigns();
-  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+  
+  // FIXED: Pass enabled flag to useSalesRepresentatives
+  // The query will only run after the component has mounted (isMounted = true)
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
   // State for searchable sales rep picker
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [countryCode, setCountryCode] = useState('+92'); // Pakistan by default
 
   // Status options
   const leadStatusOptions = [
     { label: 'New', value: 'N' },
     { label: 'Working', value: 'W' },
-    { label: 'Expire', value: 'E' },
+    { label: 'Expired', value: 'E' },
     { label: 'Converted', value: 'C' },
   ];
 
@@ -77,12 +88,7 @@ const AddLeads = () => {
     { label: 'Other', value: 'OT' },
   ];
 
-  // Initialize form on mount
-  useEffect(() => {
-    initializeForm();
-  }, [initializeForm]);
-
-  // Filter sales reps based on search query (by name only)
+  // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
     if (!searchQuery.trim()) {
       return salesReps;
@@ -121,9 +127,17 @@ const AddLeads = () => {
       return;
     }
 
+    // Validate sales rep is selected
+    if (!formData.salesRep) {
+      Alert.alert('Validation Error', 'Please select a Sales Representative.');
+      return;
+    }
+
     try {
       // Prepare data
       const submitData = prepareSubmitData();
+      
+      console.log('📦 Submitting lead data:', JSON.stringify(submitData, null, 2));
       
       // Submit via mutation
       await createLeadMutation.mutateAsync(submitData);
@@ -140,7 +154,7 @@ const AddLeads = () => {
         ]
       );
     } catch (error) {
-      console.error('Lead creation error:', error);
+      console.error('❌ Lead creation error:', error);
       Alert.alert(
         'Error',
         error.message || 'Failed to create lead. Please try again.'
@@ -149,7 +163,7 @@ const AddLeads = () => {
   };
 
   // Loading state
-  const isLoading = createLeadMutation.isLoading || loadingCampaigns || loadingSalesReps;
+  const isLoading = createLeadMutation.isLoading || loadingSalesReps;
 
   // Render sales rep item
   const renderSalesRepItem = ({ item }) => (
@@ -162,6 +176,9 @@ const AddLeads = () => {
     >
       <View style={styles.repItemContent}>
         <Text style={styles.repName}>{item.Name}</Text>
+        {item.EMail && (
+          <Text style={styles.repEmail}>{item.EMail}</Text>
+        )}
       </View>
       {formData.salesRep === item.id && (
         <Icon name="check" size={20} color="#2F4FE3" />
@@ -220,7 +237,6 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
           
-          {/* Phone Input with Country Code */}
           <PhoneInput
             label="Phone"
             required
@@ -232,7 +248,6 @@ const AddLeads = () => {
             onFocus={() => setFocusedField('phone')}
             onBlur={() => setFocusedField(null)}
             defaultCountryCode="+92"
-            onCountryCodeChange={(code) => setCountryCode(code)}
           />
           
           <FormInput
@@ -340,7 +355,6 @@ const AddLeads = () => {
           expanded={expandedSections.otherInfo}
           onToggle={() => toggleSection('otherInfo')}
         >
-          {/* Secondary Phone with Country Code */}
           <PhoneInput
             label="Secondary Phone"
             value={formData.phone2}
@@ -384,28 +398,6 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
 
-          {/* Campaign Picker */}
-          <View style={styles.pickerContainer}>
-            <Text style={styles.pickerLabel}>Campaign</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.campaignID}
-                onValueChange={(value) => updateField('campaignID', value)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Campaign" value={null} />
-                {campaigns.map((campaign) => (
-                  <Picker.Item
-                    key={campaign.id}
-                    label={campaign.Name}
-                    value={campaign.id}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Lead Source Picker */}
           <SelectPicker
             label="Lead Source"
             value={formData.leadSourceID}
@@ -429,7 +421,6 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
 
-          {/* Status Picker */}
           <SelectPicker
             label="Status"
             value={formData.statusID}
@@ -489,15 +480,12 @@ const AddLeads = () => {
                   onValueChange={(value) => updateField('vendorLead', value)}
                   style={styles.smallPicker}
                 >
-                  <Picker.Item label="Select" value="" />
                   <Picker.Item label="True" value="true" />
                   <Picker.Item label="False" value="false" />
                 </Picker>
               </View>
             </View>
           </View>
-
-  
         </FormSection>
 
         {/* Submit Button */}

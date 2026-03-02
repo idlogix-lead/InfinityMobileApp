@@ -1,5 +1,7 @@
-// hooks/useAddLeadForm.js - FIXED VERSION
-import { useState, useCallback } from 'react';
+// hooks/useAddLeadForm.js - COMPLETELY FIXED VERSION
+// No more render-time state updates!
+
+import { useState, useCallback, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -30,7 +32,7 @@ export const useAddLeadForm = () => {
     comments: '',
     campaignID: null,
     
-    // Auto-filled fields
+    // Auto-filled fields - will be populated in useEffect
     salesRep: '',
     salesRepID: '',
     organization: '',
@@ -49,41 +51,56 @@ export const useAddLeadForm = () => {
     otherInfo: false,
   });
 
-  // Fetch user data on mount
-  const initializeForm = useCallback(async () => {
-    try {
-      // Auto-fill sales rep from auth store
-      const authState = useAuthStore.getState();
-      const userName = authState.userName;
-      const userId = authState.userId;
-      
-      console.log('🔄 Initializing form with auth data:', { userName, userId });
-      
-      if (userName) {
-        setFormData(prev => ({
-          ...prev,
-          salesRep: userName,
-          salesRepID: userId || '1000117',
-        }));
-      }
-
-      // Get organization from AsyncStorage
-      const orgData = await AsyncStorage.getItem('orgs');
-      if (orgData) {
-        const data = JSON.parse(orgData);
-        const orgs = data.filter(org => !org.name.includes('*'));
-        if (orgs.length > 0) {
+  // ============================================
+  // FIXED: Initialize in useEffect, NOT in render
+  // ============================================
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initializeForm = async () => {
+      try {
+        // Auto-fill sales rep from auth store
+        const authState = useAuthStore.getState();
+        const userName = authState.userName;
+        const userId = authState.userId;
+        
+        console.log('🔄 Initializing form with auth data:', { userName, userId });
+        
+        if (isMounted) {
           setFormData(prev => ({
             ...prev,
-            organization: orgs[0].name,
-            organizationID: orgs[0].id || '1000000',
+            salesRep: userName || '',
+            salesRepID: userId || '1000117',
           }));
         }
+
+        // Get organization from AsyncStorage
+        const orgData = await AsyncStorage.getItem('orgs');
+        if (orgData && isMounted) {
+          const data = JSON.parse(orgData);
+          const orgs = data.filter(org => !org.name.includes('*'));
+          if (orgs.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              organization: orgs[0].name,
+              organizationID: orgs[0].id || '1000000',
+            }));
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.log('Error initializing form:', error);
+        }
       }
-    } catch (error) {
-      console.log('Error initializing form:', error);
-    }
-  }, []);
+    };
+
+    initializeForm();
+    
+    // Cleanup function to prevent state updates on unmounted component
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array = runs once on mount
 
   // Update form field
   const updateField = useCallback((field, value) => {
@@ -202,9 +219,9 @@ export const useAddLeadForm = () => {
       AD_Client_ID: { id: formData.businessPartnerID || '1000000' },
       Description: formData.description || '',
       IsActive: true,
-      LeadStatus: { id: formData.statusID || 'N' }, // FIXED: Should be object
+      LeadStatus: { id: formData.statusID || 'N' },
       Value: formData.searchKey || '',
-      LeadSource: { id: formData.leadSourceID || 'CC' }, // FIXED: Should be object
+      LeadSource: { id: formData.leadSourceID || 'CC' },
       LeadSourceDescription: formData.leadSourceDesc || '',
       LeadStatusDescription: formData.leadStatusDesc || '',
       Comments: formData.comments || '',
@@ -238,6 +255,6 @@ export const useAddLeadForm = () => {
     validateRequiredFields,
     copyContactToBusinessPartner,
     prepareSubmitData,
-    initializeForm,
+    // REMOVED: initializeForm - it's now internal only!
   };
 };
