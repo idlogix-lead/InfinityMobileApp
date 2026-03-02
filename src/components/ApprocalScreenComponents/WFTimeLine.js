@@ -63,8 +63,8 @@ const WFTimeline = ({steps}) => {
   }, [progressPercent]);
 
   const getColor = status => {
-    if (status === 'done') return '#22C55E';
-    if (status === 'pending') return '#2563EB';
+    if (status === 'done') return '#4CAF7D';
+    if (status === 'pending') return '#2E7D57';
     return '#9CA3AF';
   };
 
@@ -83,7 +83,7 @@ const WFTimeline = ({steps}) => {
           <Switch
             value={showSteps}
             onValueChange={setShowSteps}
-            trackColor={{false: '#D1D5DB', true: '#2563EB'}}
+            trackColor={{false: '#D1D5DB', true: '#77DD77'}}
             thumbColor={'#fff'}
           />
         </View>
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
 
   progressFill: {
     height: 8,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2E7D57',
     borderRadius: 8,
   },
 

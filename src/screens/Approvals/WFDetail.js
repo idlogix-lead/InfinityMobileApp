@@ -5,15 +5,19 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  BackHandler,
 } from 'react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import dayjs from 'dayjs';
 import ReqHeader from '../../components/ReqHeader';
 import WFTimeline from '../../components/ApprocalScreenComponents/WFTimeLine';
+import { useNavigation } from '@react-navigation/native';
 
 const WFDetail = ({route}) => {
   const {item} = route.params;
+  const navigation = useNavigation();
+
   const workflowSteps = [
     {
       id: 1,
@@ -45,11 +49,53 @@ const WFDetail = ({route}) => {
   const rejectSingle = () => {
     alert(`Rejected Record ${item.Record_ID}`);
   };
+  useEffect(() => {
+    const backAction = () => {
+      navigation.goBack();
+      return true;
+    };
 
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
+    );
+
+    return () => backHandler.remove();
+  }, []);
+
+  const handleBackPress = () => {
+    navigation.goBack();
+  };
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <ReqHeader title="Approval Detail" />
+      <StatusBar barStyle="dark-content" />
+      {/* <ReqHeader title="Approval Detail" /> */}
+      <View
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          paddingHorizontal: '5%',
+          paddingTop: '10%',
+          backgroundColor:'#77DD7722'
+        }}>
+        <TouchableOpacity onPress={handleBackPress}>
+          <MaterialIcons name="chevron-left" size={30} color={'#000'} />
+        </TouchableOpacity>
+        <Text
+          style={{
+            fontSize: 20,
+            color: '#222',
+            fontFamily: 'K2D-Medium',
+          }}>
+          {' '}
+          Approval Detail
+        </Text>
+        {/* <TouchableOpacity
+                onPress={() => navigation.navigate('approvalNotification')}>
+                <MaterialIcons name="notifications" color={'#000'} size={25} />
+              </TouchableOpacity> */}
+        <View style={{}} />
+      </View>
 
       <ScrollView style={styles.container}>
         {/* ================= HEADER SUMMARY CARD ================= */}
@@ -159,7 +205,7 @@ const InfoRow = ({label, value}) => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: '#77DD7722',
     padding: 12,
   },
 
@@ -172,12 +218,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 3,
     marginBottom: 14,
+    // borderTopColor: '#77DD77',
+    // borderTopWidth: 5,
   },
   iconWrap: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#F2F5FF',
+    // backgroundColor: '#F2F5FF',
+    backgroundColor: '#E6F7ED',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -256,7 +305,7 @@ const styles = StyleSheet.create({
   },
   approveBtn: {
     flex: 1,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#2E7D57',
     padding: 14,
     borderRadius: 10,
     flexDirection: 'row',
@@ -266,7 +315,7 @@ const styles = StyleSheet.create({
   },
   rejectBtn: {
     flex: 1,
-    backgroundColor: '#EF4444',
+    backgroundColor: '#C62828',
     padding: 14,
     borderRadius: 10,
     flexDirection: 'row',
