@@ -1,5 +1,6 @@
-// screens/CRM/GenericLeadScreen.js - UPDATED for dynamic statuses
-import React, {useState, useMemo, useCallback, useEffect} from 'react';
+// screens/CRM/GenericLeadScreen.js - FIXED version (no render-time state updates)
+
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,9 +15,9 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import {Provider, Menu, Divider} from 'react-native-paper';
-import {useFocusEffect} from '@react-navigation/native';
-import {useQueryClient} from 'react-query';
+import { Provider, Menu, Divider } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from 'react-query';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
@@ -28,29 +29,29 @@ import {
   useFollowups,
   useLeadStatistics,
   useSearchLeads,
-  useLeadStatuses, // Add this import
+  useLeadStatuses,
 } from '../../hooks/CRMhooks/useCRM';
-import {useLeadActions} from '../../hooks/CRMhooks/useLeadActions';
+import { useLeadActions } from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
-import {debounce} from 'lodash';
+import { debounce } from 'lodash';
 
 // Import single theme file
 import theme from '../../constants/CRMTheme/CRMTheme';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 
 // Destructure theme for easy access
-const {Colors, Typography, Layout} = theme;
-const {scale, verticalScale, spacing} = Layout;
+const { Colors, Typography, Layout } = theme;
+const { scale, verticalScale, spacing } = Layout;
 
-const GenericLead = ({navigation, route}) => {
+const GenericLead = ({ navigation, route }) => {
   // Get pre-filtered leads and screen title from navigation params
-  const {leads: initialLeads = [], screenTitle: paramTitle, statusId: paramStatusId} = route.params || {};
+  const { leads: initialLeads = [], screenTitle: paramTitle, statusId: paramStatusId } = route.params || {};
 
   // Use paramTitle from route.params
   const actualScreenTitle = paramTitle || 'Leads';
 
   // Fetch dynamic lead statuses
-  const {data: leadStatuses = []} = useLeadStatuses();
+  const { data: leadStatuses = [] } = useLeadStatuses();
 
   // State
   const [filterVisible, setFilterVisible] = useState(false);
@@ -61,7 +62,6 @@ const GenericLead = ({navigation, route}) => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [localSearchResults, setLocalSearchResults] = useState([]);
-  const [forceUpdate, setForceUpdate] = useState(0);
   const [freshLeads, setFreshLeads] = useState(initialLeads);
 
   // Sorting state
@@ -71,7 +71,10 @@ const GenericLead = ({navigation, route}) => {
   const [calendarMode, setCalendarMode] = useState('from');
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectDate, setSelectDate] = useState(null);
-  
+
+  // Use ref to track if component is mounted
+  const isMounted = useRef(true);
+
   // Hooks
   const queryClient = useQueryClient();
 
@@ -82,7 +85,7 @@ const GenericLead = ({navigation, route}) => {
   } = useFollowups();
 
   const {
-    data: statistics = {total: 0, todayLeads: 0, monthLeads: 0},
+    data: statistics = { total: 0, todayLeads: 0, monthLeads: 0 },
     refetch: refetchStats,
   } = useLeadStatistics();
 
@@ -92,18 +95,26 @@ const GenericLead = ({navigation, route}) => {
     refetch: refetchSearch,
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
-  const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
+  const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
+
+  // Set up mounted ref
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // ============================================
   // DYNAMIC STATUS OPTIONS
   // ============================================
-  
+
   // Generate status options dynamically from leadStatuses
   const statusOptions = useMemo(() => {
     const options = [
-      {label: '-- All Statuses --', value: 'select', id: 'select'},
+      { label: '-- All Statuses --', value: 'select', id: 'select' },
     ];
-    
+
     leadStatuses.forEach(status => {
       options.push({
         label: status.name,
@@ -112,7 +123,7 @@ const GenericLead = ({navigation, route}) => {
         color: status.color
       });
     });
-    
+
     return options;
   }, [leadStatuses]);
 
@@ -131,7 +142,7 @@ const GenericLead = ({navigation, route}) => {
   // ============================================
   // CACHE ACCESS
   // ============================================
-  
+
   // Get fresh leads directly from cache (no API call)
   const getFreshLeadsFromCache = useCallback(() => {
     // Try to get from main leads cache
@@ -139,7 +150,7 @@ const GenericLead = ({navigation, route}) => {
     if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
       return cachedLeads;
     }
-    
+
     // Try to get from any leads query as fallback
     const allQueries = queryClient.getQueryCache().findAll(['leads']);
     for (const query of allQueries) {
@@ -147,26 +158,24 @@ const GenericLead = ({navigation, route}) => {
         return query.state.data;
       }
     }
-    
+
     return initialLeads; // Fallback to initial leads
   }, [queryClient, initialLeads]);
 
-  // Update freshLeads whenever cache changes
+  // FIXED: Update freshLeads when cache changes - but not during render
   useEffect(() => {
     const updateLeadsFromCache = () => {
+      if (!isMounted.current) return;
       const leads = getFreshLeadsFromCache();
       setFreshLeads(leads);
-      setForceUpdate(prev => prev + 1);
     };
-    
-    // Initial load
-    updateLeadsFromCache();
-    
+
     // Subscribe to query cache changes for real-time updates
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
       // When any leads query is updated, refresh our data
       if (event?.query?.queryKey?.[0] === 'leads') {
-        updateLeadsFromCache();
+        // Use setTimeout to ensure this doesn't happen during render
+        setTimeout(updateLeadsFromCache, 0);
       }
     });
 
@@ -181,12 +190,13 @@ const GenericLead = ({navigation, route}) => {
       // Invalidate queries to trigger background refetch
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['lead-statistics']);
-      
+
       // Also update from cache immediately
       const leads = getFreshLeadsFromCache();
-      setFreshLeads(leads);
-      setForceUpdate(prev => prev + 1);
-      
+      if (isMounted.current) {
+        setFreshLeads(leads);
+      }
+
       return () => {
         // Cleanup if needed
       };
@@ -224,16 +234,16 @@ const GenericLead = ({navigation, route}) => {
   // ============================================
   // DYNAMIC SORT OPTIONS
   // ============================================
-  
+
   // Sort options - now includes dynamic status sorting
   const sortOptions = useMemo(() => {
     const baseOptions = [
-      {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
-      {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
-      {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
-      {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
+      { id: 'latest', label: 'Latest to Old', icon: 'arrow-down' },
+      { id: 'oldest', label: 'Old to Latest', icon: 'arrow-up' },
+      { id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending' },
+      { id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending' },
     ];
-    
+
     // Add dynamic status sort options
     leadStatuses.forEach(status => {
       baseOptions.push({
@@ -244,17 +254,14 @@ const GenericLead = ({navigation, route}) => {
         statusName: status.name
       });
     });
-    
+
     return baseOptions;
   }, [leadStatuses]);
-
-  // Get current sort option display
-  const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
 
   // ============================================
   // FILTERING LOGIC
   // ============================================
-  
+
   // Apply screen-specific filter (based on which card was clicked)
   const screenFilteredLeads = useMemo(() => {
     if (!Array.isArray(freshLeads) || freshLeads.length === 0) {
@@ -282,7 +289,7 @@ const GenericLead = ({navigation, route}) => {
     }
 
     return filtered;
-  }, [freshLeads, actualScreenTitle, paramStatusId, getLatestLeadData, forceUpdate]);
+  }, [freshLeads, actualScreenTitle, paramStatusId, getLatestLeadData]);
 
   // Apply additional modal filters
   const modalFilteredLeads = useMemo(() => {
@@ -450,18 +457,19 @@ const GenericLead = ({navigation, route}) => {
       // Invalidate queries to trigger background refetch
       await queryClient.invalidateQueries(['leads']);
       await queryClient.invalidateQueries(['lead-statistics']);
-      await queryClient.invalidateQueries(['lead-statuses']); // Add this
+      await queryClient.invalidateQueries(['lead-statuses']);
       await refetchFollowups();
       await refetchStats();
-      
+
       if (searchQuery.length >= 2) {
         await refetchSearch();
       }
-      
+
       // Update from cache immediately
       const leads = getFreshLeadsFromCache();
-      setFreshLeads(leads);
-      setForceUpdate(prev => prev + 1);
+      if (isMounted.current) {
+        setFreshLeads(leads);
+      }
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
@@ -484,7 +492,7 @@ const GenericLead = ({navigation, route}) => {
   };
 
   // Render lead card with live data
-  const renderLeadCard = ({item}) => {
+  const renderLeadCard = ({ item }) => {
     // Get the latest lead data from cache
     const liveLead = getLatestLeadData(item.id) || item;
 
@@ -504,11 +512,11 @@ const GenericLead = ({navigation, route}) => {
     const statusColor = leadStatuses.find(s => s.id === liveLead.statusId)?.color || Colors.primary;
 
     return (
-      <View style={styles.cardContainer} key={`${liveLead.id}-${forceUpdate}`}>
+      <View style={styles.cardContainer}>
         <TouchableOpacity
           style={styles.cardTouchable}
           onPress={() => {
-            navigation.navigate('LeadsDetail', {data: liveLead});
+            navigation.navigate('LeadsDetail', { data: liveLead });
           }}
           activeOpacity={0.7}>
           <CRMCard
@@ -525,7 +533,7 @@ const GenericLead = ({navigation, route}) => {
             count={activityCount}
             interactionType={lastActivityType}
             status={liveLead?.statusName || liveLead?.LeadStatus?.identifier}
-            statusColor={statusColor} // Pass status color to CRMCard
+            statusColor={statusColor}
             Description={liveLead?.Description}
             company={
               liveLead.companyName ||
@@ -545,7 +553,7 @@ const GenericLead = ({navigation, route}) => {
               });
             }}
             onPress={() => {
-              navigation.navigate('LeadEdit', {data: liveLead});
+              navigation.navigate('LeadEdit', { data: liveLead });
             }}
           />
         </TouchableOpacity>
@@ -611,7 +619,7 @@ const GenericLead = ({navigation, route}) => {
                       style={[
                         styles.statusOption,
                         selectedStatusId === option.id &&
-                          styles.statusOptionSelected,
+                        styles.statusOptionSelected,
                       ]}
                       onPress={() => {
                         setSelectedStatusId(option.id);
@@ -619,13 +627,13 @@ const GenericLead = ({navigation, route}) => {
                       }}>
                       <View style={styles.statusOptionLeft}>
                         {option.color && (
-                          <View style={[styles.statusDot, {backgroundColor: option.color}]} />
+                          <View style={[styles.statusDot, { backgroundColor: option.color }]} />
                         )}
                         <Text
                           style={[
                             styles.statusOptionText,
                             selectedStatusId === option.id &&
-                              styles.statusOptionTextSelected,
+                            styles.statusOptionTextSelected,
                           ]}>
                           {option.label}
                         </Text>
@@ -682,7 +690,7 @@ const GenericLead = ({navigation, route}) => {
                       setShowCalendar(true);
                     }}
                     activeOpacity={0.7}
-                    style={{paddingLeft: scale(8)}}>
+                    style={{ paddingLeft: scale(8) }}>
                     <EvilIcons
                       name="calendar"
                       size={scale(25)}
@@ -850,10 +858,9 @@ const GenericLead = ({navigation, route}) => {
             <FlatList
               data={displayData}
               keyExtractor={(item, index) =>
-                `${item.id || index}-${forceUpdate}`
+                `${item.id || index}`
               }
               renderItem={renderLeadCard}
-              extraData={forceUpdate}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   {searchQuery.length > 0 ? (
@@ -923,8 +930,9 @@ const GenericLead = ({navigation, route}) => {
   );
 };
 
-// Add new styles
+// All styles remain exactly the same
 const styles = StyleSheet.create({
+  // ... all your existing styles remain unchanged
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -998,7 +1006,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
@@ -1114,7 +1122,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 5,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 2},
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
     zIndex: 1000,
@@ -1236,7 +1244,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.5,
   },

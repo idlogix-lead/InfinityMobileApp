@@ -1,6 +1,6 @@
-// components/CRMCard/MinimalOpportunityCard.js - Status top, amount middle, probability bottom with dynamic currency
-// UPDATED: Added phone and mail icons matching CRMCard
-import React from 'react';
+// components/CRMCard/MinimalOpportunityCard.js - FIXED with proper API fetching
+
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,10 @@ import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
+import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
 import moment from 'moment';
+import { useAuthStore } from '../../store/authStore';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -27,8 +29,14 @@ const OpportunityCard = ({
   showAmount = true,
 }) => {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  const authState = useAuthStore();
+  
+  // State for fetched lead data
+  const [leadData, setLeadData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // Extract opportunity data with fallbacks for both original and transformed data
+  // Extract opportunity data
   const opportunityName = opportunity?.Name || 
                          opportunity?.DocumentNo || 
                          'Unnamed Opportunity';
@@ -49,28 +57,8 @@ const OpportunityCard = ({
     opportunity?.BusinessPartner || 
     'No Company';
 
-  // Extract lead/contact name
-  const leadName = 
-    opportunity?.userName || 
-    opportunity?.AD_User_ID?.identifier || 
-    opportunity?.ContactName || 
-    'Unknown Contact';
-
-  // Extract contact info for phone and email
-  const leadEmail = opportunity?.AD_User_ID?.EMail || opportunity?.ContactEmail;
-  const leadPhone = opportunity?.AD_User_ID?.Phone || opportunity?.ContactPhone;
-
-  // Extract lead/contact ID for navigation
+  // Extract lead/contact ID
   const leadId = opportunity?.AD_User_ID?.id || opportunity?.userId;
-
-  // Extract lead/contact data for activity creation
-  const leadData = {
-    id: leadId,
-    Name: leadName,
-    EMail: leadEmail,
-    Phone: leadPhone,
-    BPName: businessPartner,
-  };
 
   // Get status
   const status = 
@@ -78,14 +66,14 @@ const OpportunityCard = ({
     opportunity?.OpportunityStatus || 
     'Open';
 
-  // Extract currency code from the opportunity data
+  // Extract currency code
   const currencyCode = 
-    opportunity?.currencyCode || // From transformed data
-    opportunity?.C_Currency_ID?.ISO_Code || // Original nested with ISO_Code
-    opportunity?.C_Currency_ID?.identifier || // Original nested with identifier
-    'PKR'; // Default to PKR if not found
+    opportunity?.currencyCode ||
+    opportunity?.C_Currency_ID?.ISO_Code ||
+    opportunity?.C_Currency_ID?.identifier ||
+    'PKR';
 
-  // Format amount with the currency from the opportunity
+  // Format amount
   const formattedAmount = new Intl.NumberFormat('en-PK', {
     style: 'currency',
     currency: currencyCode,
@@ -93,12 +81,7 @@ const OpportunityCard = ({
     maximumFractionDigits: 0,
   }).format(opportunityAmount);
 
-  // Format date
-  const formattedDate = expectedCloseDate 
-    ? moment(expectedCloseDate).format('DD MMM YYYY')
-    : 'No date';
-
-  // Format relative time for activity
+  // Format relative time
   const relativeTime = expectedCloseDate 
     ? moment(expectedCloseDate).fromNow()
     : 'No date';
@@ -115,11 +98,109 @@ const OpportunityCard = ({
 
   const statusColor = getStatusColor(status);
 
+  // ============================================
+  // FETCH LEAD DATA FROM API
+  // ============================================
+  useEffect(() => {
+    const fetchLeadData = async () => {
+      if (!leadId) {
+        console.log('⚠️ No lead ID found in opportunity');
+        return;
+      }
+
+      setLoading(true);
+      
+      try {
+        // Try to get from cache first
+        const cachedLeads = queryClient.getQueryData(['leads']);
+        if (Array.isArray(cachedLeads)) {
+          const cachedLead = cachedLeads.find(lead => 
+            lead.id === leadId || lead.AD_User_ID?.id === leadId
+          );
+          if (cachedLead) {
+            console.log('✅ Found lead in cache:', cachedLead.Name);
+            setLeadData({
+              name: cachedLead.Name || cachedLead.name,
+              email: cachedLead.EMail || cachedLead.email,
+              phone: cachedLead.Phone || cachedLead.phone,
+            });
+            setLoading(false);
+            return;
+          }
+        }
+
+        // If not in cache, fetch from API
+        const token = authState?.token;
+        const serverConfig = authState?.serverConfig;
+
+        if (!token || !serverConfig) {
+          console.log('❌ Auth data missing');
+          setLoading(false);
+          return;
+        }
+
+        const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+        const url = `${baseUrl}/models/AD_User/${leadId}`;
+
+        console.log('🔍 Fetching lead data from:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Lead data fetched:', data.Name);
+          setLeadData({
+            name: data.Name,
+            email: data.EMail || '',
+            phone: data.Phone || '',
+          });
+          
+          // Update the cache with this lead data
+          queryClient.setQueryData(['lead', leadId], data);
+        } else {
+          console.log('❌ Failed to fetch lead data:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching lead data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLeadData();
+  }, [leadId, queryClient, authState]);
+
+  // Use fetched lead data or fallback to opportunity data
+  const leadName = leadData?.name || 
+                   opportunity?.AD_User_ID?.identifier || 
+                   opportunity?.userName ||
+                   opportunity?.ContactName || 
+                   'Unknown Contact';
+  
+  const leadEmail = leadData?.email || '';
+  const leadPhone = leadData?.phone || '';
+
+  // Debug log
+  console.log('🔍 OpportunityCard - Lead data:', {
+    leadId,
+    leadName,
+    leadEmail: leadEmail || 'EMPTY',
+    leadPhone: leadPhone || 'EMPTY',
+    businessPartner
+  });
+
   // Handle phone press
   const handlePhonePress = (e) => {
     e.stopPropagation();
     if (leadPhone) {
-      Linking.openURL(`tel:${leadPhone}`);
+      Linking.openURL(`tel:${leadPhone}`).catch(() => {
+        Alert.alert('Error', 'Cannot open phone app');
+      });
     } else {
       Alert.alert('Info', 'No phone number available');
     }
@@ -129,31 +210,33 @@ const OpportunityCard = ({
   const handleEmailPress = (e) => {
     e.stopPropagation();
     if (leadEmail) {
-      Linking.openURL(`mailto:${leadEmail}`);
+      Linking.openURL(`mailto:${leadEmail}`).catch(() => {
+        Alert.alert('Error', 'Cannot open email app');
+      });
     } else {
       Alert.alert('Info', 'No email address available');
     }
   };
 
-  // Handle activity icon press - navigates to Add Activity form
+  // Handle activity icon press
   const handleActivityPress = (e) => {
-    e.stopPropagation(); // Prevent triggering the card's onPress
+    e.stopPropagation();
     
+    const leadDataForActivity = {
+      id: leadId,
+      Name: leadName,
+      EMail: leadEmail,
+      Phone: leadPhone,
+      BPName: businessPartner,
+    };
+
     if (onActivityPress) {
-      // If custom onActivityPress is provided, use it
-      onActivityPress(opportunity, leadData);
+      onActivityPress(opportunity, leadDataForActivity);
     } else if (leadId) {
-      // Default behavior: navigate to AddActivity with lead data
       navigation.navigate('AddActivity', {
-        data: leadData,
+        data: leadDataForActivity,
         mode: 'create',
-        onGoBack: () => {
-          // Optional: Add any refresh logic here
-          console.log('Activity added for opportunity:', opportunity.id);
-        }
       });
-    } else {
-      console.warn('Cannot add activity: No lead ID found');
     }
   };
 
@@ -173,9 +256,8 @@ const OpportunityCard = ({
           />
         </View>
 
-        {/* Center Section - Name, Company, Last Activity */}
+        {/* Center Section - Company, Lead, Expected Date */}
         <View style={styles.center}>
-          
           <Text style={styles.company} numberOfLines={1}>
             {businessPartner}
           </Text>
@@ -201,10 +283,10 @@ const OpportunityCard = ({
             </View>
           )}
 
-          {/* Icon Row - Phone, Mail, Activity - Matching CRMCard */}
+          {/* Icon Row - Show icons if data exists */}
           <View style={styles.iconRow}>
             {/* Phone Icon */}
-            {leadPhone && (
+            {leadPhone ? (
               <TouchableOpacity onPress={handlePhonePress} style={styles.iconButton}>
                 <Ionicons
                   name="call-outline"
@@ -212,10 +294,10 @@ const OpportunityCard = ({
                   color={Colors.textPrimary}
                 />
               </TouchableOpacity>
-            )}
+            ) : null}
 
             {/* Email Icon */}
-            {leadEmail && (
+            {leadEmail ? (
               <TouchableOpacity onPress={handleEmailPress} style={styles.iconButton}>
                 <Ionicons
                   name="mail-outline"
@@ -223,9 +305,9 @@ const OpportunityCard = ({
                   color={Colors.textPrimary}
                 />
               </TouchableOpacity>
-            )}
+            ) : null}
 
-            {/* Activity Icon with Plus */}
+            {/* Activity Icon */}
             <TouchableOpacity 
               onPress={handleActivityPress} 
               style={styles.iconButton}
@@ -274,6 +356,7 @@ const OpportunityCard = ({
   );
 };
 
+// Styles remain exactly the same
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.cardBackground || '#FFFFFF',
@@ -311,16 +394,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: Spacing.xs,
   },
-  opportunityName: {
-    fontSize: Typography.fontSize.medium || 14,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textPrimary || '#333333',
-    marginBottom: Spacing.xxs || 2,
-  },
   company: {
     fontSize: Typography.fontSize.medium || 14,
     fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textPrimary || '#33333333',
+    color: Colors.textPrimary || '#333333',
     marginBottom: Spacing.xxs || 2,
   },
   lastText: {
@@ -333,7 +410,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   
-  // Status Badge - Matching CRMCard exactly
+  // Status Badge
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,7 +430,7 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xxs || 2,
   },
   
-  // Icon Row - Matching CRMCard exactly
+  // Icon Row
   iconRow: {
     flexDirection: 'row',
     gap: Spacing.md || 12,
@@ -373,7 +450,7 @@ const styles = StyleSheet.create({
     borderRadius: scale(10),
   },
   
-  // Bottom Row - Amount and Probability
+  // Bottom Row
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

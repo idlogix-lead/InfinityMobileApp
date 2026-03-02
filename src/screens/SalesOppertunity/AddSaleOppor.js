@@ -1,4 +1,4 @@
-// screens/CRM/AddSaleOppor.js - FIXED VERSION
+// screens/CRM/AddSaleOppor.js - FIXED VERSION WITH PROPER USER MAPPING
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
@@ -76,11 +76,21 @@ const ReadOnly = ({ value, icon }) => (
   </View>
 );
 
-// Contact Display Component
+// FIXED: Contact Display Component - Shows user name from API
 const ContactDisplay = ({ leadData }) => {
   const getContactDisplayName = () => {
     if (!leadData) return 'No lead data';
     
+    // From your API response, the user has a "Name" field
+    if (leadData.Name) {
+      // If we have company information, show both
+      if (leadData.C_BPartner_ID?.identifier) {
+        return `${leadData.Name} (${leadData.C_BPartner_ID.identifier})`;
+      }
+      return leadData.Name;
+    }
+    
+    // Fallback to other fields
     if (leadData.companyName && leadData.name) {
       return `${leadData.name} (${leadData.companyName})`;
     }
@@ -95,8 +105,14 @@ const ContactDisplay = ({ leadData }) => {
 
   const getContactDetails = () => {
     const details = [];
+    // Check for email in various possible locations
+    if (leadData?.EMail) details.push(leadData.EMail);
     if (leadData?.email) details.push(leadData.email);
+    
+    // Check for phone in various possible locations
+    if (leadData?.Phone) details.push(leadData.Phone);
     if (leadData?.phone) details.push(leadData.phone);
+    
     return details.join(' • ');
   };
 
@@ -307,14 +323,11 @@ const AddSaleOppor = ({ navigation, route }) => {
   // Log the incoming leadData for debugging
   console.log('📦 AddSaleOppor - Received leadData:', leadData ? JSON.stringify({
     id: leadData.id,
-    name: leadData.name,
-    email: leadData.email,
-    phone: leadData.phone,
-    companyName: leadData.companyName,
-    businessPartnerId: leadData.businessPartnerId,
-    businessPartnerName: leadData.businessPartnerName,
-    userId: leadData.userId,
-    salesRepId: leadData.salesRepId
+    Name: leadData.Name,
+    EMail: leadData.EMail,
+    Phone: leadData.Phone,
+    C_BPartner_ID: leadData.C_BPartner_ID,
+    model: leadData['model-name']
   }) : 'No');
   
   const createOpportunity = useCreateSalesOpportunity();
@@ -416,24 +429,22 @@ const AddSaleOppor = ({ navigation, route }) => {
       console.log('🔄 Initializing from leadData');
       
       // Set Business Partner FIRST
-      if (leadData.businessPartnerId) {
-        console.log('✅ Setting business partner ID:', leadData.businessPartnerId);
-        console.log('✅ Setting business partner Name:', leadData.businessPartnerName);
+      if (leadData.C_BPartner_ID?.id) {
+        console.log('✅ Setting business partner ID:', leadData.C_BPartner_ID.id);
+        console.log('✅ Setting business partner Name:', leadData.C_BPartner_ID.identifier);
         
-        setSelectedBPId(leadData.businessPartnerId);
-        setSelectedBPName(leadData.businessPartnerName || leadData.companyName || '');
+        setSelectedBPId(leadData.C_BPartner_ID.id);
+        setSelectedBPName(leadData.C_BPartner_ID.identifier || '');
         
         // Fetch BP contacts for this business partner
-        if (leadData.businessPartnerId) {
-          fetchBpUsers(leadData.businessPartnerId);
+        if (leadData.C_BPartner_ID.id) {
+          fetchBpUsers(leadData.C_BPartner_ID.id);
         }
       }
       
-      // Set User/Contact AUTOMATICALLY from lead data
-      if (leadData.userId) {
-        console.log('✅ Setting user ID from leadData.userId:', leadData.userId);
-        setSelectedUserId(leadData.userId);
-      } else if (leadData.id) {
+      // FIXED: Set User/Contact from lead data using the correct field names
+      // In your API response, the user's ID is in the 'id' field
+      if (leadData.id) {
         console.log('✅ Setting user ID from leadData.id:', leadData.id);
         setSelectedUserId(leadData.id);
       }
@@ -441,22 +452,26 @@ const AddSaleOppor = ({ navigation, route }) => {
       // Set Description
       if (followupData?.description) {
         setDescription(followupData.description);
-      } else if (leadData.description) {
-        setDescription(leadData.description);
-      } else if (leadData.name) {
-        setDescription(`Opportunity from lead: ${leadData.name}`);
+      } else if (leadData.Description) {
+        setDescription(leadData.Description);
+      } else if (leadData.Name) {
+        setDescription(`Opportunity from user: ${leadData.Name}`);
       }
       
       // Set Comments
-      if (leadData.comments) {
-        setComments(leadData.comments);
+      if (leadData.Comments) {
+        setComments(leadData.Comments);
       }
       
-      // Set Sales Rep
-      if (leadData.salesRepId) {
-        console.log('✅ Setting sales rep ID:', leadData.salesRepId);
-        setSelectedSalesRepId(leadData.salesRepId);
-        setSelectedSalesRepName(leadData.salesRepLabel || '');
+      // Set Sales Rep - In your data, sales rep might be in CreatedBy or UpdatedBy
+      if (leadData.SalesRep_ID?.id) {
+        console.log('✅ Setting sales rep ID from SalesRep_ID:', leadData.SalesRep_ID.id);
+        setSelectedSalesRepId(leadData.SalesRep_ID.id);
+        setSelectedSalesRepName(leadData.SalesRep_ID.identifier || '');
+      } else if (leadData.CreatedBy?.id) {
+        console.log('✅ Setting sales rep ID from CreatedBy:', leadData.CreatedBy.id);
+        setSelectedSalesRepId(leadData.CreatedBy.id);
+        setSelectedSalesRepName(leadData.CreatedBy.identifier || '');
       }
       
       // Set default currency (PKR - 306) if available
@@ -669,9 +684,9 @@ const AddSaleOppor = ({ navigation, route }) => {
       setBpContacts(users);
       
       // IMPORTANT: Automatically select the lead user if it exists
-      if (leadData?.userId) {
-        console.log('🔍 Looking for lead user ID:', leadData.userId);
-        const matchingUser = users.find(u => u.id === leadData.userId);
+      if (leadData?.id) {
+        console.log('🔍 Looking for lead user ID:', leadData.id);
+        const matchingUser = users.find(u => u.id === leadData.id);
         if (matchingUser) {
           console.log('✅ Found matching lead user, auto-selecting:', matchingUser.Name);
           setSelectedUserId(matchingUser.id);
@@ -800,6 +815,7 @@ const AddSaleOppor = ({ navigation, route }) => {
       Description: description,
       Comments: comments,
       IsActive: active,
+       
     };
 
     if (selectedBPId) {
@@ -879,8 +895,8 @@ const AddSaleOppor = ({ navigation, route }) => {
         </View>
         <View style={styles.itemDetails}>
           <Text style={styles.itemName} numberOfLines={1}>{item.Name}</Text>
-          {item.Email && (
-            <Text style={styles.itemSubtext} numberOfLines={1}>{item.Email}</Text>
+          {item.EMail && (
+            <Text style={styles.itemSubtext} numberOfLines={1}>{item.EMail}</Text>
           )}
         </View>
       </View>

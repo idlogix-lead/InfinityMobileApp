@@ -1,5 +1,6 @@
-// screens/SalesOpportunityDetail/SalesOpportunityDetail.js - FIXED with dynamic currency
-import React, { useState, useEffect } from 'react';
+// screens/SalesOpportunityDetail/SalesOpportunityDetail.js - COMPLETE EDITION with proper lead data display
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -13,6 +14,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  FlatList,
+  Switch,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -22,9 +26,280 @@ import theme from '../../constants/CRMTheme/CRMTheme';
 import moment from 'moment';
 import { Menu, Divider } from 'react-native-paper';
 import { useUpdateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
+import { useAuthStore } from '../../store/authStore';
+import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
+import { Picker } from '@react-native-picker/picker';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
+
+// ============================================
+// UI COMPONENTS
+// ============================================
+
+const Label = ({ title, required }) => (
+  <Text style={styles.label}>
+    {title}
+    {required && <Text style={styles.requiredStar}> *</Text>}
+  </Text>
+);
+
+const Input = React.memo(({ error, icon, ...props }) => (
+  <View>
+    <View style={[styles.inputContainer, error && styles.inputError]}>
+      {icon && (
+        <MaterialCommunityIcons 
+          name={icon} 
+          size={Layout.iconSize.sm} 
+          color={Colors.textSecondary} 
+          style={styles.inputIcon}
+        />
+      )}
+      <TextInput
+        {...props}
+        placeholderTextColor={Colors.textTertiary}
+        style={[styles.input, icon && styles.inputWithIcon]}
+      />
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+));
+
+const ReadOnly = ({ value, icon }) => (
+  <View style={[styles.inputContainer, styles.readOnlyContainer]}>
+    {icon && (
+      <MaterialCommunityIcons 
+        name={icon} 
+        size={Layout.iconSize.sm} 
+        color={Colors.textSecondary} 
+        style={styles.inputIcon}
+      />
+    )}
+    <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>{value || 'Not provided'}</Text>
+  </View>
+);
+
+const PickerField = ({ selectedValue, onValueChange, children, error, icon, placeholder }) => (
+  <View>
+    <View style={[styles.pickerContainer, error && styles.inputError]}>
+      {icon && (
+        <MaterialCommunityIcons 
+          name={icon} 
+          size={Layout.iconSize.sm} 
+          color={Colors.textSecondary} 
+          style={styles.pickerIcon}
+        />
+      )}
+      <Picker
+        selectedValue={selectedValue}
+        onValueChange={onValueChange}
+        style={[styles.picker, icon && styles.pickerWithIcon]}
+        dropdownIconColor={Colors.textSecondary}
+      >
+        {placeholder && (
+          <Picker.Item 
+            label={placeholder} 
+            value={null} 
+            color={Colors.textTertiary}
+          />
+        )}
+        {children}
+      </Picker>
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
+const DatePickerField = ({ value, onPress, error, icon }) => {
+  const formatDate = (date) => {
+    if (!date) return '';
+    return moment(date).format('DD MMM YYYY');
+  };
+
+  return (
+    <View>
+      <TouchableOpacity 
+        style={[styles.inputContainer, error && styles.inputError]} 
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {icon && (
+          <MaterialCommunityIcons 
+            name={icon} 
+            size={Layout.iconSize.sm} 
+            color={Colors.textSecondary} 
+            style={styles.inputIcon}
+          />
+        )}
+        <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
+          {value ? formatDate(value) : 'Select date'}
+        </Text>
+        <MaterialCommunityIcons 
+          name="calendar-month" 
+          size={Layout.iconSize.sm} 
+          color={Colors.textSecondary} 
+          style={styles.dateIcon}
+        />
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+};
+
+const SwitchRow = ({ label, value, onValueChange, disabled }) => (
+  <View style={styles.switchRow}>
+    <Text style={styles.switchLabel}>{label}</Text>
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+      trackColor={{ false: Colors.border, true: Colors.primary }}
+      thumbColor={Colors.backgroundLight}
+    />
+  </View>
+);
+
+// Business Partner Selector Component
+const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear }) => (
+  <View style={styles.editField}>
+    <View style={styles.labelContainer}>
+      <Text style={styles.label}>Business Partner</Text>
+      <Text style={styles.requiredStar}> *</Text>
+    </View>
+    <TouchableOpacity
+      style={[
+        styles.selector,
+        error && styles.selectorError,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {selectedBPName ? (
+        <View style={styles.selectedItemContainer}>
+          <View style={styles.selectedItemInfo}>
+            <MaterialCommunityIcons name="domain" size={Layout.iconSize.sm} color={Colors.primary} />
+            <Text style={styles.selectedItemText} numberOfLines={1}>{selectedBPName}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.placeholderText}>Select Business Partner</Text>
+          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+        </>
+      )}
+    </TouchableOpacity>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
+// Sales Rep Selector Component
+const SalesRepSelector = ({ selectedSalesRepName, error, onPress, onClear }) => (
+  <View style={styles.editField}>
+    <View style={styles.labelContainer}>
+      <Text style={styles.label}>Sales Representative</Text>
+      <Text style={styles.requiredStar}> *</Text>
+    </View>
+    <TouchableOpacity
+      style={[
+        styles.selector,
+        error && styles.selectorError,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {selectedSalesRepName ? (
+        <View style={styles.selectedItemContainer}>
+          <View style={styles.selectedItemInfo}>
+            <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
+            <Text style={styles.selectedItemText} numberOfLines={1}>{selectedSalesRepName}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.placeholderText}>Select Sales Representative</Text>
+          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+        </>
+      )}
+    </TouchableOpacity>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
+// Contact Selector Component
+const ContactSelector = ({ selectedContactName, selectedContactDetails, error, onPress, onClear }) => (
+  <View style={styles.editField}>
+    <View style={styles.labelContainer}>
+      <Text style={styles.label}>Contact</Text>
+      <Text style={styles.requiredStar}> *</Text>
+    </View>
+    <TouchableOpacity
+      style={[
+        styles.selector,
+        error && styles.selectorError,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {selectedContactName ? (
+        <View style={styles.selectedItemContainer}>
+          <View style={styles.selectedItemInfo}>
+            <MaterialCommunityIcons name="account" size={Layout.iconSize.sm} color={Colors.primary} />
+            <View style={styles.contactSelectorText}>
+              <Text style={styles.selectedItemText} numberOfLines={1}>{selectedContactName}</Text>
+              {selectedContactDetails && (
+                <Text style={styles.contactSelectorDetails} numberOfLines={1}>{selectedContactDetails}</Text>
+              )}
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <Text style={styles.placeholderText}>Select Contact</Text>
+          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+        </>
+      )}
+    </TouchableOpacity>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
+// Error Retry Component
+const ErrorRetry = ({ message, onRetry }) => (
+  <View style={styles.errorContainer}>
+    <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.sm} color={Colors.error} />
+    <Text style={styles.errorRetryText}>{message}</Text>
+    <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
+      <Text style={styles.retryButtonText}>Retry</Text>
+    </TouchableOpacity>
+  </View>
+);
 
 // Status Config for Sales Opportunities
 const STATUS_CONFIG = {
@@ -107,101 +382,22 @@ const ClickableViewRow = ({ label, value, onPress, icon }) => (
     style={styles.viewRow}
     onPress={onPress}
     activeOpacity={0.7}
+    disabled={!onPress}
   >
     <Text style={styles.viewLabel}>{label}</Text>
     <View style={styles.clickableValueContainer}>
-      <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      <Text style={[styles.viewValue, icon && styles.viewValueWithIcon]}>{value || 'Not provided'}</Text>
       {icon && (
-        <MaterialCommunityIcons name={icon} size={Layout.iconSize.sm} color={Colors.textSecondary} />
+        <MaterialCommunityIcons 
+          name={icon} 
+          size={Layout.iconSize.sm} 
+          color={Colors.primary} 
+          style={styles.clickableIcon}
+        />
       )}
     </View>
   </TouchableOpacity>
 );
-
-// Edit Mode Input Field
-const EditField = ({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, editable = true }) => (
-  <View style={styles.editField}>
-    <Text style={styles.editLabel}>{label}</Text>
-    <View style={[styles.inputWrapper, !editable && styles.inputDisabled]}>
-      <TextInput
-        style={[styles.input, multiline && styles.textArea]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={Colors.textTertiary}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        textAlignVertical={multiline ? 'top' : 'center'}
-        editable={editable}
-      />
-    </View>
-  </View>
-);
-
-// Amount Display Component with Visual Bar and Dynamic Currency
-const AmountDisplay = ({ amount, probability, isEditMode, onAmountChange, onProbabilityChange, currencyCode = 'PKR' }) => {
-  const formattedAmount = new Intl.NumberFormat('en-PK', {
-    style: 'currency',
-    currency: currencyCode,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
-
-  if (isEditMode) {
-    return (
-      <View style={styles.amountContainer}>
-        <View style={styles.editAmountRow}>
-          <View style={styles.editAmountField}>
-            <Text style={styles.editAmountLabel}>OPPORTUNITY VALUE</Text>
-            <TextInput
-              style={styles.editAmountInput}
-              value={amount?.toString()}
-              onChangeText={onAmountChange}
-              placeholder="Enter amount"
-              keyboardType="numeric"
-              placeholderTextColor={Colors.textTertiary}
-            />
-          </View>
-          <View style={styles.editProbabilityField}>
-            <Text style={styles.editAmountLabel}>PROBABILITY %</Text>
-            <TextInput
-              style={styles.editAmountInput}
-              value={probability?.toString()}
-              onChangeText={onProbabilityChange}
-              placeholder="0-100"
-              keyboardType="numeric"
-              placeholderTextColor={Colors.textTertiary}
-              maxLength={3}
-            />
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.amountContainer}>
-      <View style={styles.amountHeader}>
-        <Text style={styles.amountLabel}>OPPORTUNITY VALUE</Text>
-      </View>
-      <Text style={styles.amountValue}>{formattedAmount}</Text>
-      <View style={styles.probabilityRow}>
-        <View style={styles.probabilityBarContainer}>
-          <View style={styles.probabilityBar}>
-            <View 
-              style={[
-                styles.probabilityFill, 
-                { width: `${probability}%`, backgroundColor: Colors.primary }
-              ]} 
-            />
-          </View>
-        </View>
-        <Text style={styles.probabilityText}>{probability}%</Text>
-      </View>
-    </View>
-  );
-};
 
 // Format date helper
 const formatDate = (dateString) => {
@@ -209,84 +405,144 @@ const formatDate = (dateString) => {
   return moment(dateString).format('DD MMM YYYY');
 };
 
+// ============================================
+// MAIN COMPONENT
+// ============================================
 const SalesOpportunityDetail = ({ route, navigation }) => {
   const { data: initialOpportunity } = route.params || {};
   const queryClient = useQueryClient();
+  const authState = useAuthStore();
+
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   
-  // State for current opportunity data (this will be updated after save)
+  // State for current opportunity data
   const [opportunity, setOpportunity] = useState(initialOpportunity);
+
+  // State for fetched lead/contact data
+  const [leadData, setLeadData] = useState(null);
+  const [loadingLead, setLoadingLead] = useState(false);
+
+  // Loading states
+  const [isLoadingStages, setIsLoadingStages] = useState(false);
+  const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+  const [isLoadingSalesReps, setIsLoadingSalesReps] = useState(false);
+  const [isLoadingBusinessPartners, setIsLoadingBusinessPartners] = useState(false);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(false);
+
+  // Error states
+  const [stagesError, setStagesError] = useState(null);
+  const [currenciesError, setCurrenciesError] = useState(null);
+  const [campaignsError, setCampaignsError] = useState(null);
+  const [salesRepsError, setSalesRepsError] = useState(null);
+  const [businessPartnersError, setBusinessPartnersError] = useState(null);
+
+  // Data states
+  const [stages, setStages] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [salesRepsData, setSalesRepsData] = useState([]);
+  const [businessPartnersData, setBusinessPartnersData] = useState([]);
+  const [contactsData, setContactsData] = useState([]);
+
+  // Modal visibility states
+  const [showBPModal, setShowBPModal] = useState(false);
+  const [showSalesRepModal, setShowSalesRepModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+
+  // Search states
+  const [bpSearch, setBpSearch] = useState('');
+  const [salesRepSearch, setSalesRepSearch] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+
+  // Form state for editable fields
+  const [formData, setFormData] = useState({
+    documentNo: '',
+    businessPartnerId: null,
+    businessPartnerName: '',
+    contactId: null,
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    salesRepId: null,
+    salesRepName: '',
+    salesRepEmail: '',
+    stageId: null,
+    stageName: '',
+    probability: '',
+    campaignId: null,
+    campaignName: '',
+    expectedCloseDate: '',
+    amount: '',
+    currencyId: null,
+    currencyCode: '',
+    description: '',
+    comments: '',
+    isActive: true,
+  });
 
   // Update mutation
   const updateMutation = useUpdateSalesOpportunity();
 
-  // Edit mode form state
-  const [formData, setFormData] = useState({
-    name: '',
-    amount: '',
-    probability: '',
-    stage: '',
-    expectedCloseDate: '',
-    description: '',
-    comments: '',
-    leadName: '',
-    leadEmail: '',
-    leadPhone: '',
-    businessPartnerName: '',
-    salesRepName: '',
-    salesRepEmail: '',
-  });
-
-  // Extract opportunity data with safe defaults from current opportunity state
+  // ============================================
+  // EXTRACT OPPORTUNITY DATA
+  // ============================================
   const opportunityId = opportunity?.id;
+  const documentNo = opportunity?.DocumentNo || 'Auto Generated';
   const opportunityName = opportunity?.Name || opportunity?.DocumentNo || 'Unnamed Opportunity';
   const opportunityAmount = opportunity?.OpportunityAmt || opportunity?.Amount || 0;
   const probability = opportunity?.Probability || 0;
   const expectedCloseDate = opportunity?.ExpectedCloseDate || opportunity?.CloseDate;
   const description = opportunity?.Description || '';
   const comments = opportunity?.Comments || '';
+  const isActive = opportunity?.IsActive !== undefined ? opportunity.IsActive : true;
 
-  // Extract currency code from the opportunity data
-  const currencyCode = 
-    opportunity?.currencyCode || // From transformed data
-    opportunity?.C_Currency_ID?.ISO_Code || // Original nested with ISO_Code
-    opportunity?.C_Currency_ID?.identifier || // Original nested with identifier
-    'PKR'; // Default to PKR if not found
+  // Extract currency
+  const currencyId = opportunity?.C_Currency_ID?.id || opportunity?.currencyId;
+  const currencyCode = opportunity?.C_Currency_ID?.ISO_Code || 
+                      opportunity?.currencyCode || 
+                      'PKR';
 
-  // Extract stage/status
-  const stage = opportunity?.C_SalesStage_ID?.identifier || 
-                opportunity?.salesStageName ||
-                opportunity?.SalesStage || 
-                'Not specified';
-  
+  // Extract stage
+  const stageId = opportunity?.C_SalesStage_ID?.id || opportunity?.salesStageId;
+  const stageName = opportunity?.C_SalesStage_ID?.identifier || 
+                    opportunity?.salesStageName || 
+                    'Not specified';
+
+  // Extract status
   const status = opportunity?.C_OpportunityStatus?.identifier || 
                 opportunity?.OpportunityStatus || 
                 'Open';
 
-  // Extract related lead/contact data
-  const leadId = opportunity?.AD_User_ID?.id || opportunity?.userId;
-  const leadName = opportunity?.AD_User_ID?.identifier || 
-                  opportunity?.userName ||
-                  opportunity?.ContactName || 
-                  'Unknown Contact';
-  const leadEmail = opportunity?.AD_User_ID?.EMail || 
-                   opportunity?.ContactEmail || 
-                   '';
-  const leadPhone = opportunity?.AD_User_ID?.Phone || 
-                   opportunity?.ContactPhone || 
-                   '';
+  // Extract campaign
+  const campaignId = opportunity?.C_Campaign_ID?.id || opportunity?.campaignId;
+  const campaignName = opportunity?.C_Campaign_ID?.identifier || opportunity?.campaignName;
 
-  // Extract business partner data
+  // Extract business partner
   const businessPartnerId = opportunity?.C_BPartner_ID?.id || opportunity?.businessPartnerId;
   const businessPartnerName = opportunity?.C_BPartner_ID?.identifier || 
                              opportunity?.businessPartnerName ||
                              opportunity?.BusinessPartner || 
                              'No Company';
 
-  // Extract sales rep data
+  // Extract contact/lead data (initial from opportunity)
+  const contactId = opportunity?.AD_User_ID?.id || opportunity?.userId;
+  const initialContactName = opportunity?.AD_User_ID?.identifier || 
+                            opportunity?.userName ||
+                            opportunity?.ContactName || 
+                            'Unknown Contact';
+  const initialContactEmail = opportunity?.AD_User_ID?.EMail || 
+                             opportunity?.ContactEmail || 
+                             '';
+  const initialContactPhone = opportunity?.AD_User_ID?.Phone || 
+                             opportunity?.ContactPhone || 
+                             '';
+
+  // Extract sales rep
   const salesRepId = opportunity?.SalesRep_ID?.id || opportunity?.salesRepId;
   const salesRepName = opportunity?.SalesRep_ID?.identifier || 
                       opportunity?.salesRepName ||
@@ -301,92 +557,437 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   // Get status UI config
   const statusUI = STATUS_CONFIG[status] || STATUS_CONFIG['Open'];
 
-  // Initialize form data when opportunity loads or edit mode starts
+  // ============================================
+  // FETCH LEAD DATA (to get accurate email and phone)
+  // ============================================
   useEffect(() => {
-    if (opportunity) {
-      setFormData({
-        name: opportunityName,
-        amount: opportunityAmount.toString(),
-        probability: probability.toString(),
-        stage: stage,
-        expectedCloseDate: expectedCloseDate || '',
-        description: description,
-        comments: comments,
-        leadName: leadName,
-        leadEmail: leadEmail,
-        leadPhone: leadPhone,
-        businessPartnerName: businessPartnerName,
-        salesRepName: salesRepName,
-        salesRepEmail: salesRepEmail,
-      });
-    }
-  }, [opportunity, isEditMode]);
+    const fetchLeadData = async () => {
+      if (!contactId) {
+        // Even without contactId, use initial data
+        setLeadData({
+          name: initialContactName,
+          email: initialContactEmail,
+          phone: initialContactPhone,
+        });
+        return;
+      }
 
-  // Handle refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
+      setLoadingLead(true);
+      
+      try {
+        // Try to get from cache first
+        const cachedLeads = queryClient.getQueryData(['leads']);
+        if (Array.isArray(cachedLeads)) {
+          const cachedLead = cachedLeads.find(lead => 
+            lead.id === contactId || lead.AD_User_ID?.id === contactId
+          );
+          if (cachedLead) {
+            setLeadData({
+              name: cachedLead.Name || cachedLead.name || initialContactName,
+              email: cachedLead.EMail || cachedLead.email || initialContactEmail,
+              phone: cachedLead.Phone || cachedLead.phone || initialContactPhone,
+            });
+            setLoadingLead(false);
+            return;
+          }
+        }
+
+        // If not in cache, fetch from API
+        const token = authState?.token;
+        const serverConfig = authState?.serverConfig;
+
+        if (!token || !serverConfig) {
+          setLeadData({
+            name: initialContactName,
+            email: initialContactEmail,
+            phone: initialContactPhone,
+          });
+          setLoadingLead(false);
+          return;
+        }
+
+        const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+        const url = `${baseUrl}/models/AD_User/${contactId}`;
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setLeadData({
+            name: data.Name || initialContactName,
+            email: data.EMail || '',
+            phone: data.Phone || '',
+          });
+        } else {
+          // Fallback to initial data
+          setLeadData({
+            name: initialContactName,
+            email: initialContactEmail,
+            phone: initialContactPhone,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching lead data:', error);
+        setLeadData({
+          name: initialContactName,
+          email: initialContactEmail,
+          phone: initialContactPhone,
+        });
+      } finally {
+        setLoadingLead(false);
+      }
+    };
+
+    fetchLeadData();
+  }, [contactId, initialContactName, initialContactEmail, initialContactPhone, queryClient, authState]);
+
+  // Use leadData for display
+  const contactName = leadData?.name || initialContactName;
+  const contactEmail = leadData?.email || '';
+  const contactPhone = leadData?.phone || '';
+
+  // ============================================
+  // INITIALIZE FORM DATA
+  // ============================================
+  useEffect(() => {
+    setFormData({
+      documentNo: documentNo,
+      businessPartnerId: businessPartnerId,
+      businessPartnerName: businessPartnerName,
+      contactId: contactId,
+      contactName: contactName,
+      contactEmail: contactEmail,
+      contactPhone: contactPhone,
+      salesRepId: salesRepId,
+      salesRepName: salesRepName,
+      salesRepEmail: salesRepEmail,
+      stageId: stageId,
+      stageName: stageName,
+      probability: probability.toString(),
+      campaignId: campaignId,
+      campaignName: campaignName || '',
+      expectedCloseDate: expectedCloseDate || '',
+      amount: opportunityAmount.toString(),
+      currencyId: currencyId,
+      currencyCode: currencyCode,
+      description: description || '',
+      comments: comments || '',
+      isActive: isActive,
+    });
+  }, [opportunity, contactName, contactEmail, contactPhone]);
+
+  // ============================================
+  // FETCH FUNCTIONS
+  // ============================================
+  const makeAuthenticatedRequest = async (url, options = {}) => {
+    const token = authState?.token;
+    if (!token) {
+      throw new Error('Authentication token missing');
+    }
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
-      await queryClient.invalidateQueries(['sales-opportunity', opportunityId]);
-      await queryClient.invalidateQueries(['sales-opportunities']);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error('Refresh error:', error);
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout - please try again');
+      }
+      throw error;
+    }
+  };
+
+  const buildApiUrl = (endpoint, filter = '') => {
+    const serverConfig = authState?.serverConfig;
+    if (!serverConfig?.protocol || !serverConfig?.host || !serverConfig?.port) {
+      throw new Error('Server configuration missing');
+    }
+    const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+    const url = `${baseUrl}/${endpoint}`;
+    return filter ? `${url}?$filter=${encodeURIComponent(filter)}` : url;
+  };
+
+  const fetchStages = async () => {
+    setIsLoadingStages(true);
+    setStagesError(null);
+    try {
+      const url = buildApiUrl('models/C_SalesStage');
+      const data = await makeAuthenticatedRequest(url);
+      setStages(data.records || []);
+    } catch (error) {
+      setStagesError(error.message);
     } finally {
-      setRefreshing(false);
+      setIsLoadingStages(false);
     }
   };
 
-  // Handle edit toggle
-  const handleEditToggle = () => {
-    if (isEditMode) {
-      // Save changes
-      handleSave();
-    } else {
-      // Enter edit mode
-      setIsEditMode(true);
+  const fetchCurrencies = async () => {
+    setIsLoadingCurrencies(true);
+    setCurrenciesError(null);
+    try {
+      const url = buildApiUrl('models/C_Currency');
+      const data = await makeAuthenticatedRequest(url);
+      setCurrencies(data.records || []);
+    } catch (error) {
+      setCurrenciesError(error.message);
+    } finally {
+      setIsLoadingCurrencies(false);
     }
   };
 
-  // Handle save with mutation
+  const fetchCampaigns = async () => {
+    setIsLoadingCampaigns(true);
+    setCampaignsError(null);
+    try {
+      const url = buildApiUrl('models/C_Campaign');
+      const data = await makeAuthenticatedRequest(url);
+      setCampaigns(data.records || []);
+    } catch (error) {
+      setCampaignsError(error.message);
+    } finally {
+      setIsLoadingCampaigns(false);
+    }
+  };
+
+  const fetchSalesRepresentatives = async () => {
+    setIsLoadingSalesReps(true);
+    setSalesRepsError(null);
+    try {
+      const url = buildApiUrl('models/AD_User');
+      const data = await makeAuthenticatedRequest(url);
+      setSalesRepsData(data.records || []);
+    } catch (error) {
+      setSalesRepsError(error.message);
+    } finally {
+      setIsLoadingSalesReps(false);
+    }
+  };
+
+  const fetchBusinessPartners = async () => {
+    setIsLoadingBusinessPartners(true);
+    setBusinessPartnersError(null);
+    try {
+      const url = buildApiUrl('models/C_BPartner');
+      const data = await makeAuthenticatedRequest(url);
+      setBusinessPartnersData(data.records || []);
+    } catch (error) {
+      setBusinessPartnersError(error.message);
+    } finally {
+      setIsLoadingBusinessPartners(false);
+    }
+  };
+
+  const fetchContactsForBP = async (bpId) => {
+    if (!bpId) return;
+    setIsLoadingContacts(true);
+    try {
+      const url = buildApiUrl('models/AD_User', `C_BPartner_ID eq ${bpId}`);
+      const data = await makeAuthenticatedRequest(url);
+      setContactsData(data.records || []);
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    } finally {
+      setIsLoadingContacts(false);
+    }
+  };
+
+  // ============================================
+  // FILTERED DATA FOR MODALS
+  // ============================================
+  const filteredBusinessPartners = useMemo(() => {
+    if (!bpSearch.trim()) return businessPartnersData;
+    const query = bpSearch.toLowerCase();
+    return businessPartnersData.filter(bp =>
+      bp.Name && bp.Name.toLowerCase().includes(query)
+    );
+  }, [businessPartnersData, bpSearch]);
+
+  const filteredSalesReps = useMemo(() => {
+    if (!salesRepSearch.trim()) return salesRepsData;
+    const query = salesRepSearch.toLowerCase();
+    return salesRepsData.filter(rep => 
+      rep.Name && rep.Name.toLowerCase().includes(query)
+    );
+  }, [salesRepsData, salesRepSearch]);
+
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch.trim()) return contactsData;
+    const query = contactSearch.toLowerCase();
+    return contactsData.filter(contact =>
+      (contact.Name && contact.Name.toLowerCase().includes(query)) ||
+      (contact.EMail && contact.EMail.toLowerCase().includes(query))
+    );
+  }, [contactsData, contactSearch]);
+
+  // ============================================
+  // HANDLERS
+  // ============================================
+  const handleSelectBusinessPartner = useCallback((bp) => {
+    setFormData(prev => ({
+      ...prev,
+      businessPartnerId: bp.id,
+      businessPartnerName: bp.Name,
+    }));
+    setShowBPModal(false);
+    setBpSearch('');
+    fetchContactsForBP(bp.id);
+  }, []);
+
+  const handleClearBusinessPartner = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      businessPartnerId: null,
+      businessPartnerName: '',
+      contactId: null,
+      contactName: '',
+      contactEmail: '',
+      contactPhone: '',
+    }));
+    setContactsData([]);
+  }, []);
+
+  const handleSelectContact = useCallback((contact) => {
+    setFormData(prev => ({
+      ...prev,
+      contactId: contact.id,
+      contactName: contact.Name,
+      contactEmail: contact.EMail || '',
+      contactPhone: contact.Phone || '',
+    }));
+    setShowContactModal(false);
+    setContactSearch('');
+  }, []);
+
+  const handleClearContact = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      contactId: null,
+      contactName: '',
+      contactEmail: '',
+      contactPhone: '',
+    }));
+  }, []);
+
+  const handleSelectSalesRep = useCallback((rep) => {
+    setFormData(prev => ({
+      ...prev,
+      salesRepId: rep.id,
+      salesRepName: rep.Name,
+      salesRepEmail: rep.EMail || '',
+    }));
+    setShowSalesRepModal(false);
+    setSalesRepSearch('');
+  }, []);
+
+  const handleClearSalesRep = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      salesRepId: null,
+      salesRepName: '',
+      salesRepEmail: '',
+    }));
+  }, []);
+
+  const handleStageChange = useCallback((id) => {
+    setFormData(prev => ({ ...prev, stageId: id }));
+    const stage = stages.find(s => s.id === id);
+    if (stage?.Probability) {
+      setFormData(prev => ({ ...prev, probability: stage.Probability.toString() }));
+    }
+  }, [stages]);
+
+  const handleCurrencyChange = useCallback((id) => {
+    setFormData(prev => ({ ...prev, currencyId: id }));
+    const currency = currencies.find(c => c.id === id);
+    if (currency?.ISO_Code) {
+      setFormData(prev => ({ ...prev, currencyCode: currency.ISO_Code }));
+    }
+  }, [currencies]);
+
+  const validate = () => {
+    const errors = {};
+    
+    if (!formData.businessPartnerId) errors.bp = 'Business Partner is required';
+    if (!formData.contactId) errors.contact = 'Contact is required';
+    if (!formData.salesRepId) errors.salesRep = 'Sales Representative is required';
+    if (!formData.stageId) errors.stage = 'Sales Stage is required';
+    if (!formData.expectedCloseDate) errors.date = 'Expected Close Date is required';
+    if (!formData.amount) errors.amount = 'Opportunity Amount is required';
+    if (!formData.currencyId) errors.currency = 'Currency is required';
+    if (formData.amount && isNaN(Number(formData.amount))) {
+      errors.amount = 'Amount must be a valid number';
+    }
+
+    return errors;
+  };
+
   const handleSave = () => {
-    // Validate form
-    if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Opportunity name is required');
+    const errors = validate();
+    if (Object.keys(errors).length > 0) {
+      Alert.alert('Validation Error', 'Please fill in all required fields');
       return;
     }
 
-    // Prepare updates for API
     const updates = {
-      Name: formData.name,
+      Name: formData.documentNo,
+      C_BPartner_ID: { id: formData.businessPartnerId },
+      AD_User_ID: { id: formData.contactId },
+      SalesRep_ID: { id: formData.salesRepId },
+      C_SalesStage_ID: { id: formData.stageId },
+      Probability: parseFloat(formData.probability) || 0,
+      ExpectedCloseDate: formData.expectedCloseDate,
       OpportunityAmt: parseFloat(formData.amount) || 0,
-      Probability: parseInt(formData.probability) || 0,
+      C_Currency_ID: { id: formData.currencyId },
       Description: formData.description,
       Comments: formData.comments,
+      IsActive: formData.isActive,
     };
 
-    // Call update mutation - REMOVED Alert from here since it's in the hook
+    if (formData.campaignId) {
+      updates.C_Campaign_ID = { id: formData.campaignId };
+    }
+
     updateMutation.mutate({
       id: opportunityId,
       updates: updates
     }, {
       onSuccess: (updatedData) => {
-        // Update the local opportunity state with the updated data
         setOpportunity(updatedData);
-        
-        // Exit edit mode
         setIsEditMode(false);
-        
-        // Update cache with new data
         queryClient.setQueryData(['sales-opportunity', opportunityId], updatedData);
         queryClient.invalidateQueries(['sales-opportunities']);
       },
       onError: (error) => {
-        // Only show error alert here, success is shown in hook
         Alert.alert('Error', error.message || 'Failed to update opportunity');
       }
     });
   };
 
-  // Handle cancel
   const handleCancel = () => {
     Alert.alert(
       'Discard Changes',
@@ -397,21 +998,30 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           text: 'Discard',
           onPress: () => {
             setIsEditMode(false);
-            // Reset form to original values from current opportunity
+            // Reset form to original values
             setFormData({
-              name: opportunityName,
-              amount: opportunityAmount.toString(),
-              probability: probability.toString(),
-              stage: stage,
-              expectedCloseDate: expectedCloseDate || '',
-              description: description,
-              comments: comments,
-              leadName: leadName,
-              leadEmail: leadEmail,
-              leadPhone: leadPhone,
+              documentNo: documentNo,
+              businessPartnerId: businessPartnerId,
               businessPartnerName: businessPartnerName,
+              contactId: contactId,
+              contactName: contactName,
+              contactEmail: contactEmail,
+              contactPhone: contactPhone,
+              salesRepId: salesRepId,
               salesRepName: salesRepName,
               salesRepEmail: salesRepEmail,
+              stageId: stageId,
+              stageName: stageName,
+              probability: probability.toString(),
+              campaignId: campaignId,
+              campaignName: campaignName || '',
+              expectedCloseDate: expectedCloseDate || '',
+              amount: opportunityAmount.toString(),
+              currencyId: currencyId,
+              currencyCode: currencyCode,
+              description: description || '',
+              comments: comments || '',
+              isActive: isActive,
             });
           },
           style: 'destructive'
@@ -420,382 +1030,534 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     );
   };
 
-  // Handle delete
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Opportunity',
-      'Are you sure you want to delete this sales opportunity?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          onPress: async () => {
-            // Add delete logic here
-            Alert.alert('Success', 'Opportunity deleted successfully');
-            navigation.goBack();
-          },
-          style: 'destructive'
-        }
-      ]
-    );
+  const handleEditToggle = () => {
+    if (isEditMode) {
+      handleSave();
+    } else {
+      // Fetch all required data when entering edit mode
+      Promise.all([
+        fetchStages(),
+        fetchCurrencies(),
+        fetchCampaigns(),
+        fetchSalesRepresentatives(),
+        fetchBusinessPartners(),
+        businessPartnerId && fetchContactsForBP(businessPartnerId)
+      ]);
+      setIsEditMode(true);
+    }
   };
 
-  // Handle status update
   const handleStatusUpdate = (newStatus) => {
     setStatusMenuVisible(false);
     
-    // Update status via API - REMOVED Alert from here since it's in the hook
     updateMutation.mutate({
       id: opportunityId,
-      updates: {
-        OpportunityStatus: newStatus
-      }
+      updates: { OpportunityStatus: newStatus }
     }, {
       onSuccess: (updatedData) => {
-        // Update the local opportunity state with the updated data
         setOpportunity(updatedData);
-        
-        // Invalidate queries
         queryClient.invalidateQueries(['sales-opportunity', opportunityId]);
         queryClient.invalidateQueries(['sales-opportunities']);
       },
       onError: (error) => {
-        // Only show error alert here, success is shown in hook
         Alert.alert('Error', error.message || 'Failed to update status');
       }
     });
   };
 
-  // Handle phone call
   const handlePhoneCall = (phone) => {
     if (phone) {
-      Linking.openURL(`tel:${phone}`);
+      Linking.openURL(`tel:${phone}`).catch(() => {
+        Alert.alert('Error', 'Cannot open phone app');
+      });
+    } else {
+      Alert.alert('Info', 'No phone number available');
     }
   };
 
-  // Handle email
   const handleEmail = (email) => {
     if (email) {
-      Linking.openURL(`mailto:${email}`);
-    }
-  };
-
-  // Navigate to lead
-  const handleLeadPress = () => {
-    if (leadId && !isEditMode) {
-      navigation.navigate('LeadDetails', { 
-        data: { id: leadId, Name: leadName }
+      Linking.openURL(`mailto:${email}`).catch(() => {
+        Alert.alert('Error', 'Cannot open email app');
       });
-    }
-  };
-
-  // Navigate to business partner
-  const handleBusinessPartnerPress = () => {
-    if (businessPartnerId && !isEditMode) {
-      navigation.navigate('BusinessPartnerDetail', { 
-        id: businessPartnerId,
-        name: businessPartnerName
-      });
-    }
-  };
-
-  // Navigate to sales rep
-  const handleSalesRepPress = () => {
-    if (salesRepId && !isEditMode) {
-      navigation.navigate('UserDetail', { 
-        id: salesRepId,
-        name: salesRepName
-      });
-    }
-  };
-
-  // Render content based on active tab
-  const renderTabContent = () => {
-    if (isEditMode) {
-      // Edit Mode Content
-      switch (activeTab) {
-        case 'details':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Opportunity Details" />
-              <View style={styles.sectionContent}>
-                <EditField
-                  label="Opportunity Name"
-                  value={formData.name}
-                  onChangeText={(text) => setFormData({ ...formData, name: text })}
-                  placeholder="Enter opportunity name"
-                />
-                
-                <EditField
-                  label="Stage"
-                  value={formData.stage}
-                  onChangeText={(text) => setFormData({ ...formData, stage: text })}
-                  placeholder="Enter stage"
-                />
-                
-                <EditField
-                  label="Expected Close Date"
-                  value={formData.expectedCloseDate}
-                  onChangeText={(text) => setFormData({ ...formData, expectedCloseDate: text })}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
-            </View>
-          );
-
-        case 'lead':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Lead/Contact Information" />
-              <View style={styles.sectionContent}>
-                <EditField
-                  label="Lead Name"
-                  value={formData.leadName}
-                  onChangeText={(text) => setFormData({ ...formData, leadName: text })}
-                  placeholder="Enter lead name"
-                  editable={false}
-                />
-                
-                <EditField
-                  label="Email"
-                  value={formData.leadEmail}
-                  onChangeText={(text) => setFormData({ ...formData, leadEmail: text })}
-                  placeholder="Enter email"
-                  keyboardType="email-address"
-                  editable={false}
-                />
-                
-                <EditField
-                  label="Phone"
-                  value={formData.leadPhone}
-                  onChangeText={(text) => setFormData({ ...formData, leadPhone: text })}
-                  placeholder="Enter phone"
-                  keyboardType="phone-pad"
-                  editable={false}
-                />
-              </View>
-            </View>
-          );
-
-        case 'company':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Company Information" />
-              <View style={styles.sectionContent}>
-                <EditField
-                  label="Company Name"
-                  value={formData.businessPartnerName}
-                  onChangeText={(text) => setFormData({ ...formData, businessPartnerName: text })}
-                  placeholder="Enter company name"
-                  editable={false}
-                />
-              </View>
-            </View>
-          );
-
-        case 'sales':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Sales Representative" />
-              <View style={styles.sectionContent}>
-                <EditField
-                  label="Sales Rep Name"
-                  value={formData.salesRepName}
-                  onChangeText={(text) => setFormData({ ...formData, salesRepName: text })}
-                  placeholder="Enter sales rep name"
-                  editable={false}
-                />
-                
-                <EditField
-                  label="Sales Rep Email"
-                  value={formData.salesRepEmail}
-                  onChangeText={(text) => setFormData({ ...formData, salesRepEmail: text })}
-                  placeholder="Enter sales rep email"
-                  keyboardType="email-address"
-                  editable={false}
-                />
-              </View>
-            </View>
-          );
-
-        case 'description':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Description & Comments" />
-              <View style={styles.sectionContent}>
-                <EditField
-                  label="Description"
-                  value={formData.description}
-                  onChangeText={(text) => setFormData({ ...formData, description: text })}
-                  placeholder="Enter description"
-                  multiline={true}
-                />
-                
-                <EditField
-                  label="Comments"
-                  value={formData.comments}
-                  onChangeText={(text) => setFormData({ ...formData, comments: text })}
-                  placeholder="Enter comments"
-                  multiline={true}
-                />
-              </View>
-            </View>
-          );
-
-        default:
-          return null;
-      }
     } else {
-      // View Mode Content - Using updated opportunity data
-      switch (activeTab) {
-        case 'details':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Opportunity Details" />
-              <View style={styles.sectionContent}>
-                <ViewRow 
-                  label="Stage"
-                  value={stage}
-                />
-                
-                <ViewRow 
-                  label="Expected Close Date"
-                  value={formatDate(expectedCloseDate)}
-                />
-                
-                <ViewRow 
-                  label="Created Date"
-                  value={formatDate(createdDate)}
-                />
-                
-                <ViewRow 
-                  label="Last Updated"
-                  value={formatDate(updatedDate)}
-                />
-              </View>
-            </View>
-          );
-
-        case 'lead':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Lead/Contact Information" />
-              <View style={styles.sectionContent}>
-                <ClickableViewRow 
-                  label="Name"
-                  value={leadName}
-                  onPress={handleLeadPress}
-                  icon="chevron-right"
-                />
-                
-                {leadEmail ? (
-                  <ClickableViewRow 
-                    label="Email"
-                    value={leadEmail}
-                    onPress={() => handleEmail(leadEmail)}
-                    icon="email"
-                  />
-                ) : (
-                  <ViewRow 
-                    label="Email"
-                    value="Not provided"
-                  />
-                )}
-                
-                {leadPhone ? (
-                  <ClickableViewRow 
-                    label="Phone"
-                    value={leadPhone}
-                    onPress={() => handlePhoneCall(leadPhone)}
-                    icon="phone"
-                  />
-                ) : (
-                  <ViewRow 
-                    label="Phone"
-                    value="Not provided"
-                  />
-                )}
-              </View>
-            </View>
-          );
-
-        case 'company':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Company Information" />
-              <View style={styles.sectionContent}>
-                <ClickableViewRow 
-                  label="Company Name"
-                  value={businessPartnerName}
-                  onPress={handleBusinessPartnerPress}
-                  icon="chevron-right"
-                />
-              </View>
-            </View>
-          );
-
-        case 'sales':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Sales Representative" />
-              <View style={styles.sectionContent}>
-                <ClickableViewRow 
-                  label="Name"
-                  value={salesRepName}
-                  onPress={handleSalesRepPress}
-                  icon="chevron-right"
-                />
-                
-                {salesRepEmail ? (
-                  <ClickableViewRow 
-                    label="Email"
-                    value={salesRepEmail}
-                    onPress={() => handleEmail(salesRepEmail)}
-                    icon="email"
-                  />
-                ) : (
-                  <ViewRow 
-                    label="Email"
-                    value="Not provided"
-                  />
-                )}
-              </View>
-            </View>
-          );
-
-        case 'description':
-          return (
-            <View style={styles.sectionCard}>
-              <SectionHeader title="Description & Comments" />
-              <View style={styles.sectionContent}>
-                {description ? (
-                  <View style={styles.textBlock}>
-                    <Text style={styles.viewLabel}>DESCRIPTION</Text>
-                    <Text style={styles.viewValue}>{description}</Text>
-                  </View>
-                ) : null}
-                
-                {comments ? (
-                  <View style={[styles.textBlock, description && styles.textBlockWithGap]}>
-                    <Text style={styles.viewLabel}>COMMENTS</Text>
-                    <Text style={[styles.viewValue, styles.commentsText]}>{comments}</Text>
-                  </View>
-                ) : null}
-
-                {!description && !comments && (
-                  <View style={styles.emptyState}>
-                    <MaterialCommunityIcons name="text" size={Layout.iconSize.lg} color={Colors.border} />
-                    <Text style={styles.emptyStateText}>No description or comments</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          );
-
-        default:
-          return null;
-      }
+      Alert.alert('Info', 'No email address available');
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries(['sales-opportunity', opportunityId]);
+      await queryClient.invalidateQueries(['sales-opportunities']);
+      // Also refresh lead data
+      if (contactId) {
+        const token = authState?.token;
+        const serverConfig = authState?.serverConfig;
+        if (token && serverConfig) {
+          const baseUrl = `${serverConfig.protocol}://${serverConfig.host}:${serverConfig.port}/api/v1`;
+          const url = `${baseUrl}/models/AD_User/${contactId}`;
+          const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setLeadData({
+              name: data.Name,
+              email: data.EMail,
+              phone: data.Phone,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Render Business Partner Item
+  const renderBusinessPartnerItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.itemRow,
+        formData.businessPartnerId === item.id && styles.selectedItemRow,
+      ]}
+      onPress={() => handleSelectBusinessPartner(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <View style={styles.itemAvatar}>
+          <Text style={styles.itemAvatarText}>
+            {item.Name?.charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.itemDetails}>
+          <Text style={styles.itemName} numberOfLines={1}>{item.Name}</Text>
+          {item.Value && (
+            <Text style={styles.itemSubtext}>Code: {item.Value}</Text>
+          )}
+        </View>
+      </View>
+      {formData.businessPartnerId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  ), [formData.businessPartnerId, handleSelectBusinessPartner]);
+
+  // Render Contact Item
+  const renderContactItem = useCallback(({ item }) => {
+    const details = [];
+    if (item.EMail) details.push(item.EMail);
+    if (item.Phone) details.push(item.Phone);
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.itemRow,
+          formData.contactId === item.id && styles.selectedItemRow,
+        ]}
+        onPress={() => handleSelectContact(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.itemContent}>
+          <View style={styles.itemAvatar}>
+            <Text style={styles.itemAvatarText}>
+              {item.Name?.charAt(0).toUpperCase() || '?'}
+            </Text>
+          </View>
+          <View style={styles.itemDetails}>
+            <Text style={styles.itemName} numberOfLines={1}>{item.Name}</Text>
+            {details.length > 0 && (
+              <Text style={styles.itemSubtext} numberOfLines={1}>
+                {details.join(' • ')}
+              </Text>
+            )}
+          </View>
+        </View>
+        {formData.contactId === item.id && (
+          <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+        )}
+      </TouchableOpacity>
+    );
+  }, [formData.contactId, handleSelectContact]);
+
+  // Render Sales Rep Item
+  const renderSalesRepItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.itemRow,
+        formData.salesRepId === item.id && styles.selectedItemRow,
+      ]}
+      onPress={() => handleSelectSalesRep(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <View style={styles.itemAvatar}>
+          <Text style={styles.itemAvatarText}>
+            {item.Name?.charAt(0).toUpperCase() || '?'}
+          </Text>
+        </View>
+        <View style={styles.itemDetails}>
+          <Text style={styles.itemName} numberOfLines={1}>{item.Name}</Text>
+          {item.EMail && (
+            <Text style={styles.itemSubtext} numberOfLines={1}>{item.EMail}</Text>
+          )}
+        </View>
+      </View>
+      {formData.salesRepId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  ), [formData.salesRepId, handleSelectSalesRep]);
+
+  // ============================================
+  // RENDER METHODS
+  // ============================================
+  const renderViewMode = () => {
+    if (loadingLead && activeTab === 'lead') {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading contact data...</Text>
+        </View>
+      );
+    }
+
+    switch (activeTab) {
+      case 'details':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader title="Opportunity Details" />
+            <View style={styles.sectionContent}>
+              <ViewRow label="Document No" value={documentNo} />
+              <ViewRow label="Stage" value={stageName} />
+              <ViewRow label="Expected Close Date" value={formatDate(expectedCloseDate)} />
+              <ViewRow label="Probability" value={`${probability}%`} />
+              <ViewRow label="Amount" value={new Intl.NumberFormat('en-PK', {
+                style: 'currency',
+                currency: currencyCode,
+                minimumFractionDigits: 0,
+              }).format(opportunityAmount)} />
+              <ViewRow label="Currency" value={currencyCode} />
+              {campaignName && <ViewRow label="Campaign" value={campaignName} />}
+              <ViewRow label="Created Date" value={formatDate(createdDate)} />
+              <ViewRow label="Last Updated" value={formatDate(updatedDate)} />
+            </View>
+          </View>
+        );
+
+      case 'lead':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader title="Contact Information" />
+            <View style={styles.sectionContent}>
+              <ClickableViewRow 
+                label="Contact Name"
+                value={contactName}
+                onPress={() => contactId && navigation.navigate('LeadDetails', { 
+                  data: { id: contactId, Name: contactName, EMail: contactEmail, Phone: contactPhone }
+                })}
+              />
+              
+              {contactEmail ? (
+                <ClickableViewRow 
+                  label="Email"
+                  value={contactEmail}
+                  onPress={() => handleEmail(contactEmail)}
+                  icon="email"
+                />
+              ) : (
+                <ViewRow label="Email" value="Not provided" />
+              )}
+              
+              {contactPhone ? (
+                <ClickableViewRow 
+                  label="Phone"
+                  value={contactPhone}
+                  onPress={() => handlePhoneCall(contactPhone)}
+                  icon="phone"
+                />
+              ) : (
+                <ViewRow label="Phone" value="Not provided" />
+              )}
+            </View>
+          </View>
+        );
+
+      case 'company':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader title="Company Information" />
+            <View style={styles.sectionContent}>
+              <ClickableViewRow 
+                label="Company Name"
+                value={businessPartnerName}
+                onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', { 
+                  id: businessPartnerId, name: businessPartnerName 
+                })}
+              />
+              <ViewRow label="Sales Representative" value={salesRepName} />
+              {salesRepEmail && (
+                <ClickableViewRow 
+                  label="Sales Rep Email"
+                  value={salesRepEmail}
+                  onPress={() => handleEmail(salesRepEmail)}
+                  icon="email"
+                />
+              )}
+            </View>
+          </View>
+        );
+
+      case 'description':
+        return (
+          <View style={styles.sectionCard}>
+            <SectionHeader title="Description & Comments" />
+            <View style={styles.sectionContent}>
+              {description ? (
+                <View style={styles.textBlock}>
+                  <Text style={styles.viewLabel}>DESCRIPTION</Text>
+                  <Text style={styles.viewValue}>{description}</Text>
+                </View>
+              ) : null}
+              
+              {comments ? (
+                <View style={[styles.textBlock, description && styles.textBlockWithGap]}>
+                  <Text style={styles.viewLabel}>COMMENTS</Text>
+                  <Text style={[styles.viewValue, styles.commentsText]}>{comments}</Text>
+                </View>
+              ) : null}
+
+              {!description && !comments && (
+                <View style={styles.emptyState}>
+                  <MaterialCommunityIcons name="text" size={Layout.iconSize.lg} color={Colors.border} />
+                  <Text style={styles.emptyStateText}>No description or comments</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const renderEditMode = () => {
+    const errors = validate();
+    
+    return (
+      <View style={styles.formCard}>
+        {/* Document No (Read Only) */}
+        <Label title="Document No" />
+        <ReadOnly value={formData.documentNo} icon="file-document-outline" />
+
+        {/* Business Partner - Modal Selector */}
+        <BusinessPartnerSelector 
+          selectedBPName={formData.businessPartnerName}
+          error={errors.bp}
+          onPress={() => {
+            setShowBPModal(true);
+            fetchBusinessPartners();
+          }}
+          onClear={handleClearBusinessPartner}
+        />
+
+        {/* Contact - Modal Selector */}
+        <ContactSelector 
+          selectedContactName={formData.contactName}
+          selectedContactDetails={
+            formData.contactEmail || formData.contactPhone
+              ? [formData.contactEmail, formData.contactPhone].filter(Boolean).join(' • ')
+              : null
+          }
+          error={errors.contact}
+          onPress={() => {
+            if (formData.businessPartnerId) {
+              setShowContactModal(true);
+              fetchContactsForBP(formData.businessPartnerId);
+            } else {
+              Alert.alert('Info', 'Please select a Business Partner first');
+            }
+          }}
+          onClear={handleClearContact}
+        />
+
+        {/* Sales Representative - Modal Selector */}
+        <SalesRepSelector 
+          selectedSalesRepName={formData.salesRepName}
+          error={errors.salesRep}
+          onPress={() => {
+            setShowSalesRepModal(true);
+            fetchSalesRepresentatives();
+          }}
+          onClear={handleClearSalesRep}
+        />
+
+        {/* Sales Stage */}
+        <Label title="Sales Stage" required />
+        {isLoadingStages ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : stagesError ? (
+          <ErrorRetry message={stagesError} onRetry={fetchStages} />
+        ) : (
+          <PickerField
+            selectedValue={formData.stageId}
+            onValueChange={handleStageChange}
+            error={errors.stage}
+            icon="chart-line"
+            placeholder="Select Stage"
+          >
+            {stages.map(stage => (
+              <Picker.Item 
+                key={stage.id} 
+                label={stage.Name} 
+                value={stage.id} 
+                color={Colors.textPrimary}
+              />
+            ))}
+          </PickerField>
+        )}
+
+        {/* Probability */}
+        <Label title="Probability (%)" />
+        <Input
+          value={formData.probability}
+          onChangeText={(text) => {
+            const filtered = text.replace(/[^0-9.]/g, '');
+            setFormData(prev => ({ ...prev, probability: filtered }));
+          }}
+          placeholder="Enter probability percentage"
+          keyboardType="numeric"
+          icon="percent"
+        />
+
+        {/* Campaign */}
+        <Label title="Campaign" />
+        {isLoadingCampaigns ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : campaignsError ? (
+          <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} />
+        ) : (
+          <PickerField
+            selectedValue={formData.campaignId}
+            onValueChange={(id) => {
+              setFormData(prev => ({ ...prev, campaignId: id }));
+              const campaign = campaigns.find(c => c.id === id);
+              if (campaign) {
+                setFormData(prev => ({ ...prev, campaignName: campaign.Name }));
+              }
+            }}
+            icon="bullhorn"
+            placeholder="Select Campaign"
+          >
+            {campaigns.map(campaign => (
+              <Picker.Item 
+                key={campaign.id} 
+                label={campaign.Name} 
+                value={campaign.id} 
+                color={Colors.textPrimary}
+              />
+            ))}
+          </PickerField>
+        )}
+
+        {/* Expected Close Date */}
+        <Label title="Expected Close Date" required />
+        <DatePickerField
+          value={formData.expectedCloseDate}
+          onPress={() => setShowCalendar(true)}
+          error={errors.date}
+          icon="calendar-clock"
+        />
+
+        {/* Opportunity Amount */}
+        <Label title="Opportunity Amount" required />
+        <Input
+          value={formData.amount}
+          onChangeText={(v) => {
+            setFormData(prev => ({ ...prev, amount: v }));
+          }}
+          placeholder="Enter amount"
+          keyboardType="numeric"
+          error={errors.amount}
+          icon="currency-usd"
+        />
+
+        {/* Currency */}
+        <Label title="Currency" required />
+        {isLoadingCurrencies ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : currenciesError ? (
+          <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} />
+        ) : (
+          <PickerField
+            selectedValue={formData.currencyId}
+            onValueChange={handleCurrencyChange}
+            error={errors.currency}
+            icon="currency-sign"
+            placeholder="Select Currency"
+          >
+            {currencies.map(currency => (
+              <Picker.Item 
+                key={currency.id} 
+                label={`${currency.ISO_Code} - ${currency.Description || ''}`} 
+                value={currency.id} 
+                color={Colors.textPrimary}
+              />
+            ))}
+          </PickerField>
+        )}
+
+        {/* Description */}
+        <Label title="Description" />
+        <Input
+          value={formData.description}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+          placeholder="Enter description"
+          multiline
+          numberOfLines={3}
+          style={styles.textArea}
+          icon="text"
+        />
+
+        {/* Comments */}
+        <Label title="Comments" />
+        <Input
+          value={formData.comments}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, comments: text }))}
+          placeholder="Enter comments"
+          multiline
+          numberOfLines={3}
+          style={styles.textArea}
+          icon="comment-text"
+        />
+
+        {/* Tenant */}
+        <Label title="Tenant" />
+        <ReadOnly value={authState?.clientName} icon="domain" />
+
+        {/* Organization */}
+        <Label title="Organization" />
+        <ReadOnly value={authState?.organizationName} icon="office-building" />
+
+        {/* Active Switch */}
+        <SwitchRow 
+          label="Active" 
+          value={formData.isActive} 
+          onValueChange={(value) => setFormData(prev => ({ ...prev, isActive: value }))}
+          disabled={false}
+        />
+      </View>
+    );
   };
 
   if (!opportunity) {
@@ -839,7 +1601,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          !isEditMode && <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          !isEditMode && <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         {/* Header Card */}
@@ -848,10 +1610,9 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             <View style={styles.headerLeft}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  {/* Show first letter of company name instead of opportunity name */}
-                  {businessPartnerName && businessPartnerName !== 'No Company' 
-                    ? businessPartnerName.charAt(0).toUpperCase()
-                    : opportunityName.charAt(0).toUpperCase()}
+                  {formData.businessPartnerName && formData.businessPartnerName !== 'No Company' 
+                    ? formData.businessPartnerName.charAt(0).toUpperCase()
+                    : formData.documentNo?.charAt(0).toUpperCase() || 'O'}
                 </Text>
               </View>
               <View style={styles.headerInfo}>
@@ -859,41 +1620,30 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                   <>
                     <TextInput
                       style={styles.editNameInput}
-                      value={formData.name}
-                      onChangeText={(text) => setFormData({ ...formData, name: text })}
-                      placeholder="Opportunity Name"
+                      value={formData.documentNo}
+                      onChangeText={(text) => setFormData(prev => ({ ...prev, documentNo: text }))}
+                      placeholder="Document No"
                       placeholderTextColor={Colors.textTertiary}
                     />
-                    <TextInput
-                      style={styles.editCompanyInput}
-                      value={formData.businessPartnerName}
-                      onChangeText={(text) => setFormData({ ...formData, businessPartnerName: text })}
-                      placeholder="Company Name"
-                      placeholderTextColor={Colors.textTertiary}
-                      editable={false}
-                    />
+                    <Text style={styles.opportunitySubtitle}>
+                      {formData.businessPartnerName || 'No Company'}
+                    </Text>
                   </>
                 ) : (
                   <>
-                    {/* Show Company Name as main header instead of Opportunity Name */}
-                    {businessPartnerName && businessPartnerName !== 'No Company' ? (
-                      <TouchableOpacity onPress={handleBusinessPartnerPress} activeOpacity={0.7}>
-                        <Text style={styles.companyNameHeader} numberOfLines={1}>
-                          {businessPartnerName}
-                        </Text>
-                      </TouchableOpacity>
-                    ) : (
+                    <TouchableOpacity 
+                      onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', { 
+                        id: businessPartnerId, name: businessPartnerName 
+                      })}
+                      activeOpacity={0.7}
+                    >
                       <Text style={styles.companyNameHeader} numberOfLines={1}>
-                        No Company
-                      </Text>
-                    )}
-                    
-                    {/* Show Opportunity Name as subtitle below */}
-                    <TouchableOpacity onPress={() => {}} activeOpacity={0.7}>
-                      <Text style={styles.opportunitySubtitle} numberOfLines={1}>
-                        {opportunityName}
+                        {businessPartnerName}
                       </Text>
                     </TouchableOpacity>
+                    <Text style={styles.opportunitySubtitle} numberOfLines={1}>
+                      {documentNo}
+                    </Text>
                   </>
                 )}
               </View>
@@ -940,15 +1690,34 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* Amount Display with Probability Bar and Dynamic Currency */}
-          <AmountDisplay 
-            amount={isEditMode ? parseFloat(formData.amount) || 0 : opportunityAmount}
-            probability={isEditMode ? parseInt(formData.probability) || 0 : probability}
-            isEditMode={isEditMode}
-            onAmountChange={(text) => setFormData({ ...formData, amount: text })}
-            onProbabilityChange={(text) => setFormData({ ...formData, probability: text })}
-            currencyCode={currencyCode}
-          />
+          {/* Amount Display */}
+          {!isEditMode && (
+            <View style={styles.amountContainer}>
+              <View style={styles.amountHeader}>
+                <Text style={styles.amountLabel}>OPPORTUNITY VALUE</Text>
+              </View>
+              <Text style={styles.amountValue}>
+                {new Intl.NumberFormat('en-PK', {
+                  style: 'currency',
+                  currency: currencyCode,
+                  minimumFractionDigits: 0,
+                }).format(opportunityAmount)}
+              </Text>
+              <View style={styles.probabilityRow}>
+                <View style={styles.probabilityBarContainer}>
+                  <View style={styles.probabilityBar}>
+                    <View 
+                      style={[
+                        styles.probabilityFill, 
+                        { width: `${probability}%`, backgroundColor: Colors.primary }
+                      ]} 
+                    />
+                  </View>
+                </View>
+                <Text style={styles.probabilityText}>{probability}%</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Tabs */}
@@ -956,36 +1725,29 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.tabsContainer}>
             <TabButton 
               title="Details" 
-              active={activeTab === 'details'} 
-              onPress={() => setActiveTab('details')}
+              active={!isEditMode && activeTab === 'details'} 
+              onPress={() => !isEditMode && setActiveTab('details')}
               isFirst={true}
               isLast={false}
             />
             <TabButton 
               title="Lead" 
-              active={activeTab === 'lead'} 
-              onPress={() => setActiveTab('lead')}
+              active={!isEditMode && activeTab === 'lead'} 
+              onPress={() => !isEditMode && setActiveTab('lead')}
               isFirst={false}
               isLast={false}
             />
             <TabButton 
               title="Company" 
-              active={activeTab === 'company'} 
-              onPress={() => setActiveTab('company')}
-              isFirst={false}
-              isLast={false}
-            />
-            <TabButton 
-              title="Sales" 
-              active={activeTab === 'sales'} 
-              onPress={() => setActiveTab('sales')}
+              active={!isEditMode && activeTab === 'company'} 
+              onPress={() => !isEditMode && setActiveTab('company')}
               isFirst={false}
               isLast={false}
             />
             <TabButton 
               title="Notes" 
-              active={activeTab === 'description'} 
-              onPress={() => setActiveTab('description')}
+              active={!isEditMode && activeTab === 'description'} 
+              onPress={() => !isEditMode && setActiveTab('description')}
               isFirst={false}
               isLast={true}
             />
@@ -993,7 +1755,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         </View>
 
         {/* Tab Content */}
-        {renderTabContent()}
+        {isEditMode ? renderEditMode() : renderViewMode()}
 
         {/* Edit Mode Action Buttons */}
         {isEditMode && (
@@ -1023,12 +1785,234 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
         )}
-
       </ScrollView>
+
+      {/* Calendar Modal */}
+      <CalendarModal
+        visible={showCalendar}
+        onClose={() => setShowCalendar(false)}
+        onSelectDate={(date) => {
+          setFormData(prev => ({ ...prev, expectedCloseDate: date }));
+          setShowCalendar(false);
+        }}
+        title="Select Expected Close Date"
+      />
+
+      {/* Business Partner Modal */}
+      <Modal
+        visible={showBPModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowBPModal(false);
+          setBpSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Business Partner</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBPModal(false);
+                  setBpSearch('');
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by name..."
+                placeholderTextColor={Colors.textTertiary}
+                value={bpSearch}
+                onChangeText={setBpSearch}
+                autoFocus={true}
+              />
+              {bpSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setBpSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingBusinessPartners ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredBusinessPartners}
+                renderItem={renderBusinessPartnerItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="domain-off" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {bpSearch.trim()
+                        ? `No results for "${bpSearch}"`
+                        : 'No business partners available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Contact Modal */}
+      <Modal
+        visible={showContactModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowContactModal(false);
+          setContactSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Contact</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowContactModal(false);
+                  setContactSearch('');
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by name or email..."
+                placeholderTextColor={Colors.textTertiary}
+                value={contactSearch}
+                onChangeText={setContactSearch}
+                autoFocus={true}
+              />
+              {contactSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setContactSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingContacts ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredContacts}
+                renderItem={renderContactItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {contactSearch.trim()
+                        ? `No results for "${contactSearch}"`
+                        : 'No contacts available for this business partner'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sales Representative Modal */}
+      <Modal
+        visible={showSalesRepModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSalesRepModal(false);
+          setSalesRepSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Representative</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSalesRepModal(false);
+                  setSalesRepSearch('');
+                }}
+              >
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by name..."
+                placeholderTextColor={Colors.textTertiary}
+                value={salesRepSearch}
+                onChangeText={setSalesRepSearch}
+              />
+              {salesRepSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setSalesRepSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingSalesReps ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredSalesReps}
+                renderItem={renderSalesRepItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {salesRepSearch.trim()
+                        ? `No results for "${salesRepSearch}"`
+                        : 'No sales representatives available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
 
+// ============================================
+// STYLES
+// ============================================
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
@@ -1041,6 +2025,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: verticalScale(20),
   },
+  loadingContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    color: Colors.textSecondary,
+  },
 
   // Header Card
   headerCard: {
@@ -1052,8 +2046,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md || 12,
     borderWidth: 1,
     borderColor: Colors.borderLight || '#F0F0F0',
-    
-    // Shadow
     shadowColor: Colors.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -1108,15 +2100,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border || '#E0E0E0',
-  },
-  editCompanyInput: {
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textSecondary || '#666666',
-    padding: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border || '#E0E0E0',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
   },
 
   // Status Badge
@@ -1184,35 +2167,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // Edit Mode Amount
-  editAmountRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm || 8,
-  },
-  editAmountField: {
-    flex: 2,
-  },
-  editProbabilityField: {
-    flex: 1,
-  },
-  editAmountLabel: {
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
-    color: Colors.textSecondary || '#666666',
-    marginBottom: 4,
-  },
-  editAmountInput: {
-    height: 40,
-    borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.sm || 4,
-    paddingHorizontal: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textPrimary || '#333333',
-    backgroundColor: Colors.cardBackground || '#FFFFFF',
-  },
-
   // Tabs
   tabsWrapper: {
     marginHorizontal: Spacing.md || 12,
@@ -1225,13 +2179,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight || '#F0F0F0',
     padding: 2,
-    
     shadowColor: Colors.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-    
     position: 'relative',
     zIndex: 5,
   },
@@ -1254,7 +2206,6 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     backgroundColor: Colors.primary || '#2F4FE3',
-    
     shadowColor: Colors.primary || '#2F4FE3',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
@@ -1270,8 +2221,6 @@ const styles = StyleSheet.create({
     color: Colors.textInverse || '#FFFFFF',
     fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
   },
-  
-  // Integrated Arrow
   activeTabArrowContainer: {
     position: 'absolute',
     bottom: -verticalScale(8),
@@ -1303,14 +2252,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight || '#F0F0F0',
     overflow: 'hidden',
-    
     shadowColor: Colors.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  
   sectionHeader: {
     paddingHorizontal: Spacing.md || 12,
     paddingVertical: Spacing.xs || 4,
@@ -1325,6 +2272,23 @@ const styles = StyleSheet.create({
   },
   sectionContent: {
     padding: Spacing.sm || 8,
+  },
+
+  // Form Card for Edit Mode
+  formCard: {
+    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    borderRadius: Layout.borderRadius.md || 8,
+    marginHorizontal: Spacing.md || 12,
+    marginTop: verticalScale(8),
+    marginBottom: Spacing.sm || 8,
+    padding: Spacing.md || 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight || '#F0F0F0',
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
 
   // View Mode Row
@@ -1348,81 +2312,256 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary || '#333333',
     lineHeight: 16,
   },
-
-  // Clickable View Row
+  viewValueWithIcon: {
+    marginRight: Spacing.sm || 8,
+  },
   clickableValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  clickableIcon: {
+    marginLeft: Spacing.xs,
+  },
 
   // Edit Mode Fields
-  editField: {
-    marginBottom: Spacing.sm || 8,
-  },
-  editLabel: {
+  label: {
     fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textSecondary || '#666666',
-    marginBottom: 4,
+    marginTop: Spacing.md || 12,
+    marginBottom: Spacing.xxs || 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  inputWrapper: {
+  requiredStar: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xxs || 2,
+  },
+  editField: {
+    marginBottom: Spacing.md || 12,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
     borderWidth: 1,
     borderColor: Colors.border || '#E0E0E0',
     borderRadius: Layout.borderRadius.sm || 4,
-    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    minHeight: 42,
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  inputDisabled: {
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
-    borderColor: Colors.borderLight || '#F0F0F0',
+  inputError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  inputIcon: {
+    paddingLeft: Spacing.sm || 8,
   },
   input: {
-    height: 40,
+    flex: 1,
+    height: 42,
+    paddingHorizontal: Spacing.sm || 8,
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textPrimary || '#333333',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  inputWithIcon: {
+    paddingLeft: Spacing.xs || 4,
+  },
+  readOnlyContainer: {
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    opacity: 0.9,
+  },
+  readOnlyText: {
+    flex: 1,
+    paddingHorizontal: Spacing.sm || 8,
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textPrimary || '#333333',
+    textAlignVertical: 'center',
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    borderWidth: 1,
+    borderColor: Colors.border || '#E0E0E0',
+    borderRadius: Layout.borderRadius.sm || 4,
+    minHeight: 42,
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pickerIcon: {
+    paddingLeft: Spacing.sm || 8,
+  },
+  picker: {
+    flex: 1,
+    height: 42,
+    color: Colors.textPrimary || '#333333',
+  },
+  pickerWithIcon: {
+    marginLeft: -Spacing.xs || -4,
+  },
+  dateText: {
+    flex: 1,
     paddingHorizontal: Spacing.sm || 8,
     fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
     color: Colors.textPrimary || '#333333',
   },
+  dateIcon: {
+    paddingRight: Spacing.sm || 8,
+  },
   textArea: {
-    height: 80,
+    minHeight: verticalScale(80) || 80,
     textAlignVertical: 'top',
     paddingTop: Spacing.sm || 8,
   },
-
-  // Text Block
-  textBlock: {
-    marginBottom: Spacing.sm || 8,
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall || 10,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    marginTop: Spacing.xxs || 2,
+    marginLeft: Spacing.xs || 4,
   },
-  textBlockWithGap: {
-    marginTop: Spacing.sm || 8,
-    paddingTop: Spacing.sm || 8,
+
+  // Selector Styles
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    borderWidth: 1,
+    borderColor: Colors.border || '#E0E0E0',
+    borderRadius: Layout.borderRadius.sm || 4,
+    paddingHorizontal: Spacing.sm || 8,
+    paddingVertical: 0,
+    height: 42,
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  selectorError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
+  selectedItemContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedItemInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs || 4,
+    marginRight: Spacing.xs || 4,
+  },
+  selectedItemText: {
+    flex: 1,
+    fontSize: Typography.fontSize.small || 12,
+    color: Colors.textPrimary || '#333333',
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+  },
+  contactSelectorText: {
+    flex: 1,
+  },
+  contactSelectorDetails: {
+    fontSize: Typography.fontSize.xsmall || 10,
+    color: Colors.textSecondary || '#666666',
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+  },
+  placeholderText: {
+    fontSize: Typography.fontSize.small || 12,
+    color: Colors.textTertiary || '#999999',
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+  },
+  clearButton: {
+    padding: Spacing.xxs || 2,
+  },
+
+  // Switch
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md || 12,
+    paddingVertical: Spacing.sm || 8,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight || '#F0F0F0',
   },
-  commentsText: {
+  switchLabel: {
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textSecondary || '#666666',
-    fontStyle: 'italic',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
-  // Empty State
-  emptyState: {
+  // Loader and Error
+  loaderContainer: {
+    height: 42,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: verticalScale(16),
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    borderWidth: 1,
+    borderColor: Colors.border || '#E0E0E0',
+    borderRadius: Layout.borderRadius.sm || 4,
   },
-  emptyStateText: {
-    fontSize: Typography.fontSize.small || 12,
+  errorContainer: {
+    height: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.errorLight || '#FDEAEA',
+    borderWidth: 1,
+    borderColor: Colors.error,
+    borderRadius: Layout.borderRadius.sm || 4,
+    paddingHorizontal: Spacing.sm || 8,
+  },
+  errorRetryText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall || 10,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textTertiary || '#999999',
-    marginTop: Spacing.xs || 4,
+    marginLeft: Spacing.xs || 4,
+    flex: 1,
+  },
+  retryButton: {
+    paddingHorizontal: Spacing.sm || 8,
+    paddingVertical: Spacing.xxs || 2,
+    backgroundColor: Colors.error,
+    borderRadius: Layout.borderRadius.sm || 4,
+  },
+  retryButtonText: {
+    color: Colors.textInverse || '#FFFFFF',
+    fontSize: Typography.fontSize.xsmall || 10,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
   },
 
   // Action Buttons
   actionButtons: {
     marginHorizontal: Spacing.md || 12,
     marginTop: Spacing.sm || 8,
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(16) || 16,
     gap: Spacing.sm || 8,
   },
   saveButton: {
@@ -1434,7 +2573,6 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md || 6,
     gap: Spacing.sm || 8,
     height: 48,
-    
     shadowColor: Colors.primary || '#2F4FE3',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -1459,7 +2597,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.border || '#E0E0E0',
     backgroundColor: Colors.backgroundLight || '#F5F5F5',
     height: 48,
-    
     shadowColor: Colors.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -1472,15 +2609,164 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
   },
 
-  // System Info
-  systemInfo: {
-    padding: Spacing.md || 12,
-    alignItems: 'center',
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay || 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
-  systemInfoText: {
-    fontSize: Typography.fontSize.xsmall || 10,
+  modalContainer: {
+    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    borderTopLeftRadius: Layout.borderRadius.lg || 12,
+    borderTopRightRadius: Layout.borderRadius.lg || 12,
+    maxHeight: '80%',
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md || 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight || '#F0F0F0',
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.h4 || 18,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textPrimary || '#333333',
+  },
+  modalSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: Spacing.md || 12,
+    paddingHorizontal: Spacing.sm || 8,
+    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    borderWidth: 1,
+    borderColor: Colors.border || '#E0E0E0',
+    borderRadius: Layout.borderRadius.md || 8,
+    gap: Spacing.xs || 4,
+    height: verticalScale(42) || 42,
+    shadowColor: Colors.shadow || '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  modalSearchInput: {
+    flex: 1,
+    height: verticalScale(42) || 42,
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textPrimary || '#333333',
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  modalLoading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(32) || 32,
+  },
+  modalLoadingText: {
+    marginTop: Spacing.sm || 8,
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textSecondary || '#666666',
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(32) || 32,
+  },
+  modalEmptyText: {
+    marginTop: Spacing.sm || 8,
+    fontSize: Typography.fontSize.small || 12,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
     color: Colors.textTertiary || '#999999',
+    textAlign: 'center',
+    paddingHorizontal: Spacing.xl || 20,
+  },
+
+  // Item Row Styles
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: verticalScale(10) || 10,
+    paddingHorizontal: Spacing.md || 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight || '#F0F0F0',
+  },
+  selectedItemRow: {
+    backgroundColor: Colors.infoLight || '#F0F9FF',
+  },
+  itemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemAvatar: {
+    width: scale(40) || 40,
+    height: scale(40) || 40,
+    borderRadius: scale(20) || 20,
+    backgroundColor: Colors.primary || '#2F4FE3',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm || 8,
+    shadowColor: Colors.primary || '#2F4FE3',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  itemAvatarText: {
+    fontSize: Typography.fontSize.medium || 14,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textInverse || '#FFFFFF',
+  },
+  itemDetails: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: Typography.fontSize.medium || 14,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textPrimary || '#333333',
+    marginBottom: Spacing.xxs || 2,
+  },
+  itemSubtext: {
+    fontSize: Typography.fontSize.xsmall || 10,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textSecondary || '#666666',
+  },
+
+  // Text Block
+  textBlock: {
+    marginBottom: Spacing.sm || 8,
+  },
+  textBlockWithGap: {
+    marginTop: Spacing.sm || 8,
+    paddingTop: Spacing.sm || 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight || '#F0F0F0',
+  },
+  commentsText: {
+    color: Colors.textSecondary || '#666666',
+    fontStyle: 'italic',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(16) || 16,
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSize.small || 12,
+    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    color: Colors.textTertiary || '#999999',
+    marginTop: Spacing.xs || 4,
   },
 
   // Menu Styles
@@ -1494,11 +2780,31 @@ const styles = StyleSheet.create({
   },
 
   // Error States
-  errorContainer: {
+  fullScreenError: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.xxxxl || 40,
+    alignItems: 'center',
+    backgroundColor: Colors.background || '#EDEBEB',
+    padding: Spacing.xxl || 24,
+  },
+  fullScreenErrorText: {
+    fontSize: Typography.fontSize.h4 || 18,
+    fontFamily: Typography.fontFamily.medium || 'K2D-Medium',
+    color: Colors.textPrimary || '#333333',
+    textAlign: 'center',
+    marginTop: Spacing.md || 12,
+    marginBottom: Spacing.lg || 16,
+  },
+  fullScreenRetryButton: {
+    backgroundColor: Colors.primary || '#2F4FE3',
+    paddingHorizontal: Spacing.xl || 20,
+    paddingVertical: Spacing.md || 12,
+    borderRadius: Layout.borderRadius.md || 6,
+  },
+  fullScreenRetryButtonText: {
+    color: Colors.textInverse || '#FFFFFF',
+    fontSize: Typography.fontSize.medium || 14,
+    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
   },
   errorText: {
     fontSize: Typography.fontSize.h4 || 18,
@@ -1515,7 +2821,6 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md || 6,
     height: 48,
     justifyContent: 'center',
-    
     shadowColor: Colors.primary || '#2F4FE3',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
