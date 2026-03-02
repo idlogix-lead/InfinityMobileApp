@@ -1,4 +1,4 @@
-// screens/CRM/GenericLeadScreen.js - FIXED version (no render-time state updates)
+// screens/CRM/GenericLeadScreen.js - FIXED version with LeadEdit pattern
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
@@ -50,6 +50,17 @@ const GenericLead = ({ navigation, route }) => {
   // Use paramTitle from route.params
   const actualScreenTitle = paramTitle || 'Leads';
 
+  // ADDED: State to track if component is mounted (like LeadEdit)
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ADDED: useEffect to set mounted state after first render (like LeadEdit)
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
+
   // Fetch dynamic lead statuses
   const { data: leadStatuses = [] } = useLeadStatuses();
 
@@ -72,9 +83,6 @@ const GenericLead = ({ navigation, route }) => {
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectDate, setSelectDate] = useState(null);
 
-  // Use ref to track if component is mounted
-  const isMounted = useRef(true);
-
   // Hooks
   const queryClient = useQueryClient();
 
@@ -96,14 +104,6 @@ const GenericLead = ({ navigation, route }) => {
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
   const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
-
-  // Set up mounted ref
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
 
   // ============================================
   // DYNAMIC STATUS OPTIONS
@@ -162,10 +162,10 @@ const GenericLead = ({ navigation, route }) => {
     return initialLeads; // Fallback to initial leads
   }, [queryClient, initialLeads]);
 
-  // FIXED: Update freshLeads when cache changes - but not during render
+  // FIXED: Update freshLeads when cache changes - using mounted check
   useEffect(() => {
     const updateLeadsFromCache = () => {
-      if (!isMounted.current) return;
+      if (!isMounted) return; // Check mounted state
       const leads = getFreshLeadsFromCache();
       setFreshLeads(leads);
     };
@@ -182,7 +182,7 @@ const GenericLead = ({ navigation, route }) => {
     return () => {
       unsubscribe();
     };
-  }, [queryClient, getFreshLeadsFromCache]);
+  }, [queryClient, getFreshLeadsFromCache, isMounted]);
 
   // Refresh data when screen comes into focus
   useFocusEffect(
@@ -193,14 +193,14 @@ const GenericLead = ({ navigation, route }) => {
 
       // Also update from cache immediately
       const leads = getFreshLeadsFromCache();
-      if (isMounted.current) {
+      if (isMounted) {
         setFreshLeads(leads);
       }
 
       return () => {
         // Cleanup if needed
       };
-    }, [queryClient, getFreshLeadsFromCache]),
+    }, [queryClient, getFreshLeadsFromCache, isMounted]),
   );
 
   // Get the latest lead data from cache by ID
@@ -467,7 +467,7 @@ const GenericLead = ({ navigation, route }) => {
 
       // Update from cache immediately
       const leads = getFreshLeadsFromCache();
-      if (isMounted.current) {
+      if (isMounted) {
         setFreshLeads(leads);
       }
     } catch (error) {
@@ -932,7 +932,6 @@ const GenericLead = ({ navigation, route }) => {
 
 // All styles remain exactly the same
 const styles = StyleSheet.create({
-  // ... all your existing styles remain unchanged
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
