@@ -1,4 +1,5 @@
-// screens/CRM/AddActivity.js
+// screens/CRM/AddActivity.js - UPDATED with AddLeads UI styling
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
@@ -16,6 +17,7 @@ import {
   FlatList,
   ActivityIndicator,
   TextInput as RNTextInput,
+  StatusBar,
 } from 'react-native';
 import { useMutation, useQueryClient } from 'react-query';
 import AntDesign from 'react-native-vector-icons/AntDesign';
@@ -29,8 +31,7 @@ import {
   useUpdateFollowup,
   useDeleteFollowup 
 } from '../../hooks/CRMhooks/useCRM';
-import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
-import { useCRMStore } from '../../store/crmStore';
+import { useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
 import moment from 'moment';
 
 // Import theme
@@ -44,6 +45,17 @@ const AddActivity = ({ route, navigation }) => {
   const { data, mode } = route.params;
   const queryClient = useQueryClient();
   
+  // State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+
+  // useEffect to set mounted state after first render
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+
   // State
   const [fromDate, setFromDate] = useState(new Date());
   const [toDate, setToDate] = useState(new Date());
@@ -66,8 +78,8 @@ const AddActivity = ({ route, navigation }) => {
   // Animations
   const activityAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Hooks
-  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+  // Hooks - Pass isMounted to control query execution
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
   // Mutations
   const createFollowupMutation = useCreateFollowup();
@@ -198,37 +210,51 @@ const AddActivity = ({ route, navigation }) => {
           updates: payload,
         });
         
-        Alert.alert(
-          'Success',
-          'Activity updated successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ]
-        );
+        if (isMounted) {
+          Alert.alert(
+            'Success',
+            'Activity updated successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  if (isMounted) {
+                    navigation.goBack();
+                  }
+                },
+              },
+            ]
+          );
+        }
       } else {
         // Create new activity
         await createFollowupMutation.mutateAsync(payload);
         
-        Alert.alert(
-          'Success',
-          'Activity created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack(),
-            },
-          ]
-        );
+        if (isMounted) {
+          Alert.alert(
+            'Success',
+            'Activity created successfully!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  if (isMounted) {
+                    navigation.goBack();
+                  }
+                },
+              },
+            ]
+          );
+        }
       }
     } catch (error) {
       console.error('Save error:', error);
-      Alert.alert(
-        'Error',
-        `Failed to save activity: ${error.message || 'Unknown error'}`
-      );
+      if (isMounted) {
+        Alert.alert(
+          'Error',
+          `Failed to save activity: ${error.message || 'Unknown error'}`
+        );
+      }
     }
   };
 
@@ -247,13 +273,17 @@ const AddActivity = ({ route, navigation }) => {
           onPress: async () => {
             try {
               await deleteFollowupMutation.mutateAsync(data.id);
-              Alert.alert(
-                'Success',
-                'Activity deleted successfully!',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
-              );
+              if (isMounted) {
+                Alert.alert(
+                  'Success',
+                  'Activity deleted successfully!',
+                  [{ text: 'OK', onPress: () => navigation.goBack() }]
+                );
+              }
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete activity.');
+              if (isMounted) {
+                Alert.alert('Error', 'Failed to delete activity.');
+              }
             }
           },
         },
@@ -340,182 +370,205 @@ const AddActivity = ({ route, navigation }) => {
       activeOpacity={0.7}
     >
       <View style={styles.repItemContent}>
-        <View style={styles.repAvatar}>
-          <Text style={styles.repAvatarText}>
-            {item.Name?.charAt(0).toUpperCase() || '?'}
-          </Text>
-        </View>
-        <View style={styles.repDetails}>
-          <Text style={styles.repName}>{item.Name}</Text>
-          {item.Email && (
-            <Text style={styles.repEmail}>{item.Email}</Text>
-          )}
-        </View>
+        <Text style={styles.repName}>{item.Name}</Text>
+        {item.EMail && (
+          <Text style={styles.repEmail}>{item.EMail}</Text>
+        )}
       </View>
       {selectedSalesRepId === item.id && (
-        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+        <Icon name="check" size={20} color={Colors.primary} />
       )}
     </TouchableOpacity>
   );
 
+  // Loading state
+  const isLoading = createFollowupMutation.isLoading || 
+                    updateFollowupMutation.isLoading || 
+                    deleteFollowupMutation.isLoading || 
+                    loadingSalesReps;
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.keyboardView}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.container}>
-            <CustomHeader 
-              title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
-              LeftIcon="arrow-left"
-              LeftPress={() => navigation.goBack()}
-              RightIcon={null}
-              RightPress={null}
-            />
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" />
+      <CustomHeader 
+        title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
+        LeftIcon="arrow-left"
+        LeftPress={() => navigation.goBack()}
+        RightIcon={null}
+        RightPress={null}
+      />
 
-            {/* Calendar Modal */}
-            <CalendarModal
-              visible={showCalendar}
-              initialDate={calendarMode === 'from' ? fromDate : toDate}
-              onClose={() => setShowCalendar(false)}
-              onSelectDate={handleDateSelect}
-              title={calendarTitle}
-              minDate={calendarMode === 'to' ? fromDate : undefined}
-            />
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>
+            {createFollowupMutation.isLoading ? 'Creating...' : 
+             updateFollowupMutation.isLoading ? 'Updating...' :
+             deleteFollowupMutation.isLoading ? 'Deleting...' :
+             'Loading data...'}
+          </Text>
+        </View>
+      )}
 
-            {/* Sales Representative Modal */}
-            <Modal
-              visible={showSalesRepModal}
-              animationType="slide"
-              transparent={true}
-              onRequestClose={() => {
-                setShowSalesRepModal(false);
-                setSalesRepSearch('');
-              }}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContainer}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Select Sales Representative</Text>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setShowSalesRepModal(false);
-                        setSalesRepSearch('');
-                      }}
-                    >
-                      <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
+      {/* Calendar Modal */}
+      <CalendarModal
+        visible={showCalendar}
+        initialDate={calendarMode === 'from' ? fromDate : toDate}
+        onClose={() => setShowCalendar(false)}
+        onSelectDate={handleDateSelect}
+        title={calendarTitle}
+        minDate={calendarMode === 'to' ? fromDate : undefined}
+      />
 
-                  <View style={styles.modalSearch}>
-                    <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-                    <RNTextInput
-                      style={styles.modalSearchInput}
-                      placeholder="Search by name..."
-                      placeholderTextColor={Colors.textTertiary}
-                      value={salesRepSearch}
-                      onChangeText={setSalesRepSearch}
-                    />
-                    {salesRepSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setSalesRepSearch('')}>
-                        <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {loadingSalesReps ? (
-                    <View style={styles.modalLoading}>
-                      <ActivityIndicator size="large" color={Colors.primary} />
-                      <Text style={styles.modalLoadingText}>Loading...</Text>
-                    </View>
-                  ) : (
-                    <FlatList
-                      data={filteredSalesReps}
-                      renderItem={renderSalesRepItem}
-                      keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                      ListEmptyComponent={
-                        <View style={styles.modalEmpty}>
-                          <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
-                          <Text style={styles.modalEmptyText}>
-                            {salesRepSearch.trim()
-                              ? `No results for "${salesRepSearch}"`
-                              : 'No sales representatives available'}
-                          </Text>
-                        </View>
-                      }
-                    />
-                  )}
-                </View>
-              </View>
-            </Modal>
-
-            {/* Form Container */}
-            <View style={styles.formContainer}>
-              {/* Activity Type (only for create mode) */}
-              {mode === 'create' && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Activity Type *</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    onPress={toggleActivitySection}
-                    style={styles.dropdown}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[
-                      styles.dropdownText,
-                      selectedActivity === 'Select Activity Type' && styles.placeholderText
-                    ]}>
-                      {selectedActivity}
-                    </Text>
-                    <Animated.View
-                      style={{ transform: [{ rotate: getRotation(activityAnim) }] }}
-                    >
-                      <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
-                    </Animated.View>
-                  </TouchableOpacity>
-
-                  {!activityCollapsed && (
-                    <View style={styles.activityOptions}>
-                      {Object.keys(activityTypeMap).map((type) => (
-                        <TouchableOpacity
-                          key={type}
-                          onPress={() => selectActivity(type)}
-                          style={styles.activityOption}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.activityOptionText}>{type}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </>
+      {/* Sales Representative Modal */}
+      <Modal
+        visible={showSalesRepModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSalesRepModal(false);
+          setSalesRepSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Representative</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSalesRepModal(false);
+                  setSalesRepSearch('');
+                }}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Search Input */}
+            <View style={styles.modalSearch}>
+              <Icon name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+              <RNTextInput
+                style={styles.modalSearchInput}
+                placeholder="Search by name..."
+                placeholderTextColor={Colors.textTertiary}
+                value={salesRepSearch}
+                onChangeText={setSalesRepSearch}
+                autoFocus={true}
+              />
+              {salesRepSearch.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSalesRepSearch('')}
+                  style={styles.clearSearchButton}
+                >
+                  <Icon name="close" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
               )}
+            </View>
+            
+            {/* Sales Representatives List */}
+            <FlatList
+              data={filteredSalesReps}
+              renderItem={renderSalesRepItem}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <View style={styles.modalEmpty}>
+                  <Icon name="person-off" size={50} color={Colors.border} />
+                  <Text style={styles.modalEmptyText}>
+                    {salesRepSearch.trim() 
+                      ? `No sales representatives found for "${salesRepSearch}"`
+                      : 'No sales representatives available'}
+                  </Text>
+                </View>
+              }
+              style={styles.repList}
+              contentContainerStyle={styles.repListContent}
+            />
+            
+            {/* Footer */}
+            <View style={styles.modalFooter}>
+              <Text style={styles.footerText}>
+                {filteredSalesReps.length} of {salesReps.length} sales representatives
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
-              {/* Sales Representative - Dynamic Searchable Picker */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Sales Representative *</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            style={styles.formWrapper}
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Activity Type (only for create mode) */}
+            {mode === 'create' && (
+              <View style={styles.fieldContainer}>
+                <View style={styles.labelContainer}>
+                  <Text style={styles.label}>Activity Type</Text>
+                  <Text style={styles.requiredStar}> *</Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={toggleActivitySection}
+                  style={styles.selector}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.selectorText,
+                    selectedActivity === 'Select Activity Type' && styles.placeholderText
+                  ]}>
+                    {selectedActivity}
+                  </Text>
+                  <Animated.View
+                    style={{ transform: [{ rotate: getRotation(activityAnim) }] }}
+                  >
+                    <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
+                  </Animated.View>
+                </TouchableOpacity>
+
+                {!activityCollapsed && (
+                  <View style={styles.optionsContainer}>
+                    {Object.keys(activityTypeMap).map((type) => (
+                      <TouchableOpacity
+                        key={type}
+                        onPress={() => selectActivity(type)}
+                        style={styles.optionItem}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.optionText}>{type}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Sales Representative - Searchable Picker */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.label}>Sales Representative</Text>
+                <Text style={styles.requiredStar}> *</Text>
               </View>
               <TouchableOpacity
                 style={[
-                  styles.salesRepSelector,
-                  !selectedSalesRepId && styles.selectorEmpty
+                  styles.selector,
+                  !selectedSalesRepId && styles.selectorEmpty,
                 ]}
                 onPress={() => setShowSalesRepModal(true)}
                 activeOpacity={0.7}
               >
                 {selectedSalesRepName ? (
-                  <View style={styles.selectedRepContainer}>
-                    <View style={styles.selectedRepInfo}>
+                  <View style={styles.selectedItemContainer}>
+                    <View style={styles.selectedItemInfo}>
                       <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
-                      <Text style={styles.selectedRepText}>{selectedSalesRepName}</Text>
+                      <Text style={styles.selectedItemText}>{selectedSalesRepName}</Text>
                     </View>
                     <TouchableOpacity
                       style={styles.clearButton}
@@ -524,272 +577,209 @@ const AddActivity = ({ route, navigation }) => {
                         handleClearSalesRep();
                       }}
                     >
-                      <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                      <Icon name="close" size={18} color={Colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <>
                     <Text style={styles.placeholderText}>Select Sales Representative</Text>
-                    <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                    <Icon name="arrow-drop-down" size={24} color={Colors.textSecondary} />
                   </>
                 )}
               </TouchableOpacity>
+            </View>
 
-              {/* Start Date */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Start Date *</Text>
+            {/* Start Date */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.label}>Start Date</Text>
+                <Text style={styles.requiredStar}> *</Text>
               </View>
               <TouchableOpacity
                 onPress={handleFromDatePress}
-                style={styles.dateInput}
+                style={styles.selector}
                 activeOpacity={0.7}
               >
-                <Text style={styles.dateText}>
+                <Text style={styles.selectorText}>
                   {formatDisplayDate(fromDate)}
                 </Text>
                 <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
               </TouchableOpacity>
+            </View>
 
-              {/* End Date */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>End Date *</Text>
+            {/* End Date */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.label}>End Date</Text>
+                <Text style={styles.requiredStar}> *</Text>
               </View>
               <TouchableOpacity
                 onPress={handleToDatePress}
-                style={styles.dateInput}
+                style={styles.selector}
                 activeOpacity={0.7}
               >
-                <Text style={styles.dateText}>
+                <Text style={styles.selectorText}>
                   {formatDisplayDate(toDate)}
                 </Text>
                 <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
               </TouchableOpacity>
+            </View>
 
-              {/* Description */}
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Description *</Text>
+            {/* Description */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.labelContainer}>
+                <Text style={styles.label}>Description</Text>
+                <Text style={styles.requiredStar}> *</Text>
               </View>
-              <TextInput
-                mode="outlined"
-                multiline
-                numberOfLines={4}
-                placeholder="Enter activity description..."
-                style={styles.descriptionInput}
-                value={description}
-                onChangeText={setDescription}
-                theme={{
-                  colors: {
-                    primary: Colors.primary,
-                    background: Colors.backgroundLight,
-                  },
-                }}
-                outlineColor={Colors.border}
-                activeOutlineColor={Colors.primary}
-              />
-
-              {/* Complete Checkbox */}
-              <TouchableOpacity
-                onPress={() => setIsComplete(!isComplete)}
-                style={styles.checkboxContainer}
-                activeOpacity={0.7}
-              >
-                <Icon
-                  name={isComplete ? 'check-box' : 'check-box-outline-blank'}
-                  size={Layout.iconSize.lg}
-                  color={isComplete ? Colors.primary : Colors.textSecondary}
+              <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+                <RNTextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Enter activity description..."
+                  placeholderTextColor={Colors.textTertiary}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline={true}
+                  numberOfLines={4}
+                  textAlignVertical="top"
                 />
-                <Text style={[
-                  styles.checkboxLabel,
-                  isComplete && styles.checkboxLabelChecked
-                ]}>
-                  Mark as Complete
-                </Text>
-              </TouchableOpacity>
-
-              {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                {mode === 'edit' && (
-                  <TouchableOpacity
-                    onPress={handleDelete}
-                    style={[styles.button, styles.deleteButton]}
-                    disabled={deleteFollowupMutation.isLoading}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.deleteButtonText}>
-                      {deleteFollowupMutation.isLoading ? 'Deleting...' : 'Delete'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  onPress={handleSave}
-                  style={[styles.button, styles.saveButton]}
-                  disabled={createFollowupMutation.isLoading || updateFollowupMutation.isLoading}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {createFollowupMutation.isLoading || updateFollowupMutation.isLoading
-                      ? 'Saving...'
-                      : mode === 'edit' ? 'Update' : 'Save'}
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
-          </View>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+
+            {/* Complete Checkbox */}
+            <TouchableOpacity
+              onPress={() => setIsComplete(!isComplete)}
+              style={styles.checkboxContainer}
+              activeOpacity={0.7}
+            >
+              <Icon
+                name={isComplete ? 'check-box' : 'check-box-outline-blank'}
+                size={Layout.iconSize.lg}
+                color={isComplete ? Colors.primary : Colors.textSecondary}
+              />
+              <Text style={[
+                styles.checkboxLabel,
+                isComplete && styles.checkboxLabelChecked
+              ]}>
+                Mark as Complete
+              </Text>
+            </TouchableOpacity>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsContainer}>
+              {mode === 'edit' && (
+                <TouchableOpacity
+                  onPress={handleDelete}
+                  style={[styles.actionButton, styles.deleteButton]}
+                  disabled={deleteFollowupMutation.isLoading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.deleteButtonText}>
+                    {deleteFollowupMutation.isLoading ? 'Deleting...' : 'Delete'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={handleSave}
+                style={[
+                  styles.actionButton, 
+                  styles.saveButton,
+                  mode !== 'edit' && styles.fullWidthButton
+                ]}
+                disabled={createFollowupMutation.isLoading || updateFollowupMutation.isLoading}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.saveButtonText}>
+                  {createFollowupMutation.isLoading || updateFollowupMutation.isLoading
+                    ? 'Saving...'
+                    : mode === 'edit' ? 'Update' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.bottomSpacing} />
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   container: {
     flex: 1,
+    backgroundColor: Colors.background || '#EDEBEB',
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: verticalScale(20),
+  keyboardView: {
+    flex: 1,
   },
-  formContainer: {
-    backgroundColor: Colors.cardBackground,
-    marginTop: verticalScale(20),
-    marginHorizontal: Spacing.lg,
-    padding: Spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
-  sectionHeader: {
-    marginBottom: Spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
     color: Colors.textPrimary,
+    fontFamily: 'K2D-Medium',
+  },
+  formWrapper: {
+    flex: 1,
+    backgroundColor: Colors.cardBackground,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.lg,
+    elevation: 8,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  formContent: {
+    padding: Spacing.lg,
+  },
+  fieldContainer: {
+    marginBottom: Spacing.md,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Spacing.xxs,
   },
-  dropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundLight,
-    marginBottom: Spacing.md,
-  },
-  dropdownText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-  placeholderText: {
-    color: Colors.textTertiary,
-  },
-  activityOptions: {
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-  },
-  activityOption: {
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  activityOptionText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-  dateInput: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundLight,
-    marginBottom: Spacing.md,
-  },
-  dateText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-  descriptionInput: {
-    backgroundColor: Colors.backgroundLight,
-    marginBottom: Spacing.md,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  checkboxLabel: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
+  label: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
-    marginLeft: Spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  checkboxLabelChecked: {
-    color: Colors.primary,
+  requiredStar: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+    marginLeft: 2,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: Spacing.md,
-  },
-  button: {
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.xl,
-    borderRadius: Layout.borderRadius.md,
-    minWidth: scale(100),
-    alignItems: 'center',
-  },
-  deleteButton: {
-    backgroundColor: Colors.error,
-  },
-  deleteButtonText: {
-    color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
-  saveButton: {
-    backgroundColor: Colors.primary,
-  },
-  saveButtonText: {
-    color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
-
-  // Sales Rep Selector Styles
-  salesRepSelector: {
+  
+  // Selector Styles
+  selector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
-    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
@@ -800,22 +790,55 @@ const styles = StyleSheet.create({
     // Elevation for Android
     elevation: 2,
   },
+  selectorText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
   selectorEmpty: {
     borderColor: Colors.errorLight,
   },
-  selectedRepContainer: {
+  placeholderText: {
+    fontSize: Typography.fontSize.small,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
+  },
+
+  // Options Dropdown
+  optionsContainer: {
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    overflow: 'hidden',
+  },
+  optionItem: {
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  optionText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+  },
+
+  // Selected Item Styles
+  selectedItemContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectedRepInfo: {
+  selectedItemInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  selectedRepText: {
-    fontSize: Typography.fontSize.medium,
+  selectedItemText: {
+    fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
   },
@@ -823,10 +846,108 @@ const styles = StyleSheet.create({
     padding: Spacing.xxs,
   },
 
+  // Input Styles
+  inputWrapper: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    justifyContent: 'center',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    
+    // Elevation for Android
+    elevation: 2,
+  },
+  input: {
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  textAreaWrapper: {
+    minHeight: verticalScale(80),
+  },
+  textArea: {
+    minHeight: verticalScale(80),
+    textAlignVertical: 'top',
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(10),
+  },
+
+  // Checkbox
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  checkboxLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
+  },
+  checkboxLabelChecked: {
+    color: Colors.primary,
+  },
+
+  // Action Buttons
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  actionButton: {
+    paddingVertical: verticalScale(12),
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Layout.borderRadius.md,
+    minWidth: scale(100),
+    alignItems: 'center',
+    
+    // Shadow for iOS
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    
+    // Elevation for Android
+    elevation: 3,
+  },
+  fullWidthButton: {
+    flex: 1,
+  },
+  deleteButton: {
+    backgroundColor: Colors.error,
+  },
+  deleteButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+  },
+  saveButtonText: {
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
+  bottomSpacing: {
+    height: verticalScale(20),
+  },
+
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
@@ -838,7 +959,7 @@ const styles = StyleSheet.create({
     // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     
     // Elevation for Android
@@ -857,17 +978,18 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
+  closeButton: {
+    padding: Spacing.xxs,
+  },
   modalSearch: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.md,
-    gap: Spacing.xs,
-    height: verticalScale(42),
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
     
     // Shadow for iOS
     shadowColor: Colors.shadow,
@@ -878,6 +1000,9 @@ const styles = StyleSheet.create({
     // Elevation for Android
     elevation: 2,
   },
+  searchIcon: {
+    marginRight: Spacing.xs,
+  },
   modalSearchInput: {
     flex: 1,
     height: verticalScale(42),
@@ -885,33 +1010,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     paddingVertical: 0,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
   },
-  modalLoading: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: verticalScale(32),
+  clearSearchButton: {
+    padding: Spacing.xxs,
   },
-  modalLoadingText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+  repList: {
+    maxHeight: 400,
   },
-  modalEmpty: {
-    alignItems: 'center',
-    paddingVertical: verticalScale(32),
+  repListContent: {
+    paddingBottom: Spacing.md,
   },
-  modalEmptyText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
-    textAlign: 'center',
-  },
-
-  // Rep Item Styles
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -926,42 +1034,38 @@ const styles = StyleSheet.create({
   },
   repItemContent: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  repAvatar: {
-    width: scale(36),
-    height: scale(36),
-    borderRadius: scale(18),
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
-    
-    // Shadow for iOS
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  repAvatarText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textInverse,
-  },
-  repDetails: {
-    flex: 1,
   },
   repName: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
   },
   repEmail: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xxs,
+  },
+  modalEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: verticalScale(40),
+    paddingHorizontal: Spacing.xl,
+  },
+  modalEmptyText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  modalFooter: {
+    padding: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    alignItems: 'center',
+  },
+  footerText: {
     fontSize: Typography.fontSize.xsmall,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,

@@ -1,11 +1,11 @@
 // hooks/useCRM.js - COMPLETE UPDATED VERSION with all hooks
 // Directly uses statuses extracted from leads
+// All alerts removed from mutation hooks - UI components handle notifications
 
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { useMemo } from 'react';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 import { useAuthStore } from '../../store/authStore';
-import { Alert } from 'react-native';
 
 // ============================================
 // COMMON ERROR HANDLER
@@ -449,7 +449,7 @@ export const useSalesOpportunities = (filters = {}, enabled = true) => {
 };
 
 // ============================================
-// MUTATION HOOKS
+// MUTATION HOOKS - ALL ALERTS REMOVED
 // ============================================
 
 // Mutation for creating a lead
@@ -474,11 +474,11 @@ export const useCreateLead = () => {
       queryClient.invalidateQueries(['lead-statistics']);
       queryClient.invalidateQueries(['lead-statuses']);
       
-      Alert.alert('Success', 'Lead created successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useCreateLead');
-      Alert.alert('Error', error.message || 'Failed to create lead');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -509,10 +509,12 @@ export const useUpdateLead = () => {
       // Invalidate statistics and statuses
       queryClient.invalidateQueries(['lead-statistics']);
       queryClient.invalidateQueries(['lead-statuses']);
+      
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useUpdateLead');
-      Alert.alert('Error', error.message || 'Failed to update lead');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -598,7 +600,7 @@ export const useUpdateLeadStatus = () => {
       queryClient.invalidateQueries(['lead-statistics']);
       queryClient.invalidateQueries(['lead-statuses']);
       
-      Alert.alert('Success', `Lead status updated to ${data.statusName}`);
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error, variables, context) => {
       console.error('❌ Status update failed:', error);
@@ -611,7 +613,7 @@ export const useUpdateLeadStatus = () => {
         queryClient.setQueryData(['lead', variables.leadId], context.previousLead);
       }
       
-      Alert.alert('Error', `Failed to update status: ${error.message}`);
+      // ALERT REMOVED - Component handles notification
     },
     onSettled: () => {
       // Don't refetch leads, just statistics and statuses
@@ -622,7 +624,7 @@ export const useUpdateLeadStatus = () => {
 };
 
 // ============================================
-// FOLLOWUP MUTATION HOOKS
+// FOLLOWUP MUTATION HOOKS - ALL ALERTS REMOVED
 // ============================================
 
 // Mutation for updating followup status
@@ -651,7 +653,7 @@ export const useUpdateFollowupStatus = () => {
         queryClient.setQueryData(['followups'], context.previousFollowups);
       }
       handleApiError(error, 'useUpdateFollowupStatus');
-      Alert.alert('Error', 'Failed to update followup status');
+      // ALERT REMOVED - Component handles notification
     },
     onSettled: () => {
       queryClient.invalidateQueries(['followups']);
@@ -679,11 +681,11 @@ export const useCreateFollowup = () => {
         queryClient.invalidateQueries(['lead-activities', newFollowup.AD_User_ID.id]);
       }
       
-      Alert.alert('Success', 'Followup created successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useCreateFollowup');
-      Alert.alert('Error', error.message || 'Failed to create followup');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -710,11 +712,11 @@ export const useUpdateFollowup = () => {
         queryClient.invalidateQueries(['lead-activities', updatedFollowup.AD_User_ID.id]);
       }
       
-      Alert.alert('Success', 'Followup updated successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useUpdateFollowup');
-      Alert.alert('Error', error.message || 'Failed to update followup');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -748,17 +750,17 @@ export const useDeleteFollowup = () => {
         queryClient.invalidateQueries(['lead-activities', leadId]);
       }
       
-      Alert.alert('Success', 'Followup deleted successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useDeleteFollowup');
-      Alert.alert('Error', error.message || 'Failed to delete followup');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
 
 // ============================================
-// SALES OPPORTUNITY MUTATION HOOKS
+// SALES OPPORTUNITY MUTATION HOOKS - ALL ALERTS REMOVED
 // ============================================
 
 // Mutation for creating sales opportunity
@@ -791,12 +793,12 @@ export const useCreateSalesOpportunity = () => {
     onSuccess: () => {
       console.log('✅ Sales opportunity created');
       queryClient.invalidateQueries(['sales-opportunities']);
-      Alert.alert('Success', 'Sales opportunity created successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       console.error('❌ Create sales opportunity failed:', error);
       handleApiError(error, 'useCreateSalesOpportunity');
-      Alert.alert('Error', error.message || 'Failed to create sales opportunity');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -830,12 +832,12 @@ export const useUpdateSalesOpportunity = () => {
         );
       });
       
-      Alert.alert('Success', 'Sales opportunity updated successfully!');
+      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       console.error('❌ Update sales opportunity failed:', error);
       handleApiError(error, 'useUpdateSalesOpportunity');
-      Alert.alert('Error', error.message || 'Failed to update sales opportunity');
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -949,7 +951,10 @@ export const useRefreshCRMData = () => {
     crmApiService.clearLeadStatusesCache();
   };
 };
-// Add this to hooks/CRMhooks/useCRM.js - around line 500-600
+
+// ============================================
+// SALES REPRESENTATIVES HOOK
+// ============================================
 
 /**
  * Hook for fetching sales representatives

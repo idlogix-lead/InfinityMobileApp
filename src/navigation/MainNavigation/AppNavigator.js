@@ -150,7 +150,7 @@ const AppNavigator = () => {
       <Stack.Screen name="AddActivity" component={AddActivity} />
       <Stack.Screen name="LeadEdit" component={LeadEdit} />
       <Stack.Screen name="LeadsDetail" component={LeadDetailsScreen} />
-          <Stack.Screen name="LeadsDetail" component={LeadDetailsScreen} />
+         
           <Stack.Screen name="SalesFollowupDetail" component={SalesOpportunityFollowupDetail} />
       <Stack.Screen name="AddLeads" component={AddLeads} />
       <Stack.Screen name="CRMGraph" component={CRMGraph} />

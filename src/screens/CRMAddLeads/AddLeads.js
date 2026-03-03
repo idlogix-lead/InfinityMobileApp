@@ -1,6 +1,6 @@
-// screens/AddLeads.js - COMPLETE FIXED VERSION
+// screens/AddLeads.js - COMPLETE FIXED VERSION with mounted checks
 
-import React, { useState, useMemo, useEffect } from 'react'; // ADDED useEffect
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,14 +27,14 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 const AddLeads = () => {
   const navigation = useNavigation();
   
-  // ADDED: State to track if component is mounted
+  // State to track if component is mounted
   const [isMounted, setIsMounted] = useState(false);
 
-  // ADDED: useEffect to set mounted state after first render
+  // useEffect to set mounted state after first render
   useEffect(() => {
     setIsMounted(true);
     return () => {
-      // Cleanup if needed
+      setIsMounted(false);
     };
   }, []);
 
@@ -54,7 +54,7 @@ const AddLeads = () => {
 
   const createLeadMutation = useCreateLead();
   
-  // FIXED: Pass enabled flag to useSalesRepresentatives
+  // Pass enabled flag to useSalesRepresentatives
   // The query will only run after the component has mounted (isMounted = true)
   const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
@@ -142,23 +142,31 @@ const AddLeads = () => {
       // Submit via mutation
       await createLeadMutation.mutateAsync(submitData);
       
-      // Success
-      Alert.alert(
-        'Success',
-        'Lead created successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      // Check if component is still mounted before showing alert and navigating
+      if (isMounted) {
+        Alert.alert(
+          'Success',
+          'Lead created successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (isMounted) {
+                  navigation.goBack();
+                }
+              },
+            },
+          ]
+        );
+      }
     } catch (error) {
       console.error('❌ Lead creation error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to create lead. Please try again.'
-      );
+      if (isMounted) {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to create lead. Please try again.'
+        );
+      }
     }
   };
 
@@ -466,8 +474,8 @@ const AddLeads = () => {
                   onValueChange={(value) => updateField('salesLead', value)}
                   style={styles.smallPicker}
                 >
-                  <Picker.Item label="True" value="true" />
-                  <Picker.Item label="False" value="false" />
+                  <Picker.Item label="Yes" value="true" />
+                  <Picker.Item label="No" value="false" />
                 </Picker>
               </View>
             </View>
@@ -480,8 +488,8 @@ const AddLeads = () => {
                   onValueChange={(value) => updateField('vendorLead', value)}
                   style={styles.smallPicker}
                 >
-                  <Picker.Item label="True" value="true" />
-                  <Picker.Item label="False" value="false" />
+                  <Picker.Item label="Yes" value="true" />
+                  <Picker.Item label="No" value="false" />
                 </Picker>
               </View>
             </View>
@@ -851,6 +859,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: 'K2D-SemiBold',
     color: '#333',
+  },
+  repEmail: {
+    fontSize: 12,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginTop: 2,
   },
   emptyContainer: {
     alignItems: 'center',

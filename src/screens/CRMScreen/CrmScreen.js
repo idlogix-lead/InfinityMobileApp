@@ -1,4 +1,4 @@
-// screens/CrmScreen.js - UPDATED to work with dynamic lead statuses
+// screens/CrmScreen.js - Clean version without forceUpdate
 
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import {
@@ -45,7 +45,6 @@ const { scale, verticalScale, screen } = Layout;
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const scrollViewRef = useRef(null);
-  const [forceUpdate, setForceUpdate] = useState(0);
   const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0);
 
   // Fetch dynamic lead statuses
@@ -100,22 +99,7 @@ const CrmScreen = ({ navigation }) => {
     return () => backHandler.remove();
   }, [navigation]);
 
-  // Subscribe to query cache changes for real-time updates
-  useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // When any leads query is updated, force a re-render
-      if (event?.query?.queryKey?.[0] === 'leads' ||
-        event?.query?.queryKey?.[0] === 'sales-opportunities' ||
-        event?.query?.queryKey?.[0] === 'lead-statuses') {
-        console.log('🔄 Cache update detected for:', event?.query?.queryKey?.[0]);
-        setForceUpdate(prev => prev + 1);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [queryClient]);
+  // REMOVED: forceUpdate state and cache subscription useEffect
 
   // Get UI states from CRM store
   const {
@@ -159,7 +143,7 @@ const CrmScreen = ({ navigation }) => {
     isRefetching: followupsRefetching,
   } = useFollowups();
 
-  // FIXED: Get sales opportunities with proper error handling and logging
+  // Get sales opportunities with proper error handling and logging
   const {
     data: salesOpportunities = [],
     isLoading: salesLoading,
@@ -168,20 +152,7 @@ const CrmScreen = ({ navigation }) => {
     isRefetching: salesRefetching,
   } = useSalesOpportunities({}, true); // Empty filters, enabled true
 
-  // FORCE REFETCH on component mount and when tab changes
-  useEffect(() => {
-    console.log('🔄 CrmScreen - Forcing sales opportunities refetch on mount');
-    refetchSales();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'SalesOpportunity') {
-      console.log('🔄 Sales tab activated, forcing refetch');
-      refetchSales();
-    }
-  }, [activeTab]);
-
-  // Manual refresh trigger
+  // Manual refresh trigger - keep this for pull-to-refresh
   useEffect(() => {
     if (manualRefreshTrigger > 0) {
       console.log('🔄 Manual refresh triggered for sales opportunities');
@@ -298,7 +269,7 @@ const CrmScreen = ({ navigation }) => {
         !s.name.toLowerCase().includes('expired')
       )
     };
-  }, [latestLeads, leadStatuses, forceUpdate]);
+  }, [latestLeads, leadStatuses]);
 
   // Memoized sales opportunity calculations
   const salesSummary = useMemo(() => {
@@ -401,10 +372,6 @@ const CrmScreen = ({ navigation }) => {
         setShowCRMCard(false);
         setShowSalesCard(true);
         setShowOverviewCard(false);
-        // Force refresh when switching to Sales tab
-        setTimeout(() => {
-          refetchSales();
-        }, 100);
         break;
       case 'FollowUps':
         setShowCRMCard(false);
@@ -418,7 +385,7 @@ const CrmScreen = ({ navigation }) => {
     }
   };
 
-  // Handle lead summary card press - UPDATED to work with dynamic statuses
+  // Handle lead summary card press
   const handleLeadSummaryPress = (type) => {
     let filteredLeads = [];
     let screenTitle = "";
@@ -445,7 +412,6 @@ const CrmScreen = ({ navigation }) => {
       screenTitle = "Expired Leads";
       screenName = "CrmExpired";
     } else {
-      // Handle custom status
       const statusSummary = statusSummaries.find(s => s.id === type);
       if (statusSummary) {
         filteredLeads = statusSummary.leads;
@@ -461,7 +427,7 @@ const CrmScreen = ({ navigation }) => {
     navigation.navigate(screenName, {
       leads: filteredLeads,
       screenTitle: screenTitle,
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
     });
   };
 
@@ -493,11 +459,10 @@ const CrmScreen = ({ navigation }) => {
         screenTitle = "Sales Opportunities";
     }
 
-    // Navigate to sales opportunities screen
     navigation.navigate('SalesOpportunitiesList', {
       sales: filteredSales,
       screenTitle: screenTitle,
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
     });
   };
 
@@ -506,7 +471,7 @@ const CrmScreen = ({ navigation }) => {
     navigation.navigate('SalesOpportunitiesList', {
       sales: salesOpportunities,
       screenTitle: "All Opportunities",
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
     });
   };
 
@@ -548,17 +513,18 @@ const CrmScreen = ({ navigation }) => {
   const circularChartData = [salesSummary.wonSales, salesSummary.inProgressSales, salesSummary.lostSales];
   const circularChartLabels = ['Won', 'In Progress', 'Lost'];
 
+  // REMOVED: key={`sales-${forceUpdate}`} and key={`leads-${forceUpdate}`} from ScrollViews
+  // REMOVED: key={`leadtab-${forceUpdate}`} from LeadTab
+
   return (
     <Provider>
       <>
-        {/* Custom Header */}
         <CustomHeader title="CRM Board"
           RightIcon="home"
           RightPress={() => navigation.navigate('Home')} />
 
-        {/* Content */}
         <View style={styles.container}>
-          {/* MINIMAL TAB DESIGN - Blue indicator line only */}
+          {/* MINIMAL TAB DESIGN */}
           <View style={styles.tabsWrapper}>
             <View style={styles.tabsContainer}>
               {/* Leads Tab */}
@@ -646,9 +612,7 @@ const CrmScreen = ({ navigation }) => {
                     tintColor={Colors.primary}
                   />
                 }
-                key={`sales-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* FIXED: Pass salesOpportunities to SalesTab */}
                 <SalesTab
                   navigation={navigation}
                   salesOpportunities={salesOpportunities}
@@ -656,7 +620,6 @@ const CrmScreen = ({ navigation }) => {
                   circularChartLabels={circularChartLabels}
                   isRefreshing={isRefreshing}
                   onRefresh={() => {
-                    console.log('🔄 Manual refresh from SalesTab');
                     refetchSales();
                     setManualRefreshTrigger(prev => prev + 1);
                   }}
@@ -678,9 +641,7 @@ const CrmScreen = ({ navigation }) => {
                     tintColor={Colors.primary}
                   />
                 }
-                key={`leads-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* UPDATED: LeadTab Component - Pass all status summaries */}
                 <LeadTab
                   leads={latestLeads}
                   navigation={navigation}
@@ -688,8 +649,7 @@ const CrmScreen = ({ navigation }) => {
                   handleLeadSummaryPress={handleLeadSummaryPress}
                   handleStatusCardPress={handleStatusCardPress}
                   totalLeads={totalLeads}
-                  statusSummaries={statusSummaries} // This is the key prop
-                  key={`leadtab-${forceUpdate}`}
+                  statusSummaries={statusSummaries}
                 />
               </ScrollView>
             </View>
@@ -700,7 +660,6 @@ const CrmScreen = ({ navigation }) => {
             <View style={[styles.tabContentContainer, styles.followupsContainer]}>
               <FollowupScreen
                 navigation={navigation}
-                key={`followups-${forceUpdate}`} // Force re-render on cache update
               />
             </View>
           )}
@@ -708,7 +667,7 @@ const CrmScreen = ({ navigation }) => {
 
         {isLoading && <Loader />}
 
-        {/* Floating Action Button for Add Lead - Only show in Leads tab */}
+        {/* Floating Action Button for Add Lead */}
         {showCRMCard && (
           <TouchableOpacity
             onPress={() => navigation.navigate('AddLeads')}
@@ -718,7 +677,7 @@ const CrmScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
-        {/* Floating Action Button for Add Opportunity - Only show in Sales tab */}
+        {/* Floating Action Button for Add Opportunity */}
         {showSalesCard && (
           <TouchableOpacity
             onPress={() => navigation.navigate('AddSaleOppor')}
