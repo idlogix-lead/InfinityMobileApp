@@ -1,6 +1,6 @@
-import React, {useState, useMemo, useEffect} from 'react';
-import {Modal, View, Text, TouchableOpacity, StyleSheet} from 'react-native';
-import {Calendar} from 'react-native-calendars';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import moment from 'moment';
 
 const CalendarModal = ({
@@ -9,24 +9,81 @@ const CalendarModal = ({
   initialDate,
   onSelectDate,
   title,
+  minDate, // Added minDate prop for validation
 }) => {
-  const [tempDate, setTempDate] = useState(
-    initialDate || moment().format('YYYY-MM-DD'),
-  );
+  // Helper function to format any date input to YYYY-MM-DD string
+  const formatDateToString = (date) => {
+    if (!date) return moment().format('YYYY-MM-DD');
+    
+    // If it's a Date object
+    if (date instanceof Date) {
+      return moment(date).format('YYYY-MM-DD');
+    }
+    
+    // If it's already a string, ensure it's in YYYY-MM-DD format
+    if (typeof date === 'string') {
+      // Check if it's a valid date string
+      const parsed = moment(date);
+      if (parsed.isValid()) {
+        return parsed.format('YYYY-MM-DD');
+      }
+    }
+    
+    // Default to today
+    return moment().format('YYYY-MM-DD');
+  };
+
+  // Helper function to format minDate
+  const formatMinDate = (date) => {
+    if (!date) return undefined;
+    
+    if (date instanceof Date) {
+      return moment(date).format('YYYY-MM-DD');
+    }
+    
+    if (typeof date === 'string') {
+      const parsed = moment(date);
+      if (parsed.isValid()) {
+        return parsed.format('YYYY-MM-DD');
+      }
+    }
+    
+    return undefined;
+  };
+
+  const [tempDate, setTempDate] = useState(formatDateToString(initialDate));
 
   useEffect(() => {
-    setTempDate(initialDate || moment().format('YYYY-MM-DD'));
+    setTempDate(formatDateToString(initialDate));
   }, [initialDate, visible]);
 
   const markedDates = useMemo(() => {
     return tempDate
-      ? {[tempDate]: {selected: true, selectedColor: '#2F4FE3'}}
+      ? { [tempDate]: { selected: true, selectedColor: '#2F4FE3' } }
       : {};
   }, [tempDate]);
 
   const handleDone = () => {
-    onSelectDate(tempDate);
+    // Return the date in the format expected by parent
+    // You can return as Date object or string based on parent's expectation
+    onSelectDate(tempDate); // Returns YYYY-MM-DD string
     onClose();
+  };
+
+  // Validate if date is allowed (not before minDate)
+  const isDateAllowed = (date) => {
+    if (!minDate) return true;
+    const minDateStr = formatMinDate(minDate);
+    return moment(date).isSameOrAfter(moment(minDateStr), 'day');
+  };
+
+  const handleDayPress = (day) => {
+    if (isDateAllowed(day.dateString)) {
+      setTempDate(day.dateString);
+    } else {
+      // Optional: Show alert or feedback
+      Alert.alert('Invalid Date', 'Selected date cannot be before start date.');
+    }
   };
 
   return (
@@ -42,35 +99,45 @@ const CalendarModal = ({
             <TouchableOpacity onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            {/* <Text style={styles.title}>{title || 'Select Date'}</Text> */}
-            <View style={{width: 60}} />
+            <View style={{ width: 60 }} />
           </View>
-          <View
-            style={{
-              backgroundColor: '#eee',
-              padding: '2%',
-              borderRadius: 8,
-              marginVertical: '2%',
-            }}>
+          
+          {/* Title */}
+          <View style={styles.titleContainer}>
             <Text style={styles.title}>{title || 'Select Date'}</Text>
           </View>
 
           {/* Quick Buttons */}
           <View style={styles.quickRow}>
             {['Today', 'Tomorrow', 'Next Monday'].map(label => {
-              const date =
-                label === 'Today'
-                  ? moment()
-                  : label === 'Tomorrow'
-                  ? moment().add(1, 'day')
-                  : moment().day(8);
+              let date;
+              if (label === 'Today') {
+                date = moment();
+              } else if (label === 'Tomorrow') {
+                date = moment().add(1, 'day');
+              } else {
+                // Next Monday
+                date = moment().day(8); // Next Monday
+              }
+
+              const dateStr = date.format('YYYY-MM-DD');
+              const isDisabled = !isDateAllowed(dateStr);
 
               return (
                 <TouchableOpacity
                   key={label}
-                  style={styles.quickBtn}
-                  onPress={() => setTempDate(date.format('YYYY-MM-DD'))}>
-                  <Text style={styles.quickText}>{label}</Text>
+                  style={[
+                    styles.quickBtn,
+                    isDisabled && styles.quickBtnDisabled
+                  ]}
+                  onPress={() => !isDisabled && setTempDate(dateStr)}
+                  disabled={isDisabled}>
+                  <Text style={[
+                    styles.quickText,
+                    isDisabled && styles.quickTextDisabled
+                  ]}>
+                    {label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -79,14 +146,16 @@ const CalendarModal = ({
           {/* Calendar */}
           <Calendar
             current={tempDate}
-            onDayPress={day => setTempDate(day.dateString)}
+            onDayPress={handleDayPress}
             enableSwipeMonths
             hideExtraDays
             markedDates={markedDates}
+            minDate={formatMinDate(minDate)}
             theme={{
               selectedDayBackgroundColor: '#2F4FE3',
               todayTextColor: '#2F4FE3',
               arrowColor: '#000',
+              disabledDayTextColor: '#d9e1e8',
             }}
           />
 
@@ -128,6 +197,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'K2D-SemiBold',
   },
+  titleContainer: {
+    backgroundColor: '#eee',
+    padding: '2%',
+    borderRadius: 8,
+    marginVertical: '2%',
+  },
   title: {
     fontSize: 16,
     fontFamily: 'K2D-Bold',
@@ -146,11 +221,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 20,
+    backgroundColor: '#fff',
+  },
+  quickBtnDisabled: {
+    borderColor: '#f0f0f0',
+    backgroundColor: '#f9f9f9',
   },
   quickText: {
     color: '#000',
     fontSize: 14,
     fontFamily: 'K2D-Regular',
+  },
+  quickTextDisabled: {
+    color: '#ccc',
   },
   footer: {
     flexDirection: 'row',
@@ -164,5 +247,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#2F4FE3',
     borderRadius: 6,
   },
-  doneText: {color: '#fff', fontWeight: '600'},
+  doneText: { color: '#fff', fontWeight: '600' },
 });

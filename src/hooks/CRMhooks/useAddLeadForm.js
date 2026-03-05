@@ -255,6 +255,6 @@ export const useAddLeadForm = () => {
     validateRequiredFields,
     copyContactToBusinessPartner,
     prepareSubmitData,
-    // REMOVED: initializeForm - it's now internal only!
+   
   };
 };

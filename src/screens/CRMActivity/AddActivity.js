@@ -1,4 +1,4 @@
-// screens/CRM/AddActivity.js - UPDATED with AddLeads UI styling
+// screens/CRM/AddActivity.js - UPDATED with custom themed alerts
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -32,12 +32,13 @@ import {
   useDeleteFollowup 
 } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
+import { useAuthStore } from '../../store/authStore';
 import moment from 'moment';
 
 // Import theme
 import theme from '../../constants/CRMTheme/CRMTheme';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
-
+import CustomAlert from '../../components/CustomAlert'; 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
@@ -45,8 +46,28 @@ const AddActivity = ({ route, navigation }) => {
   const { data, mode } = route.params;
   const queryClient = useQueryClient();
   
+  // Get auth state
+  const authUserId = useAuthStore((state) => state.userId);
+  const authUserName = useAuthStore((state) => state.userName);
+  
+  console.log('🔐 AddActivity - Current logged in user:', { authUserId, authUserName });
+  
   // State to track if component is mounted
   const [isMounted, setIsMounted] = useState(false);
+  const [initialRepSet, setInitialRepSet] = useState(false);
+
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info', // 'info', 'success', 'error', 'warning', 'delete'
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
 
   // useEffect to set mounted state after first render
   useEffect(() => {
@@ -113,6 +134,48 @@ const AddActivity = ({ route, navigation }) => {
     );
   }, [salesReps, salesRepSearch]);
 
+  // Get selected sales rep name
+  const selectedRepName = useMemo(() => {
+    if (!selectedSalesRepId) return '';
+    const rep = salesReps.find(r => r.id === selectedSalesRepId);
+    return rep ? rep.Name : selectedSalesRepName;
+  }, [selectedSalesRepId, salesReps, selectedSalesRepName]);
+
+  // Set default sales rep to current user once salesReps are loaded
+  useEffect(() => {
+    // Only run for create mode and when we haven't set initial rep yet
+    if (mode === 'create' && !initialRepSet && salesReps.length > 0 && authUserId && !selectedSalesRepId) {
+      console.log('🎯 AddActivity - Setting default sales rep to current user:', authUserId);
+      
+      // Try to find current user in sales reps list by ID
+      const currentUserAsRep = salesReps.find(rep => rep.id === parseInt(authUserId));
+      
+      if (currentUserAsRep) {
+        console.log('✅ Found current user in sales reps list:', currentUserAsRep.Name);
+        setSelectedSalesRepId(currentUserAsRep.id);
+        setSelectedSalesRepName(currentUserAsRep.Name);
+        setInitialRepSet(true);
+      } else {
+        console.log('⚠️ Current user not found in sales reps list, looking by name...');
+        
+        // Try to find by name as fallback
+        const userByName = salesReps.find(rep => 
+          rep.Name && rep.Name.toLowerCase() === authUserName?.toLowerCase()
+        );
+        
+        if (userByName) {
+          console.log('✅ Found current user by name:', userByName.Name);
+          setSelectedSalesRepId(userByName.id);
+          setSelectedSalesRepName(userByName.Name);
+          setInitialRepSet(true);
+        } else {
+          console.log('❌ Could not find current user in sales reps list');
+          console.log('Auth User:', { id: authUserId, name: authUserName });
+        }
+      }
+    }
+  }, [mode, salesReps, authUserId, authUserName, selectedSalesRepId, initialRepSet]);
+
   // Initialize form for edit mode
   useEffect(() => {
     if (mode === 'edit' && data) {
@@ -134,6 +197,7 @@ const AddActivity = ({ route, navigation }) => {
       if (data.SalesRep_ID?.id) {
         setSelectedSalesRepId(data.SalesRep_ID.id);
         setSelectedSalesRepName(data.SalesRep_ID.identifier || '');
+        setInitialRepSet(true);
       }
       
       // Set other fields
@@ -147,8 +211,7 @@ const AddActivity = ({ route, navigation }) => {
       setToDate(new Date());
       setDescription('');
       setIsComplete(false);
-      setSelectedSalesRepId(null);
-      setSelectedSalesRepName('');
+      // Don't reset sales rep here - it will be set by the default rep useEffect
     }
   }, [mode, data]);
 
@@ -162,21 +225,61 @@ const AddActivity = ({ route, navigation }) => {
     return moment(date).format('DD MMM YYYY');
   };
 
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showSuccessAlert = (message, onConfirm = null) => {
+    showAlert('Success', message, 'success', onConfirm);
+  };
+
+  const showErrorAlert = (message, onConfirm = null) => {
+    showAlert('Error', message, 'error', onConfirm);
+  };
+
+  const showValidationAlert = (message) => {
+    showAlert('Validation Error', message, 'warning');
+  };
+
+  const showDeleteConfirmation = (onConfirm) => {
+    showAlert(
+      'Delete Activity',
+      'Are you sure you want to delete this activity?',
+      'delete',
+      onConfirm
+    );
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
+
   // Handle save with validation
   const handleSave = async () => {
     // Validation
     if (selectedActivity === 'Select Activity Type' && mode === 'create') {
-      Alert.alert('Validation Error', 'Please select an activity type.');
+      showValidationAlert('Please select an activity type.');
       return;
     }
 
     if (!description.trim()) {
-      Alert.alert('Validation Error', 'Please enter a description.');
+      showValidationAlert('Please enter a description.');
       return;
     }
 
     if (!selectedSalesRepId) {
-      Alert.alert('Validation Error', 'Please select a sales representative.');
+      showValidationAlert('Please select a sales representative.');
       return;
     }
 
@@ -211,49 +314,30 @@ const AddActivity = ({ route, navigation }) => {
         });
         
         if (isMounted) {
-          Alert.alert(
-            'Success',
-            'Activity updated successfully!',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  if (isMounted) {
-                    navigation.goBack();
-                  }
-                },
-              },
-            ]
-          );
+          showSuccessAlert('Activity updated successfully!', () => {
+            hideAlert();
+            if (isMounted) {
+              navigation.goBack();
+            }
+          });
         }
       } else {
         // Create new activity
         await createFollowupMutation.mutateAsync(payload);
         
         if (isMounted) {
-          Alert.alert(
-            'Success',
-            'Activity created successfully!',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  if (isMounted) {
-                    navigation.goBack();
-                  }
-                },
-              },
-            ]
-          );
+          showSuccessAlert('Activity created successfully!', () => {
+            hideAlert();
+            if (isMounted) {
+              navigation.goBack();
+            }
+          });
         }
       }
     } catch (error) {
       console.error('Save error:', error);
       if (isMounted) {
-        Alert.alert(
-          'Error',
-          `Failed to save activity: ${error.message || 'Unknown error'}`
-        );
+        showErrorAlert(`Failed to save activity: ${error.message || 'Unknown error'}`);
       }
     }
   };
@@ -262,33 +346,23 @@ const AddActivity = ({ route, navigation }) => {
   const handleDelete = () => {
     if (mode !== 'edit' || !data?.id) return;
 
-    Alert.alert(
-      'Delete Activity',
-      'Are you sure you want to delete this activity?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteFollowupMutation.mutateAsync(data.id);
-              if (isMounted) {
-                Alert.alert(
-                  'Success',
-                  'Activity deleted successfully!',
-                  [{ text: 'OK', onPress: () => navigation.goBack() }]
-                );
-              }
-            } catch (error) {
-              if (isMounted) {
-                Alert.alert('Error', 'Failed to delete activity.');
-              }
-            }
-          },
-        },
-      ]
-    );
+    showDeleteConfirmation(async () => {
+      try {
+        await deleteFollowupMutation.mutateAsync(data.id);
+        hideAlert();
+        if (isMounted) {
+          showSuccessAlert('Activity deleted successfully!', () => {
+            hideAlert();
+            navigation.goBack();
+          });
+        }
+      } catch (error) {
+        hideAlert();
+        if (isMounted) {
+          showErrorAlert('Failed to delete activity.');
+        }
+      }
+    });
   };
 
   // Animation helpers
@@ -332,7 +406,7 @@ const AddActivity = ({ route, navigation }) => {
     } else {
       // Ensure to date is not before from date
       if (selectedDate < fromDate) {
-        Alert.alert('Invalid Date', 'End date cannot be before start date.');
+        showValidationAlert('End date cannot be before start date.');
         return;
       }
       setToDate(selectedDate);
@@ -357,6 +431,7 @@ const AddActivity = ({ route, navigation }) => {
   const handleClearSalesRep = () => {
     setSelectedSalesRepId(null);
     setSelectedSalesRepName('');
+    setInitialRepSet(false); // Allow re-setting default if cleared
   };
 
   // Render sales rep item
@@ -373,6 +448,9 @@ const AddActivity = ({ route, navigation }) => {
         <Text style={styles.repName}>{item.Name}</Text>
         {item.EMail && (
           <Text style={styles.repEmail}>{item.EMail}</Text>
+        )}
+        {item.id === parseInt(authUserId) && (
+          <Text style={styles.currentUserBadge}>(You)</Text>
         )}
       </View>
       {selectedSalesRepId === item.id && (
@@ -410,6 +488,27 @@ const AddActivity = ({ route, navigation }) => {
         </View>
       )}
 
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          alertConfig.onConfirm();
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
+      />
+
       {/* Calendar Modal */}
       <CalendarModal
         visible={showCalendar}
@@ -420,7 +519,7 @@ const AddActivity = ({ route, navigation }) => {
         minDate={calendarMode === 'to' ? fromDate : undefined}
       />
 
-      {/* Sales Representative Modal */}
+      {/* Sales Representative Modal - Same as AddLeads */}
       <Modal
         visible={showSalesRepModal}
         animationType="slide"
@@ -441,17 +540,17 @@ const AddActivity = ({ route, navigation }) => {
                 }}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color={Colors.textPrimary} />
+                <Icon name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
             
             {/* Search Input */}
-            <View style={styles.modalSearch}>
-              <Icon name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+            <View style={styles.searchContainer}>
+              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
               <RNTextInput
-                style={styles.modalSearchInput}
+                style={styles.searchInput}
                 placeholder="Search by name..."
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor="#999"
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
                 autoFocus={true}
@@ -461,7 +560,7 @@ const AddActivity = ({ route, navigation }) => {
                   onPress={() => setSalesRepSearch('')}
                   style={styles.clearSearchButton}
                 >
-                  <Icon name="close" size={18} color={Colors.textSecondary} />
+                  <Icon name="close" size={18} color="#666" />
                 </TouchableOpacity>
               )}
             </View>
@@ -472,9 +571,9 @@ const AddActivity = ({ route, navigation }) => {
               renderItem={renderSalesRepItem}
               keyExtractor={(item) => item.id.toString()}
               ListEmptyComponent={
-                <View style={styles.modalEmpty}>
-                  <Icon name="person-off" size={50} color={Colors.border} />
-                  <Text style={styles.modalEmptyText}>
+                <View style={styles.emptyContainer}>
+                  <Icon name="person-off" size={50} color="#ccc" />
+                  <Text style={styles.emptyText}>
                     {salesRepSearch.trim() 
                       ? `No sales representatives found for "${salesRepSearch}"`
                       : 'No sales representatives available'}
@@ -550,44 +649,46 @@ const AddActivity = ({ route, navigation }) => {
               </View>
             )}
 
-            {/* Sales Representative - Searchable Picker */}
-            <View style={styles.fieldContainer}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.label}>Sales Representative</Text>
-                <Text style={styles.requiredStar}> *</Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.selector,
-                  !selectedSalesRepId && styles.selectorEmpty,
-                ]}
-                onPress={() => setShowSalesRepModal(true)}
-                activeOpacity={0.7}
-              >
-                {selectedSalesRepName ? (
-                  <View style={styles.selectedItemContainer}>
-                    <View style={styles.selectedItemInfo}>
-                      <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
-                      <Text style={styles.selectedItemText}>{selectedSalesRepName}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.clearButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleClearSalesRep();
-                      }}
-                    >
-                      <Icon name="close" size={18} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.placeholderText}>Select Sales Representative</Text>
-                    <Icon name="arrow-drop-down" size={24} color={Colors.textSecondary} />
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+           {/* Sales Representative - Searchable Picker - Same as AddLeads */}
+<View style={styles.pickerContainer}>
+  <View style={styles.labelContainer}>
+    <Text style={styles.label}>Assigned To (Sales Representative)*</Text>
+    <Text style={styles.requiredStar}> *</Text>
+  </View>
+  <TouchableOpacity
+    style={[
+      styles.salesRepSelector,
+      !selectedSalesRepId && styles.selectorError,
+    ]}
+    onPress={() => setShowSalesRepModal(true)}
+    activeOpacity={0.7}
+  >
+    {selectedRepName ? (
+      <View style={styles.selectedRepContainer}>
+        <View style={styles.selectedRepInfo}>
+          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+        </View>
+        <View style={styles.rightContainer}>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              handleClearSalesRep();
+            }}
+          >
+            <Icon name="close" size={18} color="#666" />
+          </TouchableOpacity>
+         <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
+        </View>
+      </View>
+    ) : (
+      <>
+        <Text style={styles.placeholderText}>Select Sales Representative</Text>
+   <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
+      </>
+    )}
+  </TouchableOpacity>
+</View>
 
             {/* Start Date */}
             <View style={styles.fieldContainer}>
@@ -705,10 +806,11 @@ const AddActivity = ({ route, navigation }) => {
   );
 };
 
+// Styles - Updated to match AddLeads UI
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background || '#EDEBEB',
+    backgroundColor: '#EDEBEB',
   },
   keyboardView: {
     flex: 1,
@@ -727,44 +829,46 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: Colors.textPrimary,
+    color: '#333',
     fontFamily: 'K2D-Medium',
   },
   formWrapper: {
     flex: 1,
-    backgroundColor: Colors.cardBackground,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-    borderRadius: Layout.borderRadius.lg,
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+    borderRadius: 12,
     elevation: 8,
-    shadowColor: Colors.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   formContent: {
-    padding: Spacing.lg,
+    padding: 20,
   },
   fieldContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: 16,
+  },
+  pickerContainer: {
+    marginBottom: 16,
   },
   labelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.xxs,
+    marginBottom: 6,
   },
   label: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    color: '#333',
+    fontFamily: 'K2D-SemiBold',
+    fontSize: 14,
     letterSpacing: 0.5,
   },
   requiredStar: {
-    color: Colors.error,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold,
+    color: '#FF3B30',
+    fontSize: 14,
+    fontFamily: 'K2D-SemiBold',
     marginLeft: 2,
   },
   
@@ -773,191 +877,221 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 0,
-    height: 42,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    height: 48,
+    backgroundColor: '#FFFFFF',
     
     // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     
     // Elevation for Android
-    elevation: 2,
+    elevation: 3,
   },
   selectorText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
   },
-  selectorEmpty: {
-    borderColor: Colors.errorLight,
-  },
-  placeholderText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textTertiary,
-    fontFamily: Typography.fontFamily.regular,
-  },
-
-  // Options Dropdown
-  optionsContainer: {
-    marginTop: Spacing.xs,
-    backgroundColor: Colors.backgroundLight,
+  
+  // Sales Rep Selector Styles (copied from AddLeads)
+  salesRepSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    overflow: 'hidden',
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
   },
-  optionItem: {
-    paddingVertical: verticalScale(10),
-    paddingHorizontal: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+  selectorError: {
+    borderColor: '#FF3B30',
+    shadowColor: '#FF3B30',
   },
-  optionText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-
-  // Selected Item Styles
-  selectedItemContainer: {
+  selectedRepContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectedItemInfo: {
+  selectedRepInfo: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 8,
   },
-  selectedItemText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
+  selectedRepText: {
+    fontSize: 15,
+    color: '#333',
+    fontFamily: 'K2D-Regular',
+  },
+  placeholderText: {
+    fontSize: 15,
+    color: '#999',
+    fontFamily: 'K2D-Regular',
+    flex: 1,
   },
   clearButton: {
-    padding: Spacing.xxs,
+    padding: 4,
+    marginLeft: 8,
+  },
+  
+  // Options Dropdown
+  optionsContainer: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    overflow: 'hidden',
+    
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    
+    // Elevation for Android
+    elevation: 3,
+  },
+  optionItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  optionText: {
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
   },
 
   // Input Styles
   inputWrapper: {
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    justifyContent: 'center',
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     
     // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 4,
     
     // Elevation for Android
-    elevation: 2,
+    elevation: 3,
   },
   input: {
-    height: 42,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-    textAlignVertical: 'center',
+    height: 48,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
     includeFontPadding: false,
   },
   textAreaWrapper: {
-    minHeight: verticalScale(80),
+    minHeight: 100,
   },
   textArea: {
-    minHeight: verticalScale(80),
+    minHeight: 100,
     textAlignVertical: 'top',
-    paddingTop: verticalScale(10),
-    paddingBottom: verticalScale(10),
+    paddingTop: 12,
+    paddingBottom: 12,
   },
 
   // Checkbox
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: 24,
   },
   checkboxLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.sm,
+    fontSize: 15,
+    fontFamily: 'K2D-Medium',
+    color: '#666',
+    marginLeft: 8,
   },
   checkboxLabelChecked: {
-    color: Colors.primary,
+    color: '#2F4FE3',
   },
 
   // Action Buttons
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: Spacing.md,
-    marginTop: Spacing.md,
+    gap: 16,
+    marginTop: 20,
   },
   actionButton: {
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.xl,
-    borderRadius: Layout.borderRadius.md,
-    minWidth: scale(100),
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 100,
     alignItems: 'center',
     
     // Shadow for iOS
-    shadowColor: Colors.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
     
     // Elevation for Android
-    elevation: 3,
+    elevation: 4,
   },
   fullWidthButton: {
     flex: 1,
   },
   deleteButton: {
-    backgroundColor: Colors.error,
+    backgroundColor: '#FF3B30',
   },
   deleteButtonText: {
-    color: Colors.textInverse,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
+    color: '#fff',
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
   },
   saveButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#2F4FE3',
   },
   saveButtonText: {
-    color: Colors.textInverse,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
+    color: '#fff',
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
   },
   bottomSpacing: {
-    height: verticalScale(20),
+    height: 20,
   },
 
-  // Modal Styles
+  // Modal Styles (copied from AddLeads)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.lg,
-    borderTopRightRadius: Layout.borderRadius.lg,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '80%',
     
     // Shadow for iOS
-    shadowColor: Colors.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -969,106 +1103,123 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.md,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
-    fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
   closeButton: {
-    padding: Spacing.xxs,
+    padding: 4,
   },
-  modalSearch: {
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    margin: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    margin: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
     
     // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
     
     // Elevation for Android
     elevation: 2,
   },
   searchIcon: {
-    marginRight: Spacing.xs,
+    marginRight: 8,
   },
-  modalSearchInput: {
+  searchInput: {
     flex: 1,
-    height: verticalScale(42),
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
+    height: 44,
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
     paddingVertical: 0,
   },
   clearSearchButton: {
-    padding: Spacing.xxs,
+    padding: 4,
   },
   repList: {
     maxHeight: 400,
   },
   repListContent: {
-    paddingBottom: Spacing.md,
+    paddingBottom: 16,
   },
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: verticalScale(10),
-    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   selectedRepItem: {
-    backgroundColor: Colors.infoLight,
+    backgroundColor: '#f0f5ff',
   },
   repItemContent: {
     flex: 1,
   },
   repName: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
   repEmail: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xxs,
+    fontSize: 12,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginTop: 2,
   },
-  modalEmpty: {
+  currentUserBadge: {
+    fontSize: 10,
+    color: '#2F4FE3',
+    fontFamily: 'K2D-Medium',
+    marginTop: 2,
+  },
+  currentUserBadgeSmall: {
+    fontSize: 10,
+    color: '#2F4FE3',
+    fontFamily: 'K2D-Medium',
+    marginLeft: 4,
+  },
+  rightContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+},
+  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(40),
-    paddingHorizontal: Spacing.xl,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  modalEmptyText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+  emptyText: {
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
     textAlign: 'center',
-    marginTop: Spacing.sm,
+    marginTop: 12,
   },
   modalFooter: {
-    padding: Spacing.md,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: '#f0f0f0',
     alignItems: 'center',
   },
   footerText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    fontSize: 13,
+    fontFamily: 'K2D-Regular',
+    color: '#666',
   },
 });
 

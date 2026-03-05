@@ -1,4 +1,5 @@
-// screens/CRM/LeadDetailsScreen.js - REMOVED opportunity creation functionality
+// screens/CRM/LeadDetailsScreen.js - REMOVED opportunity creation functionality with custom alerts
+
 import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
@@ -11,7 +12,6 @@ import {
   ActivityIndicator,
   Image,
   FlatList,
-  Alert,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -21,6 +21,7 @@ import { useCompletedLeadActivities, useLeadById } from '../../hooks/CRMhooks/us
 import { useQueryClient } from 'react-query';
 import moment from 'moment';
 import theme from '../../constants/CRMTheme/CRMTheme';
+import CustomAlert from '../../components/CustomAlert'; // Import custom alert
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -225,6 +226,19 @@ const LeadDetailsScreen = ({ route, navigation }) => {
   const { data: leadData, followupData } = route.params || {};
   const queryClient = useQueryClient();
 
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
   // Get lead ID from passed data
   const leadId = leadData?.id;
 
@@ -247,6 +261,29 @@ const LeadDetailsScreen = ({ route, navigation }) => {
     isLoading: activitiesLoading, 
     refetch: refetchActivities 
   } = useCompletedLeadActivities(displayLead?.id);
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showErrorAlert = (message) => {
+    showAlert('Error', message, 'error');
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
 
   // Handle add activity
   const handleAddActivity = () => {
@@ -534,6 +571,29 @@ const LeadDetailsScreen = ({ route, navigation }) => {
         LeftPress={() => navigation.goBack()}
         RightIcon="plus"
         RightPress={handleAddActivity}
+      />
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
       />
 
       <ScrollView
@@ -1153,6 +1213,16 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
     marginTop: Spacing.md,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: verticalScale(16),
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
   },
 
   // Error States

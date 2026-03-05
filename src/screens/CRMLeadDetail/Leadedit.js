@@ -1,4 +1,4 @@
-// LeadEdit.js - COMPLETE FIXED VERSION with no render-time state updates
+// LeadEdit.js - COMPLETE FIXED VERSION with address fields and mandatory validation
 
 import {
   ScrollView,
@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
   Image,
   FlatList,
@@ -21,19 +20,62 @@ import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Menu, Divider } from 'react-native-paper';
 import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities, useLeadStatuses } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
 import { useAuthStore } from '../../store/authStore';
+import CustomAlert from '../../components/CustomAlert'; // Import custom alert
+import { Picker } from '@react-native-picker/picker';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
+// Mock data for countries and regions - in production, these would come from API
+const COUNTRIES = [
+  { label: 'Pakistan', value: 'PK', id: 1000001 },
+  { label: 'United States', value: 'US', id: 1000002 },
+  { label: 'United Kingdom', value: 'GB', id: 1000003 },
+  { label: 'Canada', value: 'CA', id: 1000004 },
+  { label: 'Australia', value: 'AU', id: 1000005 },
+  { label: 'Germany', value: 'DE', id: 1000006 },
+  { label: 'France', value: 'FR', id: 1000007 },
+  { label: 'Italy', value: 'IT', id: 1000008 },
+  { label: 'Spain', value: 'ES', id: 1000009 },
+  { label: 'UAE', value: 'AE', id: 1000010 },
+  { label: 'China', value: 'CN', id: 1000011 },
+  { label: 'India', value: 'IN', id: 1000012 },
+];
+
+// Regions/States based on country
+const REGIONS = {
+  PK: [
+    { label: 'Punjab', value: 'PK-PB', id: 2000001 },
+    { label: 'Sindh', value: 'PK-SD', id: 2000002 },
+    { label: 'Khyber Pakhtunkhwa', value: 'PK-KP', id: 2000003 },
+    { label: 'Balochistan', value: 'PK-BL', id: 2000004 },
+    { label: 'Islamabad Capital Territory', value: 'PK-IS', id: 2000005 },
+  ],
+  US: [
+    { label: 'California', value: 'US-CA', id: 2000101 },
+    { label: 'Texas', value: 'US-TX', id: 2000102 },
+    { label: 'New York', value: 'US-NY', id: 2000103 },
+    { label: 'Florida', value: 'US-FL', id: 2000104 },
+    { label: 'Illinois', value: 'US-IL', id: 2000105 },
+  ],
+  GB: [
+    { label: 'England', value: 'GB-ENG', id: 2000201 },
+    { label: 'Scotland', value: 'GB-SCT', id: 2000202 },
+    { label: 'Wales', value: 'GB-WLS', id: 2000203 },
+    { label: 'Northern Ireland', value: 'GB-NIR', id: 2000204 },
+  ],
+};
+
 // Validation functions (same as useAddLeadForm)
 const validateEmail = (email) => {
-  if (!email) return false;
+  if (!email) return true; // Optional in edit mode
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
@@ -191,7 +233,7 @@ const InlineSwipeButton = ({ label, value, onValueChange, editable = true }) => 
   );
 };
 
-// Phone Input Component with Country Code Selection - Fixed with proper vertical padding
+// Phone Input Component with Country Code Selection
 const PhoneInputField = ({ 
   label, 
   value, 
@@ -274,7 +316,7 @@ const PhoneInputField = ({
           ))}
         </Menu>
 
-        {/* Phone Number Input - Fixed with proper vertical padding */}
+        {/* Phone Number Input */}
         <View style={[
           styles.phoneInputWrapper,
           focused && styles.phoneInputWrapperFocused,
@@ -312,12 +354,13 @@ const TextField = ({
   error, 
   editable = true, 
   keyboardType = 'default',
+  required = false,
   ...props 
 }) => {
   if (!editable) {
     return (
       <View style={styles.viewRow}>
-        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
         <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
       </View>
     );
@@ -325,7 +368,7 @@ const TextField = ({
 
   return (
     <View style={styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
       <View style={[styles.inputWrapper, error && styles.inputError]}>
         <TextInput
           style={styles.input}
@@ -354,12 +397,13 @@ const TextAreaField = ({
   onChangeText, 
   placeholder, 
   editable = true, 
+  required = false,
   ...props 
 }) => {
   if (!editable) {
     return (
       <View style={styles.viewRow}>
-        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
         <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
       </View>
     );
@@ -367,7 +411,7 @@ const TextAreaField = ({
 
   return (
     <View style={styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
       <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
         <TextInput
           style={[styles.input, styles.textArea]}
@@ -386,21 +430,22 @@ const TextAreaField = ({
   );
 };
 
-// Compact Dropdown Field - Fixed with proper vertical padding
+// Compact Dropdown Field
 const DropdownField = ({ 
   label, 
   value, 
   options, 
   onSelect, 
   editable = true, 
-  placeholder = 'Select option'
+  placeholder = 'Select option',
+  required = false
 }) => {
   const [menuVisible, setMenuVisible] = useState(false);
 
   if (!editable) {
     return (
       <View style={styles.viewRow}>
-        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
         <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
       </View>
     );
@@ -408,7 +453,7 @@ const DropdownField = ({
 
   return (
     <View style={styles.editField}>
-      <Text style={styles.editLabel}>{label}</Text>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
       <Menu
         visible={menuVisible}
         onDismiss={() => setMenuVisible(false)}
@@ -432,10 +477,10 @@ const DropdownField = ({
                 onSelect(option);
                 setMenuVisible(false);
               }}
-              title={option.name || option.identifier}
+              title={option.name || option.identifier || option.label}
               titleStyle={[
                 styles.menuItemTitle,
-                value === (option.name || option.identifier) && styles.menuItemSelected
+                value === (option.name || option.identifier || option.label) && styles.menuItemSelected
               ]}
             />
             {index < options.length - 1 && <Divider />}
@@ -446,15 +491,195 @@ const DropdownField = ({
   );
 };
 
+// Address Fields Component for Business Partner
+const AddressFields = ({ 
+  fields, 
+  onFieldChange, 
+  regionOptions, 
+  editable = true,
+  showCopyIcon = false,
+  onCopy = null
+}) => {
+  if (!editable) {
+    const addressParts = [];
+    if (fields.street) addressParts.push(fields.street);
+    if (fields.street2) addressParts.push(fields.street2);
+    if (fields.city) addressParts.push(fields.city);
+    if (fields.region) addressParts.push(fields.region);
+    if (fields.country) addressParts.push(fields.country);
+    if (fields.postalCode) addressParts.push(fields.postalCode);
+    
+    const fullAddress = addressParts.join(', ') || 'Not provided';
+    
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>Address</Text>
+        <Text style={styles.viewValue}>{fullAddress}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <View style={styles.addressHeader}>
+        <Text style={styles.addressHeaderTitle}>Address Details</Text>
+        {showCopyIcon && onCopy && (
+          <TouchableOpacity onPress={onCopy} style={styles.copyIconButton}>
+            <Icon name="content-copy" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Street Address</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.street}
+            onChangeText={(value) => onFieldChange('street', value)}
+            placeholder="Enter street address"
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Street Address Line 2</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.street2}
+            onChangeText={(value) => onFieldChange('street2', value)}
+            placeholder="Apartment, suite, unit, etc."
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>City</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.city}
+            onChangeText={(value) => onFieldChange('city', value)}
+            placeholder="Enter city"
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Postal Code</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.postalCode}
+            onChangeText={(value) => onFieldChange('postalCode', value)}
+            placeholder="Enter postal code"
+            placeholderTextColor={Colors.textTertiary}
+            keyboardType="numeric"
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      {/* Country Picker */}
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Country</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={fields.country}
+            onValueChange={(value) => {
+              const country = COUNTRIES.find(c => c.value === value);
+              onFieldChange('country', value);
+              onFieldChange('countryId', country?.id || null);
+              onFieldChange('region', '');
+              onFieldChange('regionId', null);
+            }}
+            style={styles.picker}
+            enabled={editable}
+            dropdownIconColor={Colors.textSecondary}
+          >
+            <Picker.Item 
+              label="Select Country" 
+              value="" 
+              color={Colors.textTertiary}
+            />
+            {COUNTRIES.map(country => (
+              <Picker.Item 
+                key={country.value} 
+                label={country.label} 
+                value={country.value}
+                color={Colors.textPrimary}
+              />
+            ))}
+          </Picker>
+        </View>
+      </View>
+      
+      {/* Region/State Picker */}
+      {regionOptions.length > 0 && (
+        <View style={styles.editField}>
+          <Text style={styles.editLabel}>Region/State</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={fields.region}
+              onValueChange={(value) => {
+                const region = regionOptions.find(r => r.value === value);
+                onFieldChange('region', value);
+                onFieldChange('regionId', region?.id || null);
+              }}
+              style={styles.picker}
+              enabled={editable}
+              dropdownIconColor={Colors.textSecondary}
+            >
+              <Picker.Item 
+                label="Select Region/State" 
+                value="" 
+                color={Colors.textTertiary}
+              />
+              {regionOptions.map(region => (
+                <Picker.Item 
+                  key={region.value} 
+                  label={region.label} 
+                  value={region.value}
+                  color={Colors.textPrimary}
+                />
+              ))}
+            </Picker>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+};
+
 const LeadEdit = ({ route, navigation }) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
   const authState = useAuthStore();
 
-  // ADDED: State to track if component is mounted
+  // State to track if component is mounted
   const [isMounted, setIsMounted] = useState(false);
 
-  // ADDED: useEffect to set mounted state after first render
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
+  // useEffect to set mounted state after first render
   useEffect(() => {
     setIsMounted(true);
     return () => {
@@ -488,7 +713,37 @@ const LeadEdit = ({ route, navigation }) => {
   // State to track if we're processing a conversion
   const [isConverting, setIsConverting] = useState(false);
 
-  // Form state
+  // State for contact address fields
+  const [addressFields, setAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for Business Partner address fields
+  const [bpAddressFields, setBpAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for region options based on selected country (for contact address)
+  const [regionOptions, setRegionOptions] = useState([]);
+  
+  // State for region options based on selected country (for business partner address)
+  const [bpRegionOptions, setBpRegionOptions] = useState([]);
+
+  // Form state - Updated to match AddLeads
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -515,6 +770,8 @@ const LeadEdit = ({ route, navigation }) => {
     statusColor: Colors.statusNew,
     leadSourceId: 'CC',
     leadSourceLabel: 'Cold Call',
+    client: '',
+    organization: '',
   });
 
   // FIXED: Only enable sales representatives query after component is mounted
@@ -548,6 +805,82 @@ const LeadEdit = ({ route, navigation }) => {
     refetch: refetchActivities 
   } = useCompletedLeadActivities(displayLead?.id);
 
+  // Update region options when contact country changes
+  useEffect(() => {
+    if (addressFields.country) {
+      const country = COUNTRIES.find(c => c.value === addressFields.country);
+      if (country && REGIONS[country.value]) {
+        setRegionOptions(REGIONS[country.value]);
+      } else {
+        setRegionOptions([]);
+      }
+    } else {
+      setRegionOptions([]);
+    }
+  }, [addressFields.country]);
+
+  // Update region options when business partner country changes
+  useEffect(() => {
+    if (bpAddressFields.country) {
+      const country = COUNTRIES.find(c => c.value === bpAddressFields.country);
+      if (country && REGIONS[country.value]) {
+        setBpRegionOptions(REGIONS[country.value]);
+      } else {
+        setBpRegionOptions([]);
+      }
+    } else {
+      setBpRegionOptions([]);
+    }
+  }, [bpAddressFields.country]);
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showSuccessAlert = (message, onConfirm = null) => {
+    showAlert('Success', message, 'success', onConfirm);
+  };
+
+  const showErrorAlert = (message, onConfirm = null) => {
+    showAlert('Error', message, 'error', onConfirm);
+  };
+
+  const showValidationAlert = (message) => {
+    showAlert('Validation Error', message, 'warning');
+  };
+
+  const showConfirmationAlert = (title, message, onConfirm, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type: 'warning',
+      onConfirm: () => {
+        onConfirm();
+        hideAlert();
+      },
+      onCancel: onCancel || hideAlert,
+      confirmText: 'Yes',
+      cancelText: 'No',
+      showCancelButton: true,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
+
   // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
     if (!salesRepSearch.trim()) {
@@ -576,7 +909,24 @@ const LeadEdit = ({ route, navigation }) => {
     };
   }, [formData.statusId, formData.statusLabel, leadStatuses]);
 
-  // Initialize form data
+  // Generate combined address from separate fields
+  const generateCombinedAddress = (fields) => {
+    const parts = [];
+    if (fields.street) parts.push(fields.street);
+    if (fields.street2) parts.push(fields.street2);
+    
+    const cityRegion = [];
+    if (fields.city) cityRegion.push(fields.city);
+    if (fields.region) cityRegion.push(fields.region);
+    if (cityRegion.length > 0) parts.push(cityRegion.join(', '));
+    
+    if (fields.country) parts.push(fields.country);
+    if (fields.postalCode) parts.push(fields.postalCode);
+    
+    return parts.join(', ');
+  };
+
+  // Initialize form data from lead
   useEffect(() => {
     if (displayLead) {
       // Find matching status in dynamic statuses
@@ -609,7 +959,19 @@ const LeadEdit = ({ route, navigation }) => {
         statusColor: matchingStatus?.color || Colors.statusNew,
         leadSourceId: displayLead?.LeadSource?.id || 'CC',
         leadSourceLabel: displayLead?.LeadSource?.identifier || 'Cold Call',
+        client: displayLead?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd',
+        organization: displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd',
       });
+
+      // Initialize address fields if they exist in the lead data
+      // This assumes your API returns address fields in the response
+      if (displayLead?.addressFields) {
+        setAddressFields(displayLead.addressFields);
+      }
+      
+      if (displayLead?.businessPartnerAddressFields) {
+        setBpAddressFields(displayLead.businessPartnerAddressFields);
+      }
       
       // Clear errors when initializing
       setErrors({});
@@ -625,21 +987,50 @@ const LeadEdit = ({ route, navigation }) => {
     }
   };
 
-  // Validation function - matches useAddLeadForm
+  // Handle contact address field updates
+  const handleAddressFieldChange = (field, value) => {
+    setAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  // Handle business partner address field updates
+  const handleBpAddressFieldChange = (field, value) => {
+    setBpAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  // Copy contact address to business partner address
+  const copyAddressToBusinessPartner = () => {
+    setBpAddressFields({ ...addressFields });
+  };
+
+  // Validation function - matches AddLeads (only name, salesRep, client, organization are mandatory)
   const validateForm = () => {
     const newErrors = {};
 
-    // Required fields validation
+    // Required fields validation - only these 4 are mandatory
     if (!formData.name?.trim()) {
       newErrors.name = 'Name is required';
     }
 
-    if (!formData.email?.trim()) {
-      newErrors.email = 'Email is required';
+    if (!formData.salesRepId) {
+      newErrors.salesRep = 'Sales Representative is required';
     }
 
-    // Email format validation
-    if (formData.email && !validateEmail(formData.email)) {
+    if (!formData.client?.trim()) {
+      newErrors.client = 'Client is required';
+    }
+
+    if (!formData.organization?.trim()) {
+      newErrors.organization = 'Organization is required';
+    }
+
+    // Email format validation (optional)
+    if (formData.email && formData.email.trim() && !validateEmail(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
 
@@ -666,7 +1057,7 @@ const LeadEdit = ({ route, navigation }) => {
       // Show first error in alert
       const firstErrorKey = Object.keys(newErrors)[0];
       const firstError = newErrors[firstErrorKey];
-      Alert.alert('Validation Error', firstError);
+      showValidationAlert(firstError);
       
       return false;
     }
@@ -735,7 +1126,6 @@ const LeadEdit = ({ route, navigation }) => {
     const oldStatusName = formData.statusLabel;
     
     // If we're changing to a status that might be considered "converted"
-    // You can define which statuses trigger opportunity creation
     const isConvertedStatus = newStatusName.toLowerCase() === 'converted';
     
     // If we're changing to "Converted" and we're in edit mode
@@ -753,7 +1143,7 @@ const LeadEdit = ({ route, navigation }) => {
       // First save the lead with the new status
       const payload = {
         Name: formData.name,
-        EMail: formData.email,
+        EMail: formData.email || '',
         Phone: formData.phone || '',
         Phone2: formData.phone2 || '',
         Birthday: formData.birthday || null,
@@ -785,7 +1175,12 @@ const LeadEdit = ({ route, navigation }) => {
         LeadSource: {
           id: formData.leadSourceId,
           identifier: formData.leadSourceLabel
-        }
+        },
+        // Include address fields
+        contactAddress: generateCombinedAddress(addressFields),
+        businessPartnerAddress: generateCombinedAddress(bpAddressFields),
+        contactAddressFields: addressFields,
+        businessPartnerAddressFields: bpAddressFields,
       };
 
       updateLeadMutation.mutate({
@@ -818,24 +1213,15 @@ const LeadEdit = ({ route, navigation }) => {
           setIsConverting(false);
           
           // Show success message with option to create opportunity
-          Alert.alert(
+          showConfirmationAlert(
             'Lead Converted',
             'Lead has been successfully converted. Would you like to create a sales opportunity now?',
-            [
-              {
-                text: 'Create Opportunity',
-                onPress: navigateToAddOpportunity
-              },
-              {
-                text: 'Later',
-                style: 'cancel'
-              }
-            ]
+            navigateToAddOpportunity
           );
         },
         onError: (error) => {
           console.error('❌ Failed to update lead status:', error);
-          Alert.alert('Error', 'Failed to update lead status. Please try again.');
+          showErrorAlert('Failed to update lead status. Please try again.');
           setIsConverting(false);
         }
       });
@@ -849,14 +1235,14 @@ const LeadEdit = ({ route, navigation }) => {
   };
 
   const handleSave = () => {
-    // Validate form first
+    // Validate form first - only mandatory fields
     if (!validateForm()) {
       return;
     }
 
     const payload = {
       Name: formData.name,
-      EMail: formData.email,
+      EMail: formData.email || '',
       Phone: formData.phone || '',
       Phone2: formData.phone2 || '',
       Birthday: formData.birthday || null,
@@ -888,7 +1274,12 @@ const LeadEdit = ({ route, navigation }) => {
       LeadSource: {
         id: formData.leadSourceId,
         identifier: formData.leadSourceLabel
-      }
+      },
+      // Include address fields
+      contactAddress: generateCombinedAddress(addressFields),
+      businessPartnerAddress: generateCombinedAddress(bpAddressFields),
+      contactAddressFields: addressFields,
+      businessPartnerAddressFields: bpAddressFields,
     };
 
     updateLeadMutation.mutate({
@@ -902,32 +1293,25 @@ const LeadEdit = ({ route, navigation }) => {
         const isConverted = formData.statusLabel.toLowerCase() === 'converted';
         
         if (isConverted) {
-          Alert.alert(
+          showConfirmationAlert(
             'Lead Converted',
             'Lead has been successfully converted. Would you like to create a sales opportunity now?',
-            [
-              {
-                text: 'Create Opportunity',
-                onPress: navigateToAddOpportunity
-              },
-              {
-                text: 'Later',
-                style: 'cancel'
-              }
-            ]
+            navigateToAddOpportunity
           );
         } else {
-          Alert.alert('Success', 'Lead updated successfully!');
+          showSuccessAlert('Lead updated successfully!', () => {
+            hideAlert();
+            setIsEditMode(false);
+          });
         }
         
-        setIsEditMode(false);
         refetchLeadStatistics();
         queryClient.invalidateQueries(['leads']);
         queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
         setErrors({}); // Clear errors on success
       },
       onError: (error) => {
-        Alert.alert('Error', error.message || 'Failed to update lead');
+        showErrorAlert(error.message || 'Failed to update lead');
       }
     });
   };
@@ -989,8 +1373,8 @@ const LeadEdit = ({ route, navigation }) => {
         </View>
         <View style={styles.repDetails}>
           <Text style={styles.repName}>{item.Name}</Text>
-          {item.Email && (
-            <Text style={styles.repEmail}>{item.Email}</Text>
+          {item.EMail && (
+            <Text style={styles.repEmail}>{item.EMail}</Text>
           )}
         </View>
       </View>
@@ -1015,6 +1399,27 @@ const LeadEdit = ({ route, navigation }) => {
                 placeholder="Enter name"
                 error={errors.name}
                 editable={isEditMode && !isConverting}
+                required={true}
+              />
+
+              <TextField
+                label="Client"
+                value={formData.client}
+                onChangeText={(text) => updateFormData('client', text)}
+                placeholder="Enter client"
+                error={errors.client}
+                editable={isEditMode && !isConverting}
+                required={true}
+              />
+
+              <TextField
+                label="Organization"
+                value={formData.organization}
+                onChangeText={(text) => updateFormData('organization', text)}
+                placeholder="Enter organization"
+                error={errors.organization}
+                editable={isEditMode && !isConverting}
+                required={true}
               />
 
               <TextField
@@ -1060,6 +1465,14 @@ const LeadEdit = ({ route, navigation }) => {
                 editable={isEditMode && !isConverting}
               />
 
+              {/* Contact Address Fields */}
+              <AddressFields
+                fields={addressFields}
+                onFieldChange={handleAddressFieldChange}
+                regionOptions={regionOptions}
+                editable={isEditMode && !isConverting}
+              />
+
               <DropdownField
                 label="Lead Source"
                 value={formData.leadSourceLabel}
@@ -1073,13 +1486,14 @@ const LeadEdit = ({ route, navigation }) => {
               />
 
               {/* Sales Representative Field */}
-              {isEditMode ? (
-                <View style={styles.editField}>
-                  <Text style={styles.editLabel}>Sales Representative</Text>
+              <View style={styles.editField}>
+                <Text style={styles.editLabel}>Sales Representative *</Text>
+                {isEditMode ? (
                   <TouchableOpacity
                     style={[
                       styles.salesRepSelector,
-                      !formData.salesRepId && styles.selectorEmpty
+                      errors.salesRep && styles.selectorError,
+                      !selectedRepName && styles.selectorEmpty
                     ]}
                     onPress={() => setSalesRepModalVisible(true)}
                     activeOpacity={0.7}
@@ -1088,34 +1502,47 @@ const LeadEdit = ({ route, navigation }) => {
                     {selectedRepName ? (
                       <View style={styles.selectedRepContainer}>
                         <View style={styles.selectedRepInfo}>
-                          <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
                           <Text style={styles.selectedRepText}>{selectedRepName}</Text>
                         </View>
-                        <TouchableOpacity
-                          style={styles.clearButton}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            handleClearSalesRep();
-                          }}
-                          disabled={isConverting}
-                        >
-                          <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-                        </TouchableOpacity>
+                        <View style={styles.rightContainer}>
+                          <TouchableOpacity
+                            style={styles.clearButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleClearSalesRep();
+                            }}
+                            disabled={isConverting}
+                          >
+                            <Icon name="close" size={18} color={Colors.textSecondary} />
+                          </TouchableOpacity>
+                          <AntDesign name="down" size={12} color={Colors.textSecondary} />
+                        </View>
                       </View>
                     ) : (
                       <>
                         <Text style={styles.placeholderText}>Select Sales Representative</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                        <AntDesign name="down" size={12} color={Colors.textSecondary} />
                       </>
                     )}
                   </TouchableOpacity>
-                </View>
-              ) : (
-                <ViewRow 
-                  label="Sales Representative"
-                  value={selectedRepName || 'Not assigned'}
-                />
-              )}
+                ) : (
+                  <ViewRow 
+                    label=""
+                    value={selectedRepName || 'Not assigned'}
+                  />
+                )}
+                {errors.salesRep && (
+                  <Text style={styles.errorText}>{errors.salesRep}</Text>
+                )}
+              </View>
+
+              <TextAreaField
+                label="Description"
+                value={formData.description}
+                onChangeText={(text) => updateFormData('description', text)}
+                placeholder="Enter description"
+                editable={isEditMode && !isConverting}
+              />
             </View>
           </View>
         );
@@ -1131,6 +1558,16 @@ const LeadEdit = ({ route, navigation }) => {
                 onChangeText={(text) => updateFormData('companyName', text)}
                 placeholder="Enter company name"
                 editable={isEditMode && !isConverting}
+              />
+
+              {/* Business Partner Address Fields with Copy Icon */}
+              <AddressFields
+                fields={bpAddressFields}
+                onFieldChange={handleBpAddressFieldChange}
+                regionOptions={bpRegionOptions}
+                editable={isEditMode && !isConverting}
+                showCopyIcon={isEditMode}
+                onCopy={copyAddressToBusinessPartner}
               />
 
               <DropdownField
@@ -1191,11 +1628,11 @@ const LeadEdit = ({ route, navigation }) => {
                 />
               </View>
 
-              <TextAreaField
-                label="Description"
-                value={formData.description}
-                onChangeText={(text) => updateFormData('description', text)}
-                placeholder="Enter description"
+              <TextField
+                label="Search Key"
+                value={formData.searchKey}
+                onChangeText={(text) => updateFormData('searchKey', text)}
+                placeholder="Enter search key"
                 editable={isEditMode && !isConverting}
               />
 
@@ -1305,6 +1742,29 @@ const LeadEdit = ({ route, navigation }) => {
         LeftPress={() => navigation.goBack()}
         RightIcon={isEditMode ? "content-save" : "pencil"}
         RightPress={handleEditToggle}
+      />
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
       />
 
       <ScrollView
@@ -1543,23 +2003,29 @@ const LeadEdit = ({ route, navigation }) => {
                   setSalesRepModalVisible(false);
                   setSalesRepSearch('');
                 }}
+                style={styles.closeButton}
               >
-                <MaterialCommunityIcons name="close" size={Layout.iconSize.md} color={Colors.textPrimary} />
+                <Icon name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalSearch}>
-              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
               <TextInput
-                style={styles.modalSearchInput}
+                style={styles.searchInput}
                 placeholder="Search by name..."
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor="#999"
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
+                autoFocus={true}
               />
               {salesRepSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setSalesRepSearch('')}>
-                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                <TouchableOpacity
+                  onPress={() => setSalesRepSearch('')}
+                  style={styles.clearSearchButton}
+                >
+                  <Icon name="close" size={18} color="#666" />
                 </TouchableOpacity>
               )}
             </View>
@@ -1575,13 +2041,13 @@ const LeadEdit = ({ route, navigation }) => {
                 renderItem={renderSalesRepItem}
                 keyExtractor={(item) => item.id.toString()}
                 ListEmptyComponent={
-                  <View style={styles.modalEmpty}>
-                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
-                    <Text style={styles.modalEmptyText}>
+                  <View style={styles.emptyContainer}>
+                    <Icon name="person-off" size={50} color="#ccc" />
+                    <Text style={styles.emptyText}>
                       {salesRepSearch.trim()
-                        ? `No results for "${salesRepSearch}"`
+                        ? `No sales representatives found for "${salesRepSearch}"`
                         : 'No sales representatives available'}
-                      </Text>
+                    </Text>
                   </View>
                 }
               />
@@ -1592,6 +2058,7 @@ const LeadEdit = ({ route, navigation }) => {
     </KeyboardAvoidingView>
   );
 };
+
 
 const styles = StyleSheet.create({
   keyboardView: {
@@ -1940,6 +2407,37 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+   addressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  addressHeaderTitle: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  copyIconButton: {
+    padding: Spacing.xs,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundLight,
+    height: 42,
+    justifyContent: 'center',
+  },
+  picker: {
+    height: 42,
+    color: Colors.textPrimary,
+  },
+  selectorError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
+  },
   input: {
     height: 42,
     paddingHorizontal: Spacing.sm,
@@ -2077,17 +2575,18 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.bold,
     flex: 1,
   },
+  // Updated Sales Rep Selector Styles to match AddLeads
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 0,
     height: 42,
+    backgroundColor: Colors.backgroundLight,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -2107,19 +2606,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    flex: 1,
   },
   selectedRepText: {
     fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.bold,
+    fontFamily: Typography.fontFamily.regular,
+    flex: 1,
   },
   placeholderText: {
     fontSize: Typography.fontSize.small,
     color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
+    flex: 1,
   },
   clearButton: {
     padding: Spacing.xxs,
+    marginRight: Spacing.xxs,
+  },
+  rightContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   activityItem: {
     flexDirection: 'row',
@@ -2255,95 +2763,103 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
   },
+  // Updated Modal Styles to match AddLeads
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.lg,
-    borderTopRightRadius: Layout.borderRadius.lg,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '80%',
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.md,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
-    fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
-  modalSearch: {
+  closeButton: {
+    padding: 4,
+  },
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    gap: Spacing.xs,
-    height: 42,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    margin: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
     elevation: 2,
   },
-  modalSearchInput: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
     flex: 1,
-    height: 42,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-    paddingVertical: verticalScale(8),
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+    height: 44,
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
+    paddingVertical: 0,
+  },
+  clearSearchButton: {
+    padding: 4,
   },
   modalLoading: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(32),
+    paddingVertical: 32,
   },
   modalLoadingText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
   },
-  modalEmpty: {
+  emptyContainer: {
     alignItems: 'center',
-    paddingVertical: verticalScale(32),
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  modalEmptyText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+  emptyText: {
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
     textAlign: 'center',
+    marginTop: 12,
   },
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: verticalScale(10),
-    paddingHorizontal: Spacing.md,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   selectedRepItem: {
-    backgroundColor: Colors.infoLight,
+    backgroundColor: '#f0f5ff',
   },
   repItemContent: {
     flex: 1,
@@ -2351,45 +2867,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   repAvatar: {
-    width: scale(40),
-    height: scale(40),
-    borderRadius: scale(20),
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.sm,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
+    marginRight: 12,
   },
   repAvatarText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textInverse,
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
+    color: '#fff',
   },
   repDetails: {
     flex: 1,
   },
   repName: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
   repEmail: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    fontSize: 12,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginTop: 2,
   },
   menuItemTitle: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
   },
   menuItemSelected: {
     color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: 'K2D-SemiBold',
   },
   errorContainer: {
     flex: 1,

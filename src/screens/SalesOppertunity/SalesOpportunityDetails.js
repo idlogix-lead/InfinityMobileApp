@@ -1,4 +1,4 @@
-// screens/SalesOpportunityDetail/SalesOpportunityDetail.js - COMPLETE EDITION with proper lead data display
+// screens/SalesOpportunityDetail/SalesOpportunityDetail.js - COMPLETE EDITION with custom alerts
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -7,7 +7,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   RefreshControl,
   Linking,
@@ -29,6 +28,7 @@ import { useUpdateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
 import { useAuthStore } from '../../store/authStore';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 import { Picker } from '@react-native-picker/picker';
+import CustomAlert from '../../components/CustomAlert'; // Import custom alert
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -459,6 +459,19 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const [salesRepSearch, setSalesRepSearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
 
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
   // Form state for editable fields
   const [formData, setFormData] = useState({
     documentNo: '',
@@ -487,6 +500,54 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   // Update mutation
   const updateMutation = useUpdateSalesOpportunity();
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showSuccessAlert = (message, onConfirm = null) => {
+    showAlert('Success', message, 'success', onConfirm);
+  };
+
+  const showErrorAlert = (message, onConfirm = null) => {
+    showAlert('Error', message, 'error', onConfirm);
+  };
+
+  const showValidationAlert = (message) => {
+    showAlert('Validation Error', message, 'warning');
+  };
+
+  const showDiscardAlert = (onConfirm) => {
+    setAlertConfig({
+      visible: true,
+      title: 'Discard Changes',
+      message: 'Are you sure you want to discard your changes?',
+      type: 'warning',
+      onConfirm: () => {
+        onConfirm();
+        hideAlert();
+      },
+      onCancel: hideAlert,
+      confirmText: 'Discard',
+      cancelText: 'Stay',
+      showCancelButton: true,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
 
   // ============================================
   // EXTRACT OPPORTUNITY DATA
@@ -949,7 +1010,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const handleSave = () => {
     const errors = validate();
     if (Object.keys(errors).length > 0) {
-      Alert.alert('Validation Error', 'Please fill in all required fields');
+      showValidationAlert('Please fill in all required fields');
       return;
     }
 
@@ -981,53 +1042,43 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         setIsEditMode(false);
         queryClient.setQueryData(['sales-opportunity', opportunityId], updatedData);
         queryClient.invalidateQueries(['sales-opportunities']);
+        showSuccessAlert('Opportunity updated successfully!');
       },
       onError: (error) => {
-        Alert.alert('Error', error.message || 'Failed to update opportunity');
+        showErrorAlert(error.message || 'Failed to update opportunity');
       }
     });
   };
 
   const handleCancel = () => {
-    Alert.alert(
-      'Discard Changes',
-      'Are you sure you want to discard your changes?',
-      [
-        { text: 'Stay', style: 'cancel' },
-        {
-          text: 'Discard',
-          onPress: () => {
-            setIsEditMode(false);
-            // Reset form to original values
-            setFormData({
-              documentNo: documentNo,
-              businessPartnerId: businessPartnerId,
-              businessPartnerName: businessPartnerName,
-              contactId: contactId,
-              contactName: contactName,
-              contactEmail: contactEmail,
-              contactPhone: contactPhone,
-              salesRepId: salesRepId,
-              salesRepName: salesRepName,
-              salesRepEmail: salesRepEmail,
-              stageId: stageId,
-              stageName: stageName,
-              probability: probability.toString(),
-              campaignId: campaignId,
-              campaignName: campaignName || '',
-              expectedCloseDate: expectedCloseDate || '',
-              amount: opportunityAmount.toString(),
-              currencyId: currencyId,
-              currencyCode: currencyCode,
-              description: description || '',
-              comments: comments || '',
-              isActive: isActive,
-            });
-          },
-          style: 'destructive'
-        }
-      ]
-    );
+    showDiscardAlert(() => {
+      setIsEditMode(false);
+      // Reset form to original values
+      setFormData({
+        documentNo: documentNo,
+        businessPartnerId: businessPartnerId,
+        businessPartnerName: businessPartnerName,
+        contactId: contactId,
+        contactName: contactName,
+        contactEmail: contactEmail,
+        contactPhone: contactPhone,
+        salesRepId: salesRepId,
+        salesRepName: salesRepName,
+        salesRepEmail: salesRepEmail,
+        stageId: stageId,
+        stageName: stageName,
+        probability: probability.toString(),
+        campaignId: campaignId,
+        campaignName: campaignName || '',
+        expectedCloseDate: expectedCloseDate || '',
+        amount: opportunityAmount.toString(),
+        currencyId: currencyId,
+        currencyCode: currencyCode,
+        description: description || '',
+        comments: comments || '',
+        isActive: isActive,
+      });
+    });
   };
 
   const handleEditToggle = () => {
@@ -1058,9 +1109,10 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         setOpportunity(updatedData);
         queryClient.invalidateQueries(['sales-opportunity', opportunityId]);
         queryClient.invalidateQueries(['sales-opportunities']);
+        showSuccessAlert(`Status updated to ${newStatus}`);
       },
       onError: (error) => {
-        Alert.alert('Error', error.message || 'Failed to update status');
+        showErrorAlert(error.message || 'Failed to update status');
       }
     });
   };
@@ -1068,20 +1120,20 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const handlePhoneCall = (phone) => {
     if (phone) {
       Linking.openURL(`tel:${phone}`).catch(() => {
-        Alert.alert('Error', 'Cannot open phone app');
+        showErrorAlert('Cannot open phone app');
       });
     } else {
-      Alert.alert('Info', 'No phone number available');
+      showValidationAlert('No phone number available');
     }
   };
 
   const handleEmail = (email) => {
     if (email) {
       Linking.openURL(`mailto:${email}`).catch(() => {
-        Alert.alert('Error', 'Cannot open email app');
+        showErrorAlert('Cannot open email app');
       });
     } else {
-      Alert.alert('Info', 'No email address available');
+      showValidationAlert('No email address available');
     }
   };
 
@@ -1379,7 +1431,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               setShowContactModal(true);
               fetchContactsForBP(formData.businessPartnerId);
             } else {
-              Alert.alert('Info', 'Please select a Business Partner first');
+              showValidationAlert('Please select a Business Partner first');
             }
           }}
           onClear={handleClearContact}
@@ -1594,6 +1646,29 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         LeftPress={() => isEditMode ? handleCancel() : navigation.goBack()}
         RightIcon={isEditMode ? "content-save" : "pencil"}
         RightPress={handleEditToggle}
+      />
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
       />
 
       <ScrollView

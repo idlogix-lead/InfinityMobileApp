@@ -976,8 +976,8 @@ export const useSalesRepresentatives = (enabled = true) => {
       }
     },
     enabled: enabled,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    cacheTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 10,
     retry: 2,
   });
 };
