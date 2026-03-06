@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { useSessionStore } from '../store/sessionStore';
+const useSessionStore = require('../store/sessionStore').useSessionStore;
 
 const AppInitializer = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);

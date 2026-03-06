@@ -1,28 +1,45 @@
 // src/services/employeeApi.js
 import apiService from '../authApi';
 
+// ============================================
+// AUTH STORE HELPER
+// ============================================
+let authStore = null;
+
+const getAuthStore = () => {
+  if (authStore) return authStore;
+
+  try {
+    authStore = require('../../store/authStore');
+    return authStore;
+  } catch (error) {
+    console.error('Failed to load auth store:', error);
+    return null;
+  }
+};
+
+const getAuthState = () => {
+  const store = getAuthStore();
+  if (!store) return {};
+  try {
+    return store.useAuthStore.getState();
+  } catch (error) {
+    console.error('Failed to get auth state:', error);
+    return {};
+  }
+};
+
 const employeeApi = {
-  // Get user info with business partner ID
-  getUserInfo: async (token, userId) => {
+  // ============================================
+  // USER INFO - Now uses makeRequest and auth store
+  // ============================================
+  getUserInfo: async () => {
     try {
-      const baseUrl = apiService.getBaseUrl();
+      const authState = getAuthState();
+      const userId = authState.userId;
       
-      const response = await fetch(
-        `${baseUrl}/models/AD_User?$filter=AD_User_ID eq ${userId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        }
-      );
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get user info error:', errorText);
-        // Return default user info
+      if (!userId) {
+        console.warn('No userId found in auth state, using default user info');
         return {
           Name: 'Muhammad Anwar',
           Title: { identifier: 'Hr Manager' },
@@ -30,15 +47,25 @@ const employeeApi = {
         };
       }
       
-      const data = await response.json();
+      // Use apiService.makeRequest which handles auto-relogin
+      const data = await apiService.makeRequest(
+        `models/AD_User?$filter=AD_User_ID eq ${userId}`
+      );
+      
       return data.records?.[0] || {
         Name: 'Muhammad Anwar',
         Title: { identifier: 'Hr Manager' },
         C_BPartner_ID: { id: '12345' }
       };
     } catch (error) {
-      console.error('Get user info fetch error:', error.message);
-      // Return default user info
+      console.error('Get user info error:', error.message);
+      
+      // Let React Query handle session expiration
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
+      // Return default user info for other errors
       return {
         Name: 'Muhammad Anwar',
         Title: { identifier: 'Hr Manager' },
@@ -47,11 +74,31 @@ const employeeApi = {
     }
   },
   
-  // Get leave requests
-  getLeaveRequests: async (token, partnerId, filters = {}) => {
+  // ============================================
+  // LEAVE REQUESTS - Now uses makeRequest and auth store
+  // ============================================
+  getLeaveRequests: async (filters = {}) => {
     try {
+      const authState = getAuthState();
+      const userId = authState.userId;
+      
+      if (!userId) {
+        console.warn('No userId found in auth state, returning empty leave requests');
+        return [];
+      }
+      
+      // First get user info to get C_BPartner_ID
+      const userInfo = await employeeApi.getUserInfo();
+      const partnerId = userInfo?.C_BPartner_ID?.id;
+      
+      if (!partnerId) {
+        console.warn('No partnerId found for user, returning empty leave requests');
+        return [];
+      }
+      
       const baseUrl = apiService.getBaseUrl();
       
+      // Calculate date filters
       let startDate = new Date();
       let endDate = new Date();
       
@@ -68,38 +115,30 @@ const employeeApi = {
       
       let filterString = `C_BPartner_ID eq ${partnerId}`;
       
-      if (filters.applyFilter !== 'All') {
+      if (filters.applyFilter !== 'All' && filters.applyFilter) {
         filterString += ` and startdate ge ${formattedStartDate} and enddate le ${formattedEndDate}`;
       }
       
-      const url = `${baseUrl}/models/HR_EmpLev_Posting?$filter=${filterString}&$orderby=EndDate desc`;
+      // Use apiService.makeRequest which handles auto-relogin
+      const data = await apiService.makeRequest(
+        `models/HR_EmpLev_Posting?$filter=${encodeURIComponent(filterString)}&$orderby=EndDate desc`
+      );
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Get leave requests error:', errorText);
-        // Return empty array
-        return [];
-      }
-      
-      const data = await response.json();
       return data.records || [];
     } catch (error) {
-      console.error('Get leave requests fetch error:', error.message);
-      // Return empty array
+      console.error('Get leave requests error:', error.message);
+      
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
       return [];
     }
   },
   
-  // Get today's attendance - Always return an object with default values
+  // ============================================
+  // TODAY'S ATTENDANCE - Mock data, no API needed
+  // ============================================
   getTodayAttendance: async () => {
     try {
       const currentHour = new Date().getHours();
@@ -137,9 +176,12 @@ const employeeApi = {
     }
   },
   
-  // Get leave balance - Always return an object
+  // ============================================
+  // LEAVE BALANCE - Mock data, no API needed
+  // ============================================
   getLeaveBalance: async () => {
     try {
+      // This could be enhanced to fetch from API in the future
       return { 
         balance: 2,
         totalLeaves: 20,
@@ -155,9 +197,12 @@ const employeeApi = {
     }
   },
   
-  // Get activities - Always return an array
+  // ============================================
+  // ACTIVITIES - Mock data, no API needed
+  // ============================================
   getActivities: async () => {
     try {
+      // This could be enhanced to fetch from API in the future
       return [
         {
           id: 1,
@@ -200,6 +245,49 @@ const employeeApi = {
           description: 'No Description Provided'
         }
       ];
+    }
+  },
+  
+  // ============================================
+  // OPTIONAL: Get user by ID (if needed separately)
+  // ============================================
+  getUserById: async (userId) => {
+    try {
+      if (!userId) {
+        throw new Error('USER_ID_MISSING');
+      }
+      
+      const data = await apiService.makeRequest(`models/AD_User/${userId}`);
+      return data;
+    } catch (error) {
+      console.error('Get user by ID error:', error.message);
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return null;
+    }
+  },
+  
+  // ============================================
+  // OPTIONAL: Get employee by partner ID
+  // ============================================
+  getEmployeeByPartnerId: async (partnerId) => {
+    try {
+      if (!partnerId) {
+        throw new Error('PARTNER_ID_MISSING');
+      }
+      
+      const data = await apiService.makeRequest(
+        `models/AD_User?$filter=C_BPartner_ID eq ${partnerId}`
+      );
+      
+      return data.records?.[0] || null;
+    } catch (error) {
+      console.error('Get employee by partner ID error:', error.message);
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      return null;
     }
   }
 };

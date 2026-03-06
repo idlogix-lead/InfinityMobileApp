@@ -4,7 +4,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AppInitializer from '../components/AppInitializer';
 import { useAuthStore } from '../store/authStore';
-import { useFocusEffect } from '@react-navigation/native';
 
 // Import navigators
 import AuthNavigator from './MainNavigation/AuthNavigator';
@@ -21,20 +20,17 @@ const Navigation = () => {
   const userName = useAuthStore(state => state.userName);
   const roleId = useAuthStore(state => state.roleId);
   
-  // Check authentication status - SIMPLIFIED AND RELIABLE
+  // SIMPLIFIED AUTHENTICATION CHECK - More tolerant
   const isAuthenticated = React.useMemo(() => {
-    // Only check when we're not in checking state
     if (isCheckingAuth) return false;
     
+    // Only require token and username for basic auth
+    // Don't require roleId - that's for complete auth only
     const result = Boolean(
       token &&
       typeof token === 'string' &&
       token.length > 10 &&
-      userName &&
-      userId &&
-      !isNaN(Number(userId)) &&
-      userId !== userName &&
-      roleId
+      userName
     );
     
     console.log('🧭 Navigation - Auth Check:', {
@@ -48,7 +44,7 @@ const Navigation = () => {
     });
     
     return result;
-  }, [token, userId, userName, roleId, isCheckingAuth]);
+  }, [token, userName, isCheckingAuth]); // Removed userId and roleId from dependencies
   
   // Check for valid session on mount
   useEffect(() => {
@@ -62,6 +58,7 @@ const Navigation = () => {
       console.log('🧭 Navigation: Store state loaded', {
         userId: storeState.userId,
         tokenExists: !!storeState.token,
+        tokenLength: storeState.token?.length || 0,
         roleId: storeState.roleId,
         isCompleteAuth: storeState.isCompleteAuthenticated
       });
@@ -81,7 +78,7 @@ const Navigation = () => {
         userName
       });
     }
-  }, [isAuthenticated, isCheckingAuth]);
+  }, [isAuthenticated, userId, userName, isCheckingAuth]);
   
   // Show loading while checking
   if (isCheckingAuth) {

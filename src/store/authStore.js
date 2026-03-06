@@ -1,8 +1,9 @@
+// store/authStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import base64 from 'base-64';
-import { keychainService } from '../services/KeyChainService';
+import keychainService from '../services/KeyChainService';
 
 // ============================================
 // SIMPLE JWT DECODER FOR STORE
@@ -25,6 +26,51 @@ const decodeJWT = (token) => {
 };
 
 // ============================================
+// TOKEN VALIDATION UTILITIES
+// ============================================
+const validateToken = (token) => {
+  try {
+    if (!token) return { isValid: false, reason: 'NO_TOKEN' };
+    
+    const decoded = decodeJWT(token);
+    if (!decoded) return { isValid: false, reason: 'INVALID_TOKEN' };
+    
+    // Check expiration if present
+    if (decoded.exp) {
+      const expirationTime = decoded.exp * 1000; // Convert to milliseconds
+      const currentTime = Date.now();
+      const timeRemaining = expirationTime - currentTime;
+      
+      if (currentTime >= expirationTime) {
+        return { 
+          isValid: false, 
+          reason: 'EXPIRED',
+          expiredAt: new Date(expirationTime).toISOString()
+        };
+      }
+      
+      return { 
+        isValid: true, 
+        expiresAt: new Date(expirationTime).toISOString(),
+        timeRemaining,
+        decoded
+      };
+    }
+    
+    // If no exp claim, consider it valid (long-lived token)
+    return { 
+      isValid: true, 
+      expiresAt: 'Never',
+      timeRemaining: Infinity,
+      decoded 
+    };
+  } catch (error) {
+    console.error('Token validation error:', error);
+    return { isValid: false, reason: 'VALIDATION_ERROR' };
+  }
+};
+
+// ============================================
 // AUTH STORE
 // ============================================
 export const useAuthStore = create(
@@ -35,6 +81,7 @@ export const useAuthStore = create(
       tokenOk: null,
       userId: null,
       currentSessionId: null,
+      lastTokenValidation: null,
 
       // User info
       userName: null,
@@ -59,49 +106,101 @@ export const useAuthStore = create(
         port: null,
       },
 
+      // Complete login parameters - NEW
+      loginParameters: {
+        clientId: null,
+        roleId: null,
+        organizationId: null,
+        warehouseId: null,
+        language: 'en_US'
+      },
+
       // Temporary data
       availableClients: null,
+      availableRoles: null,
+      availableOrganizations: null,
+      availableWarehouses: null,
 
       // App state
       isLoading: false,
       error: null,
 
       // ============================================
+      // TOKEN VALIDATION METHODS
+      // ============================================
+      validateCurrentToken: () => {
+        const state = get();
+        const { token } = state;
+        
+        const validation = validateToken(token);
+        
+        // Update last validation timestamp
+        set({ 
+          lastTokenValidation: {
+            timestamp: Date.now(),
+            result: validation
+          }
+        });
+        
+        return validation;
+      },
+
+      isTokenValid: () => {
+        const state = get();
+        const validation = state.validateCurrentToken();
+        return validation.isValid;
+      },
+
+      getTokenExpiryInfo: () => {
+        const state = get();
+        const validation = validateToken(state.token);
+        return {
+          isValid: validation.isValid,
+          expiresAt: validation.expiresAt,
+          timeRemaining: validation.timeRemaining,
+          reason: validation.reason
+        };
+      },
+
+      // ============================================
       // BASIC ACTIONS
       // ============================================
-    // In your auth store, update the createSessionSnapshot method:
-createSessionSnapshot: () => {
-  const state = get();
-  return {
-    // Auth state
-    token: state.token,
-    tokenOk: state.tokenOk,
-    userId: state.userId,
-    
-    // User info
-    userName: state.userName,
-    password: state.password,
-    
-    // Role info
-    roleId: state.roleId,
-    roleName: state.roleName,
-    organizationId: state.organizationId,
-    organizationName: state.organizationName,
-    warehouseId: state.warehouseId,
-    warehouseName: state.warehouseName,
-    
-    // Client info
-    clientId: state.clientId,
-    clientName: state.clientName,
-    
-    // Server configuration
-    serverConfig: { ...state.serverConfig },
-    
-    // Metadata
-    savedAt: new Date().toISOString(),
-    isComplete: state.isCompleteAuthenticated,
-  };
-},
+      createSessionSnapshot: () => {
+        const state = get();
+        return {
+          // Auth state
+          token: state.token,
+          tokenOk: state.tokenOk,
+          userId: state.userId,
+          
+          // User info
+          userName: state.userName,
+          password: state.password,
+          
+          // Role info
+          roleId: state.roleId,
+          roleName: state.roleName,
+          organizationId: state.organizationId,
+          organizationName: state.organizationName,
+          warehouseId: state.warehouseId,
+          warehouseName: state.warehouseName,
+          
+          // Client info
+          clientId: state.clientId,
+          clientName: state.clientName,
+          
+          // Server configuration
+          serverConfig: { ...state.serverConfig },
+          
+          // Complete login parameters - NEW
+          loginParameters: { ...state.loginParameters },
+          
+          // Metadata
+          savedAt: new Date().toISOString(),
+          isComplete: state.isCompleteAuthenticated,
+        };
+      },
+
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
       clearError: () => set({ error: null }),
@@ -134,9 +233,13 @@ createSessionSnapshot: () => {
         // Get current state
         const currentState = get();
 
+        // Validate the token
+        const validation = validateToken(data.token);
+        console.log('Token validation on setBasicAuthData:', validation);
+
         set({
           token: data.token || currentState.token,
-          tokenOk: 'true',
+          tokenOk: validation.isValid ? 'true' : 'false',
           userName: data.userName || currentState.userName,
           password: data.password || currentState.password,
           userId: data.userId || currentState.userId || data.userName,
@@ -148,18 +251,28 @@ createSessionSnapshot: () => {
           // Store clients array
           availableClients: finalClients || currentState.availableClients,
 
-          // PRESERVE existing role data (automatically remembered)
+          // PRESERVE existing role data
           roleId: currentState.roleId,
           roleName: currentState.roleName,
           organizationId: currentState.organizationId,
           organizationName: currentState.organizationName,
           warehouseId: currentState.warehouseId,
           warehouseName: currentState.warehouseName,
+
+          // Update last validation
+          lastTokenValidation: {
+            timestamp: Date.now(),
+            result: validation
+          }
         });
       },
 
       setLoginData: (data) => {
         const currentState = get();
+
+        // Validate the token
+        const validation = validateToken(data.token);
+        console.log('Token validation on setLoginData:', validation);
 
         set({
           // PRESERVE existing credentials
@@ -168,18 +281,35 @@ createSessionSnapshot: () => {
 
           // Update login data
           token: data.token || currentState.token,
+          tokenOk: validation.isValid ? 'true' : 'false',
           userId: data.userId || currentState.userId,
           clientId: data.clientId || currentState.clientId,
           clientName: data.clientName || currentState.clientName,
           availableClients: data.clients || currentState.availableClients,
+
+          // Update last validation
+          lastTokenValidation: {
+            timestamp: Date.now(),
+            result: validation
+          }
         });
       },
 
       setAvailableClients: (clients) => set({ availableClients: clients }),
+      setAvailableRoles: (roles) => set({ availableRoles: roles }),
+      setAvailableOrganizations: (orgs) => set({ availableOrganizations: orgs }),
+      setAvailableWarehouses: (warehouses) => set({ availableWarehouses: warehouses }),
 
       setClientSelection: (clientId, clientName) => set({
         clientId,
-        clientName
+        clientName,
+        // Update login parameters
+        loginParameters: { ...get().loginParameters, clientId }
+      }),
+
+      // NEW: Set complete login parameters
+      setLoginParameters: (params) => set({
+        loginParameters: { ...get().loginParameters, ...params }
       }),
 
       setCompleteAuthData: (data) => {
@@ -192,9 +322,22 @@ createSessionSnapshot: () => {
           }
         }
 
+        // Validate the token
+        const validation = validateToken(data.token);
+        console.log('Token validation on setCompleteAuthData:', validation);
+
+        // Build complete login parameters
+        const loginParams = {
+          clientId: data.clientId || get().clientId,
+          roleId: data.roleId || get().roleId,
+          organizationId: data.organizationId || get().organizationId,
+          warehouseId: data.warehouseId || get().warehouseId,
+          language: data.language || 'en_US'
+        };
+
         set({
           token: data.token || get().token,
-          tokenOk: 'true',
+          tokenOk: validation.isValid ? 'true' : 'false',
           userId: realUserId || get().userId,
 
           // Save role data for future logins
@@ -209,6 +352,15 @@ createSessionSnapshot: () => {
 
           warehouseId: data.warehouseId || get().warehouseId,
           warehouseName: data.warehouseName || get().warehouseName,
+
+          // Save complete login parameters
+          loginParameters: loginParams,
+
+          // Update last validation
+          lastTokenValidation: {
+            timestamp: Date.now(),
+            result: validation
+          }
         });
       },
 
@@ -219,12 +371,21 @@ createSessionSnapshot: () => {
         organizationName: roleData.organizationName,
         warehouseId: roleData.warehouseId,
         warehouseName: roleData.warehouseName,
+        // Update login parameters
+        loginParameters: {
+          ...get().loginParameters,
+          roleId: roleData.roleId,
+          organizationId: roleData.organizationId,
+          warehouseId: roleData.warehouseId
+        }
       }),
 
       // ============================================
       // SESSION MANAGEMENT INTEGRATION
       // ============================================
-    saveCurrentSession: async () => {
+     // In store/authStore.js - Update saveCurrentSession method
+
+saveCurrentSession: async () => {
   try {
     const state = get();
     
@@ -232,8 +393,51 @@ createSessionSnapshot: () => {
       throw new Error('No active session to save');
     }
 
-    // Use the new method
-    const sessionSnapshot = get().createSessionSnapshot();
+    // Validate token before saving
+    const validation = validateToken(state.token);
+    if (!validation.isValid) {
+      console.warn('Attempting to save session with invalid token:', validation.reason);
+    }
+
+    // Create session snapshot with COMPLETE data
+    const sessionSnapshot = {
+      // Auth state
+      token: state.token,
+      tokenOk: state.tokenOk,
+      userId: state.userId,
+      
+      // User info
+      userName: state.userName,
+      password: state.password,
+      
+      // Role info
+      roleId: state.roleId,
+      roleName: state.roleName,
+      organizationId: state.organizationId,
+      organizationName: state.organizationName,
+      warehouseId: state.warehouseId,
+      warehouseName: state.warehouseName,
+      
+      // Client info
+      clientId: state.clientId,
+      clientName: state.clientName,
+      
+      // Server configuration
+      serverConfig: { ...state.serverConfig },
+      
+      // COMPLETE LOGIN PARAMETERS - Make sure these are saved
+      loginParameters: state.loginParameters || {
+        clientId: state.clientId,
+        roleId: state.roleId,
+        organizationId: state.organizationId,
+        warehouseId: state.warehouseId,
+        language: 'en_US'
+      },
+      
+      // Metadata
+      savedAt: new Date().toISOString(),
+      isComplete: state.isCompleteAuthenticated,
+    };
     
     // Save to keychain
     await keychainService.saveUserSession(sessionSnapshot);
@@ -244,6 +448,7 @@ createSessionSnapshot: () => {
     // Update session registry
     set({ currentSessionId: state.userId });
     
+    console.log('✅ Session saved with complete login parameters');
     return true;
   } catch (error) {
     console.error('Error saving session:', error);
@@ -251,42 +456,61 @@ createSessionSnapshot: () => {
   }
 },
 
-      loadSession: async (userId) => {
-        try {
-          const session = await keychainService.loadUserSession(userId);
-          
-          if (!session) {
-            throw new Error('Session not found');
-          }
+  // In store/authStore.js - Update loadSession method
 
-          // Restore session state
-          set({
-            token: session.token,
-            userId: session.userId,
-            currentSessionId: session.userId,
-            userName: session.userName,
-            password: session.password,
-            roleId: session.roleId,
-            roleName: session.roleName,
-            organizationId: session.organizationId,
-            organizationName: session.organizationName,
-            warehouseId: session.warehouseId,
-            warehouseName: session.warehouseName,
-            clientId: session.clientId,
-            clientName: session.clientName,
-            serverConfig: { ...session.serverConfig },
-          });
+loadSession: async (userId) => {
+  try {
+    const session = await keychainService.loadUserSession(userId);
+    
+    if (!session) {
+      throw new Error('Session not found');
+    }
 
-          // Update keychain current session
-          await keychainService.setCurrentSessionId(session.userId);
-          
-          return true;
-        } catch (error) {
-          console.error('Error loading session:', error);
-          return false;
-        }
+    // Validate token before restoring
+    const validation = validateToken(session.token);
+    console.log('Session token validation:', validation);
+
+    // Restore session state including login parameters
+    set({
+      token: session.token,
+      tokenOk: validation.isValid ? 'true' : 'false',
+      userId: session.userId,
+      currentSessionId: session.userId,
+      userName: session.userName,
+      password: session.password,
+      roleId: session.roleId,
+      roleName: session.roleName,
+      organizationId: session.organizationId,
+      organizationName: session.organizationName,
+      warehouseId: session.warehouseId,
+      warehouseName: session.warehouseName,
+      clientId: session.clientId,
+      clientName: session.clientName,
+      serverConfig: { ...session.serverConfig },
+      // CRITICAL FIX: Ensure loginParameters are restored
+      loginParameters: session.loginParameters || {
+        clientId: session.clientId,
+        roleId: session.roleId,
+        organizationId: session.organizationId,
+        warehouseId: session.warehouseId,
+        language: 'en_US'
       },
+      lastTokenValidation: {
+        timestamp: Date.now(),
+        result: validation
+      }
+    });
 
+    // Update keychain current session
+    await keychainService.setCurrentSessionId(session.userId);
+    
+    console.log('✅ Session loaded with complete login parameters');
+    return true;
+  } catch (error) {
+    console.error('Error loading session:', error);
+    return false;
+  }
+},
       clearCurrentSession: () => {
         // Clear only session-specific data, preserve credentials if needed
         const currentState = get();
@@ -296,17 +520,25 @@ createSessionSnapshot: () => {
           tokenOk: null,
           userId: null,
           currentSessionId: null,
-          
-          // Preserve these based on app logic
-          // userName: null, // Keep for remember me
-          // password: null, // Keep for remember me
+          lastTokenValidation: null,
           
           // Clear role-specific data
-     
-          
           clientId: null,
           clientName: null,
           availableClients: null,
+          availableRoles: null,
+          availableOrganizations: null,
+          availableWarehouses: null,
+          
+          // Clear login parameters
+          loginParameters: {
+            clientId: null,
+            roleId: null,
+            organizationId: null,
+            warehouseId: null,
+            language: 'en_US'
+          },
+          
           error: null,
           isLoading: false,
         });
@@ -337,6 +569,135 @@ createSessionSnapshot: () => {
       },
 
       // ============================================
+      // COMPLETE LOGIN AUTO-RELOGIN (UPDATED)
+      // ============================================
+    // In store/authStore.js - Update completeRelogin with better logging
+
+completeRelogin: async () => {
+  const state = get();
+  
+  // Check if we have saved credentials and complete login parameters
+  if (!state.userName || !state.password) {
+    console.log('❌ No saved credentials for complete relogin');
+    return null;
+  }
+
+  // Log the current login parameters for debugging
+  console.log('📋 Current login parameters:', state.loginParameters);
+
+  // Check if we have complete login parameters
+  const { clientId, roleId, organizationId, warehouseId } = state.loginParameters || {};
+  if (!clientId || !roleId || !organizationId || !warehouseId) {
+    console.log('❌ Missing complete login parameters for relogin', {
+      hasClientId: !!clientId,
+      hasRoleId: !!roleId,
+      hasOrgId: !!organizationId,
+      hasWarehouseId: !!warehouseId
+    });
+    return null;
+  }
+  
+  try {
+    console.log('🔄 Attempting complete login auto-relogin...');
+    
+    // Get base URL
+    const baseUrl = `${state.serverConfig.protocol}://${state.serverConfig.host}:${state.serverConfig.port}/api/v1`;
+    
+    // Prepare complete login parameters
+    const parameters = {
+      clientId: clientId.toString(),
+      roleId: roleId.toString(),
+      organizationId: organizationId.toString(),
+      warehouseId: warehouseId.toString(),
+      language: state.loginParameters.language || 'en_US'
+    };
+    
+    console.log('📤 Complete relogin parameters:', parameters);
+    
+    // Call complete login endpoint with saved credentials and parameters
+    const response = await fetch(`${baseUrl}/auth/tokens`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        userName: state.userName,
+        password: state.password,
+        parameters: parameters
+      }),
+    });
+    
+    if (!response.ok) {
+      console.log('❌ Complete relogin failed with status:', response.status);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    if (data.token) {
+      console.log('✅ Complete login auto-relogin successful');
+      
+      // Extract user ID from token
+      let extractedUserId = null;
+      const decodedToken = decodeJWT(data.token);
+      if (decodedToken?.AD_User_ID) {
+        extractedUserId = decodedToken.AD_User_ID.toString();
+      } else if (decodedToken?.sub) {
+        extractedUserId = decodedToken.sub;
+      }
+      
+      // Update token in store and preserve all data
+      set({ 
+        token: data.token,
+        tokenOk: 'true',
+        userId: extractedUserId || state.userId,
+        lastTokenValidation: {
+          timestamp: Date.now(),
+          result: validateToken(data.token)
+        }
+      });
+      
+      return data.token;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Complete relogin error:', error.message);
+    return null;
+  }
+},
+
+      // ============================================
+      // CHECK IF TOKEN NEEDS COMPLETE RELOGIN
+      // ============================================
+      shouldCompleteRefresh: () => {
+        const state = get();
+        if (!state.token) return false;
+        
+        try {
+          const decoded = decodeJWT(state.token);
+          if (!decoded || !decoded.exp) return false;
+          
+          const expirationTime = decoded.exp * 1000;
+          const currentTime = Date.now();
+          const timeUntilExpiry = expirationTime - currentTime;
+          
+          // Refresh if less than 10 minutes remaining
+          // Since token lasts 1 hour (60 minutes), refresh at 50 minutes
+          const shouldRefresh = timeUntilExpiry < 10 * 60 * 1000;
+          
+          if (shouldRefresh) {
+            console.log(`⏰ Token expires in ${Math.round(timeUntilExpiry / 60000)} minutes, will refresh soon`);
+          }
+          
+          return shouldRefresh;
+        } catch (error) {
+          return false;
+        }
+      },
+
+      // ============================================
       // UTILITY FUNCTIONS
       // ============================================
       checkAuthState: () => {
@@ -364,12 +725,13 @@ createSessionSnapshot: () => {
       // ============================================
       get isBasicAuthenticated() {
         const state = get();
-        return !!(
-          state.token &&
-          typeof state.token === 'string' &&
-          state.token.length > 10 &&
-          state.userName
-        );
+        
+        // Check if we have token and username
+        if (!state.token || typeof state.token !== 'string' || state.token.length < 10 || !state.userName) {
+          return false;
+        }
+        
+        return true;
       },
 
       get isCompleteAuthenticated() {
@@ -386,17 +748,18 @@ createSessionSnapshot: () => {
           !isNaN(Number(state.userId)) &&
           state.userId !== state.userName;
 
-        // Check if we have role ID
-        const hasRoleId = !!state.roleId;
+        // Check if we have complete login parameters
+        const hasCompleteParams = state.loginParameters &&
+          state.loginParameters.clientId &&
+          state.loginParameters.roleId &&
+          state.loginParameters.organizationId &&
+          state.loginParameters.warehouseId;
 
-        // Check if we have organization ID
-        const hasOrganizationId = !!state.organizationId;
-
-        // Check if we have warehouse ID
-        const hasWarehouseId = !!state.warehouseId;
+        // Check if we have role data
+        const hasRoleData = state.roleId && state.organizationId && state.warehouseId;
 
         // Complete auth requires all
-        return hasBasicAuth && hasRealUserId && hasRoleId && hasOrganizationId && hasWarehouseId;
+        return hasBasicAuth && hasRealUserId && hasCompleteParams && hasRoleData;
       },
 
       get hasServerConfig() {
@@ -407,6 +770,10 @@ createSessionSnapshot: () => {
       get tokenData() {
         const token = get().token;
         return decodeJWT(token);
+      },
+
+      get tokenExpiryInfo() {
+        return get().getTokenExpiryInfo();
       },
 
       get displayClientInfo() {
@@ -479,9 +846,25 @@ createSessionSnapshot: () => {
         organizationName: state.organizationName,
         warehouseId: state.warehouseId,
         warehouseName: state.warehouseName,
+        // Persist complete login parameters
+        loginParameters: state.loginParameters,
         // Session management
         currentSessionId: state.currentSessionId,
+        // Persist last validation for debugging
+        lastTokenValidation: state.lastTokenValidation,
       }),
+      onRehydrateStorage: (state) => {
+        // Validate token when loading from storage
+        if (state?.token) {
+          const validation = validateToken(state.token);
+          console.log('Token validation on rehydration:', validation);
+          
+          if (!validation.isValid) {
+            console.log('Restored token status:', validation.reason);
+          }
+        }
+        return state;
+      },
     }
   )
 );

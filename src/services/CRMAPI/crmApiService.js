@@ -1,6 +1,3 @@
-// services/CRMAPI/crmApiService.js - COMPLETE UPDATED VERSION
-// Directly extracts statuses from leads without trying other endpoints
-
 // ============================================
 // AUTH STATE HELPER (No React Hook Issues)
 // ============================================
@@ -36,15 +33,136 @@ const getAuthState = () => {
 };
 
 // ============================================
-// API REQUEST HELPER
+// JWT DECODER FOR API SERVICE
+// ============================================
+const decodeJWT = (token) => {
+  try {
+    if (!token) return null;
+    
+    // Remove Bearer prefix if exists
+    const cleanToken = token.replace('Bearer ', '');
+    
+    // Split into 3 parts
+    const parts = cleanToken.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+    
+    // Get the middle part (payload)
+    const payloadBase64 = parts[1];
+    
+    // Convert URL-safe base64 to standard base64
+    let standardBase64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Add padding if needed
+    while (standardBase64.length % 4 !== 0) {
+      standardBase64 += '=';
+    }
+    
+    // Decode using base64 library
+    const decodedStr = require('base-64').decode(standardBase64);
+    
+    // Parse JSON
+    return JSON.parse(decodedStr);
+  } catch (error) {
+    console.error('API Service - JWT Decode Error:', error);
+    return null;
+  }
+};
+
+// ============================================
+// TOKEN VALIDATION
+// ============================================
+const validateToken = (token) => {
+  try {
+    if (!token) return { isValid: false, reason: 'NO_TOKEN' };
+    
+    const decoded = decodeJWT(token);
+    if (!decoded) return { isValid: false, reason: 'INVALID_TOKEN' };
+    
+    // Check expiration if present
+    if (decoded.exp) {
+      const expirationTime = decoded.exp * 1000;
+      const currentTime = Date.now();
+      
+      if (currentTime >= expirationTime) {
+        return { isValid: false, reason: 'EXPIRED' };
+      }
+    }
+    
+    return { isValid: true };
+  } catch (error) {
+    return { isValid: false, reason: 'VALIDATION_ERROR' };
+  }
+};
+
+// ============================================
+// RELOGIN QUEUE SYSTEM
+// ============================================
+let isReloginning = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+// ============================================
+// UPDATED MAKE REQUEST WITH COMPLETE LOGIN AUTO-RELOGIN
 // ============================================
 const makeRequest = async (url, options = {}) => {
   try {
     const authState = getAuthState();
-    const token = authState.token;
+    let token = authState.token;
 
     if (!token) {
       throw new Error('AUTH_TOKEN_MISSING');
+    }
+
+    // Check if token is expired or expiring soon
+    const validation = validateToken(token);
+    
+    // If token is expired, trigger complete relogin
+    if (!validation.isValid && validation.reason === 'EXPIRED') {
+      console.log('⚠️ Token expired, checking relogin status...');
+      
+      // If already reloginning, queue this request
+      if (isReloginning) {
+        console.log('⏳ Relogin in progress, queueing request...');
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        });
+      }
+      
+      // Start relogin process
+      isReloginning = true;
+      
+      try {
+        console.log('🔄 Starting complete login auto-relogin...');
+        // FIXED: Use completeRelogin instead of relogin
+        const newToken = await authState.completeRelogin?.();
+        
+        if (newToken) {
+          console.log('✅ Complete login relogin successful, processing queue...');
+          token = newToken;
+          processQueue(null, newToken);
+        } else {
+          console.log('❌ Complete login relogin failed');
+          processQueue(new Error('COMPLETE_RELOGIN_FAILED'));
+          throw new Error('SESSION_EXPIRED');
+        }
+      } catch (reloginError) {
+        processQueue(reloginError);
+        throw reloginError;
+      } finally {
+        isReloginning = false;
+      }
     }
 
     console.log('🌐 API Request:', {
@@ -67,13 +185,63 @@ const makeRequest = async (url, options = {}) => {
 
     console.log('🌐 API Response Status:', response.status);
 
+    // Handle 401 Unauthorized
+    if (response.status === 401) {
+      console.log('🔐 Got 401, checking if we should relogin...');
+      
+      // If we already tried relogin for this request, don't try again
+      if (options._retry) {
+        console.log('❌ Already tried relogin, giving up');
+        throw new Error('SESSION_EXPIRED');
+      }
+      
+      // If already reloginning, queue this request
+      if (isReloginning) {
+        console.log('⏳ Relogin in progress, queueing request...');
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        });
+      }
+      
+      // Start relogin
+      isReloginning = true;
+      
+      try {
+        console.log('🔄 Attempting complete login relogin due to 401...');
+        // FIXED: Use completeRelogin instead of relogin
+        const newToken = await authState.completeRelogin?.();
+        
+        if (newToken) {
+          console.log('✅ Complete login relogin successful, retrying request...');
+          processQueue(null, newToken);
+          
+          // Retry this request with new token
+          return makeRequest(url, {
+            ...options,
+            _retry: true,
+            headers: {
+              ...options.headers,
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+        } else {
+          console.log('❌ Complete login relogin failed');
+          processQueue(new Error('COMPLETE_RELOGIN_FAILED'));
+          throw new Error('SESSION_EXPIRED');
+        }
+      } catch (reloginError) {
+        processQueue(reloginError);
+        throw reloginError;
+      } finally {
+        isReloginning = false;
+      }
+    }
+
     if (!response.ok) {
       let errorData = null;
       try {
         const errorText = await response.text();
         errorData = errorText;
-
-        // Try to parse as JSON if possible
         try {
           errorData = JSON.parse(errorText);
         } catch {
@@ -89,10 +257,7 @@ const makeRequest = async (url, options = {}) => {
         error: errorData
       });
 
-      // Handle specific HTTP errors
-      if (response.status === 401) {
-        throw new Error('SESSION_EXPIRED');
-      } else if (response.status === 403) {
+      if (response.status === 403) {
         throw new Error('PERMISSION_DENIED');
       } else if (response.status === 404) {
         throw new Error('RESOURCE_NOT_FOUND');
@@ -116,10 +281,8 @@ const makeRequest = async (url, options = {}) => {
     console.error('🔥 API Request Failed:', {
       url,
       error: error.message,
-      errorCode: error.code
     });
 
-    // Re-throw for react-query to handle
     throw error;
   }
 };
@@ -206,13 +369,11 @@ const getStatusColor = (statusId, index = 0) => {
 };
 
 // ============================================
-// CRM API SERVICE
+// CRM API SERVICE - REST OF YOUR METHODS (UNCHANGED)
 // ============================================
 const crmApiService = {
-
   /**
    * Fetch lead statuses directly from leads
-   * This will automatically get any new statuses added in backend
    */
   getLeadStatuses: async (forceRefresh = false) => {
     try {
@@ -248,23 +409,20 @@ const crmApiService = {
               id: statusId,
               name: statusName,
               description: lead.LeadStatusDescription || '',
-              sequence: statusMap.size * 10, // Simple sequencing
+              sequence: statusMap.size * 10,
               count: 1,
               color: getStatusColor(statusId),
               isActive: true
             });
           } else {
-            // Increment count
             const status = statusMap.get(statusId);
             status.count++;
           }
         }
       });
 
-      // Convert map to array and sort
       const statuses = Array.from(statusMap.values())
         .sort((a, b) => {
-          // Sort by predefined order: New, Working, Converted, Expired, then others
           const order = { 'N': 1, 'W': 2, 'C': 3, 'E': 4 };
           const aOrder = order[a.id] || 5;
           const bOrder = order[b.id] || 5;
@@ -273,11 +431,6 @@ const crmApiService = {
         });
 
       console.log(`✅ Extracted ${statuses.length} unique statuses from leads`);
-
-      // Log all statuses found
-      statuses.forEach(status => {
-        console.log(`   - ${status.name} (${status.id}): ${status.count} leads, color: ${status.color}`);
-      });
 
       // Update cache
       leadStatusesCache = statuses;
@@ -310,85 +463,70 @@ const crmApiService = {
   },
 
   /**
-/**
- * Fetch leads with optional filters
- */
-  /**
- * Fetch leads with optional filters
- */
-getLeads: async (filters = {}) => {
-  try {
-    const authState = getAuthState();
-    const userId = authState.userId;
-    
-    console.log('🔍 getLeads - Current user ID:', userId);
-    
-    // Build comprehensive filter
-    let filterParts = ['IsSalesLead eq true'];
-    
-    // User should see ONLY leads where they are the sales representative
-    // EXCLUDING leads they created but aren't assigned as sales rep
-    if (userId) {
-      filterParts.push(`SalesRep_ID eq ${userId}`);
+   * Fetch leads with optional filters
+   */
+  getLeads: async (filters = {}) => {
+    try {
+      const authState = getAuthState();
+      const userId = authState.userId;
+      
+      console.log('🔍 getLeads - Current user ID:', userId);
+      
+      // Build comprehensive filter
+      let filterParts = ['IsSalesLead eq true'];
+      
+      if (userId) {
+        filterParts.push(`SalesRep_ID eq ${userId}`);
+      }
+      
+      if (filters.status) {
+        filterParts.push(`LeadStatus/id eq '${filters.status}'`);
+      }
+      
+      if (filters.source) {
+        filterParts.push(`LeadSource/id eq '${filters.source}'`);
+      }
+      
+      if (filters.salesRepId) {
+        filterParts.push(`SalesRep_ID eq ${filters.salesRepId}`);
+      }
+      
+      if (filters.startDate) {
+        filterParts.push(`Created ge '${filters.startDate}'`);
+      }
+      if (filters.endDate) {
+        filterParts.push(`Created le '${filters.endDate}'`);
+      }
+      
+      if (filters.search) {
+        filterParts.push(`(contains(Name, '${filters.search}') or contains(EMail, '${filters.search}') or contains(Phone, '${filters.search}') or contains(BPName, '${filters.search}'))`);
+      }
+      
+      const filterString = filterParts.join(' and ');
+      const url = buildUrl('models/AD_User', {}, filterString);
+      console.log('🔍 Leads API URL:', url);
+      
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      
+      console.log(`✅ Retrieved ${records.length} leads`);
+      
+      return records;
+    } catch (error) {
+      console.error('❌ Get leads failed:', error.message);
+      
+      // Don't throw SESSION_EXPIRED for all errors
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      } else if (error.message === 'TEMPORARY_AUTH_ERROR') {
+        console.log('🔄 Temporary auth error, returning empty array');
+        return [];
+      }
+      
+      return [];
     }
-    
-    // Add status filter using the reference list syntax
-    if (filters.status) {
-      filterParts.push(`LeadStatus/id eq '${filters.status}'`);
-    }
-    
-    // Add source filter
-    if (filters.source) {
-      filterParts.push(`LeadSource/id eq '${filters.source}'`);
-    }
-    
-    // Add sales rep filter - this overrides the default if provided
-    if (filters.salesRepId) {
-      filterParts.push(`SalesRep_ID eq ${filters.salesRepId}`);
-    }
-    
-    // Date filters
-    if (filters.startDate) {
-      filterParts.push(`Created ge '${filters.startDate}'`);
-    }
-    if (filters.endDate) {
-      filterParts.push(`Created le '${filters.endDate}'`);
-    }
-    
-    // Search filter
-    if (filters.search) {
-      filterParts.push(`(contains(Name, '${filters.search}') or contains(EMail, '${filters.search}') or contains(Phone, '${filters.search}') or contains(BPName, '${filters.search}'))`);
-    }
-    
-    // Build filter string
-    const filterString = filterParts.join(' and ');
-    
-    const url = buildUrl('models/AD_User', {}, filterString);
-    console.log('🔍 Leads API URL:', url);
-    
-    const data = await makeRequest(url);
-    
-    // SAFE data extraction with fallback
-    const records = Array.isArray(data.records) ? data.records : [];
-    
-    console.log(`✅ Retrieved ${records.length} leads where user is sales rep`);
-    
-    // Simple count log without warnings
-    if (records.length === 0) {
-      console.log('📊 No leads found where user is assigned as sales rep');
-    }
-    
-    return records;
-  } catch (error) {
-    console.error('❌ Get leads failed:', error.message);
-    
-    if (error.message === 'SESSION_EXPIRED') {
-      throw error;
-    }
-    
-    return [];
-  }
-},
+  },
+
   /**
    * Fetch single lead by ID
    */
@@ -406,15 +544,10 @@ getLeads: async (filters = {}) => {
   },
 
   /**
-   * Fetch sales representatives (AD_Users with specific role or all)
+   * Fetch sales representatives
    */
-  /**
-  * Fetch sales representatives (AD_Users with specific role or all)
-  * Handles pagination to get ALL users, not just first page
-  */
   getSalesRepresentatives: async (filters = {}) => {
     try {
-      // Build filter for sales reps
       let filterParts = ['IsActive eq true'];
       const filterString = filterParts.join(' and ');
       const url = buildUrl('models/AD_User', {}, filterString);
@@ -426,29 +559,24 @@ getLeads: async (filters = {}) => {
 
       console.log(`✅ Retrieved ${records.length} users from first page`);
 
-      // Check if Umar is missing (ID: 1000004)
       const hasUmar = records.some(user => user.id === 1000004);
 
       if (!hasUmar) {
         console.log('⚠️ Umar missing from first page, fetching next page...');
 
-        // Fetch second page (skip=100)
         const secondPageUrl = `${url}${url.includes('?') ? '&' : '?'}$skip=100`;
         const secondPageData = await makeRequest(secondPageUrl);
         const secondPageRecords = Array.isArray(secondPageData.records) ? secondPageData.records : [];
 
         console.log(`📄 Second page: ${secondPageRecords.length} users`);
 
-        // Combine both pages
         records = [...records, ...secondPageRecords];
 
-        // Check again for Umar
         if (records.some(user => user.id === 1000004)) {
           console.log('✅ Umar found on second page!');
         } else {
           console.log('⚠️ Umar still missing, fetching directly...');
 
-          // Last resort: fetch Umar directly
           try {
             const umarUrl = buildUrl('models/AD_User/1000004');
             const umarData = await makeRequest(umarUrl);
@@ -462,7 +590,6 @@ getLeads: async (filters = {}) => {
         }
       }
 
-      // Sort by name
       records.sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
 
       console.log(`📊 Final list has ${records.length} users`);
@@ -477,6 +604,7 @@ getLeads: async (filters = {}) => {
       return [];
     }
   },
+
   /**
    * Create a new lead
    */
@@ -505,7 +633,6 @@ getLeads: async (filters = {}) => {
     try {
       const url = buildUrl(`models/AD_User/${leadId}`);
       console.log('✏️ Update lead URL:', url);
-      console.log('📦 Update payload:', JSON.stringify(updates, null, 2));
 
       const data = await makeRequest(url, {
         method: 'PUT',
@@ -516,7 +643,6 @@ getLeads: async (filters = {}) => {
       return data;
     } catch (error) {
       console.error('Update lead failed:', error.message);
-      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
       throw error;
     }
   },
@@ -581,7 +707,6 @@ getLeads: async (filters = {}) => {
 
       console.log('🔍 getFollowups - Current user ID:', userId);
 
-      // First, get all leads this user can see
       let userLeadIds = [];
       try {
         const leadsFilter = `IsSalesLead eq true and (CreatedBy eq ${userId} or SalesRep_ID eq ${userId})`;
@@ -597,22 +722,18 @@ getLeads: async (filters = {}) => {
         return [];
       }
 
-      // If no leads found, return empty array
       if (userLeadIds.length === 0) {
         console.log('⚠️ No leads found for this user, returning empty followups');
         return [];
       }
 
-      // Build filter parts for followups
       const filterParts = [];
 
-      // Only include followups for leads this user can see
       if (userLeadIds.length > 0) {
         const leadIdConditions = userLeadIds.map(id => `AD_User_ID eq ${id}`);
         filterParts.push(`(${leadIdConditions.join(' or ')})`);
       }
 
-      // Add other filters
       if (filters.isComplete !== undefined) {
         filterParts.push(`IsComplete eq ${filters.isComplete}`);
       }
@@ -629,17 +750,15 @@ getLeads: async (filters = {}) => {
         filterParts.push(`ContactActivityType/id eq '${filters.activityType}'`);
       }
 
-      // Build URL with filters
       const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
       const url = buildUrl('models/C_ContactActivity', {}, filterString);
 
       console.log('🔍 Followups API URL:', url);
 
       const data = await makeRequest(url);
-
       const records = Array.isArray(data.records) ? data.records : [];
-      console.log(`✅ Retrieved ${records.length} followups`);
 
+      console.log(`✅ Retrieved ${records.length} followups`);
       return records;
     } catch (error) {
       console.error('Get followups failed:', error.message);
@@ -736,25 +855,20 @@ getLeads: async (filters = {}) => {
         return [];
       }
 
-      // Build filter parts for sales opportunities
       const filterParts = [];
 
-      // Show opportunities where user is creator OR sales rep
       if (userId) {
         filterParts.push(`(CreatedBy eq ${userId} or SalesRep_ID eq ${userId})`);
       }
 
-      // Stage filter
       if (filters.stage) {
         filterParts.push(`C_SalesStage_ID/id eq '${filters.stage}'`);
       }
 
-      // Opportunity status filter
       if (filters.status) {
         filterParts.push(`OpportunityStatus/id eq '${filters.status}'`);
       }
 
-      // Date filters
       if (filters.startDate) {
         filterParts.push(`Created ge '${filters.startDate}'`);
       }
@@ -762,7 +876,6 @@ getLeads: async (filters = {}) => {
         filterParts.push(`Created le '${filters.endDate}'`);
       }
 
-      // Always include active records
       filterParts.push(`IsActive eq true`);
 
       const filterString = filterParts.length > 0 ? filterParts.join(' and ') : null;
@@ -771,12 +884,9 @@ getLeads: async (filters = {}) => {
       console.log('🔍 Sales Opportunities URL:', url);
 
       const data = await makeRequest(url);
-
-      // SAFE data extraction
       const records = Array.isArray(data.records) ? data.records : [];
 
       console.log(`✅ Retrieved ${records.length} sales opportunities`);
-
       return records;
     } catch (error) {
       console.error('❌ Get sales opportunities failed:', error.message);
@@ -795,11 +905,9 @@ getLeads: async (filters = {}) => {
     try {
       const url = buildUrl('models/C_Opportunity');
 
-      // Get auth state for default values
       const authState = getAuthState();
       const userId = authState.userId;
 
-      // Ensure the data is properly formatted for iDempiere
       const formattedData = {
         ...opportunityData,
         AD_Client_ID: opportunityData.AD_Client_ID?.id ?
@@ -831,7 +939,6 @@ getLeads: async (filters = {}) => {
           { id: 306 },
       };
 
-      // Validate required fields
       if (!formattedData.AD_User_ID) {
         throw new Error('Lead (AD_User_ID) is required to create an opportunity');
       }
@@ -866,7 +973,6 @@ getLeads: async (filters = {}) => {
     try {
       const url = buildUrl(`models/C_Opportunity/${opportunityId}`);
 
-      // Format updates similarly to create
       const formattedUpdates = {
         ...updates,
         AD_Client_ID: updates.AD_Client_ID?.id ? { id: updates.AD_Client_ID.id } : updates.AD_Client_ID,
@@ -894,7 +1000,7 @@ getLeads: async (filters = {}) => {
   },
 
   /**
-   * Fetch lead activities (followups for a specific lead)
+   * Fetch lead activities
    */
   getLeadActivities: async (leadId) => {
     try {
@@ -918,7 +1024,6 @@ getLeads: async (filters = {}) => {
         byStatus: {},
       };
 
-      // Initialize all statuses with 0
       statuses.forEach(status => {
         statistics.byStatus[status.id] = {
           count: 0,
@@ -928,13 +1033,11 @@ getLeads: async (filters = {}) => {
         };
       });
 
-      // Count leads by status
       leads.forEach(lead => {
         const statusId = lead.LeadStatus?.id || 'N';
         if (statistics.byStatus[statusId]) {
           statistics.byStatus[statusId].count++;
         } else {
-          // Handle unknown status
           statistics.byStatus[statusId] = {
             count: 1,
             name: lead.LeadStatus?.identifier || 'Unknown',
@@ -964,7 +1067,6 @@ getLeads: async (filters = {}) => {
     } catch (error) {
       console.error('Search leads failed:', error.message);
 
-      // Fallback to local filtering
       try {
         const allLeads = await crmApiService.getLeads();
         const cleanSearchTerm = searchTerm.trim().toLowerCase();

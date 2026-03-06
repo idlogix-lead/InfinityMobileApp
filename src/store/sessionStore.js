@@ -1,7 +1,10 @@
+// store/sessionStore.js
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { keychainService } from '../services/KeyChainService';
+import { useAuthStore } from './authStore';
+import base64 from 'base-64'; // Import directly instead of using require
 
 // ============================================
 // SESSION MANAGER STORE
@@ -27,19 +30,35 @@ export const useSessionStore = create(
           // Get current session ID
           const currentSessionId = await keychainService.getCurrentSessionId();
           
-          // Transform sessions for UI display
-          const registry = sessions.map(session => ({
-            id: session.userId,
-            userId: session.userId,
-            userName: session.userName,
-            clientName: session.clientName || 'Unknown Client',
-            roleName: session.roleName || 'Unknown Role',
-            organizationName: session.organizationName || 'Unknown Org',
-            savedAt: session.savedAt,
-            isCurrent: session.userId === currentSessionId,
-            serverConfig: session.serverConfig,
-            isComplete: session.isComplete,
-          }));
+          // Transform sessions for UI display and validate tokens
+          const registry = sessions.map(session => {
+            // Validate token if present
+            let tokenValid = true;
+            if (session.token) {
+              try {
+                const decoded = decodeJWT(session.token);
+                if (decoded?.exp) {
+                  tokenValid = Date.now() < decoded.exp * 1000;
+                }
+              } catch (e) {
+                tokenValid = false;
+              }
+            }
+
+            return {
+              id: session.userId,
+              userId: session.userId,
+              userName: session.userName,
+              clientName: session.clientName || 'Unknown Client',
+              roleName: session.roleName || 'Unknown Role',
+              organizationName: session.organizationName || 'Unknown Org',
+              savedAt: session.savedAt,
+              isCurrent: session.userId === currentSessionId,
+              serverConfig: session.serverConfig,
+              isComplete: session.isComplete,
+              tokenValid // Add token validity flag
+            };
+          });
 
           set({ sessionsRegistry: registry, isLoading: false });
           return registry;
@@ -123,6 +142,24 @@ export const useSessionStore = create(
             throw new Error('Session not found');
           }
           
+          // Validate token before switching
+          let tokenValid = true;
+          if (session.token) {
+            try {
+              const decoded = decodeJWT(session.token);
+              if (decoded?.exp) {
+                tokenValid = Date.now() < decoded.exp * 1000;
+              }
+            } catch (e) {
+              tokenValid = false;
+            }
+          }
+          
+          if (!tokenValid) {
+            console.log('⚠️ Switching to session with expired token');
+            // Still allow switching - let the API handle 401s
+          }
+          
           // Set as current session
           await keychainService.setCurrentSessionId(userId);
           
@@ -194,6 +231,15 @@ export const useSessionStore = create(
           console.error('Error initializing sessions:', error);
         }
       },
+
+      // Get sessions with validity info
+      getSessionsWithValidity: () => {
+        const { sessionsRegistry } = get();
+        return sessionsRegistry.map(session => ({
+          ...session,
+          tokenValid: session.tokenValid
+        }));
+      },
     }),
     {
       name: 'session-storage',
@@ -205,3 +251,23 @@ export const useSessionStore = create(
     }
   )
 );
+
+// ============================================
+// MOVED decodeJWT OUTSIDE THE STORE
+// ============================================
+const decodeJWT = (token) => {
+  try {
+    if (!token) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const payload = parts[1];
+    const base64Str = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64Str.padEnd(base64Str.length + (4 - base64Str.length % 4) % 4, '=');
+    
+    const decoded = base64.decode(padded);
+    return JSON.parse(decoded);
+  } catch (error) {
+    return null;
+  }
+};

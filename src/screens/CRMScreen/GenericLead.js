@@ -1055,11 +1055,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+   
   },
   sortInfoContainer: {
     paddingHorizontal: spacing.md,
-    paddingVertical: verticalScale(6),
+   
     borderRadius: Layout.borderRadius.md,
   },
   totalCountText: {},
