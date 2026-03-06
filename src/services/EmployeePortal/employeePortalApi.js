@@ -31,7 +31,7 @@ const getAuthState = () => {
 
 const employeeApi = {
   // ============================================
-  // USER INFO - Now uses makeRequest and auth store
+  // USER INFO - FIXED: Use full URL
   // ============================================
   getUserInfo: async () => {
     try {
@@ -47,10 +47,14 @@ const employeeApi = {
         };
       }
       
-      // Use apiService.makeRequest which handles auto-relogin
-      const data = await apiService.makeRequest(
-        `models/AD_User?$filter=AD_User_ID eq ${userId}`
-      );
+      // ✅ FIXED: Get base URL first
+      const baseUrl = apiService.getBaseUrl();
+      const url = `${baseUrl}/models/AD_User?$filter=AD_User_ID eq ${userId}`;
+      
+      console.log(`🔍 Fetching user info from: ${url}`);
+      
+      // Use apiService.makeRequest with full URL
+      const data = await apiService.makeRequest(url);
       
       return data.records?.[0] || {
         Name: 'Muhammad Anwar',
@@ -60,12 +64,10 @@ const employeeApi = {
     } catch (error) {
       console.error('Get user info error:', error.message);
       
-      // Let React Query handle session expiration
       if (error.message === 'SESSION_EXPIRED') {
         throw error;
       }
       
-      // Return default user info for other errors
       return {
         Name: 'Muhammad Anwar',
         Title: { identifier: 'Hr Manager' },
@@ -75,7 +77,7 @@ const employeeApi = {
   },
   
   // ============================================
-  // LEAVE REQUESTS - Now uses makeRequest and auth store
+  // LEAVE REQUESTS - FIXED: Use full URL
   // ============================================
   getLeaveRequests: async (filters = {}) => {
     try {
@@ -119,10 +121,12 @@ const employeeApi = {
         filterString += ` and startdate ge ${formattedStartDate} and enddate le ${formattedEndDate}`;
       }
       
-      // Use apiService.makeRequest which handles auto-relogin
-      const data = await apiService.makeRequest(
-        `models/HR_EmpLev_Posting?$filter=${encodeURIComponent(filterString)}&$orderby=EndDate desc`
-      );
+      // ✅ FIXED: Construct full URL
+      const url = `${baseUrl}/models/HR_EmpLev_Posting?$filter=${encodeURIComponent(filterString)}&$orderby=EndDate desc`;
+      
+      console.log(`🔍 Fetching leave requests from: ${url}`);
+      
+      const data = await apiService.makeRequest(url);
       
       return data.records || [];
     } catch (error) {
@@ -137,14 +141,13 @@ const employeeApi = {
   },
   
   // ============================================
-  // TODAY'S ATTENDANCE - Mock data, no API needed
+  // TODAY'S ATTENDANCE - Mock data (no changes)
   // ============================================
   getTodayAttendance: async () => {
     try {
       const currentHour = new Date().getHours();
       const currentMinute = new Date().getMinutes();
       
-      // Generate realistic times based on current time
       let checkInTime = '--:--:--';
       let checkOutTime = '--:--:--';
       let status = 'Not Checked In';
@@ -167,7 +170,6 @@ const employeeApi = {
       };
     } catch (error) {
       console.error('Get today attendance error:', error.message);
-      // Always return a valid object
       return {
         checkInTime: '09:05:56 am',
         checkOutTime: '--:--:--',
@@ -177,11 +179,10 @@ const employeeApi = {
   },
   
   // ============================================
-  // LEAVE BALANCE - Mock data, no API needed
+  // LEAVE BALANCE - Mock data (no changes)
   // ============================================
   getLeaveBalance: async () => {
     try {
-      // This could be enhanced to fetch from API in the future
       return { 
         balance: 2,
         totalLeaves: 20,
@@ -198,11 +199,10 @@ const employeeApi = {
   },
   
   // ============================================
-  // ACTIVITIES - Mock data, no API needed
+  // ACTIVITIES - Mock data (no changes)
   // ============================================
   getActivities: async () => {
     try {
-      // This could be enhanced to fetch from API in the future
       return [
         {
           id: 1,
@@ -249,7 +249,7 @@ const employeeApi = {
   },
   
   // ============================================
-  // OPTIONAL: Get user by ID (if needed separately)
+  // OPTIONAL: Get user by ID - FIXED
   // ============================================
   getUserById: async (userId) => {
     try {
@@ -257,7 +257,10 @@ const employeeApi = {
         throw new Error('USER_ID_MISSING');
       }
       
-      const data = await apiService.makeRequest(`models/AD_User/${userId}`);
+      const baseUrl = apiService.getBaseUrl();
+      const url = `${baseUrl}/models/AD_User/${userId}`;
+      
+      const data = await apiService.makeRequest(url);
       return data;
     } catch (error) {
       console.error('Get user by ID error:', error.message);
@@ -269,7 +272,7 @@ const employeeApi = {
   },
   
   // ============================================
-  // OPTIONAL: Get employee by partner ID
+  // OPTIONAL: Get employee by partner ID - FIXED
   // ============================================
   getEmployeeByPartnerId: async (partnerId) => {
     try {
@@ -277,10 +280,10 @@ const employeeApi = {
         throw new Error('PARTNER_ID_MISSING');
       }
       
-      const data = await apiService.makeRequest(
-        `models/AD_User?$filter=C_BPartner_ID eq ${partnerId}`
-      );
+      const baseUrl = apiService.getBaseUrl();
+      const url = `${baseUrl}/models/AD_User?$filter=C_BPartner_ID eq ${partnerId}`;
       
+      const data = await apiService.makeRequest(url);
       return data.records?.[0] || null;
     } catch (error) {
       console.error('Get employee by partner ID error:', error.message);
