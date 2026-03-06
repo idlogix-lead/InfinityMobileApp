@@ -114,6 +114,9 @@ import {
   fetchRequestpro,
   fetchReqStatus,
   fetchMyComments,
+  uploadAttachment,
+  fetchAttachments,
+  downloadAttachment,
 } from '../services/api/requests.api';
 
 // Queries
@@ -174,3 +177,19 @@ export const useCreateTask = () =>
   });
 
 export const useReqStatus = () => useQuery('reqStatus', () => fetchReqStatus());
+
+// export const useUploadAttachment = () =>
+//   useMutation(payload => {
+//     const {uploadAttachment} = require('../services/api/requests.api');
+//     return uploadAttachment(payload);
+//   });
+export const useUploadAttachment = () =>
+  useMutation({
+    mutationFn: uploadAttachment,
+  });
+export const useAttachments = taskId =>
+  useQuery(['attachments', taskId], () => fetchAttachments(taskId));
+
+export const useDownloadAttachment = () => {
+  return useMutation(downloadAttachment);
+};

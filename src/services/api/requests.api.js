@@ -201,6 +201,7 @@
 
 // services/CRMAPI/requests.api.js
 import axios from 'axios';
+import RNFS from 'react-native-fs';
 
 // ============================================
 // AUTH STORE HELPER (No AsyncStorage)
@@ -480,4 +481,132 @@ export const fetchReqStatus = async () => {
   const baseURL = getBaseURL();
   const res = await makeRequest(`${baseURL}/models/R_Status`);
   return res.records || [];
+};
+
+// const convertToBase64 = async uri => {
+//   const base64 = await RNFS.readFile(uri, 'base64');
+//   return base64;
+// };
+
+// export const uploadAttachment = async ({taskId, file}) => {
+//   const baseURL = getBaseURL();
+//   const base64Data = await convertToBase64(file.uri);
+
+//   let authState;
+//   try {
+//     const store = require('../../store/authStore');
+//     authState = store.useAuthStore.getState();
+//   } catch (e) {
+//     throw new Error('AUTH_STORE_ERROR');
+//   }
+
+//   const {token} = authState;
+
+//   const formData = new FormData();
+
+//   formData.append('file', {
+//     uri: file.uri,
+//     name: file.name,
+//     type: file.type || 'application/octet-stream',
+//   });
+
+//   formData.append('R_Request_ID', taskId);
+
+//   const res = await axios({
+//     url: `${baseURL}/attachments`,
+//     method: 'POST',
+//     headers: {
+//       Authorization: `Bearer ${token}`,
+//       'Content-Type': 'multipart/form-data',
+//     },
+//     data: formData,
+//   });
+
+//   return res.data;
+// };
+
+const convertToBase64 = async uri => {
+  const base64 = await RNFS.readFile(uri, 'base64');
+  return base64;
+};
+
+export const uploadAttachment = async ({taskId, file, onProgress}) => {
+  const baseURL = getBaseURL();
+
+  let authState;
+  try {
+    const store = require('../../store/authStore');
+    authState = store.useAuthStore.getState();
+  } catch (e) {
+    throw new Error('AUTH_STORE_ERROR');
+  }
+
+  const {token} = authState;
+
+  const base64Data = await convertToBase64(file.uri);
+  console.log('Base64 Start:', base64Data.substring(0, 50));
+  console.log('Base64 End:', base64Data.substring(base64Data.length - 50));
+
+  const payload = {
+    name: `${taskId}_${Date.now()}_${file.name}`,
+    data: base64Data,
+  };
+
+  const res = await axios({
+    url: `${baseURL}/models/R_Request/${taskId}/attachments`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: 'same-origin',
+
+    data: payload,
+    onUploadProgress: progressEvent => {
+      if (!progressEvent.total) return;
+
+      const percent = Math.round(
+        (progressEvent.loaded * 100) / progressEvent.total,
+      );
+
+      if (onProgress) onProgress(percent);
+    },
+  });
+
+  return res.data;
+};
+
+export const fetchAttachments = async taskId => {
+  const baseURL = getBaseURL();
+
+  const res = await makeRequest(
+    `${baseURL}/models/R_Request/${taskId}/attachments`,
+  );
+
+  return res?.attachments || [];
+};
+export const downloadAttachment = async ({taskId, fileName, token}) => {
+  const baseURL = getBaseURL();
+
+  const url = `${baseURL}/models/R_Request/${taskId}/attachments/${encodeURIComponent(
+    fileName,
+  )}`;
+
+  const localPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+
+  const result = await RNFS.downloadFile({
+    fromUrl: url,
+    toFile: localPath,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }).promise;
+
+  if (result.statusCode !== 200) {
+    throw new Error('Download failed');
+  }
+
+  return localPath;
 };

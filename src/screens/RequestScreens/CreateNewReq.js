@@ -23,7 +23,7 @@ import {decode as atob, encode as btoa} from 'base-64';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/dist/MaterialCommunityIcons';
 import base64 from 'base-64';
-import Loader from '../../components/Loader';
+import Loader from '../../components/Loader'; 
 import RBSheet from 'react-native-raw-bottom-sheet';
 
 const CreateNewReq = ({navigation}) => {

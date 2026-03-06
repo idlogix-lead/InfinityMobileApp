@@ -14,6 +14,7 @@ import {
   BackHandler,
   TouchableWithoutFeedback,
   Image,
+  ToastAndroid,
 } from 'react-native';
 import React, {useEffect, useRef, useState} from 'react';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
@@ -25,6 +26,8 @@ import {useNavigation} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReqHeader from '../../components/ReqHeader';
 import {Picker} from '@react-native-picker/picker';
+import RNFS from 'react-native-fs';
+import FileViewer from 'react-native-file-viewer';
 
 import {useTaskStore} from '../../store/requestStore';
 import {
@@ -40,9 +43,13 @@ import {
   useCampaigns,
   useRMA,
   useReqStatus,
+  useUploadAttachment,
+  useAttachments,
+  useDownloadAttachment,
 } from '../../hooks/useRequests';
 import Create from './Create';
 import moment from 'moment';
+import {getAuthState} from '../../utils/apiUtils';
 
 const TaskDetail = ({route}) => {
   // const {task} = route.params;
@@ -84,6 +91,9 @@ const TaskDetail = ({route}) => {
   const [showReferences, setShowReferences] = useState(false);
   // const [showHistory, setShowHistory] = useState(false);
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedAttachment, setSelectedAttachment] = useState(null);
+  const [attachmentModal, setAttachmentModal] = useState(false);
 
   const flatListRef = useRef(null);
   const inputRef = useRef(null);
@@ -134,6 +144,13 @@ const TaskDetail = ({route}) => {
 
   const {mutateAsync: sendTaskMessageApi} = useSendTaskMessage();
   const {mutateAsync: updateTask} = useUpdateTask();
+
+  const {mutateAsync: uploadAttachmentApi, isPending: uploadingAttachment} =
+    useUploadAttachment();
+  const {data: attachmentsList, refetch: refetchAttachments} = useAttachments(
+    task?.id,
+  );
+  const {mutateAsync: downloadAttachmentApi} = useDownloadAttachment();
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
@@ -216,13 +233,53 @@ const TaskDetail = ({route}) => {
       prev.map(item => (item.id === id ? {...item, done: !item.done} : item)),
     );
   };
+  // ATTACHMENTS
+  const uploadSelectedAttachments = async () => {
+    if (!attachments.length) return;
 
+    try {
+      for (const file of attachments) {
+        setUploadProgress(0);
+        await uploadAttachmentApi({
+          taskId: task.id,
+          file: file,
+          onProgress: p => setUploadProgress(p),
+        });
+      }
+
+      Alert.alert('Success', 'Attachment uploaded');
+    } catch (err) {
+      console.log('Upload error:', err);
+      Alert.alert('Error', 'Attachment upload failed');
+    }
+  };
+
+  // const openFileManager = async () => {
+  //   try {
+  //     const res = await DocumentPicker.pick({
+  //       type: [DocumentPicker.types.allFiles],
+  //     });
+  //     const file = res[0];
+  //     const newAttachment = {
+  //       id: Date.now(),
+  //       name: file.name,
+  //       uri: file.uri,
+  //       type: file.type,
+  //       size: file.size,
+  //     };
+  //     setAttachments(prev => [...prev, newAttachment]);
+  //   } catch (err) {
+  //     if (!DocumentPicker.isCancel(err)) console.log('Picker error:', err);
+  //   }
+  // };
   const openFileManager = async () => {
     try {
       const res = await DocumentPicker.pick({
         type: [DocumentPicker.types.allFiles],
       });
+
       const file = res[0];
+
       const newAttachment = {
         id: Date.now(),
         name: file.name,
@@ -230,12 +287,127 @@ const TaskDetail = ({route}) => {
         type: file.type,
         size: file.size,
       };
+
       setAttachments(prev => [...prev, newAttachment]);
+
+      // 🔥 Upload immediately
+      await uploadAttachmentApi({
+        taskId: task.id,
+        file: newAttachment,
+      });
     } catch (err) {
       if (!DocumentPicker.isCancel(err)) console.log('Picker error:', err);
     }
   };
 
+  const handleOpenAttachment = async file => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+
+      const localPath = await downloadAttachmentApi({
+        taskId: task.id,
+        fileName: file.name,
+        token,
+      });
+
+      await FileViewer.open(localPath);
+    } catch (error) {
+      Alert.alert('Error', 'Cannot open file');
+    }
+  };
+  // const openAttachment = async file => {
+  //   try {
+  //     const localPath = `${RNFS.DocumentDirectoryPath}/${file.name}`;
+
+  //     await RNFS.downloadFile({
+  //       fromUrl: file.downloadUrl,
+  //       toFile: localPath,
+  //     }).promise;
+
+  //     await FileViewer.open(localPath);
+  //   } catch (error) {
+  //     console.log(error);
+  //     Alert.alert('Error', 'Cannot open file');
+  //   }
+  // };
+
+  // const openAttachment = async () => {
+  //   try {
+  //     // const token = await AsyncStorage.getItem('token');
+  //     // const {token} = aut
+  //     const {token} = getAuthState;
+
+  //     const localPath = await downloadAttachmentApi({
+  //       taskId: task.id,
+  //       fileName: selectedAttachment.name,
+  //       token,
+  //     });
+
+  //     await FileViewer.open(localPath);
+
+  //     setAttachmentModal(false);
+  //   } catch (error) {
+  //     console.log(error);
+  //     Alert.alert('Error', 'Cannot open file');
+  //   }
+  // };
+
+  const openAttachment = async () => {
+    try {
+      const {token} = getAuthState();
+
+      const localPath = await downloadAttachmentApi({
+        taskId: task.id,
+        fileName: selectedAttachment.name,
+        token,
+      });
+
+      setAttachmentModal(false);
+
+      await FileViewer.open(localPath, {
+        showOpenWithDialog: true,
+      });
+    } catch (error) {
+      console.log('OPEN ERROR:', error);
+      Alert.alert('Error', 'Cannot open file');
+    }
+  };
+  const downloadAttachmentFile = async () => {
+    try {
+      const {token} = getAuthState();
+
+      await downloadAttachmentApi({
+        taskId: task.id,
+        fileName: selectedAttachment.name,
+        token,
+      });
+
+      ToastAndroid.show('Download completed', ToastAndroid.SHORT);
+
+      setAttachmentModal(false);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Download failed');
+    }
+  };
+  // const downloadAttachmentFile = async () => {
+  //   try {
+  //     const {token} = getAuthState;
+
+  //     const localPath = await downloadAttachmentApi({
+  //       taskId: task.id,
+  //       fileName: selectedAttachment.name,
+  //       token,
+  //     });
+
+  //     ToastAndroid.show('Download completed', ToastAndroid.SHORT);
+
+  //     setAttachmentModal(false);
+  //   } catch (error) {
+  //     console.log(error);
+  //     Alert.alert('Error', 'Download failed');
+  //   }
+  // };
   const getAvatarColor = (identifier, uniqueId) => {
     const colors = [
       '#3498DB',
@@ -636,6 +808,169 @@ const TaskDetail = ({route}) => {
           </View>
           <View style={[styles.divider, {backgroundColor: '#ccc'}]} />
 
+          {/* REFERENCES */}
+
+          <View style={[styles.divider, {backgroundColor: '#ccc'}]} />
+
+          {/* SUBTASKS */}
+          <View style={styles.section}>
+            <View style={styles.asanaHeader}>
+              <Text style={styles.asanaTitle}>Subtasks</Text>
+              <TouchableOpacity
+                style={styles.asanaPlusBtn}
+                onPress={() => setShowSubtaskModal(true)}>
+                <MaterialIcons name="add" size={18} color="#666" />
+              </TouchableOpacity>
+            </View>
+            {subtasks.length === 0 && (
+              <View style={styles.asanaEmptyRow}>
+                <MaterialIcons
+                  name="radio-button-unchecked"
+                  size={18}
+                  color="#bbb"
+                />
+                <Text style={styles.asanaPlaceholder}>Add subtask</Text>
+              </View>
+            )}
+            {subtasks.map(item => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.asanaSubtaskRow}
+                onPress={() => toggleSubtask(item.id)}>
+                <MaterialIcons
+                  name={item.done ? 'check-circle' : 'radio-button-unchecked'}
+                  size={20}
+                  color={item.done ? '#3498DB' : '#bbb'}
+                />
+                <Text
+                  style={[
+                    styles.asanaSubtaskText,
+                    item.done && styles.doneText,
+                  ]}>
+                  {item.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* ATTACHMENTS */}
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Attachments</Text>
+            </View>
+
+            {(!attachmentsList || attachmentsList.length === 0) && (
+              <Text style={styles.noAttachment}>No attachments found</Text>
+            )}
+
+            {attachmentsList && attachmentsList.length > 0 && (
+              <View>
+                {attachmentsList.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.attachmentCard}
+                    onPress={() => {
+                      setSelectedAttachment(item);
+                      setAttachmentModal(true);
+                    }}>
+                    <Text style={styles.fileName}>{item.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.addAttachmentBox}
+              onPress={openFileManager}>
+              <MaterialIcons name="add" size={18} color="#555" />
+              <Text style={styles.addAttachmentText}>Add Attachment</Text>
+            </TouchableOpacity>
+
+            {attachments.length === 0 ? (
+              <Text style={styles.noAttachment}>No attachments added</Text>
+            ) : (
+              <>
+                {attachments.map(file => (
+                  <TouchableOpacity key={file.id} style={styles.attachmentCard}>
+                    <MaterialIcons
+                      name={
+                        file.type?.includes('image')
+                          ? 'image'
+                          : file.type?.includes('pdf')
+                          ? 'picture-as-pdf'
+                          : 'insert-drive-file'
+                      }
+                      size={20}
+                      color="#2F4FE3"
+                    />
+                    <Text style={styles.fileName}>{file.name}</Text>
+                    <MaterialIcons
+                      name="check-circle"
+                      size={18}
+                      color="#2ECC71"
+                    />
+                  </TouchableOpacity>
+                ))}
+
+                {/* 🔥 Upload Button */}
+                {uploadProgress > 0 && uploadProgress < 100 && (
+                  <View style={styles.progressContainer}>
+                    <View
+                      style={[
+                        styles.progressBar,
+                        {width: `${uploadProgress}%`},
+                      ]}
+                    />
+                    <Text style={styles.progressText}>
+                      Uploading {uploadProgress}%
+                    </Text>
+                  </View>
+                )}
+                {/* <TouchableOpacity
+                  style={styles.uploadBtn}
+                  onPress={uploadSelectedAttachments}>
+                  <Text style={{color: '#fff', fontWeight: '600'}}>Upload</Text>
+                </TouchableOpacity> */}
+              </>
+            )}
+          </View>
+          {/* <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Attachments</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addAttachmentBox}
+              onPress={openFileManager}>
+              <MaterialIcons name="add" size={18} color="#555" />
+              <Text style={styles.addAttachmentText}>Add Attachment</Text>
+            </TouchableOpacity>
+            {attachments.length === 0 ? (
+              <Text style={styles.noAttachment}>No attachments added</Text>
+            ) : (
+              attachments.map(file => (
+                <TouchableOpacity key={file.id} style={styles.attachmentCard}>
+                  <MaterialIcons
+                    name={
+                      file.type?.includes('image')
+                        ? 'image'
+                        : file.type?.includes('pdf')
+                        ? 'picture-as-pdf'
+                        : 'insert-drive-file'
+                    }
+                    size={20}
+                    color="#2F4FE3"
+                  />
+                  <Text style={styles.fileName}>{file.name}</Text>
+                  <MaterialIcons
+                    name="check-circle"
+                    size={18}
+                    color="#2ECC71"
+                  />
+                </TouchableOpacity>
+              ))
+            )}
+          </View> */}
           {/* REFERENCES */}
           <View style={styles.sectionContainerRef}>
             <TouchableOpacity
@@ -1313,87 +1648,6 @@ const TaskDetail = ({route}) => {
             )}
           </View>
 
-          <View style={[styles.divider, {backgroundColor: '#ccc'}]} />
-
-          {/* SUBTASKS */}
-          <View style={styles.section}>
-            <View style={styles.asanaHeader}>
-              <Text style={styles.asanaTitle}>Subtasks</Text>
-              <TouchableOpacity
-                style={styles.asanaPlusBtn}
-                onPress={() => setShowSubtaskModal(true)}>
-                <MaterialIcons name="add" size={18} color="#666" />
-              </TouchableOpacity>
-            </View>
-            {subtasks.length === 0 && (
-              <View style={styles.asanaEmptyRow}>
-                <MaterialIcons
-                  name="radio-button-unchecked"
-                  size={18}
-                  color="#bbb"
-                />
-                <Text style={styles.asanaPlaceholder}>Add subtask</Text>
-              </View>
-            )}
-            {subtasks.map(item => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.asanaSubtaskRow}
-                onPress={() => toggleSubtask(item.id)}>
-                <MaterialIcons
-                  name={item.done ? 'check-circle' : 'radio-button-unchecked'}
-                  size={20}
-                  color={item.done ? '#3498DB' : '#bbb'}
-                />
-                <Text
-                  style={[
-                    styles.asanaSubtaskText,
-                    item.done && styles.doneText,
-                  ]}>
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* ATTACHMENTS */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Attachments</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.addAttachmentBox}
-              onPress={openFileManager}>
-              <MaterialIcons name="add" size={18} color="#555" />
-              <Text style={styles.addAttachmentText}>Add Attachment</Text>
-            </TouchableOpacity>
-            {attachments.length === 0 ? (
-              <Text style={styles.noAttachment}>No attachments added</Text>
-            ) : (
-              attachments.map(file => (
-                <TouchableOpacity key={file.id} style={styles.attachmentCard}>
-                  <MaterialIcons
-                    name={
-                      file.type?.includes('image')
-                        ? 'image'
-                        : file.type?.includes('pdf')
-                        ? 'picture-as-pdf'
-                        : 'insert-drive-file'
-                    }
-                    size={20}
-                    color="#2F4FE3"
-                  />
-                  <Text style={styles.fileName}>{file.name}</Text>
-                  <MaterialIcons
-                    name="check-circle"
-                    size={18}
-                    color="#2ECC71"
-                  />
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-
           {/* ACTIVITY */}
           <View style={styles.activityContainer}>
             <TouchableOpacity
@@ -1580,6 +1834,37 @@ const TaskDetail = ({route}) => {
                 </ScrollView>
               </View>
             </View>
+          </Modal>
+
+          {/* AttachMent Modal */}
+          <Modal
+            visible={attachmentModal}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setAttachmentModal(false)}>
+            <TouchableWithoutFeedback onPress={() => setAttachmentModal(false)}>
+              <View style={styles.modalContainer}>
+                <View style={styles.modalView}>
+                  <Text style={{fontSize: 18, fontWeight: '700'}}>
+                    Attachment Options
+                  </Text>
+
+                  {/* OPEN BUTTON */}
+                  <TouchableOpacity
+                    style={styles.txtContainer}
+                    onPress={() => openAttachment()}>
+                    <Text style={styles.txt}>Open</Text>
+                  </TouchableOpacity>
+
+                  {/* DOWNLOAD BUTTON */}
+                  <TouchableOpacity
+                    style={styles.txtContainer}
+                    onPress={() => downloadAttachmentFile()}>
+                    <Text style={styles.txt}>Download</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
           </Modal>
         </ScrollView>
 
@@ -2482,5 +2767,66 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: '#ddd',
+  },
+
+  uploadBtn: {
+    marginTop: 12,
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+
+  progressContainer: {
+    marginVertical: 10,
+    height: 8,
+    backgroundColor: '#eee',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#3498DB',
+  },
+
+  progressText: {
+    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: -2},
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  txtContainer: {
+    width: '90%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F5F7FB',
+    alignItems: 'center',
+    marginTop: 15,
+  },
+
+  txt: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });
