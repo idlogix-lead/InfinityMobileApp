@@ -78,6 +78,9 @@ import LeadEdit from '../../screens/CRMLeadDetail/Leadedit';
 import GenericLead from '../../screens/CRMScreen/GenericLead';
 import WFDetail from '../../screens/Approvals/WFDetail';
 import ApprovalNotification from '../../screens/Approvals/ApprovalNotification';
+import SalesOpportunityDetail from '../../screens/SalesOppertunity/SalesOpportunityDetails';
+import SalesOpportunityFollowupDetail from '../../screens/SalesOppertunity/SalesOppFollowupDetail';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -147,6 +150,8 @@ const AppNavigator = () => {
       <Stack.Screen name="AddActivity" component={AddActivity} />
       <Stack.Screen name="LeadEdit" component={LeadEdit} />
       <Stack.Screen name="LeadsDetail" component={LeadDetailsScreen} />
+         
+          <Stack.Screen name="SalesFollowupDetail" component={SalesOpportunityFollowupDetail} />
       <Stack.Screen name="AddLeads" component={AddLeads} />
       <Stack.Screen name="CRMGraph" component={CRMGraph} />
       <Stack.Screen name="TodayFollowups" component={TodayFollowUp} />
@@ -155,6 +160,7 @@ const AppNavigator = () => {
       <Stack.Screen name="AllFollowups" component={AllFollowups} />
       <Stack.Screen name="SaleStageDetails" component={SaleStageDetails} />
       <Stack.Screen name="AddSaleOppor" component={AddSaleOppor} />
+      <Stack.Screen name="SalesDetail" component={SalesOpportunityDetail} />
       <Stack.Screen name="CreateActivity" component={CreateActivity} />
       <Stack.Screen name="Requests" component={Requests} />
       <Stack.Screen name="PriorityRequests" component={PriorityRequests} />

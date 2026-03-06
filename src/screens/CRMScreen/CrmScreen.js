@@ -1,4 +1,5 @@
-// screens/CrmScreen.js - Updated with full blue tab container and LeadTab component
+// screens/CrmScreen.js - Clean version without forceUpdate
+
 import React, { useRef, useMemo, useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -23,22 +24,44 @@ import {
   useLeads,
   useFollowups,
   useSalesOpportunities,
+  useLeadStatuses,
 } from '../../hooks/CRMhooks/useCRM';
 import Loader from '../../components/Loader';
-import LeadTab from '../CRMScreen/LeadTab'; // Import the new component
+import LeadTab from '../CRMScreen/LeadTab';
 import SalesTab from '../../screens/SalesOppertunity/SalesTab';
 import FollowupScreen from '../CRMFollowupsScreen/FollowupScreen';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import moment from 'moment';
-import CustomHeader from '../../components/CustomHeader'; 
+import CustomHeader from '../../components/CustomHeader';
 
-const screenWidth = Dimensions.get('window').width;
+// Import theme
+import theme from '../../constants/CRMTheme/CRMTheme';
+
+// Destructure theme for easy access
+const { Colors, Typography, Layout, Spacing } = theme;
+const { scale, verticalScale, screen } = Layout;
 
 const CrmScreen = ({ navigation }) => {
   const queryClient = useQueryClient();
   const scrollViewRef = useRef(null);
-  const [forceUpdate, setForceUpdate] = useState(0);
+  const [manualRefreshTrigger, setManualRefreshTrigger] = useState(0);
+
+  // Fetch dynamic lead statuses
+  const { data: leadStatuses = [] } = useLeadStatuses();
+
+  // DEBUG: Check auth state on mount
+  useEffect(() => {
+    const authState = useAuthStore.getState();
+    console.log('🔐 Auth State in CrmScreen:', {
+      userId: authState.userId,
+      userName: authState.userName,
+      hasToken: !!authState.token,
+      tokenLength: authState.token?.length,
+      isCompleteAuthenticated: authState.isCompleteAuthenticated,
+      serverConfig: authState.serverConfig
+    });
+  }, []);
 
   // Add this useEffect to handle Android back button
   useEffect(() => {
@@ -76,19 +99,7 @@ const CrmScreen = ({ navigation }) => {
     return () => backHandler.remove();
   }, [navigation]);
 
-  // Subscribe to query cache changes for real-time updates
-  useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
-      // When any leads query is updated, force a re-render
-      if (event?.query?.queryKey?.[0] === 'leads') {
-        setForceUpdate(prev => prev + 1);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [queryClient]);
+  // REMOVED: forceUpdate state and cache subscription useEffect
 
   // Get UI states from CRM store
   const {
@@ -132,13 +143,36 @@ const CrmScreen = ({ navigation }) => {
     isRefetching: followupsRefetching,
   } = useFollowups();
 
+  // Get sales opportunities with proper error handling and logging
   const {
     data: salesOpportunities = [],
     isLoading: salesLoading,
     error: salesError,
     refetch: refetchSales,
     isRefetching: salesRefetching,
-  } = useSalesOpportunities();
+  } = useSalesOpportunities({}, true); // Empty filters, enabled true
+
+  // Manual refresh trigger - keep this for pull-to-refresh
+  useEffect(() => {
+    if (manualRefreshTrigger > 0) {
+      console.log('🔄 Manual refresh triggered for sales opportunities');
+      refetchSales();
+    }
+  }, [manualRefreshTrigger]);
+
+  // Log sales opportunities for debugging
+  useEffect(() => {
+    console.log('📊 Sales Opportunities in CrmScreen:', {
+      count: salesOpportunities.length,
+      data: salesOpportunities.map(opp => ({
+        id: opp.id,
+        documentNo: opp.DocumentNo,
+        businessPartner: opp.businessPartnerName || opp.C_BPartner_ID?.identifier,
+        amount: opp.OpportunityAmt,
+        stage: opp.salesStageName || opp.C_SalesStage_ID?.identifier
+      }))
+    });
+  }, [salesOpportunities]);
 
   // Combined refreshing state
   const isRefreshing = leadsRefetching || followupsRefetching || salesRefetching || manualRefreshing;
@@ -146,38 +180,107 @@ const CrmScreen = ({ navigation }) => {
   // Get the latest leads for display
   const latestLeads = getLatestLeads();
 
-  // Memoized lead calculations based on displayed leads - using latestLeads
+  // ============================================
+  // DYNAMIC LEAD CATEGORIZATION BASED ON STATUSES
+  // ============================================
   const {
-    newLeads,
+    leadsByStatus,
+    statusSummaries,
+    totalLeads,
     convertedLeads,
     workingLeads,
+    newLeads,
     expiredLeads,
-    totalLeads
+    otherStatusLeads
   } = useMemo(() => {
-    const newLeads = latestLeads.filter(lead => lead?.LeadStatus?.id === 'N');
-    const converted = latestLeads.filter(lead => lead?.LeadStatus?.id === 'C');
-    const working = latestLeads.filter(lead => lead?.LeadStatus?.id === 'W');
-    const expired = latestLeads.filter(lead => lead?.LeadStatus?.id === 'E');
+    // Group leads by their status ID
+    const grouped = {};
+    const summaries = [];
+
+    // Initialize with all known statuses
+    leadStatuses.forEach(status => {
+      grouped[status.id] = [];
+    });
+
+    // Also add an "unknown" category for any status not in our list
+    grouped['unknown'] = [];
+
+    // Categorize each lead
+    latestLeads.forEach(lead => {
+      const statusId = lead.statusId || lead.LeadStatus?.id || 'unknown';
+      if (grouped[statusId]) {
+        grouped[statusId].push(lead);
+      } else {
+        grouped['unknown'].push(lead);
+      }
+    });
+
+    // Create summaries for each status
+    leadStatuses.forEach(status => {
+      summaries.push({
+        id: status.id,
+        name: status.name,
+        color: status.color,
+        count: grouped[status.id]?.length || 0,
+        leads: grouped[status.id] || []
+      });
+    });
+
+    // Add unknown status if there are any
+    if (grouped['unknown'].length > 0) {
+      summaries.push({
+        id: 'unknown',
+        name: 'Unknown',
+        color: '#9E9E9E',
+        count: grouped['unknown'].length,
+        leads: grouped['unknown']
+      });
+    }
+
+    // Sort summaries by sequence or name
+    summaries.sort((a, b) => (a.sequence || 999) - (b.sequence || 999));
+
+    // For backward compatibility, still provide categorized leads
+    // This finds statuses that match common names
+    const findStatusLeads = (namePattern) => {
+      const matchingStatuses = leadStatuses.filter(s =>
+        s.name.toLowerCase().includes(namePattern.toLowerCase())
+      );
+
+      if (matchingStatuses.length > 0) {
+        return matchingStatuses.flatMap(s => grouped[s.id] || []);
+      }
+      return [];
+    };
 
     return {
-      newLeads,
-      convertedLeads: converted,
-      workingLeads: working,
-      expiredLeads: expired,
+      leadsByStatus: grouped,
+      statusSummaries: summaries,
       totalLeads: latestLeads.length,
+      // Backward compatibility fields
+      convertedLeads: findStatusLeads('converted'),
+      workingLeads: findStatusLeads('working'),
+      newLeads: findStatusLeads('new'),
+      expiredLeads: findStatusLeads('expired'),
+      otherStatusLeads: summaries.filter(s =>
+        !s.name.toLowerCase().includes('converted') &&
+        !s.name.toLowerCase().includes('working') &&
+        !s.name.toLowerCase().includes('new') &&
+        !s.name.toLowerCase().includes('expired')
+      )
     };
-  }, [latestLeads, forceUpdate]);
+  }, [latestLeads, leadStatuses]);
 
   // Memoized sales opportunity calculations
   const salesSummary = useMemo(() => {
     const totalSales = salesOpportunities.length;
-    const wonSales = salesOpportunities.filter(sale => 
+    const wonSales = salesOpportunities.filter(sale =>
       sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('won')
     ).length;
-    const lostSales = salesOpportunities.filter(sale => 
+    const lostSales = salesOpportunities.filter(sale =>
       sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('lost')
     ).length;
-    const inProgressSales = salesOpportunities.filter(sale => 
+    const inProgressSales = salesOpportunities.filter(sale =>
       sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('progress') ||
       sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('open')
     ).length;
@@ -232,17 +335,21 @@ const CrmScreen = ({ navigation }) => {
   // Handle pull-to-refresh
   const handleRefresh = useCallback(async () => {
     setManualRefreshing(true);
-    
+
     try {
+      console.log('🔄 Manual refresh started');
       await Promise.all([
         refetchLeads(),
         refetchFollowups(),
         refetchSales(),
       ]);
-      
+
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['salesOpportunities']);
+      queryClient.invalidateQueries(['sales-opportunities']);
+      queryClient.invalidateQueries(['lead-statuses']);
+
+      console.log('✅ Manual refresh completed');
     } catch (error) {
       console.error('Refresh error:', error);
       Alert.alert('Refresh Failed', 'Could not update data. Please try again.');
@@ -283,38 +390,44 @@ const CrmScreen = ({ navigation }) => {
     let filteredLeads = [];
     let screenTitle = "";
     let screenName = "GenericLead";
-    
-    switch(type) {
-      case 'total':
-        filteredLeads = latestLeads;
-        screenTitle = "All Leads";
-        screenName = "CrmTotal";
-        break;
-      case 'converted':
-        filteredLeads = convertedLeads;
-        screenTitle = "Converted Leads";
-        screenName = "CrmConverted";
-        break;
-      case 'working':
-        filteredLeads = workingLeads;
-        screenTitle = "Working Leads";
-        screenName = "CrmWorking";
-        break;
-      case 'new':
-        filteredLeads = newLeads;
-        screenTitle = "New Leads";
-        screenName = "CrmNew";
-        break;
-      default:
+
+    if (type === 'total') {
+      filteredLeads = latestLeads;
+      screenTitle = "All Leads";
+      screenName = "CrmTotal";
+    } else if (type === 'converted') {
+      filteredLeads = convertedLeads;
+      screenTitle = "Converted Leads";
+      screenName = "CrmConverted";
+    } else if (type === 'working') {
+      filteredLeads = workingLeads;
+      screenTitle = "Working Leads";
+      screenName = "CrmWorking";
+    } else if (type === 'new') {
+      filteredLeads = newLeads;
+      screenTitle = "New Leads";
+      screenName = "CrmNew";
+    } else if (type === 'expired') {
+      filteredLeads = expiredLeads;
+      screenTitle = "Expired Leads";
+      screenName = "CrmExpired";
+    } else {
+      const statusSummary = statusSummaries.find(s => s.id === type);
+      if (statusSummary) {
+        filteredLeads = statusSummary.leads;
+        screenTitle = `${statusSummary.name} Leads`;
+        screenName = "GenericLead";
+      } else {
         filteredLeads = latestLeads;
         screenTitle = "Leads";
         screenName = "GenericLead";
+      }
     }
-    
-    navigation.navigate(screenName, { 
+
+    navigation.navigate(screenName, {
       leads: filteredLeads,
       screenTitle: screenTitle,
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
     });
   };
 
@@ -322,20 +435,20 @@ const CrmScreen = ({ navigation }) => {
   const handleSalesSummaryPress = (type) => {
     let filteredSales = [];
     let screenTitle = "";
-    
-    switch(type) {
+
+    switch (type) {
       case 'total':
         filteredSales = salesOpportunities;
         screenTitle = "All Opportunities";
         break;
       case 'won':
-        filteredSales = salesOpportunities.filter(sale => 
+        filteredSales = salesOpportunities.filter(sale =>
           sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('won')
         );
         screenTitle = "Won Opportunities";
         break;
       case 'progress':
-        filteredSales = salesOpportunities.filter(sale => 
+        filteredSales = salesOpportunities.filter(sale =>
           sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('progress') ||
           sale?.C_OpportunityStatus?.identifier?.toLowerCase().includes('open')
         );
@@ -345,21 +458,29 @@ const CrmScreen = ({ navigation }) => {
         filteredSales = salesOpportunities;
         screenTitle = "Sales Opportunities";
     }
-    
-    // Navigate to sales opportunities screen
-    navigation.navigate('SalesOpportunitiesList', { 
+
+    navigation.navigate('SalesOpportunitiesList', {
       sales: filteredSales,
       screenTitle: screenTitle,
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
     });
   };
 
   // Handle sales blue card press
   const handleSalesBlueCardPress = () => {
-    navigation.navigate('SalesOpportunitiesList', { 
+    navigation.navigate('SalesOpportunitiesList', {
       sales: salesOpportunities,
       screenTitle: "All Opportunities",
-      timestamp: Date.now() // Add timestamp to force refresh
+      timestamp: Date.now()
+    });
+  };
+
+  // Handle status card press for custom statuses
+  const handleStatusCardPress = (status) => {
+    navigation.navigate('GenericLead', {
+      leads: status.leads,
+      screenTitle: `${status.name} Leads`,
+      timestamp: Date.now()
     });
   };
 
@@ -378,7 +499,9 @@ const CrmScreen = ({ navigation }) => {
           onPress={() => {
             queryClient.invalidateQueries(['leads']);
             queryClient.invalidateQueries(['followups']);
-            queryClient.invalidateQueries(['salesOpportunities']);
+            queryClient.invalidateQueries(['sales-opportunities']);
+            queryClient.invalidateQueries(['lead-statuses']);
+            setManualRefreshTrigger(prev => prev + 1);
           }}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
@@ -390,79 +513,116 @@ const CrmScreen = ({ navigation }) => {
   const circularChartData = [salesSummary.wonSales, salesSummary.inProgressSales, salesSummary.lostSales];
   const circularChartLabels = ['Won', 'In Progress', 'Lost'];
 
+  // REMOVED: key={`sales-${forceUpdate}`} and key={`leads-${forceUpdate}`} from ScrollViews
+  // REMOVED: key={`leadtab-${forceUpdate}`} from LeadTab
+
   return (
     <Provider>
       <>
-        {/* Custom Header */}
-        <CustomHeader title="CRM Board" 
-          RightIcon="home" 
-  RightPress={() => navigation.navigate('Home')} />
-        
-        {/* Content */}
+        <CustomHeader title="CRM Board"
+          RightIcon="home"
+          RightPress={() => navigation.navigate('Home')} />
+
         <View style={styles.container}>
-          {/* UPDATED: Full Blue Tab Container with active indicator */}
-          <View style={styles.tabContainer}>
-            {/* Full Blue Background for active tab */}
-            <View 
-              style={[
-                styles.activeTabBackground,
-                activeTab === 'Leads' && styles.activeTabLeads,
-                activeTab === 'SalesOpportunity' && styles.activeTabSales,
-                activeTab === 'FollowUps' && styles.activeTabFollowups,
-              ]} 
-            />
-            
-            <TouchableOpacity
-              onPress={() => handleTabPress('Leads')}
-              style={[styles.tabButton, activeTab === 'Leads' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'Leads' && styles.activeTabText]}>
-                Leads
-              </Text>
-            </TouchableOpacity>
+          {/* MINIMAL TAB DESIGN */}
+          <View style={styles.tabsWrapper}>
+            <View style={styles.tabsContainer}>
+              {/* Leads Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('Leads')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons
+                    name="people-outline"
+                    size={scale(20)}
+                    color={activeTab === 'Leads' ? Colors.primary : Colors.textSecondary}
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'Leads' && styles.activeTabText
+                  ]}>
+                    Leads
+                  </Text>
+                </View>
+                {activeTab === 'Leads' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleTabPress('SalesOpportunity')}
-              style={[styles.tabButton, activeTab === 'SalesOpportunity' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'SalesOpportunity' && styles.activeTabText]}>
-                Sales Opportunity
-              </Text>
-            </TouchableOpacity>
+              {/* Sales Opportunity Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('SalesOpportunity')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons
+                    name="trending-up-outline"
+                    size={scale(20)}
+                    color={activeTab === 'SalesOpportunity' ? Colors.primary : Colors.textSecondary}
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'SalesOpportunity' && styles.activeTabText,
+                    styles.salesTabText
+                  ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail">
+                    Opportunities
+                  </Text>
+                </View>
+                {activeTab === 'SalesOpportunity' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleTabPress('FollowUps')}
-              style={[styles.tabButton, activeTab === 'FollowUps' && styles.activeTabButton]}>
-              <Text style={[styles.tabText, activeTab === 'FollowUps' && styles.activeTabText]}>
-                Follow ups
-              </Text>
-            </TouchableOpacity>
+              {/* Follow Ups Tab */}
+              <TouchableOpacity
+                onPress={() => handleTabPress('FollowUps')}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tabContent}>
+                  <Ionicons
+                    name="alarm-outline"
+                    size={scale(20)}
+                    color={activeTab === 'FollowUps' ? Colors.primary : Colors.textSecondary}
+                  />
+                  <Text style={[
+                    styles.tabText,
+                    activeTab === 'FollowUps' && styles.activeTabText
+                  ]}>
+                    Follow Ups
+                  </Text>
+                </View>
+                {activeTab === 'FollowUps' && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Content based on active tab */}
           {showSalesCard && (
             <View style={styles.tabContentContainer}>
-              <ScrollView 
+              <ScrollView
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                   <RefreshControl
                     refreshing={isRefreshing}
                     onRefresh={handleRefresh}
-                    colors={['#2F4FE3']}
-                    tintColor="#2F4FE3"
+                    colors={[Colors.primary]}
+                    tintColor={Colors.primary}
                   />
                 }
-                key={`sales-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* Custom Sales Tab Component */}
                 <SalesTab
                   navigation={navigation}
-                  salesSummary={salesSummary}
-                  leads={leads}
+                  salesOpportunities={salesOpportunities}
                   circularChartData={circularChartData}
                   circularChartLabels={circularChartLabels}
                   isRefreshing={isRefreshing}
-                  handleSalesSummaryPress={handleSalesSummaryPress}
-                  handleSalesBlueCardPress={handleSalesBlueCardPress}
+                  onRefresh={() => {
+                    refetchSales();
+                    setManualRefreshTrigger(prev => prev + 1);
+                  }}
                 />
               </ScrollView>
             </View>
@@ -470,30 +630,26 @@ const CrmScreen = ({ navigation }) => {
 
           {showCRMCard && (
             <View style={styles.tabContentContainer}>
-              <ScrollView 
+              <ScrollView
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
                   <RefreshControl
                     refreshing={isRefreshing}
                     onRefresh={handleRefresh}
-                    colors={['#2F4FE3']}
-                    tintColor="#2F4FE3"
+                    colors={[Colors.primary]}
+                    tintColor={Colors.primary}
                   />
                 }
-                key={`leads-${forceUpdate}`} // Force re-render on cache update
               >
-                {/* NEW: LeadTab Component - Pass latestLeads instead of leads */}
                 <LeadTab
                   leads={latestLeads}
                   navigation={navigation}
                   isRefreshing={isRefreshing}
                   handleLeadSummaryPress={handleLeadSummaryPress}
+                  handleStatusCardPress={handleStatusCardPress}
                   totalLeads={totalLeads}
-                  convertedLeads={convertedLeads}
-                  workingLeads={workingLeads}
-                  newLeads={newLeads}
-                  key={`leadtab-${forceUpdate}`} // Force re-render on cache update
+                  statusSummaries={statusSummaries}
                 />
               </ScrollView>
             </View>
@@ -502,9 +658,8 @@ const CrmScreen = ({ navigation }) => {
           {/* Show FollowupScreen when FollowUps tab is active */}
           {showOverviewCard && (
             <View style={[styles.tabContentContainer, styles.followupsContainer]}>
-              <FollowupScreen 
-                navigation={navigation} 
-                key={`followups-${forceUpdate}`} // Force re-render on cache update
+              <FollowupScreen
+                navigation={navigation}
               />
             </View>
           )}
@@ -512,23 +667,23 @@ const CrmScreen = ({ navigation }) => {
 
         {isLoading && <Loader />}
 
-        {/* Floating Action Button for Add Lead - Only show in Leads tab */}
+        {/* Floating Action Button for Add Lead */}
         {showCRMCard && (
           <TouchableOpacity
             onPress={() => navigation.navigate('AddLeads')}
             style={styles.floatingButton}
             disabled={isRefreshing}>
-            <Text style={styles.floatingButtonText}>+</Text>
+            <Ionicons name="add" size={scale(30)} color={Colors.textInverse} />
           </TouchableOpacity>
         )}
 
-        {/* Floating Action Button for Add Opportunity - Only show in Sales tab */}
+        {/* Floating Action Button for Add Opportunity */}
         {showSalesCard && (
           <TouchableOpacity
             onPress={() => navigation.navigate('AddSaleOppor')}
-            style={[styles.floatingButton, {backgroundColor: '#2F4FE3'}]}
+            style={styles.floatingButton}
             disabled={isRefreshing}>
-            <Text style={styles.floatingButtonText}>+</Text>
+            <Ionicons name="add" size={scale(30)} color={Colors.textInverse} />
           </TouchableOpacity>
         )}
       </>
@@ -536,127 +691,118 @@ const CrmScreen = ({ navigation }) => {
   );
 };
 
-// UPDATED: Styles with full blue tab container
+// MINIMAL TAB STYLES - Blue indicator line only
 const styles = StyleSheet.create({
-   container: {
+  container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   tabContentContainer: {
     flex: 1,
-    paddingHorizontal: 10,
+    paddingHorizontal: Spacing.md,
   },
   followupsContainer: {
     flex: 1,
   },
-  // UPDATED: Responsive Tab Container
-  tabContainer: {
+
+  // MINIMAL TAB DESIGN
+  tabsWrapper: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  tabsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    marginTop: screenWidth * 0.05, // 5% of screen width
-    marginBottom: screenWidth * 0.03, // 3% of screen width
-    marginHorizontal: screenWidth * 0.08, // 8% of screen width
-    borderRadius: 20,
-    height: screenWidth * 0.08, // 10% of screen width (responsive height)
-    minHeight: 35, // Minimum height
-    overflow: 'hidden',
-    position: 'relative',
-    justifyContent: 'space-between', // Distribute space evenly
-    alignItems: 'center', // Center items vertically
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.round,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xxs,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  // Active tab blue background
-  activeTabBackground: {
-    position: 'absolute',
-    backgroundColor: '#2F4FE3',
-    height: '100%',
-    width: '33.33%', // Each tab takes 1/3 of the width
-    top: 0,
-    transition: 'left 0.3s ease-in-out',
-    borderRadius: 20,
-  },
-  // Positions for active tab
-  activeTabLeads: {
-    left: 0,
-  },
-  activeTabSales: {
-    left: '33.33%',
-  },
-  activeTabFollowups: {
-    left: '66.66%',
-  },
-  tabButton: {
+  tabItem: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2,
-    height: '100%',
-    minWidth: screenWidth * 0.25, // Minimum width for each tab
-    paddingHorizontal: screenWidth * 0.01, // Small horizontal padding
+    paddingVertical: verticalScale(8),
+    position: 'relative',
   },
-  activeTabButton: {
-    // Additional styles for active tab button if needed
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   tabText: {
-    color: '#333',
-    fontSize: screenWidth * 0.030, // Responsive font size (3.5% of screen width)
-    fontFamily: 'K2D-Medium',
-    textAlign: 'left', // Small padding to prevent text cut-off
-    includeFontPadding: false, // Remove extra font padding
-    textAlignVertical: 'center', // Center text vertically
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   activeTabText: {
-    color: '#fff',
-    fontFamily: 'K2D-Medium',
-    fontSize: screenWidth * 0.030, // Same as inactive tabs
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.semiBold,
   },
+  // Special style for sales tab
+  salesTabText: {
+    fontSize: Typography.fontSize.xsmall,
+    maxWidth: Layout.screen.width * 0.25,
+  },
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    left: '20%',
+    right: '20%',
+    height: 3,
+    backgroundColor: Colors.primary,
+    borderRadius: Layout.borderRadius.round,
+  },
+
   // Floating Action Button
   floatingButton: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
-    backgroundColor: '#2F4FE3',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: Layout.floatingButton.bottom,
+    right: Layout.floatingButton.right,
+    backgroundColor: Colors.primary,
+    width: Layout.floatingButton.size,
+    height: Layout.floatingButton.size,
+    borderRadius: Layout.borderRadius.round,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
-    zIndex: 10,
+    zIndex: 1000,
   },
-  floatingButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-Bold',
-    fontSize: 20,
-  },
+
+  // Error states
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.xl,
   },
   errorText: {
-    fontSize: 16,
-    color: '#ff0000',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.error,
     textAlign: 'center',
-    marginBottom: 20,
-    fontFamily: 'K2D-Medium',
+    marginBottom: Spacing.lg,
+    fontFamily: Typography.fontFamily.medium,
   },
   retryButton: {
-    backgroundColor: '#2F4FE3',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Layout.borderRadius.md,
   },
   retryButtonText: {
-    color: '#fff',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 16,
+    color: Colors.textInverse,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.medium,
   },
 });
 

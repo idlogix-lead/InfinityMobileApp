@@ -137,15 +137,17 @@ const CRMCard = ({
           
           <Image
             source={{
-              uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+              uri: 'https://randomuser.me/api/portraits/men/1.jpg',
             }}
             style={styles.avatar}
           />
 
           <View style={styles.center}>
-            <Text style={styles.name} numberOfLines={1}>
-              {name || 'No Name'}
-            </Text>
+            <View style={styles.nameContainer}>
+              <Text style={styles.name} numberOfLines={1}>
+                {name || 'No Name'}
+              </Text>
+            </View>
             <Text style={styles.company} numberOfLines={1}>
               {header || company || 'No Company'}
             </Text>
@@ -196,7 +198,7 @@ const CRMCard = ({
                   <Ionicons
                     name="call-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                 </TouchableOpacity>
               )}
@@ -206,7 +208,7 @@ const CRMCard = ({
                   <Ionicons
                     name="mail-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                 </TouchableOpacity>
               )}
@@ -216,12 +218,12 @@ const CRMCard = ({
                   <Ionicons
                     name="alarm-outline"
                     size={Layout.iconSize.sm}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                   />
                   <AntDesign
                     name="pluscircle"
                     size={scale(10)}
-                    color={Colors.primary}
+                    color={Colors.textPrimary}
                     style={styles.plus}
                   />
                 </View>
@@ -256,22 +258,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
   },
   avatar: {
-    width: Layout.iconSize.xl,
-    height: Layout.iconSize.xl,
+    width: Layout.iconSize.xxl * 1.5, // Larger image (48px)
+    height: Layout.iconSize.xxl * 1.5, // Larger image (48px)
     borderRadius: Layout.borderRadius.round,
-    marginRight: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+    marginRight: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   center: {
     flex: 1,
     marginRight: Spacing.xs,
   },
+ 
   name: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.large, // Larger font
+    fontFamily: Typography.fontFamily.bold, // Bold font
     color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
+    lineHeight: Typography.lineHeight.large,
   },
   company: {
     fontSize: Typography.fontSize.small,
@@ -318,6 +321,7 @@ const styles = StyleSheet.create({
   iconRow: {
     flexDirection: 'row',
     gap: Spacing.md,
+    marginTop: Spacing.md,
   },
   iconButton: {
     padding: Spacing.xxs,

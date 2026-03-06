@@ -1,10 +1,45 @@
 // src/services/salaryApi.js
 import apiService from '../authApi';
 
+// ============================================
+// AUTH STORE HELPER
+// ============================================
+let authStore = null;
+
+const getAuthStore = () => {
+  if (authStore) return authStore;
+
+  try {
+    authStore = require('../../store/authStore');
+    return authStore;
+  } catch (error) {
+    console.error('Failed to load auth store:', error);
+    return null;
+  }
+};
+
+const getAuthState = () => {
+  const store = getAuthStore();
+  if (!store) return {};
+  try {
+    return store.useAuthStore.getState();
+  } catch (error) {
+    console.error('Failed to get auth state:', error);
+    return {};
+  }
+};
+
 const salaryApi = {
   // Get salary slip data
-  getSalarySlips: async (token, userId) => {
+  getSalarySlips: async () => {
     try {
+      const authState = getAuthState();
+      const token = authState.token;
+      const userId = authState.userId;
+      
+      if (!token) throw new Error('AUTH_TOKEN_MISSING');
+      if (!userId) throw new Error('USER_ID_MISSING');
+      
       const baseUrl = apiService.getBaseUrl();
       
       const response = await fetch(
@@ -20,6 +55,9 @@ const salaryApi = {
       );
       
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('SESSION_EXPIRED');
+        }
         const errorText = await response.text();
         console.error('Get salary slips error:', errorText);
         throw new Error('Failed to fetch salary slips');
@@ -29,11 +67,18 @@ const salaryApi = {
       return data.records || [];
     } catch (error) {
       console.error('Get salary slips fetch error:', error.message);
-      throw error;
+      
+      // Let React Query handle session expiration
+      if (error.message === 'SESSION_EXPIRED') {
+        throw error;
+      }
+      
+      // Return empty array for other errors to prevent UI crashes
+      return [];
     }
   },
   
-  // Process salary data (same logic as your original)
+  // Process salary data (unchanged)
   processSalaryData: (records) => {
     if (!records || records.length === 0) return { records: [], latestPeriod: '', latestData: {} };
     

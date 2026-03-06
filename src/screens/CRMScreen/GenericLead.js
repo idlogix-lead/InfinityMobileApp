@@ -1,5 +1,6 @@
-// screens/CRM/GenericLeadScreen.js - RESPONSIVE WITH SINGLE THEME
-import React, {useState, useMemo, useCallback, useEffect} from 'react';
+// screens/CRM/GenericLeadScreen.js - FIXED version with LeadEdit pattern
+
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,64 +15,74 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import {Provider, Menu, Divider} from 'react-native-paper';
-import {useFocusEffect} from '@react-navigation/native';
-import {useQueryClient} from 'react-query';
+import { Provider, Menu, Divider } from 'react-native-paper';
+import { useFocusEffect } from '@react-navigation/native';
+import { useQueryClient } from 'react-query';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CRMCard from '../../components/CRMCard/CRMCard';
 import {
   useFollowups,
   useLeadStatistics,
   useSearchLeads,
+  useLeadStatuses,
 } from '../../hooks/CRMhooks/useCRM';
-import {useLeadActions} from '../../hooks/CRMhooks/useLeadActions';
+import { useLeadActions } from '../../hooks/CRMhooks/useLeadActions';
 import moment from 'moment';
-import {debounce} from 'lodash';
+import { debounce } from 'lodash';
 
 // Import single theme file
 import theme from '../../constants/CRMTheme/CRMTheme';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 
 // Destructure theme for easy access
-const {Colors, Typography, Layout} = theme;
-const {scale, verticalScale, spacing} = Layout;
+const { Colors, Typography, Layout } = theme;
+const { scale, verticalScale, spacing } = Layout;
 
-const GenericLead = ({navigation, route}) => {
-  // Get pre-filtered leads from navigation params
-  const {leads: preFilteredLeads = [], screenTitle: paramTitle} =
-    route.params || {};
+const GenericLead = ({ navigation, route }) => {
+  // Get pre-filtered leads and screen title from navigation params
+  const { leads: initialLeads = [], screenTitle: paramTitle, statusId: paramStatusId } = route.params || {};
 
   // Use paramTitle from route.params
   const actualScreenTitle = paramTitle || 'Leads';
+
+  // ADDED: State to track if component is mounted (like LeadEdit)
+  const [isMounted, setIsMounted] = useState(false);
+
+  // ADDED: useEffect to set mounted state after first render (like LeadEdit)
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
+
+  // Fetch dynamic lead statuses
+  const { data: leadStatuses = [] } = useLeadStatuses();
 
   // State
   const [filterVisible, setFilterVisible] = useState(false);
   const [fromDate, setFromDate] = useState(null);
   const [toDate, setToDate] = useState(null);
-  const [showFromDatePicker, setShowFromDatePicker] = useState(false);
-  const [showToDatePicker, setShowToDatePicker] = useState(false);
-  const [selectStatus, setSelectStatus] = useState('select');
+  const [selectedStatusId, setSelectedStatusId] = useState(paramStatusId || 'select');
+  const [selectedStatusName, setSelectedStatusName] = useState('select');
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredLeads, setFilteredLeads] = useState(preFilteredLeads);
   const [localSearchResults, setLocalSearchResults] = useState([]);
-  const [forceUpdate, setForceUpdate] = useState(0);
+  const [freshLeads, setFreshLeads] = useState(initialLeads);
 
   // Sorting state
-  const [sortBy, setSortBy] = useState('latest'); // Default sort option
+  const [sortBy, setSortBy] = useState('latest');
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
-  const [endDate, setEndDate] = useState(moment().format('YYYY-MM-DD'));
-  const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
+  const [calendarMode, setCalendarMode] = useState('from');
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectDate, setSelectDate] = useState(null);
-  
+
   // Hooks
   const queryClient = useQueryClient();
 
@@ -82,7 +93,7 @@ const GenericLead = ({navigation, route}) => {
   } = useFollowups();
 
   const {
-    data: statistics = {total: 0, todayLeads: 0, monthLeads: 0},
+    data: statistics = { total: 0, todayLeads: 0, monthLeads: 0 },
     refetch: refetchStats,
   } = useLeadStatistics();
 
@@ -92,50 +103,107 @@ const GenericLead = ({navigation, route}) => {
     refetch: refetchSearch,
   } = useSearchLeads(searchQuery, searchQuery.length >= 2);
 
-  const {handleMail, handlePhone, handleWhatsApp} = useLeadActions();
+  const { handleMail, handlePhone, handleWhatsApp } = useLeadActions();
 
-  // Sort options
-  const sortOptions = [
-    {id: 'latest', label: 'Latest to Old', icon: 'arrow-down'},
-    {id: 'oldest', label: 'Old to Latest', icon: 'arrow-up'},
-    {id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending'},
-    {id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending'},
-    {id: 'statusNew', label: 'Status: New First', icon: 'star'},
-    {id: 'statusWorking', label: 'Status: Working First', icon: 'progress-clock'},
-    {id: 'statusConverted', label: 'Status: Converted First', icon: 'check-circle'},
-    {id: 'statusExpired', label: 'Status: Expired First', icon: 'clock-alert'},
-  ];
+  // ============================================
+  // DYNAMIC STATUS OPTIONS
+  // ============================================
 
-  // Get current sort option display
-  const currentSortOption = sortOptions.find(option => option.id === sortBy) || sortOptions[0];
+  // Generate status options dynamically from leadStatuses
+  const statusOptions = useMemo(() => {
+    const options = [
+      { label: '-- All Statuses --', value: 'select', id: 'select' },
+    ];
 
-  // Subscribe to query cache changes for real-time updates
+    leadStatuses.forEach(status => {
+      options.push({
+        label: status.name,
+        value: status.name,
+        id: status.id,
+        color: status.color
+      });
+    });
+
+    return options;
+  }, [leadStatuses]);
+
+  // Get status name by ID
+  const getStatusNameById = useCallback((id) => {
+    const status = leadStatuses.find(s => s.id === id);
+    return status?.name || id;
+  }, [leadStatuses]);
+
+  // Get status ID by name
+  const getStatusIdByName = useCallback((name) => {
+    const status = leadStatuses.find(s => s.name === name);
+    return status?.id || name;
+  }, [leadStatuses]);
+
+  // ============================================
+  // CACHE ACCESS
+  // ============================================
+
+  // Get fresh leads directly from cache (no API call)
+  const getFreshLeadsFromCache = useCallback(() => {
+    // Try to get from main leads cache
+    const cachedLeads = queryClient.getQueryData(['leads']);
+    if (Array.isArray(cachedLeads) && cachedLeads.length > 0) {
+      return cachedLeads;
+    }
+
+    // Try to get from any leads query as fallback
+    const allQueries = queryClient.getQueryCache().findAll(['leads']);
+    for (const query of allQueries) {
+      if (Array.isArray(query.state.data)) {
+        return query.state.data;
+      }
+    }
+
+    return initialLeads; // Fallback to initial leads
+  }, [queryClient, initialLeads]);
+
+  // FIXED: Update freshLeads when cache changes - using mounted check
   useEffect(() => {
-    const unsubscribe = queryClient.getQueryCache().subscribe(event => {
-      // When any leads query is updated, force a re-render
+    const updateLeadsFromCache = () => {
+      if (!isMounted) return; // Check mounted state
+      const leads = getFreshLeadsFromCache();
+      setFreshLeads(leads);
+    };
+
+    // Subscribe to query cache changes for real-time updates
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      // When any leads query is updated, refresh our data
       if (event?.query?.queryKey?.[0] === 'leads') {
-        setForceUpdate(prev => prev + 1);
+        // Use setTimeout to ensure this doesn't happen during render
+        setTimeout(updateLeadsFromCache, 0);
       }
     });
 
     return () => {
       unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, getFreshLeadsFromCache, isMounted]);
 
   // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // Refetch leads data when screen is focused
+      // Invalidate queries to trigger background refetch
       queryClient.invalidateQueries(['leads']);
       queryClient.invalidateQueries(['lead-statistics']);
+
+      // Also update from cache immediately
+      const leads = getFreshLeadsFromCache();
+      if (isMounted) {
+        setFreshLeads(leads);
+      }
+
       return () => {
         // Cleanup if needed
       };
-    }, [queryClient]),
+    }, [queryClient, getFreshLeadsFromCache, isMounted]),
   );
 
-  // Get the latest lead data from cache
+  // Get the latest lead data from cache by ID
   const getLatestLeadData = useCallback(
     leadId => {
       if (!leadId) return null;
@@ -150,15 +218,12 @@ const GenericLead = ({navigation, route}) => {
       }
 
       // Try to get from status-specific caches
-      const statuses = ['New', 'Working', 'Converted', 'Expired'];
-      for (const status of statuses) {
-        const cachedStatusLeads = queryClient.getQueryData(['leads', {status}]);
-        if (Array.isArray(cachedStatusLeads)) {
-          const cachedLead = cachedStatusLeads.find(
-            lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
-          );
-          if (cachedLead) return cachedLead;
-        }
+      const cachedLeadsByStatus = queryClient.getQueryData(['leads-by-status']);
+      if (Array.isArray(cachedLeadsByStatus)) {
+        const cachedLead = cachedLeadsByStatus.find(
+          lead => lead.id === leadId || lead.AD_User_ID?.id === leadId,
+        );
+        if (cachedLead) return cachedLead;
       }
 
       return null;
@@ -166,37 +231,77 @@ const GenericLead = ({navigation, route}) => {
     [queryClient],
   );
 
-  // Apply local filtering whenever filters change
-  useEffect(() => {
-    if (!Array.isArray(preFilteredLeads) || preFilteredLeads.length === 0) {
-      setFilteredLeads([]);
-      return;
+  // ============================================
+  // DYNAMIC SORT OPTIONS
+  // ============================================
+
+  // Sort options - now includes dynamic status sorting
+  const sortOptions = useMemo(() => {
+    const baseOptions = [
+      { id: 'latest', label: 'Latest to Old', icon: 'arrow-down' },
+      { id: 'oldest', label: 'Old to Latest', icon: 'arrow-up' },
+      { id: 'nameAZ', label: 'By Name A to Z', icon: 'sort-alphabetical-ascending' },
+      { id: 'nameZA', label: 'By Name Z to A', icon: 'sort-alphabetical-descending' },
+    ];
+
+    // Add dynamic status sort options
+    leadStatuses.forEach(status => {
+      baseOptions.push({
+        id: `status_${status.id}`,
+        label: `${status.name} First`,
+        icon: 'format-list-bulleted',
+        statusId: status.id,
+        statusName: status.name
+      });
+    });
+
+    return baseOptions;
+  }, [leadStatuses]);
+
+  // ============================================
+  // FILTERING LOGIC
+  // ============================================
+
+  // Apply screen-specific filter (based on which card was clicked)
+  const screenFilteredLeads = useMemo(() => {
+    if (!Array.isArray(freshLeads) || freshLeads.length === 0) {
+      return [];
     }
 
     // Get the latest data from cache for all leads
-    let filtered = preFilteredLeads.map(lead => {
+    let filtered = freshLeads.map(lead => {
       const cachedLead = getLatestLeadData(lead.id);
       return cachedLead || lead;
     });
 
-    // Apply status filter from modal
-    if (selectStatus && selectStatus !== 'select') {
-      const statusMap = {
-        New: 'N',
-        new: 'N',
-        Working: 'W',
-        working: 'W',
-        Converted: 'C',
-        converted: 'C',
-        Expired: 'E',
-        expired: 'E',
-      };
+    // Apply filter based on screen title or status ID
+    if (paramStatusId) {
+      // If we have a specific status ID, filter by that
+      filtered = filtered.filter(lead => lead?.statusId === paramStatusId);
+    } else if (actualScreenTitle.includes('Converted')) {
+      filtered = filtered.filter(lead => lead?.statusId === 'C');
+    } else if (actualScreenTitle.includes('Working')) {
+      filtered = filtered.filter(lead => lead?.statusId === 'W');
+    } else if (actualScreenTitle.includes('New')) {
+      filtered = filtered.filter(lead => lead?.statusId === 'N');
+    } else if (actualScreenTitle.includes('Expired')) {
+      filtered = filtered.filter(lead => lead?.statusId === 'E');
+    }
 
-      const statusId = statusMap[selectStatus] || selectStatus;
+    return filtered;
+  }, [freshLeads, actualScreenTitle, paramStatusId, getLatestLeadData]);
 
+  // Apply additional modal filters
+  const modalFilteredLeads = useMemo(() => {
+    if (!screenFilteredLeads.length) return [];
+
+    let filtered = [...screenFilteredLeads];
+
+    // Apply status filter from modal using status ID
+    if (selectedStatusId && selectedStatusId !== 'select') {
       filtered = filtered.filter(lead => {
-        const leadStatusId = lead?.LeadStatus?.id;
-        return leadStatusId === statusId;
+        const leadStatusId = lead?.statusId;
+        return leadStatusId === selectedStatusId;
       });
     }
 
@@ -206,7 +311,7 @@ const GenericLead = ({navigation, route}) => {
       start.setHours(0, 0, 0, 0);
       filtered = filtered.filter(lead => {
         const leadDate = new Date(
-          lead.Created || lead.Updated || lead.CreatedDate,
+          lead.Created || lead.Updated || lead.createdDate,
         );
         return leadDate >= start;
       });
@@ -217,40 +322,30 @@ const GenericLead = ({navigation, route}) => {
       end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(lead => {
         const leadDate = new Date(
-          lead.Created || lead.Updated || lead.CreatedDate,
+          lead.Created || lead.Updated || lead.createdDate,
         );
         return leadDate <= end;
       });
     }
 
-    setFilteredLeads(filtered);
-  }, [
-    preFilteredLeads,
-    selectStatus,
-    fromDate,
-    toDate,
-    forceUpdate,
-    getLatestLeadData,
-  ]);
+    return filtered;
+  }, [screenFilteredLeads, selectedStatusId, fromDate, toDate]);
 
   // Sort leads based on selected sorting option
   const sortedLeads = useMemo(() => {
-    if (!filteredLeads.length) return [];
+    if (!modalFilteredLeads.length) return [];
 
-    const sorted = [...filteredLeads];
+    const sorted = [...modalFilteredLeads];
 
     sorted.sort((a, b) => {
       switch (sortBy) {
         case 'latest':
-          // Newest first (descending)
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+          return moment(b.Created || b.createdDate).valueOf() - moment(a.Created || a.createdDate).valueOf();
 
         case 'oldest':
-          // Oldest first (ascending)
-          return moment(a.Created || a.CreatedDate).valueOf() - moment(b.Created || b.CreatedDate).valueOf();
+          return moment(a.Created || a.createdDate).valueOf() - moment(b.Created || b.createdDate).valueOf();
 
         case 'nameAZ':
-          // A to Z
           const nameA = (a.Name || '').toLowerCase();
           const nameB = (b.Name || '').toLowerCase();
           if (nameA < nameB) return -1;
@@ -258,45 +353,25 @@ const GenericLead = ({navigation, route}) => {
           return 0;
 
         case 'nameZA':
-          // Z to A
           const nameAZ = (a.Name || '').toLowerCase();
           const nameBZ = (b.Name || '').toLowerCase();
           if (nameAZ > nameBZ) return -1;
           if (nameAZ < nameBZ) return 1;
           return 0;
 
-        case 'statusNew':
-          // New first, then by date
-          if (a.LeadStatus?.id === 'N' && b.LeadStatus?.id !== 'N') return -1;
-          if (a.LeadStatus?.id !== 'N' && b.LeadStatus?.id === 'N') return 1;
-          // If same status, sort by date (newest first)
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusWorking':
-          // Working first, then by date
-          if (a.LeadStatus?.id === 'W' && b.LeadStatus?.id !== 'W') return -1;
-          if (a.LeadStatus?.id !== 'W' && b.LeadStatus?.id === 'W') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusConverted':
-          // Converted first, then by date
-          if (a.LeadStatus?.id === 'C' && b.LeadStatus?.id !== 'C') return -1;
-          if (a.LeadStatus?.id !== 'C' && b.LeadStatus?.id === 'C') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
-        case 'statusExpired':
-          // Expired first, then by date
-          if (a.LeadStatus?.id === 'E' && b.LeadStatus?.id !== 'E') return -1;
-          if (a.LeadStatus?.id !== 'E' && b.LeadStatus?.id === 'E') return 1;
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
-
         default:
-          return moment(b.Created || b.CreatedDate).valueOf() - moment(a.Created || a.CreatedDate).valueOf();
+          // Handle dynamic status sorting
+          if (sortBy.startsWith('status_')) {
+            const statusId = sortBy.replace('status_', '');
+            if (a.statusId === statusId && b.statusId !== statusId) return -1;
+            if (a.statusId !== statusId && b.statusId === statusId) return 1;
+          }
+          return moment(b.Created || b.createdDate).valueOf() - moment(a.Created || a.createdDate).valueOf();
       }
     });
 
     return sorted;
-  }, [filteredLeads, sortBy]);
+  }, [modalFilteredLeads, sortBy]);
 
   // Enhanced search function
   const performSearch = useCallback(
@@ -310,15 +385,21 @@ const GenericLead = ({navigation, route}) => {
 
       const results = sortedLeads.filter(lead => {
         const name = (lead.Name || '').toLowerCase();
-        const companyName = (lead.BPName || '').toLowerCase();
-        const orgName = (lead.AD_Org_ID?.identifier || '').toLowerCase();
-        const clientName = (lead.AD_Client_ID?.identifier || '').toLowerCase();
+        const companyName = (lead.companyName || lead.BPName || '').toLowerCase();
+        const orgName = (lead.organizationName || lead.AD_Org_ID?.identifier || '').toLowerCase();
+        const clientName = (lead.clientName || lead.AD_Client_ID?.identifier || '').toLowerCase();
+        const statusName = (lead.statusName || '').toLowerCase();
+        const email = (lead.email || lead.EMail || '').toLowerCase();
+        const phone = (lead.phone || lead.Phone || '').toLowerCase();
 
         return (
           name.includes(searchTerm) ||
           companyName.includes(searchTerm) ||
           orgName.includes(searchTerm) ||
-          clientName.includes(searchTerm)
+          clientName.includes(searchTerm) ||
+          statusName.includes(searchTerm) ||
+          email.includes(searchTerm) ||
+          phone.includes(searchTerm)
         );
       });
 
@@ -360,8 +441,8 @@ const GenericLead = ({navigation, route}) => {
   const resetFilter = () => {
     setFromDate(null);
     setToDate(null);
-    setSelectStatus('select');
-    setFilteredLeads(preFilteredLeads);
+    setSelectedStatusId('select');
+    setSelectedStatusName('select');
     setSearchQuery('');
     setLocalSearchResults([]);
     setFilterVisible(false);
@@ -373,14 +454,21 @@ const GenericLead = ({navigation, route}) => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        queryClient.invalidateQueries(['leads']),
-        queryClient.invalidateQueries(['lead-statistics']),
-        refetchFollowups(),
-        refetchStats(),
-      ]);
+      // Invalidate queries to trigger background refetch
+      await queryClient.invalidateQueries(['leads']);
+      await queryClient.invalidateQueries(['lead-statistics']);
+      await queryClient.invalidateQueries(['lead-statuses']);
+      await refetchFollowups();
+      await refetchStats();
+
       if (searchQuery.length >= 2) {
         await refetchSearch();
+      }
+
+      // Update from cache immediately
+      const leads = getFreshLeadsFromCache();
+      if (isMounted) {
+        setFreshLeads(leads);
       }
     } catch (error) {
       console.error('Refresh error:', error);
@@ -397,23 +485,14 @@ const GenericLead = ({navigation, route}) => {
     return sortedLeads;
   }, [sortedLeads, localSearchResults, searchQuery]);
 
-  // Status options for custom picker
-  const statusOptions = [
-    {label: '-- All Statuses --', value: 'select'},
-    {label: 'New', value: 'New'},
-    {label: 'Working', value: 'Working'},
-    {label: 'Converted', value: 'Converted'},
-    {label: 'Expired', value: 'Expired'},
-  ];
-
   // Format date for display
   const formatDate = date => {
     if (!date) return '';
     return moment(date).format('DD MMM YYYY');
   };
 
-  // Updated renderLeadCard with live data and leadId
-  const renderLeadCard = item => {
+  // Render lead card with live data
+  const renderLeadCard = ({ item }) => {
     // Get the latest lead data from cache
     const liveLead = getLatestLeadData(item.id) || item;
 
@@ -429,30 +508,39 @@ const GenericLead = ({navigation, route}) => {
       lastActivity?.ContactActivityType?.identifier || 'N/A';
     const activityCount = userActivity.length;
 
+    // Get status color from leadStatuses
+    const statusColor = leadStatuses.find(s => s.id === liveLead.statusId)?.color || Colors.primary;
+
     return (
-      <View style={styles.cardContainer} key={`${liveLead.id}-${forceUpdate}`}>
+      <View style={styles.cardContainer}>
         <TouchableOpacity
           style={styles.cardTouchable}
           onPress={() => {
-            navigation.navigate('LeadsDetail', {data: liveLead});
+            navigation.navigate('LeadsDetail', { data: liveLead });
           }}
           activeOpacity={0.7}>
           <CRMCard
-            leadId={liveLead.id} // CRITICAL: Always pass leadId for cache lookup
+            leadId={liveLead.id}
             header={
+              liveLead.organizationName ||
               liveLead.AD_Org_ID?.identifier ||
+              liveLead.clientName ||
               liveLead.AD_Client_ID?.identifier
             }
             name={liveLead?.Name}
-            email={liveLead?.EMail}
-            cellNo={liveLead?.Phone}
+            email={liveLead?.email || liveLead?.EMail}
+            cellNo={liveLead?.phone || liveLead?.Phone}
             count={activityCount}
             interactionType={lastActivityType}
-            status={liveLead?.LeadStatus?.identifier}
+            status={liveLead?.statusName || liveLead?.LeadStatus?.identifier}
+            statusColor={statusColor}
             Description={liveLead?.Description}
             company={
+              liveLead.companyName ||
               liveLead.BPName ||
+              liveLead.clientName ||
               liveLead.AD_Client_ID?.identifier ||
+              liveLead.organizationName ||
               liveLead.AD_Org_ID?.identifier
             }
             mail={() => handleMail(liveLead?.EMail)}
@@ -465,7 +553,7 @@ const GenericLead = ({navigation, route}) => {
               });
             }}
             onPress={() => {
-              navigation.navigate('LeadEdit', {data: liveLead});
+              navigation.navigate('LeadEdit', { data: liveLead });
             }}
           />
         </TouchableOpacity>
@@ -474,7 +562,7 @@ const GenericLead = ({navigation, route}) => {
   };
 
   // Loading state
-  if (!preFilteredLeads || preFilteredLeads.length === 0) {
+  if (!initialLeads || initialLeads.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <CustomHeader
@@ -483,6 +571,7 @@ const GenericLead = ({navigation, route}) => {
           RightPress={() => setFilterVisible(true)}
         />
         <View style={styles.loadingContent}>
+          <MaterialIcons name="group" size={scale(60)} color={Colors.border} />
           <Text style={styles.loadingText}>No leads found</Text>
           <Text style={styles.emptySubText}>{actualScreenTitle}</Text>
         </View>
@@ -521,27 +610,35 @@ const GenericLead = ({navigation, route}) => {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}>
-                {/* Status Picker */}
+                {/* Dynamic Status Picker */}
                 <Text style={styles.sectionTitle}>Filter by Status</Text>
                 <View style={styles.customPickerContainer}>
                   {statusOptions.map(option => (
                     <TouchableOpacity
-                      key={option.value}
+                      key={option.id || option.value}
                       style={[
                         styles.statusOption,
-                        selectStatus === option.value &&
-                          styles.statusOptionSelected,
+                        selectedStatusId === option.id &&
+                        styles.statusOptionSelected,
                       ]}
-                      onPress={() => setSelectStatus(option.value)}>
-                      <Text
-                        style={[
-                          styles.statusOptionText,
-                          selectStatus === option.value &&
+                      onPress={() => {
+                        setSelectedStatusId(option.id);
+                        setSelectedStatusName(option.value);
+                      }}>
+                      <View style={styles.statusOptionLeft}>
+                        {option.color && (
+                          <View style={[styles.statusDot, { backgroundColor: option.color }]} />
+                        )}
+                        <Text
+                          style={[
+                            styles.statusOptionText,
+                            selectedStatusId === option.id &&
                             styles.statusOptionTextSelected,
-                        ]}>
-                        {option.label}
-                      </Text>
-                      {selectStatus === option.value && (
+                          ]}>
+                          {option.label}
+                        </Text>
+                      </View>
+                      {selectedStatusId === option.id && (
                         <MaterialIcons
                           name="check"
                           size={scale(20)}
@@ -593,7 +690,7 @@ const GenericLead = ({navigation, route}) => {
                       setShowCalendar(true);
                     }}
                     activeOpacity={0.7}
-                    style={{paddingLeft: scale(8)}}>
+                    style={{ paddingLeft: scale(8) }}>
                     <EvilIcons
                       name="calendar"
                       size={scale(25)}
@@ -750,10 +847,9 @@ const GenericLead = ({navigation, route}) => {
                 <View style={styles.sortInfoRow}>
                   <View style={styles.sortInfoContainer}>
                     <Text style={styles.totalCountText}>
-                    {filteredLeads.length} leads
-                  </Text>
+                      {displayData.length} leads
+                    </Text>
                   </View>
-                 
                 </View>
               )}
             </View>
@@ -762,10 +858,9 @@ const GenericLead = ({navigation, route}) => {
             <FlatList
               data={displayData}
               keyExtractor={(item, index) =>
-                `${item.id || index}-${forceUpdate}`
+                `${item.id || index}`
               }
-              renderItem={({item}) => renderLeadCard(item)}
-              extraData={forceUpdate}
+              renderItem={renderLeadCard}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   {searchQuery.length > 0 ? (
@@ -779,7 +874,7 @@ const GenericLead = ({navigation, route}) => {
                         No leads found for "{searchQuery}"
                       </Text>
                       <Text style={styles.emptySubText}>
-                        Searched in: Name, Company and Organization
+                        Searched in: Name, Company, Organization, Status, Email, Phone
                       </Text>
                       <TouchableOpacity
                         onPress={clearSearch}
@@ -795,9 +890,9 @@ const GenericLead = ({navigation, route}) => {
                         color={Colors.border}
                       />
                       <Text style={styles.emptyText}>
-                        {filteredLeads.length === 0 && selectStatus !== 'select'
-                          ? `No ${selectStatus.toLowerCase()} leads found in ${actualScreenTitle}`
-                          : `No leads found in ${actualScreenTitle}`}
+                        {modalFilteredLeads.length === 0 && selectedStatusId !== 'select'
+                          ? `No ${selectedStatusName} leads found`
+                          : `No leads found`}
                       </Text>
                       <Text style={styles.emptySubText}>
                         Try changing your filter or sort settings
@@ -835,6 +930,7 @@ const GenericLead = ({navigation, route}) => {
   );
 };
 
+// All styles remain exactly the same
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -862,6 +958,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.medium,
     color: Colors.textSecondary,
+    marginTop: spacing.lg,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -902,13 +999,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.buttonSecondary,
     width: scale(44),
-    height: scale(44),
-    borderRadius: Layout.borderRadius.lg,
+    height: scale(35),
+    borderRadius: Layout.borderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
@@ -942,12 +1039,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
   },
-  searchQueryText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
   clearSearchButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: verticalScale(6),
@@ -964,24 +1055,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+   
   },
   sortInfoContainer: {
-    backgroundColor: Colors.infoLight,
     paddingHorizontal: spacing.md,
-    paddingVertical: verticalScale(6),
+   
     borderRadius: Layout.borderRadius.md,
   },
-  sortInfoText: {
-    fontSize: Typography.fontSize.xsmall,
-    color: Colors.primary,
-    fontFamily: Typography.fontFamily.medium,
-  },
-  totalCountText: {
-    fontSize: Typography.fontSize.xsmall,
-    color: Colors.textSecondary,
-    fontFamily: Typography.fontFamily.medium,
-  },
+  totalCountText: {},
   cardContainer: {
     marginHorizontal: spacing.xs,
     marginVertical: spacing.xxs,
@@ -1040,7 +1121,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 5,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 2},
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
     zIndex: 1000,
@@ -1107,6 +1188,16 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.backgroundDark,
     backgroundColor: Colors.background,
   },
+  statusOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: scale(12),
+    height: scale(12),
+    borderRadius: scale(6),
+    marginRight: spacing.sm,
+  },
   statusOptionSelected: {
     backgroundColor: Colors.infoLight,
   },
@@ -1152,7 +1243,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
     elevation: 2,
     shadowColor: Colors.shadow,
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.5,
   },
@@ -1173,23 +1264,6 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontFamily: Typography.fontFamily.semiBold,
     fontSize: Typography.fontSize.medium,
-  },
-  calendarModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  calendarModalContent: {
-    backgroundColor: '#fff',
-    width: '90%',
-    borderRadius: 10,
-    padding: 10,
-  },
-  calendarCloseButton: {
-    marginTop: 10,
-    alignSelf: 'center',
-    padding: 10,
   },
 });
 

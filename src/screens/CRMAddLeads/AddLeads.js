@@ -1,5 +1,6 @@
-// screens/AddLeads.js
-import React, { useEffect, useState, useMemo } from 'react';
+// screens/AddLeads.js - COMPLETE FIXED VERSION with CRMTheme and default sales rep
+
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,7 +8,6 @@ import {
   TouchableOpacity,
   Text,
   StatusBar,
-  Alert,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -16,16 +16,148 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../../components/CustomHeader';
 import { useAddLeadForm } from '../../hooks/CRMhooks/useAddLeadForm';
-import { useCreateLead, useCampaigns, useSalesRepresentatives } from '../../services/CRMAPI/useLead';
+import { useCreateLead, useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
+import { useAuthStore } from '../../store/authStore';
 import FormSection from '../../components/AddLead/FormSection';
 import { FormInput, PhoneInput } from '../../components/AddLead/LeadForm';
 import SelectPicker from '../../components/AddLead/SelectPicker';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import CustomAlert from '../../components/CustomAlert';
+import CRMTheme from '../../constants/CRMTheme/CRMTheme';
+
+// Mock data for countries and regions - in production, these would come from API
+const COUNTRIES = [
+  { label: 'Pakistan', value: 'PK', id: 1000001 },
+  { label: 'United States', value: 'US', id: 1000002 },
+  { label: 'United Kingdom', value: 'GB', id: 1000003 },
+  { label: 'Canada', value: 'CA', id: 1000004 },
+  { label: 'Australia', value: 'AU', id: 1000005 },
+  { label: 'Germany', value: 'DE', id: 1000006 },
+  { label: 'France', value: 'FR', id: 1000007 },
+  { label: 'Italy', value: 'IT', id: 1000008 },
+  { label: 'Spain', value: 'ES', id: 1000009 },
+  { label: 'UAE', value: 'AE', id: 1000010 },
+  { label: 'China', value: 'CN', id: 1000011 },
+  { label: 'India', value: 'IN', id: 1000012 },
+];
+
+// Regions/States based on country
+const REGIONS = {
+  PK: [
+    { label: 'Punjab', value: 'PK-PB', id: 2000001 },
+    { label: 'Sindh', value: 'PK-SD', id: 2000002 },
+    { label: 'Khyber Pakhtunkhwa', value: 'PK-KP', id: 2000003 },
+    { label: 'Balochistan', value: 'PK-BL', id: 2000004 },
+    { label: 'Islamabad Capital Territory', value: 'PK-IS', id: 2000005 },
+  ],
+  US: [
+    { label: 'California', value: 'US-CA', id: 2000101 },
+    { label: 'Texas', value: 'US-TX', id: 2000102 },
+    { label: 'New York', value: 'US-NY', id: 2000103 },
+    { label: 'Florida', value: 'US-FL', id: 2000104 },
+    { label: 'Illinois', value: 'US-IL', id: 2000105 },
+  ],
+  GB: [
+    { label: 'England', value: 'GB-ENG', id: 2000201 },
+    { label: 'Scotland', value: 'GB-SCT', id: 2000202 },
+    { label: 'Wales', value: 'GB-WLS', id: 2000203 },
+    { label: 'Northern Ireland', value: 'GB-NIR', id: 2000204 },
+  ],
+};
 
 const AddLeads = () => {
   const navigation = useNavigation();
   
+  // Get auth state
+  const authUserId = useAuthStore((state) => state.userId);
+  const authUserName = useAuthStore((state) => state.userName);
+  
+  console.log('🔐 Current logged in user:', { authUserId, authUserName });
+  
+  // State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+  const [initialRepSet, setInitialRepSet] = useState(false);
+
+  // State for address fields
+  const [addressFields, setAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for Business Partner address fields (same format as addressFields)
+  const [bpAddressFields, setBpAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for region options based on selected country (for contact address)
+  const [regionOptions, setRegionOptions] = useState([]);
+  
+  // State for region options based on selected country (for business partner address)
+  const [bpRegionOptions, setBpRegionOptions] = useState([]);
+
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
+  // useEffect to set mounted state after first render
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+
+  // Update region options when contact country changes
+  useEffect(() => {
+    if (addressFields.country) {
+      const country = COUNTRIES.find(c => c.value === addressFields.country);
+      if (country && REGIONS[country.value]) {
+        setRegionOptions(REGIONS[country.value]);
+      } else {
+        setRegionOptions([]);
+      }
+    } else {
+      setRegionOptions([]);
+    }
+  }, [addressFields.country]);
+
+  // Update region options when business partner country changes
+  useEffect(() => {
+    if (bpAddressFields.country) {
+      const country = COUNTRIES.find(c => c.value === bpAddressFields.country);
+      if (country && REGIONS[country.value]) {
+        setBpRegionOptions(REGIONS[country.value]);
+      } else {
+        setBpRegionOptions([]);
+      }
+    } else {
+      setBpRegionOptions([]);
+    }
+  }, [bpAddressFields.country]);
+
   // Use custom form hook
   const {
     formData,
@@ -38,24 +170,26 @@ const AddLeads = () => {
     validateRequiredFields,
     copyContactToBusinessPartner,
     prepareSubmitData,
-    initializeForm,
   } = useAddLeadForm();
 
-  // Use React Query mutations
   const createLeadMutation = useCreateLead();
-  const { data: campaigns = [], isLoading: loadingCampaigns } = useCampaigns();
-  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+  
+  // Get sales reps list
+  const { 
+    data: salesReps = [], 
+    isLoading: loadingSalesReps,
+    refetch 
+  } = useSalesRepresentatives(isMounted);
 
   // State for searchable sales rep picker
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [countryCode, setCountryCode] = useState('+92'); // Pakistan by default
 
   // Status options
   const leadStatusOptions = [
     { label: 'New', value: 'N' },
     { label: 'Working', value: 'W' },
-    { label: 'Expire', value: 'E' },
+    { label: 'Expired', value: 'E' },
     { label: 'Converted', value: 'C' },
   ];
 
@@ -77,12 +211,7 @@ const AddLeads = () => {
     { label: 'Other', value: 'OT' },
   ];
 
-  // Initialize form on mount
-  useEffect(() => {
-    initializeForm();
-  }, [initializeForm]);
-
-  // Filter sales reps based on search query (by name only)
+  // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
     if (!searchQuery.trim()) {
       return salesReps;
@@ -94,12 +223,77 @@ const AddLeads = () => {
     );
   }, [salesReps, searchQuery]);
 
+  // Set default sales rep to current user once salesReps are loaded
+  useEffect(() => {
+    // Only run if we haven't set initial rep yet, we have sales reps loaded, and we have authUserId
+    if (!initialRepSet && salesReps.length > 0 && authUserId && !formData.salesRep) {
+      console.log('🎯 Attempting to set default sales rep to current user:', authUserId);
+      
+      // Try to find current user in sales reps list by ID
+      const currentUserAsRep = salesReps.find(rep => rep.id === parseInt(authUserId));
+      
+      if (currentUserAsRep) {
+        console.log('✅ Found current user in sales reps list:', currentUserAsRep.Name);
+        updateField('salesRep', currentUserAsRep.id);
+        setInitialRepSet(true);
+      } else {
+        console.log('⚠️ Current user not found in sales reps list, looking by name...');
+        
+        // Try to find by name as fallback
+        const userByName = salesReps.find(rep => 
+          rep.Name && rep.Name.toLowerCase() === authUserName?.toLowerCase()
+        );
+        
+        if (userByName) {
+          console.log('✅ Found current user by name:', userByName.Name);
+          updateField('salesRep', userByName.id);
+          setInitialRepSet(true);
+        } else {
+          console.log('❌ Could not find current user in sales reps list');
+          console.log('Auth User:', { id: authUserId, name: authUserName });
+          console.log('Available rep IDs:', salesReps.map(r => r.id).slice(0, 10));
+        }
+      }
+    }
+  }, [salesReps, authUserId, authUserName, formData.salesRep, initialRepSet, updateField]);
+
   // Get selected sales rep name
   const selectedRepName = useMemo(() => {
     if (!formData.salesRep) return '';
     const rep = salesReps.find(r => r.id === formData.salesRep);
     return rep ? rep.Name : '';
   }, [formData.salesRep, salesReps]);
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showSuccessAlert = (message, onConfirm = null) => {
+    showAlert('Success', message, 'success', onConfirm);
+  };
+
+  const showErrorAlert = (message, onConfirm = null) => {
+    showAlert('Error', message, 'error', onConfirm);
+  };
+
+  const showValidationAlert = (message) => {
+    showAlert('Validation Error', message, 'warning');
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
 
   // Handle sales rep selection
   const handleSelectSalesRep = (rep) => {
@@ -111,45 +305,151 @@ const AddLeads = () => {
   // Clear selected sales rep
   const handleClearSalesRep = () => {
     updateField('salesRep', '');
+    setInitialRepSet(false); // Allow re-setting default if cleared
   };
 
-  // Handle form submission
+  // Handle contact address field updates
+  const handleAddressFieldChange = (field, value) => {
+    setAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+    
+    // For backward compatibility, also update the combined address field
+    const combinedAddress = generateCombinedAddress({
+      ...addressFields,
+      [field]: value,
+    });
+    updateField('address', combinedAddress);
+  };
+
+  // Handle business partner address field updates
+  const handleBpAddressFieldChange = (field, value) => {
+    setBpAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+    
+    // Update company address for backward compatibility
+    const combinedAddress = generateCombinedAddress({
+      ...bpAddressFields,
+      [field]: value,
+    });
+    updateField('companyAddress', combinedAddress);
+  };
+
+  // Generate combined address from separate fields
+  const generateCombinedAddress = (fields) => {
+    const parts = [];
+    if (fields.street) parts.push(fields.street);
+    if (fields.street2) parts.push(fields.street2);
+    
+    const cityRegion = [];
+    if (fields.city) cityRegion.push(fields.city);
+    if (fields.region) cityRegion.push(fields.region);
+    if (cityRegion.length > 0) parts.push(cityRegion.join(', '));
+    
+    if (fields.country) parts.push(fields.country);
+    if (fields.postalCode) parts.push(fields.postalCode);
+    
+    return parts.join(', ');
+  };
+
+  // Copy contact address to business partner address with simple icon
+  const copyAddressToBusinessPartner = () => {
+    setBpAddressFields({ ...addressFields });
+    const combinedAddress = generateCombinedAddress(addressFields);
+    updateField('companyAddress', combinedAddress);
+  };
+
+  // Copy contact name to business partner name
+  const copyContactToBusinessPartnerName = () => {
+    if (formData.name) {
+      updateField('companyName', formData.name);
+    }
+  };
+
+  // Override the prepareSubmitData to include separate address fields for both contact and business partner
+  const enhancedPrepareSubmitData = () => {
+    const baseData = prepareSubmitData();
+    
+    return {
+      ...baseData,
+      // Contact address fields
+      contactAddressFields: {
+        street: addressFields.street,
+        street2: addressFields.street2,
+        city: addressFields.city,
+        postalCode: addressFields.postalCode,
+        country: addressFields.country,
+        countryId: addressFields.countryId,
+        region: addressFields.region,
+        regionId: addressFields.regionId,
+      },
+      // Business Partner address fields (same format)
+      businessPartnerAddressFields: {
+        street: bpAddressFields.street,
+        street2: bpAddressFields.street2,
+        city: bpAddressFields.city,
+        postalCode: bpAddressFields.postalCode,
+        country: bpAddressFields.country,
+        countryId: bpAddressFields.countryId,
+        region: bpAddressFields.region,
+        regionId: bpAddressFields.regionId,
+      },
+      // Combined addresses for backward compatibility
+      address: generateCombinedAddress(addressFields),
+      companyAddress: generateCombinedAddress(bpAddressFields),
+    };
+  };
+
+  // Handle form submission - validate only mandatory fields
   const handleSubmit = async () => {
-    // Validate form
-    if (!validateRequiredFields()) {
-      Alert.alert('Validation Error', 'Please fix the errors in the form.');
+    // Validate only the mandatory fields: name, salesRep, client, organization
+    if (!formData.name) {
+      showValidationAlert('Name is required.');
+      return;
+    }
+
+    if (!formData.salesRep) {
+      showValidationAlert('Please select a Sales Representative.');
+      return;
+    }
+
+    if (!formData.client) {
+      showValidationAlert('Client is required.');
+      return;
+    }
+
+    if (!formData.organization) {
+      showValidationAlert('Organization is required.');
       return;
     }
 
     try {
-      // Prepare data
-      const submitData = prepareSubmitData();
+      const submitData = enhancedPrepareSubmitData();
+      console.log('📦 Submitting lead data:', JSON.stringify(submitData, null, 2));
       
-      // Submit via mutation
       await createLeadMutation.mutateAsync(submitData);
       
-      // Success
-      Alert.alert(
-        'Success',
-        'Lead created successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+      if (isMounted) {
+        showSuccessAlert('Lead created successfully!', () => {
+          hideAlert();
+          if (isMounted) {
+            navigation.goBack();
+          }
+        });
+      }
     } catch (error) {
-      console.error('Lead creation error:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to create lead. Please try again.'
-      );
+      console.error('❌ Lead creation error:', error);
+      if (isMounted) {
+        showErrorAlert(error.message || 'Failed to create lead. Please try again.');
+      }
     }
   };
 
   // Loading state
-  const isLoading = createLeadMutation.isLoading || loadingCampaigns || loadingSalesReps;
+  const isLoading = createLeadMutation.isLoading || loadingSalesReps;
 
   // Render sales rep item
   const renderSalesRepItem = ({ item }) => (
@@ -162,9 +462,15 @@ const AddLeads = () => {
     >
       <View style={styles.repItemContent}>
         <Text style={styles.repName}>{item.Name}</Text>
+        {item.EMail && (
+          <Text style={styles.repEmail}>{item.EMail}</Text>
+        )}
+        {item.id === parseInt(authUserId) && (
+          <Text style={styles.currentUserBadge}>(You)</Text>
+        )}
       </View>
       {formData.salesRep === item.id && (
-        <Icon name="check" size={20} color="#2F4FE3" />
+        <Icon name="check" size={20} color={CRMTheme.Colors.primary} />
       )}
     </TouchableOpacity>
   );
@@ -174,9 +480,31 @@ const AddLeads = () => {
       <StatusBar translucent backgroundColor="transparent" />
       <CustomHeader title="Add Lead" />
       
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
+      />
+      
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#2F4FE3" />
+          <ActivityIndicator size="large" color={CRMTheme.Colors.primary} />
           <Text style={styles.loadingText}>
             {createLeadMutation.isLoading ? 'Creating lead...' : 'Loading data...'}
           </Text>
@@ -206,9 +534,34 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
           
+          {/* Client Field - MANDATORY - Moved to Contact Info */}
+          <FormInput
+            label="Client"
+            required
+            value={formData.client}
+            onChangeText={(value) => updateField('client', value)}
+            placeholder="Enter client"
+            error={errors.client}
+            focused={focusedField === 'client'}
+            onFocus={() => setFocusedField('client')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          {/* Organization Field - MANDATORY - Moved to Contact Info */}
+          <FormInput
+            label="Organization"
+            required
+            value={formData.organization}
+            onChangeText={(value) => updateField('organization', value)}
+            placeholder="Enter organization"
+            error={errors.organization}
+            focused={focusedField === 'organization'}
+            onFocus={() => setFocusedField('organization')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
           <FormInput
             label="Email"
-            required
             value={formData.email}
             onChangeText={(value) => updateField('email', value)}
             placeholder="Enter email"
@@ -220,10 +573,8 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
           
-          {/* Phone Input with Country Code */}
           <PhoneInput
             label="Phone"
-            required
             value={formData.phone}
             onChangeText={(value) => updateField('phone', value)}
             placeholder="Enter phone number"
@@ -232,24 +583,119 @@ const AddLeads = () => {
             onFocus={() => setFocusedField('phone')}
             onBlur={() => setFocusedField(null)}
             defaultCountryCode="+92"
-            onCountryCodeChange={(code) => setCountryCode(code)}
           />
+
+          {/* Contact Address Fields - No required indicator */}
+          <Text style={styles.sectionSubtitle}>Contact Address Details</Text>
           
           <FormInput
-            label="Address"
-            required
-            value={formData.address}
-            onChangeText={(value) => updateField('address', value)}
-            placeholder="Enter address"
-            multiline
-            numberOfLines={3}
-            error={errors.address}
-            focused={focusedField === 'address'}
-            onFocus={() => setFocusedField('address')}
+            label="Street Address"
+            value={addressFields.street}
+            onChangeText={(value) => handleAddressFieldChange('street', value)}
+            placeholder="Enter street address"
+            focused={focusedField === 'street'}
+            onFocus={() => setFocusedField('street')}
             onBlur={() => setFocusedField(null)}
           />
           
-          {/* Searchable Sales Representative Picker */}
+          <FormInput
+            label="Street Address Line 2"
+            value={addressFields.street2}
+            onChangeText={(value) => handleAddressFieldChange('street2', value)}
+            placeholder="Apartment, suite, unit, etc."
+            focused={focusedField === 'street2'}
+            onFocus={() => setFocusedField('street2')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          <FormInput
+            label="City"
+            value={addressFields.city}
+            onChangeText={(value) => handleAddressFieldChange('city', value)}
+            placeholder="Enter city"
+            focused={focusedField === 'city'}
+            onFocus={() => setFocusedField('city')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          <FormInput
+            label="Postal Code"
+            value={addressFields.postalCode}
+            onChangeText={(value) => handleAddressFieldChange('postalCode', value)}
+            placeholder="Enter postal code"
+            keyboardType="numeric"
+            focused={focusedField === 'postalCode'}
+            onFocus={() => setFocusedField('postalCode')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          {/* Country Picker for Contact */}
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerLabel}>Country</Text>
+            <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={addressFields.country}
+                onValueChange={(value) => {
+                  const country = COUNTRIES.find(c => c.value === value);
+                  handleAddressFieldChange('country', value);
+                  handleAddressFieldChange('countryId', country?.id || null);
+                  handleAddressFieldChange('region', '');
+                  handleAddressFieldChange('regionId', null);
+                }}
+                style={styles.picker}
+                dropdownIconColor={CRMTheme.Colors.textSecondary}
+              >
+                <Picker.Item 
+                  label="Select Country" 
+                  value="" 
+                  color={CRMTheme.Colors.textTertiary}
+                />
+                {COUNTRIES.map(country => (
+                  <Picker.Item 
+                    key={country.value} 
+                    label={country.label} 
+                    value={country.value}
+                    color={CRMTheme.Colors.textPrimary}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+          
+          {/* Region/State Picker for Contact */}
+          {regionOptions.length > 0 && (
+            <View style={styles.pickerContainer}>
+              <Text style={styles.pickerLabel}>Region/State</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={addressFields.region}
+                  onValueChange={(value) => {
+                    const region = regionOptions.find(r => r.value === value);
+                    handleAddressFieldChange('region', value);
+                    handleAddressFieldChange('regionId', region?.id || null);
+                  }}
+                  style={styles.picker}
+                  dropdownIconColor={CRMTheme.Colors.textSecondary}
+                >
+                  <Picker.Item 
+                    label="Select Region/State" 
+                    value="" 
+                    color={CRMTheme.Colors.textTertiary}
+                  />
+                  {regionOptions.map(region => (
+                    <Picker.Item 
+                      key={region.value} 
+                      label={region.label} 
+                      value={region.value}
+                      color={CRMTheme.Colors.textPrimary}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          )}
+          
+          {/* Searchable Sales Representative Picker - MANDATORY */}
           <View style={styles.pickerContainer}>
             <Text style={styles.pickerLabel}>Assigned To (Sales Representative)*</Text>
             <TouchableOpacity
@@ -269,13 +715,13 @@ const AddLeads = () => {
                       handleClearSalesRep();
                     }}
                   >
-                    <Icon name="close" size={18} color="#666" />
+                    <Icon name="close" size={18} color={CRMTheme.Colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
               ) : (
                 <Text style={styles.placeholderText}>Select Sales Representative</Text>
               )}
-              <Icon name="arrow-drop-down" size={24} color="#666" />
+              <Icon name="arrow-drop-down" size={24} color={CRMTheme.Colors.textSecondary} />
             </TouchableOpacity>
             {errors.salesRep && (
               <Text style={styles.errorText}>{errors.salesRep}</Text>
@@ -284,13 +730,11 @@ const AddLeads = () => {
           
           <FormInput
             label="Description"
-            required
             value={formData.description}
             onChangeText={(value) => updateField('description', value)}
             placeholder="Enter description"
             multiline
             numberOfLines={4}
-            error={errors.description}
             focused={focusedField === 'description'}
             onFocus={() => setFocusedField('description')}
             onBlur={() => setFocusedField(null)}
@@ -305,33 +749,130 @@ const AddLeads = () => {
         >
           <FormInput
             label="Company Name"
-            required
             value={formData.companyName}
             onChangeText={(value) => updateField('companyName', value)}
             placeholder="Enter company name or copy from contact"
             icon="content-copy"
-            onIconPress={copyContactToBusinessPartner}
-            error={errors.companyName}
+            onIconPress={copyContactToBusinessPartnerName}
             focused={focusedField === 'companyName'}
             onFocus={() => setFocusedField('companyName')}
             onBlur={() => setFocusedField(null)}
           />
+
+          {/* Business Partner Address Fields - No required indicator */}
+          <View style={styles.addressHeader}>
+            <Text style={styles.addressHeaderTitle}>Business Partner Address Details</Text>
+            <TouchableOpacity onPress={copyAddressToBusinessPartner} style={styles.copyIconButton}>
+              <Icon name="content-copy" size={20} color={CRMTheme.Colors.primary} />
+            </TouchableOpacity>
+          </View>
           
           <FormInput
-            label="Company Address"
-            required
-            value={formData.companyAddress}
-            onChangeText={(value) => updateField('companyAddress', value)}
-            placeholder="Enter company address or copy from contact"
-            icon="content-copy"
-            onIconPress={copyContactToBusinessPartner}
-            multiline
-            numberOfLines={3}
-            error={errors.companyAddress}
-            focused={focusedField === 'companyAddress'}
-            onFocus={() => setFocusedField('companyAddress')}
+            label="Street Address"
+            value={bpAddressFields.street}
+            onChangeText={(value) => handleBpAddressFieldChange('street', value)}
+            placeholder="Enter street address"
+            focused={focusedField === 'bpStreet'}
+            onFocus={() => setFocusedField('bpStreet')}
             onBlur={() => setFocusedField(null)}
           />
+          
+          <FormInput
+            label="Street Address Line 2"
+            value={bpAddressFields.street2}
+            onChangeText={(value) => handleBpAddressFieldChange('street2', value)}
+            placeholder="Apartment, suite, unit, etc."
+            focused={focusedField === 'bpStreet2'}
+            onFocus={() => setFocusedField('bpStreet2')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          <FormInput
+            label="City"
+            value={bpAddressFields.city}
+            onChangeText={(value) => handleBpAddressFieldChange('city', value)}
+            placeholder="Enter city"
+            focused={focusedField === 'bpCity'}
+            onFocus={() => setFocusedField('bpCity')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          <FormInput
+            label="Postal Code"
+            value={bpAddressFields.postalCode}
+            onChangeText={(value) => handleBpAddressFieldChange('postalCode', value)}
+            placeholder="Enter postal code"
+            keyboardType="numeric"
+            focused={focusedField === 'bpPostalCode'}
+            onFocus={() => setFocusedField('bpPostalCode')}
+            onBlur={() => setFocusedField(null)}
+          />
+          
+          {/* Country Picker for Business Partner */}
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerLabel}>Country</Text>
+            <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={bpAddressFields.country}
+                onValueChange={(value) => {
+                  const country = COUNTRIES.find(c => c.value === value);
+                  handleBpAddressFieldChange('country', value);
+                  handleBpAddressFieldChange('countryId', country?.id || null);
+                  handleBpAddressFieldChange('region', '');
+                  handleBpAddressFieldChange('regionId', null);
+                }}
+                style={styles.picker}
+                dropdownIconColor={CRMTheme.Colors.textSecondary}
+              >
+                <Picker.Item 
+                  label="Select Country" 
+                  value="" 
+                  color={CRMTheme.Colors.textTertiary}
+                />
+                {COUNTRIES.map(country => (
+                  <Picker.Item 
+                    key={country.value} 
+                    label={country.label} 
+                    value={country.value}
+                    color={CRMTheme.Colors.textPrimary}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </View>
+          
+          {/* Region/State Picker for Business Partner */}
+          {bpRegionOptions.length > 0 && (
+            <View style={styles.pickerContainer}>
+              <Text style={styles.pickerLabel}>Region/State</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={bpAddressFields.region}
+                  onValueChange={(value) => {
+                    const region = bpRegionOptions.find(r => r.value === value);
+                    handleBpAddressFieldChange('region', value);
+                    handleBpAddressFieldChange('regionId', region?.id || null);
+                  }}
+                  style={styles.picker}
+                  dropdownIconColor={CRMTheme.Colors.textSecondary}
+                >
+                  <Picker.Item 
+                    label="Select Region/State" 
+                    value="" 
+                    color={CRMTheme.Colors.textTertiary}
+                  />
+                  {bpRegionOptions.map(region => (
+                    <Picker.Item 
+                      key={region.value} 
+                      label={region.label} 
+                      value={region.value}
+                      color={CRMTheme.Colors.textPrimary}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+          )}
         </FormSection>
 
         {/* Other Info Section */}
@@ -340,13 +881,11 @@ const AddLeads = () => {
           expanded={expandedSections.otherInfo}
           onToggle={() => toggleSection('otherInfo')}
         >
-          {/* Secondary Phone with Country Code */}
           <PhoneInput
             label="Secondary Phone"
             value={formData.phone2}
             onChangeText={(value) => updateField('phone2', value)}
             placeholder="Enter secondary phone"
-            error={errors.phone2}
             focused={focusedField === 'phone2'}
             onFocus={() => setFocusedField('phone2')}
             onBlur={() => setFocusedField(null)}
@@ -358,19 +897,8 @@ const AddLeads = () => {
             value={formData.birthday}
             onChangeText={(value) => updateField('birthday', value)}
             placeholder="YYYY-MM-DD"
-            error={errors.birthday}
             focused={focusedField === 'birthday'}
             onFocus={() => setFocusedField('birthday')}
-            onBlur={() => setFocusedField(null)}
-          />
-          
-          <FormInput
-            label="City"
-            value={formData.city}
-            onChangeText={(value) => updateField('city', value)}
-            placeholder="Enter city"
-            focused={focusedField === 'city'}
-            onFocus={() => setFocusedField('city')}
             onBlur={() => setFocusedField(null)}
           />
           
@@ -384,28 +912,6 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
 
-          {/* Campaign Picker */}
-          <View style={styles.pickerContainer}>
-            <Text style={styles.pickerLabel}>Campaign</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={formData.campaignID}
-                onValueChange={(value) => updateField('campaignID', value)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Campaign" value={null} />
-                {campaigns.map((campaign) => (
-                  <Picker.Item
-                    key={campaign.id}
-                    label={campaign.Name}
-                    value={campaign.id}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Lead Source Picker */}
           <SelectPicker
             label="Lead Source"
             value={formData.leadSourceID}
@@ -429,7 +935,6 @@ const AddLeads = () => {
             onBlur={() => setFocusedField(null)}
           />
 
-          {/* Status Picker */}
           <SelectPicker
             label="Status"
             value={formData.statusID}
@@ -474,9 +979,10 @@ const AddLeads = () => {
                   selectedValue={formData.salesLead}
                   onValueChange={(value) => updateField('salesLead', value)}
                   style={styles.smallPicker}
+                  dropdownIconColor={CRMTheme.Colors.textSecondary}
                 >
-                  <Picker.Item label="True" value="true" />
-                  <Picker.Item label="False" value="false" />
+                  <Picker.Item label="Yes" value="true" />
+                  <Picker.Item label="No" value="false" />
                 </Picker>
               </View>
             </View>
@@ -488,37 +994,24 @@ const AddLeads = () => {
                   selectedValue={formData.vendorLead}
                   onValueChange={(value) => updateField('vendorLead', value)}
                   style={styles.smallPicker}
+                  dropdownIconColor={CRMTheme.Colors.textSecondary}
                 >
-                  <Picker.Item label="Select" value="" />
-                  <Picker.Item label="True" value="true" />
-                  <Picker.Item label="False" value="false" />
+                  <Picker.Item label="Yes" value="true" />
+                  <Picker.Item label="No" value="false" />
                 </Picker>
               </View>
             </View>
           </View>
-
-          {/* Read-only fields */}
-          <FormInput
-            label="Organization"
-            value={formData.organization}
-            editable={false}
-          />
-          
-          <FormInput
-            label="Is Active"
-            value="True"
-            editable={false}
-          />
         </FormSection>
 
         {/* Submit Button */}
         <TouchableOpacity
           style={[
             styles.submitButton,
-            (createLeadMutation.isLoading || !formData.salesRep) && styles.submitButtonDisabled,
+            (createLeadMutation.isLoading || !formData.salesRep || !formData.name || !formData.client || !formData.organization) && styles.submitButtonDisabled,
           ]}
           onPress={handleSubmit}
-          disabled={createLeadMutation.isLoading || !formData.salesRep}
+          disabled={createLeadMutation.isLoading || !formData.salesRep || !formData.name || !formData.client || !formData.organization}
         >
           <Text style={styles.submitButtonText}>
             {createLeadMutation.isLoading ? 'Creating...' : 'Create Lead'}
@@ -549,26 +1042,27 @@ const AddLeads = () => {
                 }}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color="#333" />
+                <Icon name="close" size={24} color={CRMTheme.Colors.textPrimary} />
               </TouchableOpacity>
             </View>
             
             {/* Search Input */}
             <View style={styles.searchContainer}>
-              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+              <Icon name="search" size={20} color={CRMTheme.Colors.textSecondary} style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search by name..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoFocus={true}
+                placeholderTextColor={CRMTheme.Colors.textTertiary}
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity
                   onPress={() => setSearchQuery('')}
                   style={styles.clearSearchButton}
                 >
-                  <Icon name="close" size={18} color="#666" />
+                  <Icon name="close" size={18} color={CRMTheme.Colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -580,7 +1074,7 @@ const AddLeads = () => {
               keyExtractor={(item) => item.id.toString()}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Icon name="person-off" size={50} color="#ccc" />
+                  <Icon name="person-off" size={50} color={CRMTheme.Colors.borderDark} />
                   <Text style={styles.emptyText}>
                     {searchQuery.trim() 
                       ? `No sales representatives found for "${searchQuery}"`
@@ -605,10 +1099,11 @@ const AddLeads = () => {
   );
 };
 
+// Styles using CRMTheme
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: CRMTheme.Colors.background,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -622,115 +1117,133 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#333',
-    fontFamily: 'K2D-Medium',
+    marginTop: CRMTheme.Spacing.sm,
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    color: CRMTheme.Colors.textPrimary,
+    fontFamily: CRMTheme.Typography.fontFamily.medium,
   },
   formWrapper: {
     flex: 1,
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 20,
-    borderRadius: 12,
+    backgroundColor: CRMTheme.Colors.backgroundLight,
+    marginHorizontal: CRMTheme.Spacing.lg,
+    marginTop: CRMTheme.Spacing.lg,
+    marginBottom: CRMTheme.Spacing.lg,
+    borderRadius: CRMTheme.Layout.borderRadius.xl,
     elevation: 8,
-    shadowColor: '#000',
+    shadowColor: CRMTheme.Colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   formContent: {
-    padding: 20,
+    padding: CRMTheme.Spacing.lg,
+  },
+  sectionSubtitle: {
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    color: CRMTheme.Colors.textPrimary, // Changed from primary to textPrimary
+    marginTop: CRMTheme.Spacing.sm,
+    marginBottom: CRMTheme.Spacing.md,
+    paddingBottom: CRMTheme.Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: CRMTheme.Colors.border,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: CRMTheme.Spacing.sm,
+  },
+  addressHeaderTitle: {
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    color: CRMTheme.Colors.textPrimary, // Changed from primary to textPrimary
+  },
+  copyIconButton: {
+    padding: CRMTheme.Spacing.xs,
   },
   pickerContainer: {
-    marginBottom: 16,
+    marginBottom: CRMTheme.Spacing.md,
   },
   pickerLabel: {
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 14,
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    color: CRMTheme.Colors.textPrimary,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    fontSize: CRMTheme.Typography.fontSize.small,
+    marginBottom: CRMTheme.Spacing.xs,
+    letterSpacing: CRMTheme.Typography.letterSpacing.wide,
   },
   pickerWrapper: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: CRMTheme.Colors.border,
+    borderRadius: CRMTheme.Layout.borderRadius.md,
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: CRMTheme.Colors.backgroundLight,
     
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: CRMTheme.Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   picker: {
-    height: 48,
-    color: '#333',
+    height: CRMTheme.Layout.input.height,
+    color: CRMTheme.Colors.textPrimary,
   },
   smallPicker: {
-    height: 48,
-    color: '#333',
-    fontSize: 14,
+    height: CRMTheme.Layout.input.height,
+    color: CRMTheme.Colors.textPrimary,
+    fontSize: CRMTheme.Typography.fontSize.small,
   },
   booleanContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: CRMTheme.Spacing.md,
   },
   booleanField: {
     flex: 1,
-    marginRight: 8,
+    marginRight: CRMTheme.Spacing.sm,
   },
   booleanLabel: {
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 14,
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    color: CRMTheme.Colors.textPrimary,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    fontSize: CRMTheme.Typography.fontSize.small,
+    marginBottom: CRMTheme.Spacing.xs,
+    letterSpacing: CRMTheme.Typography.letterSpacing.wide,
   },
   submitButton: {
-    backgroundColor: '#2F4FE3',
-    paddingVertical: 16,
-    borderRadius: 8,
+    backgroundColor: CRMTheme.Colors.primary,
+    paddingVertical: CRMTheme.Spacing.md,
+    borderRadius: CRMTheme.Layout.borderRadius.md,
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: CRMTheme.Spacing.lg,
+    marginBottom: CRMTheme.Spacing.sm,
     
-    // Shadow for iOS
-    shadowColor: '#2F4FE3',
+    shadowColor: CRMTheme.Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
-    
-    // Elevation for Android
     elevation: 6,
   },
   submitButtonDisabled: {
-    backgroundColor: '#8fa3e3',
+    backgroundColor: CRMTheme.Colors.buttonDisabled,
     shadowOpacity: 0.2,
     elevation: 3,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'K2D-SemiBold',
-    letterSpacing: 0.5,
+    color: CRMTheme.Colors.textInverse,
+    fontSize: CRMTheme.Typography.fontSize.button,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    letterSpacing: CRMTheme.Typography.letterSpacing.wide,
   },
   bottomSpacing: {
-    height: 20,
+    height: CRMTheme.Spacing.lg,
   },
   errorText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
-    fontFamily: 'K2D-Regular',
+    color: CRMTheme.Colors.error,
+    fontSize: CRMTheme.Typography.fontSize.xsmall,
+    marginTop: CRMTheme.Spacing.xs,
+    marginLeft: CRMTheme.Spacing.xs,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
   },
   
   // Sales Rep Selector Styles
@@ -739,24 +1252,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    borderColor: CRMTheme.Colors.border,
+    borderRadius: CRMTheme.Layout.borderRadius.md,
+    paddingHorizontal: CRMTheme.Spacing.md,
+    paddingVertical: CRMTheme.Spacing.sm,
+    backgroundColor: CRMTheme.Colors.backgroundLight,
     
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: CRMTheme.Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   selectorError: {
-    borderColor: '#FF3B30',
-    shadowColor: '#FF3B30',
+    borderColor: CRMTheme.Colors.error,
+    shadowColor: CRMTheme.Colors.error,
   },
   selectedRepContainer: {
     flex: 1,
@@ -765,139 +1275,145 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   selectedRepText: {
-    fontSize: 15,
-    color: '#333',
-    fontFamily: 'K2D-Regular',
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    color: CRMTheme.Colors.textPrimary,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
   },
   placeholderText: {
-    fontSize: 15,
-    color: '#999',
-    fontFamily: 'K2D-Regular',
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    color: CRMTheme.Colors.textTertiary,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
     flex: 1,
   },
   clearButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: CRMTheme.Spacing.xs,
+    marginLeft: CRMTheme.Spacing.sm,
   },
   
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: CRMTheme.Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
+    backgroundColor: CRMTheme.Colors.backgroundLight,
+    borderTopLeftRadius: CRMTheme.Layout.borderRadius.xl,
+    borderTopRightRadius: CRMTheme.Layout.borderRadius.xl,
+    maxHeight: CRMTheme.Layout.modal.maxHeight,
     
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: CRMTheme.Colors.shadow,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    
-    // Elevation for Android
     elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: CRMTheme.Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: CRMTheme.Colors.borderLight,
   },
   modalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: CRMTheme.Typography.fontSize.h4,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    color: CRMTheme.Colors.textPrimary,
   },
   closeButton: {
-    padding: 4,
+    padding: CRMTheme.Spacing.xs,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    margin: 16,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
+    borderColor: CRMTheme.Colors.border,
+    borderRadius: CRMTheme.Layout.borderRadius.md,
+    margin: CRMTheme.Spacing.md,
+    paddingHorizontal: CRMTheme.Spacing.sm,
+    backgroundColor: CRMTheme.Colors.backgroundLight,
     
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: CRMTheme.Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    
-    // Elevation for Android
     elevation: 2,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: CRMTheme.Spacing.sm,
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    height: CRMTheme.Layout.input.height,
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
+    color: CRMTheme.Colors.textPrimary,
   },
   clearSearchButton: {
-    padding: 4,
+    padding: CRMTheme.Spacing.xs,
   },
   repList: {
-    maxHeight: 400,
+    maxHeight: CRMTheme.Layout.modal.maxHeight - CRMTheme.Layout.button.height.md * 4,
   },
   repListContent: {
-    paddingBottom: 16,
+    paddingBottom: CRMTheme.Spacing.md,
   },
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: CRMTheme.Spacing.sm,
+    paddingHorizontal: CRMTheme.Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: CRMTheme.Colors.borderLight,
   },
   selectedRepItem: {
-    backgroundColor: '#f0f5ff',
+    backgroundColor: CRMTheme.Colors.infoLight,
   },
   repItemContent: {
     flex: 1,
   },
   repName: {
-    fontSize: 15,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontFamily: CRMTheme.Typography.fontFamily.semiBold,
+    color: CRMTheme.Colors.textPrimary,
+  },
+  repEmail: {
+    fontSize: CRMTheme.Typography.fontSize.xsmall,
+    color: CRMTheme.Colors.textSecondary,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
+    marginTop: CRMTheme.Spacing.xxs,
+  },
+  currentUserBadge: {
+    fontSize: CRMTheme.Typography.fontSize.xsmall,
+    color: CRMTheme.Colors.primary,
+    fontFamily: CRMTheme.Typography.fontFamily.medium,
+    marginTop: CRMTheme.Spacing.xxs,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingVertical: CRMTheme.Spacing.xxxl,
+    paddingHorizontal: CRMTheme.Spacing.lg,
   },
   emptyText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#999',
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
+    color: CRMTheme.Colors.textTertiary,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: CRMTheme.Spacing.md,
   },
   modalFooter: {
-    padding: 16,
+    padding: CRMTheme.Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: CRMTheme.Colors.borderLight,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 13,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
+    fontSize: CRMTheme.Typography.fontSize.small,
+    fontFamily: CRMTheme.Typography.fontFamily.regular,
+    color: CRMTheme.Colors.textSecondary,
   },
 });
 

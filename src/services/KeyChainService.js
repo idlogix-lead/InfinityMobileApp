@@ -1,4 +1,4 @@
-// KeyChainService.js - FINAL VERSION
+// KeyChainService.js - FINAL VERSION WITH SESSION RECOVERY
 import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -130,11 +130,72 @@ export const keychainService = {
     }
   },
 
+  // ==================== SESSION RECOVERY ====================
+  
+  recoverSession: async () => {
+    try {
+      console.log('[Keychain] Attempting to recover session...');
+      
+      // Try to get current session ID
+      const currentId = await keychainService.getCurrentSessionId();
+      if (currentId) {
+        const session = await keychainService.loadUserSession(currentId);
+        if (session && session.token) {
+          console.log('🔐 Session recovered for:', session.userName);
+          return session;
+        }
+      }
+      
+      // If no current session, try the most recent from registry
+      const registry = await keychainService._getRegistry();
+      if (registry.length > 0) {
+        const mostRecent = registry[0];
+        const session = await keychainService.loadUserSession(mostRecent.userId);
+        if (session && session.token) {
+          console.log('🔐 Most recent session recovered');
+          
+          // Set as current session
+          await keychainService.setCurrentSessionId(mostRecent.userId);
+          return session;
+        }
+      }
+      
+      // Try to find any session in fallback storage
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+        const sessionKeys = allKeys.filter(key => key.startsWith('keychain_fallback_'));
+        
+        for (const key of sessionKeys) {
+          const sessionString = await AsyncStorage.getItem(key);
+          if (sessionString) {
+            const session = JSON.parse(sessionString);
+            if (session && session.token) {
+              console.log('🔐 Found session in fallback storage');
+              
+              // Save to Keychain for future use
+              await keychainService.saveUserSession(session);
+              return session;
+            }
+          }
+        }
+      } catch (fallbackError) {
+        console.log('No sessions in fallback storage');
+      }
+      
+      console.log('No recoverable session found');
+      return null;
+    } catch (error) {
+      console.error('[Keychain] Session recovery failed:', error);
+      return null;
+    }
+  },
+
   // ==================== CURRENT SESSION ====================
   
   setCurrentSessionId: async (userId) => {
     try {
       await AsyncStorage.setItem('current_session_id', userId || '');
+      console.log(`[Keychain] Current session set to: ${userId}`);
     } catch (error) {
       console.error('[Keychain] Set current session error:', error);
     }
@@ -152,6 +213,7 @@ export const keychainService = {
   clearCurrentSessionId: async () => {
     try {
       await AsyncStorage.removeItem('current_session_id');
+      console.log('[Keychain] Current session cleared');
     } catch (error) {
       console.error('[Keychain] Clear current session error:', error);
     }
@@ -315,16 +377,20 @@ export const keychainService = {
         return { success: false, error: 'Failed to load' };
       }
 
-      // Test 3: Delete
-      console.log('[Keychain] Test 3: Deleting session...');
+      // Test 3: Recover
+      console.log('[Keychain] Test 3: Testing recovery...');
+      const recovered = await keychainService.recoverSession();
+      
+      // Test 4: Delete
+      console.log('[Keychain] Test 4: Deleting session...');
       const deleted = await keychainService.deleteUserSession(testId);
       
       if (!deleted) {
         return { success: false, error: 'Failed to delete' };
       }
 
-      // Test 4: Verify deleted
-      console.log('[Keychain] Test 4: Verifying deletion...');
+      // Test 5: Verify deleted
+      console.log('[Keychain] Test 5: Verifying deletion...');
       const shouldBeNull = await keychainService.loadUserSession(testId);
       
       if (shouldBeNull) {
@@ -363,7 +429,15 @@ export const keychainService = {
     try {
       // Check if Keychain is accessible
       await Keychain.getSupportedBiometryType();
-      return { status: 'healthy', keychain: 'accessible' };
+      
+      // Try to recover session
+      const recovered = await keychainService.recoverSession();
+      
+      return { 
+        status: 'healthy', 
+        keychain: 'accessible',
+        hasRecoveredSession: !!recovered 
+      };
     } catch (error) {
       console.error('[Keychain] Health check failed:', error);
       return { 

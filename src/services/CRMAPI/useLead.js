@@ -226,26 +226,20 @@ export const useSalesRepresentatives = (enabled = true) => {
   return useQuery({
     queryKey: ['sales-representatives'],
     queryFn: async () => {
+      console.log('👥 Fetching sales representatives...');
       try {
         const data = await crmApiService.getSalesRepresentatives();
-        
-        // SAFETY: Ensure we always return an array
-        if (!Array.isArray(data)) {
-          console.warn('⚠️ useSalesRepresentatives: API returned non-array, converting to array');
-          return [];
-        }
-        
-        console.log(`✅ useSalesRepresentatives success, data length: ${data.length}`);
+        console.log(`✅ Retrieved ${data.length} sales representatives`);
         return data;
       } catch (error) {
+        console.error('❌ Failed to fetch sales representatives:', error);
         handleApiError(error, 'useSalesRepresentatives');
-        return []; // Fallback to empty array
+        return [];
       }
     },
-    enabled,
-    staleTime: 1000 * 60 * 10, // 10 minutes
-    cacheTime: 1000 * 60 * 20, // 20 minutes
-    retry: 1,
-    retryDelay: 1000,
+    enabled: enabled,
+    staleTime: 1000 * 60 * 5,
+    cacheTime: 1000 * 60 * 10,
+    retry: 2,
   });
 };

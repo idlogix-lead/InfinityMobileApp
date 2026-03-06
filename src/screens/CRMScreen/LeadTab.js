@@ -1,3 +1,5 @@
+// LeadTab.js - UPDATED to show all statuses dynamically with original styling
+
 import React from 'react';
 import {
   View,
@@ -9,23 +11,89 @@ import {
 import EarningChart from '../../components/CRMSearch/CRMChart/EarningChart';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 const LeadTab = ({
   leads = [],
   navigation,
   isRefreshing = false,
   handleLeadSummaryPress,
+  handleStatusCardPress,
   totalLeads,
-  convertedLeads,
-  workingLeads,
-  newLeads
+  statusSummaries = [], // All status summaries from CrmScreen
 }) => {
   
-  // Combined single card with individual touchable opacities
+  // Get icon for status based on name - ALL ICONS BLACK
+  const getStatusIcon = (statusName) => {
+    const iconMap = {
+      'New': { family: 'Ionicons', name: 'star' },
+      'Working': { family: 'Ionicons', name: 'time' },
+      'Converted': { family: 'MaterialIcons', name: 'swap-horiz' },
+      'Expired': { family: 'MaterialCommunityIcons', name: 'clock-outline' },
+      'Qualified': { family: 'MaterialIcons', name: 'check-circle' },
+      'Lost': { family: 'MaterialIcons', name: 'close-circle' },
+      'Contacted': { family: 'Ionicons', name: 'call' },
+      'Meeting': { family: 'Ionicons', name: 'calendar' },
+      'Proposal': { family: 'MaterialIcons', name: 'description' },
+      'Negotiation': { family: 'MaterialCommunityIcons', name: 'handshake' },
+      'Demo': { family: 'Ionicons', name: 'videocam' },
+      'Follow-up': { family: 'Ionicons', name: 'repeat' },
+      'Not Interested': { family: 'MaterialIcons', name: 'block' },
+      'Customer': { family: 'Ionicons', name: 'people' },
+    };
+    
+    // Return mapped icon or default
+    return iconMap[statusName] || { 
+      family: 'MaterialIcons', 
+      name: 'label'
+    };
+  };
+
+  // Render icon based on family - ALL BLACK (#000000)
+  const renderIcon = (iconInfo) => {
+    const { family, name } = iconInfo;
+    const iconColor = '#000000'; // FORCE BLACK COLOR
+    const iconSize = 22;
+    
+    switch(family) {
+      case 'Ionicons':
+        return <Ionicons name={name} size={iconSize} color={iconColor} />;
+      case 'MaterialIcons':
+        return <MaterialIcons name={name} size={iconSize} color={iconColor} />;
+      case 'MaterialCommunityIcons':
+        return <MaterialCommunityIcons name={name} size={iconSize} color={iconColor} />;
+      default:
+        return <MaterialIcons name={name} size={iconSize} color={iconColor} />;
+    }
+  };
+
+  // Get background color for icon based on status name (matching original style)
+  const getIconBackgroundColor = (statusName) => {
+    const bgMap = {
+      'New': '#f0f9ff',      // Light blue
+      'Working': '#fffbeb',   // Light yellow
+      'Converted': '#f0fdf4', // Light green
+      'Expired': '#fef2f2',   // Light red
+      'Qualified': '#f3e8ff', // Light purple
+      'Lost': '#fef2f2',      // Light red
+      'Contacted': '#e6f7ff', // Light cyan
+      'Meeting': '#fff7e6',   // Light orange
+      'Proposal': '#e6f3ff',  // Light blue
+      'Negotiation': '#f3e8ff', // Light purple
+      'Demo': '#e6f7ff',       // Light cyan
+      'Follow-up': '#fff1e6',  // Light peach
+      'Not Interested': '#f0f0f0', // Light gray
+      'Customer': '#e6ffe6',   // Light green
+    };
+    
+    return bgMap[statusName] || '#f5f5f5'; // Default light gray
+  };
+
+  // Render main card with all statuses
   const renderCombinedLeadCard = () => {
     return (
       <View style={styles.combinedCard}>
-        {/* Total Leads Card */}
+        {/* Total Leads Card - Always first */}
         <TouchableOpacity 
           style={styles.leadItem}
           onPress={() => handleLeadSummaryPress('total')}
@@ -33,7 +101,7 @@ const LeadTab = ({
         >
           <View style={styles.cardContent}>
             <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#f0f9ff'}]}>
+              <View style={[styles.cardIconContainer, { backgroundColor: '#f0f9ff' }]}>
                 <MaterialIcons name="web" size={22} color="#000000" />
               </View>
               <View style={styles.cardTextContainer}>
@@ -44,52 +112,40 @@ const LeadTab = ({
           </View>
         </TouchableOpacity>
 
-        {/* Separator */}
-        <View style={styles.separator} />
-
-        {/* Converted Leads Card */}
-        <TouchableOpacity 
-          style={styles.leadItem}
-          onPress={() => handleLeadSummaryPress('converted')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#f0fdf4'}]}>
-                <MaterialIcons name="swap-horiz" size={22} color="#000000" />
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardCount}>Converted</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#111111" />
-          </View>
-        </TouchableOpacity>
-
-        {/* Separator */}
-        <View style={styles.separator} />
-
-        {/* Working Leads Card */}
-        <TouchableOpacity 
-          style={styles.leadItem}
-          onPress={() => handleLeadSummaryPress('working')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.cardIconContainer, {backgroundColor: '#fffbeb'}]}>
-                <Ionicons name="time" size={22} color="#000000" />
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardCount}>Working</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#111111" />
-          </View>
-        </TouchableOpacity>
-
-        {/* Separator */}
-        <View style={styles.separator} />
+        {/* Render all statuses dynamically */}
+        {statusSummaries.map((status, index) => {
+          const iconInfo = getStatusIcon(status.name);
+          const backgroundColor = getIconBackgroundColor(status.name);
+          
+          return (
+            <React.Fragment key={status.id}>
+              <View style={styles.separator} />
+              <TouchableOpacity 
+                style={styles.leadItem}
+                onPress={() => {
+                  if (handleStatusCardPress) {
+                    handleStatusCardPress(status);
+                  } else {
+                    handleLeadSummaryPress(status.id);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardLeft}>
+                    <View style={[styles.cardIconContainer, { backgroundColor }]}>
+                      {renderIcon(iconInfo)}
+                    </View>
+                    <View style={styles.cardTextContainer}>
+                      <Text style={styles.cardCount}>{status.name}</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#111111" />
+                </View>
+              </TouchableOpacity>
+            </React.Fragment>
+          );
+        })}
       </View>
     );
   };
@@ -105,7 +161,7 @@ const LeadTab = ({
             isRefreshing={isRefreshing}
           />
 
-          {/* Combined Lead Card */}
+          {/* Combined Lead Card with all statuses */}
           {renderCombinedLeadCard()}
         </View>
       </View>
@@ -154,14 +210,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    backgroundColor: '#f5f5f5',
     borderWidth: 1,
     borderColor: '#000000',
   },
   cardTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     flex: 1,
   },
   cardCount: {

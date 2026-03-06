@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+// screens/CRM/LeadDetailsScreen.js - REMOVED opportunity creation functionality with custom alerts
+
+import React, { useState, useEffect } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -15,10 +17,11 @@ import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { useCompletedLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useCompletedLeadActivities, useLeadById } from '../../hooks/CRMhooks/useCRM';
 import { useQueryClient } from 'react-query';
 import moment from 'moment';
 import theme from '../../constants/CRMTheme/CRMTheme';
+import CustomAlert from '../../components/CustomAlert'; // Import custom alert
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
@@ -192,7 +195,7 @@ const ActivityItem = ({ activity }) => {
   );
 };
 
-// View Mode Row Component - No Icons, Clear Label/Value Hierarchy
+// View Mode Row Component - No Icons, Clear Label/Value Hierarchy (matching LeadEdit)
 const ViewRow = ({ label, value }) => (
   <View style={styles.viewRow}>
     <Text style={styles.viewLabel}>{label}</Text>
@@ -200,12 +203,21 @@ const ViewRow = ({ label, value }) => (
   </View>
 );
 
-// Section Header Component - Larger Title
-const SectionHeader = ({ title, icon }) => (
+// Section Header Component - Compact (matching LeadEdit)
+const SectionHeader = ({ title }) => (
   <View style={styles.sectionHeader}>
-    <View style={styles.sectionHeaderLeft}>
-      <MaterialCommunityIcons name={icon} size={Layout.iconSize.lg} color={Colors.primary} />
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <Text style={styles.sectionTitle}>{title}</Text>
+  </View>
+);
+
+// Boolean Chip Component for Yes/No Fields (matching LeadEdit's InlineSwipeButton in view mode)
+const BooleanChip = ({ label, value }) => (
+  <View style={styles.booleanRow}>
+    <Text style={styles.booleanLabel}>{label}</Text>
+    <View style={[styles.booleanChip, value ? styles.booleanChipSuccess : styles.booleanChipDefault]}>
+      <Text style={[styles.booleanChipText, value ? styles.booleanChipTextSuccess : styles.booleanChipTextDefault]}>
+        {value ? 'Yes' : 'No'}
+      </Text>
     </View>
   </View>
 );
@@ -214,11 +226,34 @@ const LeadDetailsScreen = ({ route, navigation }) => {
   const { data: leadData, followupData } = route.params || {};
   const queryClient = useQueryClient();
 
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
+  // Get lead ID from passed data
+  const leadId = leadData?.id;
+
+  // Fetch complete lead data using the ID
+  const { 
+    data: fetchedLead, 
+    isLoading: isLoadingLead,
+    refetch: refetchLead
+  } = useLeadById(leadId, !!leadId);
+
+  // Use the fetched lead data if available, otherwise fallback to passed data
+  const displayLead = fetchedLead || leadData;
+
   // Tab state
   const [activeTab, setActiveTab] = useState('basic');
-
-  // Use detailed data directly
-  const displayLead = leadData;
 
   // Use completed activities hook
   const { 
@@ -226,6 +261,29 @@ const LeadDetailsScreen = ({ route, navigation }) => {
     isLoading: activitiesLoading, 
     refetch: refetchActivities 
   } = useCompletedLeadActivities(displayLead?.id);
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showErrorAlert = (message) => {
+    showAlert('Error', message, 'error');
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
 
   // Handle add activity
   const handleAddActivity = () => {
@@ -245,6 +303,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       data: displayLead,
       onGoBack: () => {
         // Refresh data if needed
+        refetchLead();
         queryClient.invalidateQueries(['lead', displayLead.id]);
       }
     });
@@ -264,44 +323,136 @@ const LeadDetailsScreen = ({ route, navigation }) => {
     }
   };
 
+  // FIXED: Helper function to check if business partner exists
+  const hasBusinessPartner = (lead) => {
+    if (!lead) return false;
+    
+    // Check all possible locations where business partner ID might be stored
+    const bpId = 
+      // From transformed data
+      lead.businessPartnerId ||
+      // From original nested object
+      lead.C_BPartner_ID?.id ||
+      // From C_BPartner_ID as direct object
+      lead.C_BPartner_ID ||
+      // From BP data
+      lead.BP_BPartner_ID?.id ||
+      // From client ID (fallback)
+      lead.clientId;
+    
+    return !!bpId;
+  };
+
+  // FIXED: Helper function to get business partner ID
+  const getBusinessPartnerId = (lead) => {
+    if (!lead) return null;
+    
+    return (
+      lead.businessPartnerId ||
+      lead.C_BPartner_ID?.id ||
+      (lead.C_BPartner_ID?.id ? lead.C_BPartner_ID.id : null) ||
+      lead.BP_BPartner_ID?.id ||
+      lead.clientId ||
+      null
+    );
+  };
+
+  // FIXED: Helper function to get business partner name
+  const getBusinessPartnerName = (lead) => {
+    if (!lead) return '';
+    
+    return (
+      lead.businessPartnerName ||
+      lead.C_BPartner_ID?.identifier ||
+      lead.BPName ||
+      lead.companyName ||
+      lead.clientName ||
+      ''
+    );
+  };
+
   // Get activity type for the followup
   const activityType = followupData?.ContactActivityType?.identifier || 'Task';
   const isComplete = followupData?.IsComplete || false;
 
-  // Render content based on active tab
+  // Loading state
+  if (isLoadingLead) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title={'Lead Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading lead details...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!displayLead) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title={'Follow Up Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+        />
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.xxl} color={Colors.error} />
+          <Text style={styles.errorText}>Failed to load lead details</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Render content based on active tab (matching LeadEdit structure with correct field names)
   const renderTabContent = () => {
     switch (activeTab) {
       case 'basic':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Contact Information" 
-              icon="phone"
-            />
+            <SectionHeader title="Contact Information" />
             <View style={styles.sectionContent}>
+              <ViewRow 
+                label="Name"
+                value={displayLead?.Name}
+              />
+              <ViewRow 
+                label="Email"
+                value={displayLead?.EMail}
+              />
               <ViewRow 
                 label="Phone"
                 value={displayLead?.Phone}
               />
-
               <ViewRow 
                 label="Secondary Phone"
                 value={displayLead?.Phone2}
               />
-
               <ViewRow 
                 label="Birthday"
                 value={displayLead?.Birthday}
               />
-
               <ViewRow 
                 label="Lead Source"
-                value={displayLead?.LeadSource?.identifier || 'Not provided'}
+                value={displayLead?.leadSourceName || displayLead?.LeadSource?.identifier || 'Not provided'}
               />
-
+              <ViewRow 
+                label="Lead Source Description"
+                value={displayLead?.LeadSourceDescription}
+              />
               <ViewRow 
                 label="Sales Representative"
-                value={displayLead?.SalesRep_ID?.identifier || 'Not assigned'}
+                value={displayLead?.salesRepName || displayLead?.SalesRep_ID?.identifier || 'Not assigned'}
               />
             </View>
           </View>
@@ -310,29 +461,27 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       case 'company':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Company Information" 
-              icon="office-building"
-            />
+            <SectionHeader title="Company Information" />
             <View style={styles.sectionContent}>
               <ViewRow 
                 label="Company Name"
-                value={displayLead?.BPName}
+                value={displayLead?.BPName || getBusinessPartnerName(displayLead) || ''}
               />
-
               <ViewRow 
                 label="Business Partner"
-                value={displayLead?.AD_Client_ID?.identifier || 'Not provided'}
+                value={getBusinessPartnerName(displayLead) || displayLead?.C_BPartner_ID?.identifier || displayLead?.AD_Client_ID?.identifier || 'Not provided'}
               />
-
               <ViewRow 
                 label="Organization"
-                value={displayLead?.AD_Org_ID?.identifier || 'Not provided'}
+                value={displayLead?.organizationName || displayLead?.AD_Org_ID?.identifier || 'Not provided'}
               />
-
               <ViewRow 
-                label="Lead Source Description"
-                value={displayLead?.LeadSourceDescription}
+                label="Tenant/Client"
+                value={displayLead?.clientName || displayLead?.AD_Client_ID?.identifier || 'Not provided'}
+              />
+              <ViewRow 
+                label="Search Key"
+                value={displayLead?.Value}
               />
             </View>
           </View>
@@ -341,26 +490,34 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       case 'detailed':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Detailed Information" 
-              icon="clipboard-text"
-            />
+            <SectionHeader title="Detailed Information" />
             <View style={styles.sectionContent}>
               <ViewRow 
-                label="Sales Lead"
-                value={displayLead?.IsSalesLead ? 'Yes' : 'No'}
+                label="Status"
+                value={displayLead?.statusName || displayLead?.LeadStatus?.identifier || 'Not provided'}
               />
-
               <ViewRow 
-                label="Vendor Lead"
-                value={displayLead?.IsVendorLead ? 'Yes' : 'No'}
+                label="Status Description"
+                value={displayLead?.LeadStatusDescription}
               />
-
+              
+              <BooleanChip 
+                label="Sales Lead"
+                value={displayLead?.IsSalesLead}
+              />
+              <BooleanChip 
+                label="Vendor Lead"
+                value={displayLead?.IsVendorLead}
+              />
+              <BooleanChip 
+                label="Active"
+                value={displayLead?.IsActive}
+              />
+              
               <ViewRow 
                 label="Description"
                 value={displayLead?.Description}
               />
-
               <ViewRow 
                 label="Comments"
                 value={displayLead?.Comments}
@@ -372,10 +529,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       case 'activities':
         return (
           <View style={[styles.sectionCard, styles.activitySectionCard]}>
-            <SectionHeader 
-              title={`Completed Activities (${activities.length})`} 
-              icon="calendar-check"
-            />
+            <SectionHeader title={`Completed Activities (${activities.length})`} />
             <View style={styles.sectionContent}>
               {activitiesLoading ? (
                 <View style={styles.loadingContainer}>
@@ -405,28 +559,6 @@ const LeadDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  if (!displayLead) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title={'Follow Up Details'}
-          LeftIcon="arrow-left"
-          LeftPress={() => navigation.goBack()}
-        />
-        <View style={styles.errorContainer}>
-          <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.xxl} color={Colors.error} />
-          <Text style={styles.errorText}>Failed to load lead details</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.retryButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
@@ -434,11 +566,34 @@ const LeadDetailsScreen = ({ route, navigation }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
 
       <CustomHeader
-        title={'Lead Details'}
+        title={'Follow Up Details'}
         LeftIcon="arrow-left"
         LeftPress={() => navigation.goBack()}
         RightIcon="plus"
         RightPress={handleAddActivity}
+      />
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
       />
 
       <ScrollView
@@ -460,12 +615,8 @@ const LeadDetailsScreen = ({ route, navigation }) => {
               
               <View style={styles.headerInfo}>
                 <Text style={styles.leadName}>{displayLead?.Name || 'Unnamed Lead'}</Text>
-                {displayLead?.BPName && (
-                  <View style={styles.companyBadge}>
-                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.primary} />
-                    <Text style={styles.companyBadgeText}>{displayLead.BPName}</Text>
-                  </View>
-                )}
+                
+               
               </View>
             </View>
 
@@ -485,28 +636,6 @@ const LeadDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
-          {/* Contact Info Row - Compact */}
-          <View style={styles.contactInfoRow}>
-            {displayLead?.EMail && (
-              <View style={styles.contactChip}>
-                <MaterialCommunityIcons name="email" size={Layout.iconSize.xs} color={Colors.textSecondary} />
-                <Text style={styles.contactChipText}>{displayLead.EMail}</Text>
-              </View>
-            )}
-            {displayLead?.Phone && (
-              <View style={styles.contactChip}>
-                <MaterialCommunityIcons name="phone" size={Layout.iconSize.xs} color={Colors.textSecondary} />
-                <Text style={styles.contactChipText}>{displayLead.Phone}</Text>
-              </View>
-            )}
-            {displayLead?.SalesRep_ID?.identifier && (
-              <View style={styles.contactChip}>
-                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.xs} color={Colors.textSecondary} />
-                <Text style={styles.contactChipText}>{displayLead.SalesRep_ID.identifier}</Text>
-              </View>
-            )}
-          </View>
-
           {/* Follow-up Card - Only shown when coming from FollowupScreen */}
           {followupData && (
             <TouchableOpacity
@@ -522,7 +651,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
                   borderColor: Colors.borderDark,
                 }
               ]}>
-                {/* Header Row - Activity Type on left, Pencil on right */}
+                {/* Header Row - Activity Type on left, Actions on right */}
                 <View style={styles.followupCardHeader}>
                   <View style={styles.followupTypeRow}>
                     <View style={[styles.followupIconContainer, { backgroundColor: getActivityBgColor(activityType) }]}>
@@ -533,12 +662,17 @@ const LeadDetailsScreen = ({ route, navigation }) => {
                     </Text>
                   </View>
 
-                  {/* Pencil Icon for editing */}
-                  <MaterialCommunityIcons 
-                    name="pencil" 
-                    size={scale(18)} 
-                    color={Colors.primary} 
-                  />
+                  <View style={styles.followupActions}>
+                    {/* REMOVED: Create Opportunity Button */}
+                    
+                    {/* Pencil Icon for editing */}
+                    <MaterialCommunityIcons 
+                      name="pencil" 
+                      size={scale(18)} 
+                      color={Colors.textSecondary} 
+                      style={styles.editIcon}
+                    />
+                  </View>
                 </View>
 
                 {/* Description */}
@@ -617,6 +751,7 @@ const LeadDetailsScreen = ({ route, navigation }) => {
   );
 };
 
+// Keep all your existing styles - they remain the same
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
@@ -676,7 +811,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: Colors.backgroundLight,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
@@ -684,11 +818,20 @@ const styles = StyleSheet.create({
   companyBadgeText: {
     fontSize: Typography.fontSize.xsmall,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.primary,
     marginLeft: Spacing.xxs,
   },
+  statusBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.round,
+    alignSelf: 'flex-start',
+  },
+  statusBadgeText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
+  },
   
-  // Follow-up Status Badge (replaces lead status)
+  // Follow-up Status Badge
   followupStatusBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -723,7 +866,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Follow-up Card - Styled like FollowupScreen cards
+  // Follow-up Card
   followupCard: {
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -746,6 +889,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  followupActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  opportunityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight + '20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
+    borderRadius: Layout.borderRadius.sm,
+    gap: Spacing.xxs,
+  },
+  opportunityButtonText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.primary,
+  },
+  editIcon: {
+    padding: Spacing.xxs,
   },
   followupIconContainer: {
     width: scale(24),
@@ -892,19 +1057,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.backgroundLight,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.large,
@@ -915,7 +1072,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
 
-  // View Mode Row
+  // View Mode Row (matching LeadEdit)
   viewRow: {
     marginBottom: Spacing.md,
     paddingBottom: Spacing.sm,
@@ -923,18 +1080,62 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   viewLabel: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   viewValue: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     lineHeight: Typography.lineHeight.h4,
+  },
+
+  // Boolean Row for chips
+  booleanRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  booleanLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  booleanChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.round,
+    minWidth: scale(60),
+    alignItems: 'center',
+  },
+  booleanChipSuccess: {
+    backgroundColor: Colors.successLight,
+  },
+  booleanChipDefault: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  booleanChipText: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
+    textAlign: 'center',
+  },
+  booleanChipTextSuccess: {
+    color: Colors.success,
+  },
+  booleanChipTextDefault: {
+    color: Colors.textSecondary,
   },
 
   // Activity Styles
@@ -1002,25 +1203,26 @@ const styles = StyleSheet.create({
 
   // Loading & Empty States
   loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: verticalScale(20),
   },
   loadingText: {
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
-    marginTop: Spacing.xs,
+    marginTop: Spacing.md,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: verticalScale(20),
+    paddingVertical: verticalScale(16),
   },
   emptyStateText: {
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
-    marginBottom: Spacing.md,
   },
 
   // Error States

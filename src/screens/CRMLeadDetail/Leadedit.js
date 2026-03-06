@@ -1,3 +1,5 @@
+// LeadEdit.js - COMPLETE FIXED VERSION with address fields and mandatory validation
+
 import {
   ScrollView,
   StyleSheet,
@@ -7,63 +9,73 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
   Image,
   FlatList,
-  focusedField,
   Modal as RNModal,
+  Switch,
 } from 'react-native';
 import React, { useState, useEffect, useMemo } from 'react';
 import CustomHeader from '../../components/CustomHeader';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Menu, Divider } from 'react-native-paper';
-import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities } from '../../hooks/CRMhooks/useCRM';
+import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities, useLeadStatuses } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
+import { useAuthStore } from '../../store/authStore';
+import CustomAlert from '../../components/CustomAlert'; // Import custom alert
+import { Picker } from '@react-native-picker/picker';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
-/* ================= STATUS CONFIG WITH THEME COLORS ================= */
-const STATUS_CONFIG = {
-  New: {
-    barColor: Colors.statusNew,
-    badgeText: 'New',
-    badgeBg: Colors.infoLight,
-    badgeColor: Colors.statusNew,
-    showDot: true,
-  },
-  Working: {
-    barColor: Colors.statusWorking,
-    badgeText: 'Working',
-    badgeBg: Colors.warningLight,
-    badgeColor: Colors.statusWorking,
-    showDot: true,
-  },
-  Converted: {
-    barColor: Colors.statusConverted,
-    badgeText: 'Converted',
-    badgeBg: Colors.successLight,
-    badgeColor: Colors.statusConverted,
-    showDot: false,
-    showCheck: true,
-  },
-  Expired: {
-    barColor: Colors.statusExpired,
-    badgeText: 'Expired',
-    badgeBg: Colors.errorLight,
-    badgeColor: Colors.statusExpired,
-    showDot: true,
-  },
+// Mock data for countries and regions - in production, these would come from API
+const COUNTRIES = [
+  { label: 'Pakistan', value: 'PK', id: 1000001 },
+  { label: 'United States', value: 'US', id: 1000002 },
+  { label: 'United Kingdom', value: 'GB', id: 1000003 },
+  { label: 'Canada', value: 'CA', id: 1000004 },
+  { label: 'Australia', value: 'AU', id: 1000005 },
+  { label: 'Germany', value: 'DE', id: 1000006 },
+  { label: 'France', value: 'FR', id: 1000007 },
+  { label: 'Italy', value: 'IT', id: 1000008 },
+  { label: 'Spain', value: 'ES', id: 1000009 },
+  { label: 'UAE', value: 'AE', id: 1000010 },
+  { label: 'China', value: 'CN', id: 1000011 },
+  { label: 'India', value: 'IN', id: 1000012 },
+];
+
+// Regions/States based on country
+const REGIONS = {
+  PK: [
+    { label: 'Punjab', value: 'PK-PB', id: 2000001 },
+    { label: 'Sindh', value: 'PK-SD', id: 2000002 },
+    { label: 'Khyber Pakhtunkhwa', value: 'PK-KP', id: 2000003 },
+    { label: 'Balochistan', value: 'PK-BL', id: 2000004 },
+    { label: 'Islamabad Capital Territory', value: 'PK-IS', id: 2000005 },
+  ],
+  US: [
+    { label: 'California', value: 'US-CA', id: 2000101 },
+    { label: 'Texas', value: 'US-TX', id: 2000102 },
+    { label: 'New York', value: 'US-NY', id: 2000103 },
+    { label: 'Florida', value: 'US-FL', id: 2000104 },
+    { label: 'Illinois', value: 'US-IL', id: 2000105 },
+  ],
+  GB: [
+    { label: 'England', value: 'GB-ENG', id: 2000201 },
+    { label: 'Scotland', value: 'GB-SCT', id: 2000202 },
+    { label: 'Wales', value: 'GB-WLS', id: 2000203 },
+    { label: 'Northern Ireland', value: 'GB-NIR', id: 2000204 },
+  ],
 };
 
 // Validation functions (same as useAddLeadForm)
 const validateEmail = (email) => {
-  if (!email) return false;
+  if (!email) return true; // Optional in edit mode
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
@@ -145,7 +157,7 @@ const ActivityItem = ({ activity }) => {
       <View style={styles.activityIconContainer}>
         <MaterialCommunityIcons
           name={getActivityIcon(activity.ContactActivityType?.identifier)}
-          size={Layout.iconSize.md}
+          size={Layout.iconSize.sm}
           color={Colors.primary}
         />
       </View>
@@ -184,42 +196,42 @@ const ViewRow = ({ label, value }) => (
   </View>
 );
 
-// Section Header Component - Larger Title
-const SectionHeader = ({ title, icon }) => (
+// Section Header Component - Compact
+const SectionHeader = ({ title }) => (
   <View style={styles.sectionHeader}>
-    <View style={styles.sectionHeaderLeft}>
-      <MaterialCommunityIcons name={icon} size={Layout.iconSize.lg} color={Colors.primary} />
-      <Text style={styles.sectionTitle}>{title}</Text>
-    </View>
+    <Text style={styles.sectionTitle}>{title}</Text>
   </View>
 );
 
-// Toggle Button Component for Yes/No Fields
-const ToggleButton = ({ label, value, onPress }) => (
-  <View style={styles.toggleContainer}>
-    <Text style={styles.toggleLabel}>{label}</Text>
-    <View style={styles.toggleButtons}>
-      <TouchableOpacity
-        style={[styles.toggleOption, value === true && styles.toggleOptionActive]}
-        onPress={() => onPress(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.toggleOptionText, value === true && styles.toggleOptionTextActive]}>
-          Yes
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.toggleOption, value === false && styles.toggleOptionActive]}
-        onPress={() => onPress(false)}
-        activeOpacity={0.7}
-      >
-        <Text style={[styles.toggleOptionText, value === false && styles.toggleOptionTextActive]}>
-          No
-        </Text>
-      </TouchableOpacity>
+// Swipe Button Component for Yes/No Fields (inline version)
+const InlineSwipeButton = ({ label, value, onValueChange, editable = true }) => {
+  if (!editable) {
+    return (
+      <View style={styles.inlineContainer}>
+        <Text style={styles.inlineLabel}>{label}</Text>
+        <View style={[styles.valueChip, value ? styles.valueChipSuccess : styles.valueChipDefault]}>
+          <Text style={[styles.valueChipText, value ? styles.valueChipTextSuccess : styles.valueChipTextDefault]}>
+            {value ? 'Yes' : 'No'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.inlineContainer}>
+      <Text style={styles.inlineLabel}>{label}</Text>
+      <Switch
+        trackColor={{ false: Colors.border, true: Colors.primary }}
+        thumbColor={Colors.backgroundLight}
+        ios_backgroundColor={Colors.border}
+        onValueChange={onValueChange}
+        value={value}
+        style={styles.inlineSwitch}
+      />
     </View>
-  </View>
-);
+  );
+};
 
 // Phone Input Component with Country Code Selection
 const PhoneInputField = ({ 
@@ -257,11 +269,9 @@ const PhoneInputField = ({
 
   if (!editable) {
     return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.readOnlyContainer}>
-          <Text style={styles.readOnlyText}>{value || 'Not provided'}</Text>
-        </View>
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
       </View>
     );
   }
@@ -286,7 +296,7 @@ const PhoneInputField = ({
             >
               <Text style={styles.countryFlag}>{selectedCountryObj.flag}</Text>
               <Text style={styles.dialCode}>{selectedCountryObj.dialCode}</Text>
-              <MaterialCommunityIcons name="chevron-down" size={18} color={Colors.textSecondary} />
+              <MaterialCommunityIcons name="chevron-down" size={14} color={Colors.textSecondary} />
             </TouchableOpacity>
           }
           style={styles.countryMenu}
@@ -323,6 +333,7 @@ const PhoneInputField = ({
             onBlur={onBlur}
             keyboardType="phone-pad"
             editable={editable}
+            textAlignVertical="center"
             {...props}
           />
         </View>
@@ -334,9 +345,350 @@ const PhoneInputField = ({
   );
 };
 
+// Compact Text Input Field
+const TextField = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  error, 
+  editable = true, 
+  keyboardType = 'default',
+  required = false,
+  ...props 
+}) => {
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
+      <View style={[styles.inputWrapper, error && styles.inputError]}>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+          editable={editable}
+          textAlignVertical="center"
+          {...props}
+        />
+      </View>
+      {error && (
+        <Text style={styles.errorText}>{error}</Text>
+      )}
+    </View>
+  );
+};
+
+// Compact Text Area Field
+const TextAreaField = ({ 
+  label, 
+  value, 
+  onChangeText, 
+  placeholder, 
+  editable = true, 
+  required = false,
+  ...props 
+}) => {
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
+      <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder={placeholder}
+          placeholderTextColor={Colors.textTertiary}
+          value={value}
+          onChangeText={onChangeText}
+          multiline={true}
+          numberOfLines={2}
+          textAlignVertical="top"
+          editable={editable}
+          {...props}
+        />
+      </View>
+    </View>
+  );
+};
+
+// Compact Dropdown Field
+const DropdownField = ({ 
+  label, 
+  value, 
+  options, 
+  onSelect, 
+  editable = true, 
+  placeholder = 'Select option',
+  required = false
+}) => {
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  if (!editable) {
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>{label}{required ? ' *' : ''}</Text>
+        <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.editField}>
+      <Text style={styles.editLabel}>{label}{required ? ' *' : ''}</Text>
+      <Menu
+        visible={menuVisible}
+        onDismiss={() => setMenuVisible(false)}
+        anchor={
+          <TouchableOpacity
+            onPress={() => setMenuVisible(true)}
+            style={styles.dropdownInput}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dropdownText, !value && styles.placeholderText]}>
+              {value || placeholder}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        }
+      >
+        {options.map((option, index) => (
+          <React.Fragment key={option.id}>
+            <Menu.Item
+              onPress={() => {
+                onSelect(option);
+                setMenuVisible(false);
+              }}
+              title={option.name || option.identifier || option.label}
+              titleStyle={[
+                styles.menuItemTitle,
+                value === (option.name || option.identifier || option.label) && styles.menuItemSelected
+              ]}
+            />
+            {index < options.length - 1 && <Divider />}
+          </React.Fragment>
+        ))}
+      </Menu>
+    </View>
+  );
+};
+
+// Address Fields Component for Business Partner
+const AddressFields = ({ 
+  fields, 
+  onFieldChange, 
+  regionOptions, 
+  editable = true,
+  showCopyIcon = false,
+  onCopy = null
+}) => {
+  if (!editable) {
+    const addressParts = [];
+    if (fields.street) addressParts.push(fields.street);
+    if (fields.street2) addressParts.push(fields.street2);
+    if (fields.city) addressParts.push(fields.city);
+    if (fields.region) addressParts.push(fields.region);
+    if (fields.country) addressParts.push(fields.country);
+    if (fields.postalCode) addressParts.push(fields.postalCode);
+    
+    const fullAddress = addressParts.join(', ') || 'Not provided';
+    
+    return (
+      <View style={styles.viewRow}>
+        <Text style={styles.viewLabel}>Address</Text>
+        <Text style={styles.viewValue}>{fullAddress}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <View style={styles.addressHeader}>
+        <Text style={styles.addressHeaderTitle}>Address Details</Text>
+        {showCopyIcon && onCopy && (
+          <TouchableOpacity onPress={onCopy} style={styles.copyIconButton}>
+            <Icon name="content-copy" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Street Address</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.street}
+            onChangeText={(value) => onFieldChange('street', value)}
+            placeholder="Enter street address"
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Street Address Line 2</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.street2}
+            onChangeText={(value) => onFieldChange('street2', value)}
+            placeholder="Apartment, suite, unit, etc."
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>City</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.city}
+            onChangeText={(value) => onFieldChange('city', value)}
+            placeholder="Enter city"
+            placeholderTextColor={Colors.textTertiary}
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Postal Code</Text>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.input}
+            value={fields.postalCode}
+            onChangeText={(value) => onFieldChange('postalCode', value)}
+            placeholder="Enter postal code"
+            placeholderTextColor={Colors.textTertiary}
+            keyboardType="numeric"
+            editable={editable}
+          />
+        </View>
+      </View>
+      
+      {/* Country Picker */}
+      <View style={styles.editField}>
+        <Text style={styles.editLabel}>Country</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={fields.country}
+            onValueChange={(value) => {
+              const country = COUNTRIES.find(c => c.value === value);
+              onFieldChange('country', value);
+              onFieldChange('countryId', country?.id || null);
+              onFieldChange('region', '');
+              onFieldChange('regionId', null);
+            }}
+            style={styles.picker}
+            enabled={editable}
+            dropdownIconColor={Colors.textSecondary}
+          >
+            <Picker.Item 
+              label="Select Country" 
+              value="" 
+              color={Colors.textTertiary}
+            />
+            {COUNTRIES.map(country => (
+              <Picker.Item 
+                key={country.value} 
+                label={country.label} 
+                value={country.value}
+                color={Colors.textPrimary}
+              />
+            ))}
+          </Picker>
+        </View>
+      </View>
+      
+      {/* Region/State Picker */}
+      {regionOptions.length > 0 && (
+        <View style={styles.editField}>
+          <Text style={styles.editLabel}>Region/State</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={fields.region}
+              onValueChange={(value) => {
+                const region = regionOptions.find(r => r.value === value);
+                onFieldChange('region', value);
+                onFieldChange('regionId', region?.id || null);
+              }}
+              style={styles.picker}
+              enabled={editable}
+              dropdownIconColor={Colors.textSecondary}
+            >
+              <Picker.Item 
+                label="Select Region/State" 
+                value="" 
+                color={Colors.textTertiary}
+              />
+              {regionOptions.map(region => (
+                <Picker.Item 
+                  key={region.value} 
+                  label={region.label} 
+                  value={region.value}
+                  color={Colors.textPrimary}
+                />
+              ))}
+            </Picker>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+};
+
 const LeadEdit = ({ route, navigation }) => {
   const { data: leadData } = route.params;
   const queryClient = useQueryClient();
+  const authState = useAuthStore();
+
+  // State to track if component is mounted
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Custom alert state
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    showCancelButton: false,
+  });
+
+  // useEffect to set mounted state after first render
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
+
+  // Fetch dynamic lead statuses from backend
+  const { data: leadStatuses = [], isLoading: statusesLoading } = useLeadStatuses();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -347,20 +699,51 @@ const LeadEdit = ({ route, navigation }) => {
   // Field errors state
   const [errors, setErrors] = useState({});
 
+  // Focus state
+  const [focusedField, setFocusedField] = useState(null);
+
   // Use detailed data directly
   const displayLead = leadData;
 
   // Menu visibility states
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
-  const [bpMenuVisible, setBpMenuVisible] = useState(false);
-  const [orgMenuVisible, setOrgMenuVisible] = useState(false);
-  const [leadSourceMenuVisible, setLeadSourceMenuVisible] = useState(false);
-
-  // Dynamic Sales Rep Modal state
   const [salesRepModalVisible, setSalesRepModalVisible] = useState(false);
   const [salesRepSearch, setSalesRepSearch] = useState('');
 
-  // Form state
+  // State to track if we're processing a conversion
+  const [isConverting, setIsConverting] = useState(false);
+
+  // State for contact address fields
+  const [addressFields, setAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for Business Partner address fields
+  const [bpAddressFields, setBpAddressFields] = useState({
+    street: '',
+    street2: '',
+    city: '',
+    postalCode: '',
+    country: '',
+    countryId: null,
+    region: '',
+    regionId: null,
+  });
+
+  // State for region options based on selected country (for contact address)
+  const [regionOptions, setRegionOptions] = useState([]);
+  
+  // State for region options based on selected country (for business partner address)
+  const [bpRegionOptions, setBpRegionOptions] = useState([]);
+
+  // Form state - Updated to match AddLeads
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -384,21 +767,17 @@ const LeadEdit = ({ route, navigation }) => {
     comments: '',
     statusId: 'N',
     statusLabel: 'New',
+    statusColor: Colors.statusNew,
     leadSourceId: 'CC',
     leadSourceLabel: 'Cold Call',
+    client: '',
+    organization: '',
   });
 
-  // Use dynamic sales representatives
-  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
+  // FIXED: Only enable sales representatives query after component is mounted
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
-  // Static dropdown options
-  const leadStatusOptions = [
-    { id: 'N', identifier: 'New' },
-    { id: 'W', identifier: 'Working' },
-    { id: 'C', identifier: 'Converted' },
-    { id: 'E', identifier: 'Expired' },
-  ];
-
+  // Static dropdown options (these might also come from backend in future)
   const businessPartnerOptions = [
     { id: '1000000', identifier: 'Starlet Innovations Pvt Ltd' },
     { id: '1000001', identifier: 'Other Client' },
@@ -426,6 +805,82 @@ const LeadEdit = ({ route, navigation }) => {
     refetch: refetchActivities 
   } = useCompletedLeadActivities(displayLead?.id);
 
+  // Update region options when contact country changes
+  useEffect(() => {
+    if (addressFields.country) {
+      const country = COUNTRIES.find(c => c.value === addressFields.country);
+      if (country && REGIONS[country.value]) {
+        setRegionOptions(REGIONS[country.value]);
+      } else {
+        setRegionOptions([]);
+      }
+    } else {
+      setRegionOptions([]);
+    }
+  }, [addressFields.country]);
+
+  // Update region options when business partner country changes
+  useEffect(() => {
+    if (bpAddressFields.country) {
+      const country = COUNTRIES.find(c => c.value === bpAddressFields.country);
+      if (country && REGIONS[country.value]) {
+        setBpRegionOptions(REGIONS[country.value]);
+      } else {
+        setBpRegionOptions([]);
+      }
+    } else {
+      setBpRegionOptions([]);
+    }
+  }, [bpAddressFields.country]);
+
+  // Custom alert helper functions
+  const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type,
+      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      confirmText: type === 'delete' ? 'Delete' : 'OK',
+      cancelText: 'Cancel',
+      showCancelButton: type === 'delete' || type === 'warning',
+    });
+  };
+
+  const showSuccessAlert = (message, onConfirm = null) => {
+    showAlert('Success', message, 'success', onConfirm);
+  };
+
+  const showErrorAlert = (message, onConfirm = null) => {
+    showAlert('Error', message, 'error', onConfirm);
+  };
+
+  const showValidationAlert = (message) => {
+    showAlert('Validation Error', message, 'warning');
+  };
+
+  const showConfirmationAlert = (title, message, onConfirm, onCancel = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      type: 'warning',
+      onConfirm: () => {
+        onConfirm();
+        hideAlert();
+      },
+      onCancel: onCancel || hideAlert,
+      confirmText: 'Yes',
+      cancelText: 'No',
+      showCancelButton: true,
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig(prev => ({ ...prev, visible: false }));
+  };
+
   // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
     if (!salesRepSearch.trim()) {
@@ -444,9 +899,40 @@ const LeadEdit = ({ route, navigation }) => {
     return rep ? rep.Name : '';
   }, [formData.salesRepId, salesReps]);
 
-  // Initialize form data
+  // Get current status object from dynamic statuses
+  const currentStatus = useMemo(() => {
+    if (!formData.statusId) return null;
+    return leadStatuses.find(s => s.id === formData.statusId) || {
+      id: formData.statusId,
+      name: formData.statusLabel,
+      color: formData.statusColor || Colors.statusNew
+    };
+  }, [formData.statusId, formData.statusLabel, leadStatuses]);
+
+  // Generate combined address from separate fields
+  const generateCombinedAddress = (fields) => {
+    const parts = [];
+    if (fields.street) parts.push(fields.street);
+    if (fields.street2) parts.push(fields.street2);
+    
+    const cityRegion = [];
+    if (fields.city) cityRegion.push(fields.city);
+    if (fields.region) cityRegion.push(fields.region);
+    if (cityRegion.length > 0) parts.push(cityRegion.join(', '));
+    
+    if (fields.country) parts.push(fields.country);
+    if (fields.postalCode) parts.push(fields.postalCode);
+    
+    return parts.join(', ');
+  };
+
+  // Initialize form data from lead
   useEffect(() => {
     if (displayLead) {
+      // Find matching status in dynamic statuses
+      const leadStatusId = displayLead?.LeadStatus?.id || 'N';
+      const matchingStatus = leadStatuses.find(s => s.id === leadStatusId);
+      
       setFormData({
         name: displayLead?.Name || '',
         email: displayLead?.EMail || '',
@@ -468,16 +954,29 @@ const LeadEdit = ({ route, navigation }) => {
         leadSourceDesc: displayLead?.LeadSourceDescription || '',
         leadStatusDesc: displayLead?.LeadStatusDescription || '',
         comments: displayLead?.Comments || '',
-        statusId: displayLead?.LeadStatus?.id || 'N',
-        statusLabel: displayLead?.LeadStatus?.identifier || 'New',
+        statusId: leadStatusId,
+        statusLabel: matchingStatus?.name || displayLead?.LeadStatus?.identifier || 'New',
+        statusColor: matchingStatus?.color || Colors.statusNew,
         leadSourceId: displayLead?.LeadSource?.id || 'CC',
         leadSourceLabel: displayLead?.LeadSource?.identifier || 'Cold Call',
+        client: displayLead?.AD_Client_ID?.identifier || 'Starlet Innovations Pvt Ltd',
+        organization: displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd',
       });
+
+      // Initialize address fields if they exist in the lead data
+      // This assumes your API returns address fields in the response
+      if (displayLead?.addressFields) {
+        setAddressFields(displayLead.addressFields);
+      }
+      
+      if (displayLead?.businessPartnerAddressFields) {
+        setBpAddressFields(displayLead.businessPartnerAddressFields);
+      }
       
       // Clear errors when initializing
       setErrors({});
     }
-  }, [displayLead]);
+  }, [displayLead, leadStatuses]);
 
   // Clear error for a field when it's updated
   const updateFormData = (key, value) => {
@@ -488,21 +987,50 @@ const LeadEdit = ({ route, navigation }) => {
     }
   };
 
-  // Validation function - matches useAddLeadForm
+  // Handle contact address field updates
+  const handleAddressFieldChange = (field, value) => {
+    setAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  // Handle business partner address field updates
+  const handleBpAddressFieldChange = (field, value) => {
+    setBpAddressFields(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  // Copy contact address to business partner address
+  const copyAddressToBusinessPartner = () => {
+    setBpAddressFields({ ...addressFields });
+  };
+
+  // Validation function - matches AddLeads (only name, salesRep, client, organization are mandatory)
   const validateForm = () => {
     const newErrors = {};
 
-    // Required fields validation
+    // Required fields validation - only these 4 are mandatory
     if (!formData.name?.trim()) {
       newErrors.name = 'Name is required';
     }
 
-    if (!formData.email?.trim()) {
-      newErrors.email = 'Email is required';
+    if (!formData.salesRepId) {
+      newErrors.salesRep = 'Sales Representative is required';
     }
 
-    // Email format validation
-    if (formData.email && !validateEmail(formData.email)) {
+    if (!formData.client?.trim()) {
+      newErrors.client = 'Client is required';
+    }
+
+    if (!formData.organization?.trim()) {
+      newErrors.organization = 'Organization is required';
+    }
+
+    // Email format validation (optional)
+    if (formData.email && formData.email.trim() && !validateEmail(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
 
@@ -529,7 +1057,7 @@ const LeadEdit = ({ route, navigation }) => {
       // Show first error in alert
       const firstErrorKey = Object.keys(newErrors)[0];
       const firstError = newErrors[firstErrorKey];
-      Alert.alert('Validation Error', firstError);
+      showValidationAlert(firstError);
       
       return false;
     }
@@ -538,15 +1066,183 @@ const LeadEdit = ({ route, navigation }) => {
     return true;
   };
 
+  // ============================================
+  // Navigate to AddSaleOppor with lead data
+  // ============================================
+  const navigateToAddOpportunity = () => {
+    console.log('🔄 Navigating to AddSaleOppor with lead data:', displayLead.id);
+    
+    // Prepare lead data for the opportunity form
+    const opportunityLeadData = {
+      id: displayLead.id,
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      companyName: formData.companyName,
+      description: formData.description,
+      comments: formData.comments,
+      
+      // Business Partner info
+      businessPartnerId: formData.businessPartnerId,
+      businessPartnerName: formData.businessPartnerLabel,
+      
+      // Sales Rep info
+      salesRepId: formData.salesRepId,
+      salesRepLabel: formData.salesRepLabel,
+      
+      // Organization info
+      organizationId: formData.organizationId,
+      organizationName: formData.organizationLabel,
+      
+      // Lead source info
+      leadSourceId: formData.leadSourceId,
+      leadSourceLabel: formData.leadSourceLabel,
+      
+      // The lead ID itself
+      userId: displayLead.id,
+    };
+
+    console.log('📦 Sending to AddSaleOppor:', {
+      businessPartnerId: opportunityLeadData.businessPartnerId,
+      businessPartnerName: opportunityLeadData.businessPartnerName,
+      salesRepId: opportunityLeadData.salesRepId,
+      userId: opportunityLeadData.userId
+    });
+
+    navigation.navigate('AddSaleOppor', {
+      leadData: opportunityLeadData,
+      mode: 'fromLeadConversion'
+    });
+  };
+
+  // ============================================
+  // Handle status update with opportunity navigation
+  // ============================================
+  const handleStatusUpdate = (status) => {
+    console.log('🔄 Status update requested:', status);
+    
+    const newStatusId = status.id;
+    const newStatusName = status.name;
+    const oldStatusName = formData.statusLabel;
+    
+    // If we're changing to a status that might be considered "converted"
+    const isConvertedStatus = newStatusName.toLowerCase() === 'converted';
+    
+    // If we're changing to "Converted" and we're in edit mode
+    if (isEditMode && isConvertedStatus && oldStatusName !== 'Converted') {
+      console.log('🎯 Status changing to Converted in edit mode');
+      
+      // First validate the form
+      if (!validateForm()) {
+        return; // Don't proceed if validation fails
+      }
+      
+      // Set converting state to show loading
+      setIsConverting(true);
+      
+      // First save the lead with the new status
+      const payload = {
+        Name: formData.name,
+        EMail: formData.email || '',
+        Phone: formData.phone || '',
+        Phone2: formData.phone2 || '',
+        Birthday: formData.birthday || null,
+        IsSalesLead: formData.salesLead,
+        IsVendorLead: formData.vendorLead,
+        BPName: formData.companyName || '',
+        AD_Org_ID: {
+          id: formData.organizationId,
+          identifier: formData.organizationLabel
+        },
+        SalesRep_ID: formData.salesRepId ? {
+          id: formData.salesRepId,
+          identifier: formData.salesRepLabel
+        } : null,
+        AD_Client_ID: {
+          id: formData.businessPartnerId,
+          identifier: formData.businessPartnerLabel
+        },
+        Description: formData.description || '',
+        IsActive: formData.active,
+        Value: formData.searchKey || '',
+        LeadSourceDescription: formData.leadSourceDesc || '',
+        LeadStatusDescription: formData.leadStatusDesc || '',
+        Comments: formData.comments || '',
+        LeadStatus: {
+          id: newStatusId,
+          identifier: newStatusName
+        },
+        LeadSource: {
+          id: formData.leadSourceId,
+          identifier: formData.leadSourceLabel
+        },
+        // Include address fields
+        contactAddress: generateCombinedAddress(addressFields),
+        businessPartnerAddress: generateCombinedAddress(bpAddressFields),
+        contactAddressFields: addressFields,
+        businessPartnerAddressFields: bpAddressFields,
+      };
+
+      updateLeadMutation.mutate({
+        id: displayLead.id,
+        updates: payload
+      }, {
+        onSuccess: () => {
+          console.log('✅ Lead saved with Converted status');
+          
+          // Update local form state
+          setFormData(prev => ({
+            ...prev,
+            statusId: newStatusId,
+            statusLabel: newStatusName,
+            statusColor: status.color
+          }));
+          
+          // Close the status menu
+          setStatusMenuVisible(false);
+          
+          // Exit edit mode
+          setIsEditMode(false);
+          
+          // Refresh data
+          refetchLeadStatistics();
+          queryClient.invalidateQueries(['leads']);
+          queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+          
+          // Clear converting state
+          setIsConverting(false);
+          
+          // Show success message with option to create opportunity
+          showConfirmationAlert(
+            'Lead Converted',
+            'Lead has been successfully converted. Would you like to create a sales opportunity now?',
+            navigateToAddOpportunity
+          );
+        },
+        onError: (error) => {
+          console.error('❌ Failed to update lead status:', error);
+          showErrorAlert('Failed to update lead status. Please try again.');
+          setIsConverting(false);
+        }
+      });
+    } else {
+      // For other status changes or if not in edit mode, just update the form
+      updateFormData('statusId', newStatusId);
+      updateFormData('statusLabel', newStatusName);
+      updateFormData('statusColor', status.color);
+      setStatusMenuVisible(false);
+    }
+  };
+
   const handleSave = () => {
-    // Validate form first
+    // Validate form first - only mandatory fields
     if (!validateForm()) {
       return;
     }
 
     const payload = {
       Name: formData.name,
-      EMail: formData.email,
+      EMail: formData.email || '',
       Phone: formData.phone || '',
       Phone2: formData.phone2 || '',
       Birthday: formData.birthday || null,
@@ -578,7 +1274,12 @@ const LeadEdit = ({ route, navigation }) => {
       LeadSource: {
         id: formData.leadSourceId,
         identifier: formData.leadSourceLabel
-      }
+      },
+      // Include address fields
+      contactAddress: generateCombinedAddress(addressFields),
+      businessPartnerAddress: generateCombinedAddress(bpAddressFields),
+      contactAddressFields: addressFields,
+      businessPartnerAddressFields: bpAddressFields,
     };
 
     updateLeadMutation.mutate({
@@ -586,15 +1287,31 @@ const LeadEdit = ({ route, navigation }) => {
       updates: payload
     }, {
       onSuccess: () => {
-        Alert.alert('Success', 'Lead updated successfully!');
-        setIsEditMode(false);
+        console.log('✅ Lead updated successfully');
+        
+        // Check if status is "Converted" and we need to ask about opportunity
+        const isConverted = formData.statusLabel.toLowerCase() === 'converted';
+        
+        if (isConverted) {
+          showConfirmationAlert(
+            'Lead Converted',
+            'Lead has been successfully converted. Would you like to create a sales opportunity now?',
+            navigateToAddOpportunity
+          );
+        } else {
+          showSuccessAlert('Lead updated successfully!', () => {
+            hideAlert();
+            setIsEditMode(false);
+          });
+        }
+        
         refetchLeadStatistics();
         queryClient.invalidateQueries(['leads']);
         queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
         setErrors({}); // Clear errors on success
       },
       onError: (error) => {
-        Alert.alert('Error', error.message || 'Failed to update lead');
+        showErrorAlert(error.message || 'Failed to update lead');
       }
     });
   };
@@ -633,152 +1350,9 @@ const LeadEdit = ({ route, navigation }) => {
     updateFormData('salesRepLabel', '');
   };
 
-  // Handle status update
-  const handleStatusUpdate = (statusOption) => {
-    updateFormData('statusId', statusOption.id);
-    updateFormData('statusLabel', statusOption.identifier);
-    setStatusMenuVisible(false);
-  };
-
-  // Get current status UI config
-  const statusUI = STATUS_CONFIG[formData.statusLabel] || STATUS_CONFIG.New;
-
   // Handle boolean field toggle
   const handleBooleanToggle = (key, value) => {
     updateFormData(key, value);
-  };
-
-  // RENDER FUNCTIONS FOR DIFFERENT FIELD TYPES
-  const renderTextField = (label, value, key, placeholder, keyboardType = 'default') => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={[
-              styles.input,
-              errors[key] && styles.inputError
-            ]}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
-            value={value}
-            onChangeText={(text) => updateFormData(key, text)}
-            keyboardType={keyboardType}
-            autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-            editable={isEditMode}
-          />
-        </View>
-        {errors[key] && (
-          <Text style={styles.errorText}>{errors[key]}</Text>
-        )}
-      </View>
-    );
-  };
-
-  const renderTextAreaField = (label, value, key, placeholder) => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>{label}</Text>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder={placeholder}
-            placeholderTextColor={Colors.textTertiary}
-            value={value}
-            onChangeText={(text) => updateFormData(key, text)}
-            multiline={true}
-            numberOfLines={4}
-            textAlignVertical="top"
-            editable={isEditMode}
-          />
-        </View>
-      </View>
-    );
-  };
-
-  const renderSalesRepField = () => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label="Sales Representative"
-          value={selectedRepName || 'Not assigned'}
-        />
-      );
-    }
-
-    return (
-      <View style={styles.editField}>
-        <Text style={styles.editLabel}>Sales Representative</Text>
-        <TouchableOpacity
-          style={[
-            styles.salesRepSelector,
-            !formData.salesRepId && styles.selectorEmpty
-          ]}
-          onPress={() => setSalesRepModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          {selectedRepName ? (
-            <View style={styles.selectedRepContainer}>
-              <View style={styles.selectedRepInfo}>
-                <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
-                <Text style={styles.selectedRepText}>{selectedRepName}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  handleClearSalesRep();
-                }}
-              >
-                <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.placeholderText}>Select Sales Representative</Text>
-              <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderBooleanField = (label, value, key) => {
-    if (!isEditMode) {
-      return (
-        <ViewRow 
-          label={label}
-          value={value ? 'Yes' : 'No'}
-        />
-      );
-    }
-
-    return (
-      <ToggleButton
-        label={label}
-        value={value}
-        onPress={(val) => handleBooleanToggle(key, val)}
-      />
-    );
   };
 
   // Render sales rep item in modal
@@ -799,13 +1373,13 @@ const LeadEdit = ({ route, navigation }) => {
         </View>
         <View style={styles.repDetails}>
           <Text style={styles.repName}>{item.Name}</Text>
-          {item.Email && (
-            <Text style={styles.repEmail}>{item.Email}</Text>
+          {item.EMail && (
+            <Text style={styles.repEmail}>{item.EMail}</Text>
           )}
         </View>
       </View>
       {formData.salesRepId === item.id && (
-        <AntDesign name="checkcircle" size={Layout.iconSize.md} color={Colors.primary} />
+        <AntDesign name="checkcircle" size={Layout.iconSize.sm} color={Colors.primary} />
       )}
     </TouchableOpacity>
   );
@@ -816,11 +1390,48 @@ const LeadEdit = ({ route, navigation }) => {
       case 'basic':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Contact Information" 
-              icon="phone"
-            />
+            <SectionHeader title="Contact Information" />
             <View style={styles.sectionContent}>
+              <TextField
+                label="Name"
+                value={formData.name}
+                onChangeText={(text) => updateFormData('name', text)}
+                placeholder="Enter name"
+                error={errors.name}
+                editable={isEditMode && !isConverting}
+                required={true}
+              />
+
+              <TextField
+                label="Client"
+                value={formData.client}
+                onChangeText={(text) => updateFormData('client', text)}
+                placeholder="Enter client"
+                error={errors.client}
+                editable={isEditMode && !isConverting}
+                required={true}
+              />
+
+              <TextField
+                label="Organization"
+                value={formData.organization}
+                onChangeText={(text) => updateFormData('organization', text)}
+                placeholder="Enter organization"
+                error={errors.organization}
+                editable={isEditMode && !isConverting}
+                required={true}
+              />
+
+              <TextField
+                label="Email"
+                value={formData.email}
+                onChangeText={(text) => updateFormData('email', text)}
+                placeholder="Enter email"
+                error={errors.email}
+                editable={isEditMode && !isConverting}
+                keyboardType="email-address"
+              />
+
               <PhoneInputField
                 label="Phone"
                 value={formData.phone}
@@ -830,7 +1441,7 @@ const LeadEdit = ({ route, navigation }) => {
                 focused={focusedField === 'phone'}
                 onFocus={() => setFocusedField('phone')}
                 onBlur={() => setFocusedField(null)}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
               <PhoneInputField
@@ -842,54 +1453,96 @@ const LeadEdit = ({ route, navigation }) => {
                 focused={focusedField === 'phone2'}
                 onFocus={() => setFocusedField('phone2')}
                 onBlur={() => setFocusedField(null)}
-                editable={isEditMode}
+                editable={isEditMode && !isConverting}
               />
 
-              {renderTextField(
-                "Birthday",
-                formData.birthday,
-                'birthday',
-                'YYYY-MM-DD'
-              )}
+              <TextField
+                label="Birthday"
+                value={formData.birthday}
+                onChangeText={(text) => updateFormData('birthday', text)}
+                placeholder="YYYY-MM-DD"
+                error={errors.birthday}
+                editable={isEditMode && !isConverting}
+              />
 
-              {/* Lead Source Dropdown with Menu */}
+              {/* Contact Address Fields */}
+              <AddressFields
+                fields={addressFields}
+                onFieldChange={handleAddressFieldChange}
+                regionOptions={regionOptions}
+                editable={isEditMode && !isConverting}
+              />
+
+              <DropdownField
+                label="Lead Source"
+                value={formData.leadSourceLabel}
+                options={leadSourceOptions}
+                onSelect={(option) => {
+                  updateFormData('leadSourceId', option.id);
+                  updateFormData('leadSourceLabel', option.identifier);
+                }}
+                editable={isEditMode && !isConverting}
+                placeholder="Select Lead Source"
+              />
+
+              {/* Sales Representative Field */}
               <View style={styles.editField}>
-                <Text style={styles.editLabel}>Lead Source</Text>
-                <Menu
-                  visible={leadSourceMenuVisible}
-                  onDismiss={() => setLeadSourceMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setLeadSourceMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.leadSourceLabel || 'Select Lead Source'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {leadSourceOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('leadSourceId', option.id);
-                          updateFormData('leadSourceLabel', option.identifier);
-                          setLeadSourceMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < leadSourceOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
+                <Text style={styles.editLabel}>Sales Representative *</Text>
+                {isEditMode ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.salesRepSelector,
+                      errors.salesRep && styles.selectorError,
+                      !selectedRepName && styles.selectorEmpty
+                    ]}
+                    onPress={() => setSalesRepModalVisible(true)}
+                    activeOpacity={0.7}
+                    disabled={isConverting}
+                  >
+                    {selectedRepName ? (
+                      <View style={styles.selectedRepContainer}>
+                        <View style={styles.selectedRepInfo}>
+                          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+                        </View>
+                        <View style={styles.rightContainer}>
+                          <TouchableOpacity
+                            style={styles.clearButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleClearSalesRep();
+                            }}
+                            disabled={isConverting}
+                          >
+                            <Icon name="close" size={18} color={Colors.textSecondary} />
+                          </TouchableOpacity>
+                          <AntDesign name="down" size={12} color={Colors.textSecondary} />
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.placeholderText}>Select Sales Representative</Text>
+                        <AntDesign name="down" size={12} color={Colors.textSecondary} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <ViewRow 
+                    label=""
+                    value={selectedRepName || 'Not assigned'}
+                  />
+                )}
+                {errors.salesRep && (
+                  <Text style={styles.errorText}>{errors.salesRep}</Text>
+                )}
               </View>
 
-              {/* Dynamic Sales Representative Field */}
-              {renderSalesRepField()}
+              <TextAreaField
+                label="Description"
+                value={formData.description}
+                onChangeText={(text) => updateFormData('description', text)}
+                placeholder="Enter description"
+                editable={isEditMode && !isConverting}
+              />
             </View>
           </View>
         );
@@ -897,96 +1550,57 @@ const LeadEdit = ({ route, navigation }) => {
       case 'company':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Company Information" 
-              icon="office-building"
-            />
+            <SectionHeader title="Company Information" />
             <View style={styles.sectionContent}>
-              {renderTextField(
-                "Company Name",
-                formData.companyName,
-                'companyName',
-                'Enter company name'
-              )}
+              <TextField
+                label="Company Name"
+                value={formData.companyName}
+                onChangeText={(text) => updateFormData('companyName', text)}
+                placeholder="Enter company name"
+                editable={isEditMode && !isConverting}
+              />
 
-              {/* Business Partner Dropdown with Menu */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Business Partner</Text>
-                <Menu
-                  visible={bpMenuVisible}
-                  onDismiss={() => setBpMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setBpMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.businessPartnerLabel || 'Select Business Partner'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {businessPartnerOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('businessPartnerId', option.id);
-                          updateFormData('businessPartnerLabel', option.identifier);
-                          setBpMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < businessPartnerOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
-              </View>
+              {/* Business Partner Address Fields with Copy Icon */}
+              <AddressFields
+                fields={bpAddressFields}
+                onFieldChange={handleBpAddressFieldChange}
+                regionOptions={bpRegionOptions}
+                editable={isEditMode && !isConverting}
+                showCopyIcon={isEditMode}
+                onCopy={copyAddressToBusinessPartner}
+              />
 
-              {/* Organization Dropdown with Menu */}
-              <View style={styles.editField}>
-                <Text style={styles.editLabel}>Organization</Text>
-                <Menu
-                  visible={orgMenuVisible}
-                  onDismiss={() => setOrgMenuVisible(false)}
-                  anchor={
-                    <TouchableOpacity
-                      onPress={() => setOrgMenuVisible(true)}
-                      style={styles.dropdownInput}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.dropdownText}>
-                        {formData.organizationLabel || 'Select Organization'}
-                      </Text>
-                      <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.md} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                  }
-                >
-                  {organizationOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
-                      <Menu.Item
-                        onPress={() => {
-                          updateFormData('organizationId', option.id);
-                          updateFormData('organizationLabel', option.identifier);
-                          setOrgMenuVisible(false);
-                        }}
-                        title={option.identifier}
-                        titleStyle={styles.menuItemTitle}
-                      />
-                      {index < organizationOptions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </Menu>
-              </View>
+              <DropdownField
+                label="Business Partner"
+                value={formData.businessPartnerLabel}
+                options={businessPartnerOptions}
+                onSelect={(option) => {
+                  updateFormData('businessPartnerId', option.id);
+                  updateFormData('businessPartnerLabel', option.identifier);
+                }}
+                editable={isEditMode && !isConverting}
+                placeholder="Select Business Partner"
+              />
 
-              {renderTextAreaField(
-                "Lead Source Description",
-                formData.leadSourceDesc,
-                'leadSourceDesc',
-                'Enter lead source description'
-              )}
+              <DropdownField
+                label="Organization"
+                value={formData.organizationLabel}
+                options={organizationOptions}
+                onSelect={(option) => {
+                  updateFormData('organizationId', option.id);
+                  updateFormData('organizationLabel', option.identifier);
+                }}
+                editable={isEditMode && !isConverting}
+                placeholder="Select Organization"
+              />
+
+              <TextAreaField
+                label="Lead Source Description"
+                value={formData.leadSourceDesc}
+                onChangeText={(text) => updateFormData('leadSourceDesc', text)}
+                placeholder="Enter lead source description"
+                editable={isEditMode && !isConverting}
+              />
             </View>
           </View>
         );
@@ -994,36 +1608,49 @@ const LeadEdit = ({ route, navigation }) => {
       case 'detailed':
         return (
           <View style={styles.sectionCard}>
-            <SectionHeader 
-              title="Detailed Information" 
-              icon="clipboard-text"
-            />
+            <SectionHeader title="Detailed Information" />
             <View style={styles.sectionContent}>
-              {renderBooleanField(
-                "Sales Lead",
-                formData.salesLead,
-                'salesLead'
-              )}
+              <View style={styles.booleanRow}>
+                <InlineSwipeButton
+                  label="Sales Lead"
+                  value={formData.salesLead}
+                  onValueChange={(val) => handleBooleanToggle('salesLead', val)}
+                  editable={isEditMode && !isConverting}
+                />
+                
+                <View style={styles.booleanSpacer} />
+                
+                <InlineSwipeButton
+                  label="Vendor Lead"
+                  value={formData.vendorLead}
+                  onValueChange={(val) => handleBooleanToggle('vendorLead', val)}
+                  editable={isEditMode && !isConverting}
+                />
+              </View>
 
-              {renderBooleanField(
-                "Vendor Lead",
-                formData.vendorLead,
-                'vendorLead'
-              )}
+              <TextField
+                label="Search Key"
+                value={formData.searchKey}
+                onChangeText={(text) => updateFormData('searchKey', text)}
+                placeholder="Enter search key"
+                editable={isEditMode && !isConverting}
+              />
 
-              {renderTextAreaField(
-                "Description",
-                formData.description,
-                'description',
-                'Enter description'
-              )}
+              <TextAreaField
+                label="Comments"
+                value={formData.comments}
+                onChangeText={(text) => updateFormData('comments', text)}
+                placeholder="Enter comments"
+                editable={isEditMode && !isConverting}
+              />
 
-              {renderTextAreaField(
-                "Comments",
-                formData.comments,
-                'comments',
-                'Enter comments'
-              )}
+              <TextAreaField
+                label="Lead Status Description"
+                value={formData.leadStatusDesc}
+                onChangeText={(text) => updateFormData('leadStatusDesc', text)}
+                placeholder="Enter status description"
+                editable={isEditMode && !isConverting}
+              />
             </View>
           </View>
         );
@@ -1031,10 +1658,7 @@ const LeadEdit = ({ route, navigation }) => {
       case 'activities':
         return (
           <View style={[styles.sectionCard, styles.activitySectionCard]}>
-            <SectionHeader 
-              title={`Completed Activities (${activities.length})`} 
-              icon="calendar-check"
-            />
+            <SectionHeader title={`Completed Activities (${activities.length})`} />
             <View style={styles.sectionContent}>
               {activitiesLoading ? (
                 <View style={styles.loadingContainer}>
@@ -1051,7 +1675,7 @@ const LeadEdit = ({ route, navigation }) => {
                 />
               ) : (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.xl} color={Colors.border} />
+                  <MaterialCommunityIcons name="calendar-check" size={Layout.iconSize.lg} color={Colors.border} />
                   <Text style={styles.emptyStateText}>No completed activities</Text>
                 </View>
               )}
@@ -1088,6 +1712,24 @@ const LeadEdit = ({ route, navigation }) => {
     );
   }
 
+  if (statusesLoading) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title={'Lead Details'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+          RightIcon={null}
+          RightPress={null}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading statuses...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardView}
@@ -1102,6 +1744,29 @@ const LeadEdit = ({ route, navigation }) => {
         RightPress={handleEditToggle}
       />
 
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onConfirm={() => {
+          if (alertConfig.onConfirm) {
+            alertConfig.onConfirm();
+          }
+          hideAlert();
+        }}
+        onCancel={() => {
+          if (alertConfig.onCancel) {
+            alertConfig.onCancel();
+          }
+          hideAlert();
+        }}
+        confirmText={alertConfig.confirmText}
+        cancelText={alertConfig.cancelText}
+        showCancelButton={alertConfig.showCancelButton}
+      />
+
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -1113,7 +1778,7 @@ const LeadEdit = ({ route, navigation }) => {
             <View style={styles.headerLeft}>
               <View style={styles.avatarContainer}>
                 <Image
-                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }}
+                  source={{ uri: 'https://randomuser.me/api/portraits/men/1.jpg' }}
                   style={styles.avatar}
                 />
               </View>
@@ -1122,7 +1787,7 @@ const LeadEdit = ({ route, navigation }) => {
                 <Text style={styles.leadName}>{formData.name || 'Unnamed Lead'}</Text>
                 {formData.companyName && (
                   <View style={styles.companyBadge}>
-                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.primary} />
+                    <MaterialCommunityIcons name="office-building" size={Layout.iconSize.xs} color={Colors.textPrimary} />
                     <Text style={styles.companyBadgeText}>{formData.companyName}</Text>
                   </View>
                 )}
@@ -1137,47 +1802,62 @@ const LeadEdit = ({ route, navigation }) => {
                   onDismiss={() => setStatusMenuVisible(false)}
                   anchor={
                     <TouchableOpacity
-                      style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}
+                      style={[
+                        styles.statusBadge, 
+                        { backgroundColor: currentStatus?.color ? `${currentStatus.color}20` : Colors.infoLight }
+                      ]}
                       onPress={() => setStatusMenuVisible(true)}
                       activeOpacity={0.7}
+                      disabled={isConverting}
                     >
-                      {statusUI.showDot && (
-                        <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
+                      {isConverting ? (
+                        <ActivityIndicator size="small" color={currentStatus?.color || Colors.primary} />
+                      ) : (
+                        <>
+                          <View style={[
+                            styles.dot, 
+                            { backgroundColor: currentStatus?.color || Colors.primary }
+                          ]} />
+                          <Text style={[
+                            styles.statusBadgeText, 
+                            { color: currentStatus?.color || Colors.primary }
+                          ]}>
+                            {currentStatus?.name || formData.statusLabel}
+                          </Text>
+                          <AntDesign name="down" size={Layout.iconSize.xs} color={currentStatus?.color || Colors.primary} />
+                        </>
                       )}
-                      {statusUI.showCheck && (
-                        <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
-                      )}
-                      <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                        {statusUI.badgeText}
-                      </Text>
-                      <AntDesign name="down" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
                     </TouchableOpacity>
                   }
                 >
-                  {leadStatusOptions.map((option, index) => (
-                    <React.Fragment key={option.id}>
+                  {leadStatuses.map((status, index) => (
+                    <React.Fragment key={status.id}>
                       <Menu.Item
-                        onPress={() => handleStatusUpdate(option)}
-                        title={option.identifier}
+                        onPress={() => handleStatusUpdate(status)}
+                        title={status.name}
                         titleStyle={[
                           styles.menuItemTitle,
-                          formData.statusId === option.id && styles.menuItemSelected
+                          formData.statusId === status.id && styles.menuItemSelected
                         ]}
                       />
-                      {index < leadStatusOptions.length - 1 && <Divider />}
+                      {index < leadStatuses.length - 1 && <Divider />}
                     </React.Fragment>
                   ))}
                 </Menu>
               ) : (
-                <View style={[styles.statusBadge, { backgroundColor: statusUI.badgeBg }]}>
-                  {statusUI.showDot && (
-                    <View style={[styles.dot, { backgroundColor: statusUI.badgeColor }]} />
-                  )}
-                  {statusUI.showCheck && (
-                    <AntDesign name="checkcircle" size={Layout.iconSize.xs} color={statusUI.badgeColor} />
-                  )}
-                  <Text style={[styles.statusBadgeText, { color: statusUI.badgeColor }]}>
-                    {statusUI.badgeText}
+                <View style={[
+                  styles.statusBadge, 
+                  { backgroundColor: currentStatus?.color ? `${currentStatus.color}20` : Colors.infoLight }
+                ]}>
+                  <View style={[
+                    styles.dot, 
+                    { backgroundColor: currentStatus?.color || Colors.primary }
+                  ]} />
+                  <Text style={[
+                    styles.statusBadgeText, 
+                    { color: currentStatus?.color || Colors.primary }
+                  ]}>
+                    {currentStatus?.name || formData.statusLabel}
                   </Text>
                 </View>
               )}
@@ -1188,13 +1868,14 @@ const LeadEdit = ({ route, navigation }) => {
                 activeOpacity={0.7}
                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                 style={styles.activityIconWrapper}
+                disabled={isConverting}
               >
                 <View style={styles.addActivityIcon}>
-                  <Ionicons name="alarm-outline" size={Layout.iconSize.md} color={Colors.primary} />
+                  <Ionicons name="alarm-outline" size={Layout.iconSize.sm} color={Colors.textPrimary} />
                   <AntDesign 
                     name="pluscircle" 
                     size={Layout.iconSize.xs} 
-                    color={Colors.primary} 
+                    color={Colors.textPrimary} 
                     style={styles.activityPlusIcon}
                   />
                 </View>
@@ -1226,19 +1907,11 @@ const LeadEdit = ({ route, navigation }) => {
 
           {isEditMode && formData.leadStatusDesc && (
             <View style={styles.statusNote}>
-              <MaterialCommunityIcons name="information" size={Layout.iconSize.sm} color={Colors.info} />
+              <MaterialCommunityIcons name="information" size={Layout.iconSize.xs} color={Colors.info} />
               <Text style={styles.statusNoteText}>{formData.leadStatusDesc}</Text>
             </View>
           )}
         </View>
-
-        {/* Edit Mode Badge - Compact */}
-        {isEditMode && (
-          <View style={styles.editBadge}>
-            <MaterialCommunityIcons name="pencil" size={Layout.iconSize.sm} color={Colors.primary} />
-            <Text style={styles.editBadgeText}>Editing Mode</Text>
-          </View>
-        )}
 
         {/* Tabs with Integrated Arrow Connector - Touches Card */}
         <View style={styles.tabsWrapper}>
@@ -1283,17 +1956,17 @@ const LeadEdit = ({ route, navigation }) => {
             <TouchableOpacity
               style={[
                 styles.saveButton,
-                updateLeadMutation.isLoading && styles.saveButtonDisabled
+                (updateLeadMutation.isLoading || isConverting) && styles.saveButtonDisabled
               ]}
               onPress={handleSave}
-              disabled={updateLeadMutation.isLoading}
+              disabled={updateLeadMutation.isLoading || isConverting}
               activeOpacity={0.7}
             >
-              {updateLeadMutation.isLoading ? (
+              {updateLeadMutation.isLoading || isConverting ? (
                 <ActivityIndicator size="small" color={Colors.textInverse} />
               ) : (
                 <>
-                  <MaterialCommunityIcons name="content-save" size={Layout.iconSize.md} color={Colors.textInverse} />
+                  <MaterialCommunityIcons name="content-save" size={Layout.iconSize.sm} color={Colors.textInverse} />
                   <Text style={styles.saveButtonText}>Save Changes</Text>
                 </>
               )}
@@ -1303,6 +1976,7 @@ const LeadEdit = ({ route, navigation }) => {
               style={styles.cancelButton}
               onPress={() => setIsEditMode(false)}
               activeOpacity={0.7}
+              disabled={isConverting}
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -1329,30 +2003,36 @@ const LeadEdit = ({ route, navigation }) => {
                   setSalesRepModalVisible(false);
                   setSalesRepSearch('');
                 }}
+                style={styles.closeButton}
               >
-                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                <Icon name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalSearch}>
-              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.md} color={Colors.textSecondary} />
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
               <TextInput
-                style={styles.modalSearchInput}
+                style={styles.searchInput}
                 placeholder="Search by name..."
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor="#999"
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
+                autoFocus={true}
               />
               {salesRepSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setSalesRepSearch('')}>
-                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.md} color={Colors.textSecondary} />
+                <TouchableOpacity
+                  onPress={() => setSalesRepSearch('')}
+                  style={styles.clearSearchButton}
+                >
+                  <Icon name="close" size={18} color="#666" />
                 </TouchableOpacity>
               )}
             </View>
 
             {loadingSalesReps ? (
               <View style={styles.modalLoading}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+                <ActivityIndicator size="small" color={Colors.primary} />
                 <Text style={styles.modalLoadingText}>Loading...</Text>
               </View>
             ) : (
@@ -1361,11 +2041,11 @@ const LeadEdit = ({ route, navigation }) => {
                 renderItem={renderSalesRepItem}
                 keyExtractor={(item) => item.id.toString()}
                 ListEmptyComponent={
-                  <View style={styles.modalEmpty}>
-                    <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xxl} color={Colors.border} />
-                    <Text style={styles.modalEmptyText}>
+                  <View style={styles.emptyContainer}>
+                    <Icon name="person-off" size={50} color="#ccc" />
+                    <Text style={styles.emptyText}>
                       {salesRepSearch.trim()
-                        ? `No results for "${salesRepSearch}"`
+                        ? `No sales representatives found for "${salesRepSearch}"`
                         : 'No sales representatives available'}
                     </Text>
                   </View>
@@ -1379,6 +2059,7 @@ const LeadEdit = ({ route, navigation }) => {
   );
 };
 
+
 const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
@@ -1389,34 +2070,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingBottom: verticalScale(30),
+    paddingBottom: verticalScale(20),
   },
-
-  // Header Card - Minimized Spacing
   headerCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    padding: Spacing.lg,
+    padding: Spacing.md,
     paddingBottom: Spacing.xs,
   },
   headerLeft: {
@@ -1425,13 +2100,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatarContainer: {
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   avatar: {
-    width: scale(48),
-    height: scale(48),
-    borderRadius: scale(24),
-    borderWidth: 2,
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
+    borderWidth: 1,
     borderColor: Colors.borderLight,
   },
   headerInfo: {
@@ -1441,25 +2116,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
   },
   companyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     backgroundColor: Colors.backgroundLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
   },
   companyBadgeText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.primary,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textPrimary,
     marginLeft: Spacing.xxs,
   },
-  
-  // Header Right - Status and Activity Stacked with No Space
   headerRight: {
     alignItems: 'flex-end',
     justifyContent: 'flex-start',
@@ -1468,56 +2138,50 @@ const styles = StyleSheet.create({
     marginTop: 0,
     paddingTop: 0,
   },
-
-  // Contact Info Row - Compact
   contactInfoRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.xs,
   },
   contactChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
     gap: Spacing.xxs,
   },
   contactChipText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
   },
-
-  // Status Badge
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
     gap: Spacing.xxs,
   },
   statusBadgeText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.regular,
   },
   dot: {
     width: scale(6),
     height: scale(6),
     borderRadius: scale(3),
   },
-  
-  // Activity Icon - Clean, No Background
   addActivityIcon: {
     position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.md,
-    marginRight: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginRight: Spacing.md,
   },
   activityPlusIcon: {
     position: 'absolute',
@@ -1526,14 +2190,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderRadius: scale(8),
   },
-
-  // Status Note
   statusNote: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.infoLight,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
     gap: Spacing.xs,
@@ -1544,56 +2206,22 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.info,
   },
-
-  // Edit Mode Badge - Compact
-  editBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: Colors.infoLight,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: Layout.borderRadius.round,
-    marginBottom: Spacing.sm,
-    gap: Spacing.xs,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  editBadgeText: {
-    fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.primary,
-  },
-
-  // Tabs with Integrated Arrow Connector - Touches Card
   tabsWrapper: {
-    marginHorizontal: Spacing.lg,
+    marginHorizontal: Spacing.md,
     marginBottom: 0,
   },
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
+    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     padding: Spacing.xxs,
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
-    
+    shadowRadius: 2,
+    elevation: 2,
     position: 'relative',
     zIndex: 5,
   },
@@ -1602,30 +2230,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabButton: {
-    paddingVertical: verticalScale(10),
+    paddingVertical: verticalScale(6),
     alignItems: 'center',
     position: 'relative',
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
   },
   tabButtonFirst: {
-    borderTopLeftRadius: Layout.borderRadius.md,
-    borderBottomLeftRadius: Layout.borderRadius.md,
+    borderTopLeftRadius: Layout.borderRadius.sm,
+    borderBottomLeftRadius: Layout.borderRadius.sm,
   },
   tabButtonLast: {
-    borderTopRightRadius: Layout.borderRadius.md,
-    borderBottomRightRadius: Layout.borderRadius.md,
+    borderTopRightRadius: Layout.borderRadius.sm,
+    borderBottomRightRadius: Layout.borderRadius.sm,
   },
   tabButtonActive: {
     backgroundColor: Colors.primary,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 4,
+    shadowRadius: 2,
+    elevation: 2,
   },
   tabButtonText: {
     fontSize: Typography.fontSize.small,
@@ -1636,11 +2260,9 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
     fontFamily: Typography.fontFamily.semiBold,
   },
-  
-  // Integrated Arrow - Part of Active Tab, Touches Both Tab and Card
   activeTabArrowContainer: {
     position: 'absolute',
-    bottom: -verticalScale(14),
+    bottom: -verticalScale(8),
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -1651,55 +2273,38 @@ const styles = StyleSheet.create({
     height: 0,
     backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderLeftWidth: scale(10),
-    borderRightWidth: scale(10),
-    borderTopWidth: scale(12),
+    borderLeftWidth: scale(8),
+    borderRightWidth: scale(8),
+    borderTopWidth: scale(8),
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: Colors.primary,
   },
-
-  // Section Cards
   sectionCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    marginHorizontal: Spacing.lg,
-    marginTop: verticalScale(14),
-    marginBottom: Spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginHorizontal: Spacing.md,
+    marginTop: verticalScale(8),
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden',
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  
-  // Activity Section Card - Minimized
   activitySectionCard: {
-    marginTop: verticalScale(14),
-    marginBottom: Spacing.md,
+    marginTop: verticalScale(8),
+    marginBottom: Spacing.sm,
   },
-  
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.backgroundLight,
-  },
-  sectionHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
   },
   sectionTitle: {
     fontSize: Typography.fontSize.large,
@@ -1707,72 +2312,150 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   sectionContent: {
-    padding: Spacing.md,
+    padding: Spacing.sm,
   },
-
-  // View Mode Row - No Icons, Clear Label/Value Hierarchy
-  viewRow: {
+  booleanRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: Spacing.md,
-    paddingBottom: Spacing.sm,
+  },
+  booleanSpacer: {
+    width: Spacing.md,
+  },
+  viewRow: {
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
   viewLabel: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   viewValue: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
     lineHeight: Typography.lineHeight.h4,
   },
-
-  // Edit Mode Field Styles
-  editField: {
-    marginBottom: Spacing.md,
+  inlineContainer: {
+    flex: 1,
   },
-  editLabel: {
+  inlineLabel: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
+    marginBottom: Spacing.xxs,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  
-  // Input Wrapper with Shadow and Elevation
-  inputWrapper: {
+  inlineSwitch: {
+    alignSelf: 'flex-start',
+    transform: [{ scaleX: 0.9 }, { scaleY: 0.9 }],
+  },
+  valueChip: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Layout.borderRadius.round,
+    minWidth: scale(60),
+    alignItems: 'center',
+  },
+  valueChipSuccess: {
+    backgroundColor: Colors.successLight,
+  },
+  valueChipDefault: {
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
-    
-    // Shadow for iOS
+  },
+  valueChipText: {
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    textAlign: 'center',
+  },
+  valueChipTextSuccess: {
+    color: Colors.success,
+  },
+  valueChipTextDefault: {
+    color: Colors.textSecondary,
+  },
+  editField: {
+    marginBottom: Spacing.sm,
+  },
+  editLabel: {
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xxs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inputWrapper: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    justifyContent: 'center',
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+   addressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  addressHeaderTitle: {
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+  },
+  copyIconButton: {
+    padding: Spacing.xs,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.sm,
+    overflow: 'hidden',
+    backgroundColor: Colors.backgroundLight,
+    height: 42,
+    justifyContent: 'center',
+  },
+  picker: {
+    height: 42,
+    color: Colors.textPrimary,
+  },
+  selectorError: {
+    borderColor: Colors.error,
+    borderWidth: 1.5,
   },
   input: {
-    height: 48,
-    paddingHorizontal: Spacing.md,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: verticalScale(8),
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  textAreaWrapper: {
+    minHeight: verticalScale(80),
   },
   textArea: {
-    minHeight: verticalScale(100),
+    minHeight: verticalScale(80),
     textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(10),
   },
   inputError: {
     borderColor: Colors.error,
@@ -1785,115 +2468,90 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxs,
     marginLeft: Spacing.xs,
   },
-
-  // Phone Input Styles
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   countryPicker: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
     paddingHorizontal: Spacing.sm,
-    paddingVertical: verticalScale(12),
-    minWidth: scale(90),
-    
-    // Shadow for iOS
+    paddingVertical: verticalScale(10),
+    minWidth: scale(85),
+    height: 42,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   countryPickerFocused: {
     borderColor: Colors.primary,
-    
-    // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   countryPickerError: {
     borderColor: Colors.error,
     shadowColor: Colors.error,
   },
   countryFlag: {
-    fontSize: 18,
-    marginRight: Spacing.xxs,
+    fontSize: 16,
+    marginRight: Spacing.xs,
+    fontFamily: Typography.fontFamily.regular,
   },
   dialCode: {
     fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
-    marginRight: Spacing.xxs,
+    marginRight: Spacing.xs,
   },
   countryMenu: {
     marginTop: verticalScale(40),
   },
   phoneInputWrapper: {
+    flex: 1,
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
+    borderRadius: Layout.borderRadius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
-    
-    // Shadow for iOS
+    justifyContent: 'center',
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   phoneInputWrapperFocused: {
     borderColor: Colors.primary,
-    
-    // Enhanced shadow for focused state
     shadowColor: Colors.primary,
     shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   phoneInputWrapperError: {
     borderColor: Colors.error,
     shadowColor: Colors.error,
   },
   phoneInput: {
-    height: 48,
-    paddingHorizontal: Spacing.md,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: verticalScale(8),
     fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   flexible: {
     flex: 1,
   },
-
-  // Read-only field styles
-  readOnlyContainer: {
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
-    opacity: 0.8,
-  },
-  readOnlyText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-  },
-
-  // Dropdown Input
   dropdownInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1901,45 +2559,39 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
-    
-    // Shadow for iOS
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   dropdownText: {
     fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
+    fontFamily: Typography.fontFamily.bold,
+    flex: 1,
   },
-
-  // Sales Rep Selector
+  // Updated Sales Rep Selector Styles to match AddLeads
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: verticalScale(12),
-    
-    // Shadow for iOS
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 0,
+    height: 42,
+    backgroundColor: Colors.backgroundLight,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   selectorEmpty: {
     borderColor: Colors.errorLight,
@@ -1953,87 +2605,39 @@ const styles = StyleSheet.create({
   selectedRepInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flex: 1,
   },
   selectedRepText: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
+    flex: 1,
   },
   placeholderText: {
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
+    flex: 1,
   },
   clearButton: {
     padding: Spacing.xxs,
+    marginRight: Spacing.xxs,
   },
-
-  // Toggle Button Styles for Yes/No Fields
-  toggleContainer: {
-    marginBottom: Spacing.lg,
-  },
-  toggleLabel: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  toggleButtons: {
+  rightContainer: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  toggleOption: {
-    flex: 1,
-    paddingVertical: verticalScale(12),
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Layout.borderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.backgroundLight,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
+    gap: 4,
   },
-  toggleOptionActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    
-    // Enhanced shadow for active state
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  toggleOptionText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary,
-  },
-  toggleOptionTextActive: {
-    color: Colors.textInverse,
-    fontFamily: Typography.fontFamily.semiBold,
-  },
-
-  // Activity Styles - Minimized
   activityItem: {
     flexDirection: 'row',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
     alignItems: 'center',
   },
   activityIconContainer: {
-    width: scale(32),
-    height: scale(32),
-    borderRadius: scale(16),
+    width: scale(28),
+    height: scale(28),
+    borderRadius: scale(14),
     backgroundColor: Colors.infoLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2049,18 +2653,18 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxs,
   },
   activityTitle: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textPrimary,
   },
   activityStatusBadge: {
-    paddingHorizontal: Spacing.xs,
+    paddingHorizontal: Spacing.xxs,
     paddingVertical: Spacing.xxs,
     borderRadius: Layout.borderRadius.round,
   },
   activityStatusText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: Typography.fontFamily.regular,
   },
   activityDescription: {
     fontSize: Typography.fontSize.xsmall,
@@ -2078,19 +2682,17 @@ const styles = StyleSheet.create({
   },
   activityMetaText: {
     fontSize: Typography.fontSize.xsmall,
-    fontFamily: Typography.fontFamily.medium,
+    fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
   separator: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.xs,
+    marginVertical: Spacing.xxs,
   },
-
-  // Loading & Empty States - Minimized
   loadingContainer: {
     alignItems: 'center',
-    paddingVertical: verticalScale(20),
+    paddingVertical: verticalScale(16),
   },
   loadingText: {
     fontSize: Typography.fontSize.small,
@@ -2100,7 +2702,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: verticalScale(20),
+    paddingVertical: verticalScale(16),
   },
   emptyStateText: {
     fontSize: Typography.fontSize.small,
@@ -2109,12 +2711,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     marginBottom: Spacing.sm,
   },
-
-  // Action Buttons
   actionButtons: {
-    marginHorizontal: Spacing.lg,
-    marginTop: Spacing.md,
-    marginBottom: verticalScale(20),
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: verticalScale(16),
     gap: Spacing.sm,
   },
   saveButton: {
@@ -2122,150 +2722,144 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingVertical: verticalScale(16),
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
-    
-    // Shadow for iOS
+    height: 48,
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    
-    // Elevation for Android
-    elevation: 6,
+    shadowRadius: 4,
+    elevation: 4,
   },
   saveButtonDisabled: {
     opacity: 0.7,
     backgroundColor: Colors.buttonDisabled,
     shadowOpacity: 0.2,
-    elevation: 3,
+    elevation: 2,
   },
   saveButtonText: {
     color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
   },
   cancelButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(16),
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.backgroundLight,
-    
-    // Shadow for iOS
+    height: 48,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   cancelButtonText: {
     color: Colors.textSecondary,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
   },
-
-  // Modal Styles
+  // Updated Modal Styles to match AddLeads
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.xl,
-    borderTopRightRadius: Layout.borderRadius.xl,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '80%',
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    
-    // Elevation for Android
     elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.lg,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   modalTitle: {
-    fontSize: Typography.fontSize.h4,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
+    fontSize: 18,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
-  modalSearch: {
+  closeButton: {
+    padding: 4,
+  },
+  searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    gap: Spacing.sm,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    margin: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  modalSearchInput: {
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
     flex: 1,
-    height: verticalScale(44),
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
+    height: 44,
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#333',
+    paddingVertical: 0,
+  },
+  clearSearchButton: {
+    padding: 4,
   },
   modalLoading: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(40),
+    paddingVertical: 32,
   },
   modalLoadingText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
   },
-  modalEmpty: {
+  emptyContainer: {
     alignItems: 'center',
-    paddingVertical: verticalScale(40),
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  modalEmptyText: {
-    marginTop: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textTertiary,
+  emptyText: {
+    fontSize: 15,
+    fontFamily: 'K2D-Regular',
+    color: '#999',
     textAlign: 'center',
+    marginTop: 12,
   },
-
-  // Rep Item Styles
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: '#f0f0f0',
   },
   selectedRepItem: {
-    backgroundColor: Colors.infoLight,
+    backgroundColor: '#f0f5ff',
   },
   repItemContent: {
     flex: 1,
@@ -2273,54 +2867,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   repAvatar: {
-    width: scale(44),
-    height: scale(44),
-    borderRadius: scale(22),
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
-    
-    // Shadow for iOS
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 4,
+    marginRight: 12,
   },
   repAvatarText: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textInverse,
+    fontSize: 16,
+    fontFamily: 'K2D-SemiBold',
+    color: '#fff',
   },
   repDetails: {
     flex: 1,
   },
   repName: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.semiBold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xxs,
+    fontSize: 15,
+    fontFamily: 'K2D-SemiBold',
+    color: '#333',
   },
   repEmail: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textSecondary,
+    fontSize: 12,
+    color: '#666',
+    fontFamily: 'K2D-Regular',
+    marginTop: 2,
   },
-
-  // Menu Styles
   menuItemTitle: {
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
+    fontSize: 14,
+    fontFamily: 'K2D-Regular',
   },
   menuItemSelected: {
     color: Colors.primary,
-    fontFamily: Typography.fontFamily.semiBold,
+    fontFamily: 'K2D-SemiBold',
   },
-
-  // Error States
   errorContainer: {
     flex: 1,
     alignItems: 'center',
@@ -2331,28 +2912,26 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   retryButton: {
     backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingVertical: 0,
     borderRadius: Layout.borderRadius.md,
-    
-    // Shadow for iOS
+    height: 48,
+    justifyContent: 'center',
     shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-    
-    // Elevation for Android
-    elevation: 6,
+    shadowRadius: 4,
+    elevation: 4,
   },
   retryButtonText: {
     color: Colors.textInverse,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.small,
     fontFamily: Typography.fontFamily.semiBold,
   },
 });
