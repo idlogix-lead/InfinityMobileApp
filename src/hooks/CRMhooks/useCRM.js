@@ -405,6 +405,37 @@ export const useLeadById = (leadId, enabled = true) => {
     retry: 1,
   });
 };
+// ============================================
+// COUNTRIES HOOK
+// ============================================
+
+/**
+ * Hook for fetching countries
+ * @param {boolean} enabled - Whether the query should run
+ */
+export const useCountries = (enabled = true) => {
+  return useQuery({
+    queryKey: ['countries'],
+    queryFn: async () => {
+      console.log('🌍 Fetching countries...');
+      try {
+        const data = await crmApiService.getCountries();
+        console.log(`✅ Retrieved ${data.length} countries`);
+        return data;
+      } catch (error) {
+        console.error('❌ Failed to fetch countries:', error);
+        handleApiError(error, 'useCountries');
+        return [];
+      }
+    },
+    enabled: enabled,
+    staleTime: 1000 * 60 * 60, // 1 hour (countries rarely change)
+    cacheTime: 1000 * 60 * 60 * 24, // 24 hours
+    retry: 2,
+  });
+};
+
+
 
 // Hook for fetching sales opportunities
 export const useSalesOpportunities = (filters = {}, enabled = true) => {
@@ -453,32 +484,31 @@ export const useSalesOpportunities = (filters = {}, enabled = true) => {
 // ============================================
 
 // Mutation for creating a lead
+// Mutation for creating a lead
 export const useCreateLead = () => {
   const queryClient = useQueryClient();
   const { data: statuses = [] } = useLeadStatuses();
-  
+
   return useMutation({
     mutationFn: (leadData) => crmApiService.createLead(leadData),
     onSuccess: (newLead) => {
-      console.log('✅ Lead created successfully');
-      
+      console.log('✅ Lead created successfully, raw lead:', newLead);
+
       const transformedLead = transformLeadData(newLead, statuses);
-      
+      console.log('✅ Transformed lead salesRepId:', transformedLead.salesRepId);
+
       // Update leads cache
       queryClient.setQueriesData(['leads'], (oldData) => {
         if (!Array.isArray(oldData)) return [transformedLead];
         return [transformedLead, ...oldData];
       });
-      
+
       // Invalidate statistics and statuses
       queryClient.invalidateQueries(['lead-statistics']);
       queryClient.invalidateQueries(['lead-statuses']);
-      
-      // ALERT REMOVED - Component handles notification
     },
     onError: (error) => {
       handleApiError(error, 'useCreateLead');
-      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -632,13 +662,16 @@ export const useUpdateFollowupStatus = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: ({ id, isComplete }) => 
+    mutationFn: ({ id, isComplete, leadId }) => 
       crmApiService.updateFollowup(id, { IsComplete: isComplete }),
-    onMutate: async ({ id, isComplete }) => {
+    onMutate: async ({ id, isComplete, leadId }) => {
       await queryClient.cancelQueries(['followups']);
+      await queryClient.cancelQueries(['lead-completed-activities', leadId]);
       
       const previousFollowups = queryClient.getQueryData(['followups']);
+      const previousCompleted = queryClient.getQueryData(['lead-completed-activities', leadId]);
       
+      // Optimistically update followups list
       queryClient.setQueriesData(['followups'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
         return oldData.map(followup => 
@@ -646,17 +679,43 @@ export const useUpdateFollowupStatus = () => {
         );
       });
       
-      return { previousFollowups };
+      // Optimistically update completed activities if leadId is known
+      if (leadId) {
+        queryClient.setQueryData(['lead-completed-activities', leadId], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          if (isComplete) {
+            // If marking as complete, add the followup to completed list
+            const followup = previousFollowups?.find(f => f.id === id);
+            if (followup) {
+              return [...oldData, { ...followup, IsComplete: true }];
+            }
+          } else {
+            // If marking as incomplete, remove from completed list
+            return oldData.filter(f => f.id !== id);
+          }
+          return oldData;
+        });
+      }
+      
+      return { previousFollowups, previousCompleted };
     },
     onError: (error, variables, context) => {
       if (context?.previousFollowups) {
         queryClient.setQueryData(['followups'], context.previousFollowups);
       }
+      if (context?.previousCompleted) {
+        queryClient.setQueryData(['lead-completed-activities', variables.leadId], context.previousCompleted);
+      }
       handleApiError(error, 'useUpdateFollowupStatus');
       // ALERT REMOVED - Component handles notification
     },
-    onSettled: () => {
+    onSuccess: (data, variables) => {
+      // Invalidate to ensure consistency
       queryClient.invalidateQueries(['followups']);
+      if (variables.leadId) {
+        queryClient.invalidateQueries(['lead-completed-activities', variables.leadId]);
+      }
+      // ALERT REMOVED - Component handles notification
     },
   });
 };
@@ -667,8 +726,10 @@ export const useCreateFollowup = () => {
   
   return useMutation({
     mutationFn: (followupData) => crmApiService.createFollowup(followupData),
-    onSuccess: (newFollowup) => {
+    onSuccess: (newFollowup, variables) => {
       console.log('✅ Followup created successfully');
+      
+      const leadId = newFollowup.AD_User_ID?.id || variables.AD_User_ID?.id;
       
       // Update followups cache
       queryClient.setQueriesData(['followups'], (oldData) => {
@@ -676,9 +737,18 @@ export const useCreateFollowup = () => {
         return [newFollowup, ...oldData];
       });
       
-      // Invalidate lead activities
-      if (newFollowup.AD_User_ID?.id) {
-        queryClient.invalidateQueries(['lead-activities', newFollowup.AD_User_ID.id]);
+      // If the new followup is completed, also update completed activities cache
+      if (newFollowup.IsComplete && leadId) {
+        queryClient.setQueriesData(['lead-completed-activities', leadId], (oldData) => {
+          if (!Array.isArray(oldData)) return [newFollowup];
+          return [newFollowup, ...oldData];
+        });
+      }
+      
+      // Invalidate lead activities (both general and completed)
+      if (leadId) {
+        queryClient.invalidateQueries(['lead-activities', leadId]);
+        queryClient.invalidateQueries(['lead-completed-activities', leadId]);
       }
       
       // ALERT REMOVED - Component handles notification
@@ -696,8 +766,11 @@ export const useUpdateFollowup = () => {
   
   return useMutation({
     mutationFn: ({ id, updates }) => crmApiService.updateFollowup(id, updates),
-    onSuccess: (updatedFollowup) => {
+    onSuccess: (updatedFollowup, variables) => {
       console.log('✅ Followup updated successfully');
+      
+      // Try to get leadId from the updated followup or from variables
+      const leadId = updatedFollowup.AD_User_ID?.id || variables.leadId;
       
       // Update followups cache
       queryClient.setQueriesData(['followups'], (oldData) => {
@@ -708,8 +781,9 @@ export const useUpdateFollowup = () => {
       });
       
       // Invalidate lead activities
-      if (updatedFollowup.AD_User_ID?.id) {
-        queryClient.invalidateQueries(['lead-activities', updatedFollowup.AD_User_ID.id]);
+      if (leadId) {
+        queryClient.invalidateQueries(['lead-activities', leadId]);
+        queryClient.invalidateQueries(['lead-completed-activities', leadId]);
       }
       
       // ALERT REMOVED - Component handles notification
@@ -727,33 +801,60 @@ export const useDeleteFollowup = () => {
   
   return useMutation({
     mutationFn: (followupId) => crmApiService.deleteFollowup(followupId),
-    onSuccess: (result, followupId) => {
-      console.log('✅ Followup deleted successfully');
+    onMutate: async (followupId) => {
+      await queryClient.cancelQueries(['followups']);
       
-      // Get the deleted followup data to know which lead it belonged to
+      // Get the followup being deleted to know its leadId
       const followups = queryClient.getQueryData(['followups']);
       let leadId = null;
+      let deletedFollowup = null;
       
       if (Array.isArray(followups)) {
-        const deletedFollowup = followups.find(f => f.id === followupId);
+        deletedFollowup = followups.find(f => f.id === followupId);
         leadId = deletedFollowup?.AD_User_ID?.id;
       }
       
-      // Remove from followups cache
+      // Cancel any pending queries for that lead's completed activities
+      if (leadId) {
+        await queryClient.cancelQueries(['lead-completed-activities', leadId]);
+      }
+      
+      const previousFollowups = followups;
+      const previousCompleted = leadId ? queryClient.getQueryData(['lead-completed-activities', leadId]) : null;
+      
+      // Optimistically remove from followups cache
       queryClient.setQueriesData(['followups'], (oldData) => {
         if (!Array.isArray(oldData)) return oldData;
         return oldData.filter(followup => followup.id !== followupId);
       });
       
-      // Invalidate lead activities
-      if (leadId) {
-        queryClient.invalidateQueries(['lead-activities', leadId]);
+      // Optimistically remove from completed activities if it was completed
+      if (leadId && deletedFollowup?.IsComplete) {
+        queryClient.setQueryData(['lead-completed-activities', leadId], (oldData) => {
+          if (!Array.isArray(oldData)) return oldData;
+          return oldData.filter(f => f.id !== followupId);
+        });
       }
       
+      return { previousFollowups, previousCompleted, leadId, deletedFollowup };
+    },
+    onError: (error, followupId, context) => {
+      // Rollback
+      if (context?.previousFollowups) {
+        queryClient.setQueryData(['followups'], context.previousFollowups);
+      }
+      if (context?.leadId && context?.previousCompleted) {
+        queryClient.setQueryData(['lead-completed-activities', context.leadId], context.previousCompleted);
+      }
+      handleApiError(error, 'useDeleteFollowup');
       // ALERT REMOVED - Component handles notification
     },
-    onError: (error) => {
-      handleApiError(error, 'useDeleteFollowup');
+    onSuccess: (result, followupId, context) => {
+      // Invalidate to ensure consistency (though optimistic update already removed)
+      queryClient.invalidateQueries(['followups']);
+      if (context?.leadId) {
+        queryClient.invalidateQueries(['lead-completed-activities', context.leadId]);
+      }
       // ALERT REMOVED - Component handles notification
     },
   });
@@ -1020,5 +1121,6 @@ export default {
   
   // Utility
   useRefreshCRMData,
-  useSalesRepresentatives
+  useSalesRepresentatives,
+  useCountries
 };

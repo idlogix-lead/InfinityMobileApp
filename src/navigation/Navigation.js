@@ -13,73 +13,80 @@ const Stack = createNativeStackNavigator();
 
 const Navigation = () => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  
-  // Get auth state
-  const token = useAuthStore(state => state.token);
-  const userId = useAuthStore(state => state.userId);
-  const userName = useAuthStore(state => state.userName);
-  const roleId = useAuthStore(state => state.roleId);
-  
-  // SIMPLIFIED AUTHENTICATION CHECK - More tolerant
-  const isAuthenticated = React.useMemo(() => {
-    if (isCheckingAuth) return false;
-    
-    // Only require token and username for basic auth
-    // Don't require roleId - that's for complete auth only
-    const result = Boolean(
-      token &&
-      typeof token === 'string' &&
-      token.length > 10 &&
-      userName
-    );
-    
-    console.log('🧭 Navigation - Auth Check:', {
-      hasToken: !!token,
-      tokenLength: token?.length || 0,
-      userName: !!userName,
-      userId: !!userId,
-      roleId: !!roleId,
-      isAuthenticated: result,
-      isCheckingAuth
-    });
-    
-    return result;
-  }, [token, userName, isCheckingAuth]); // Removed userId and roleId from dependencies
-  
-  // Check for valid session on mount
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   useEffect(() => {
-    const checkSession = async () => {
-      console.log('🧭 Navigation: Starting auth check...');
-      
-      // Wait for stores to initialize
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      const storeState = useAuthStore.getState();
-      console.log('🧭 Navigation: Store state loaded', {
-        userId: storeState.userId,
-        tokenExists: !!storeState.token,
-        tokenLength: storeState.token?.length || 0,
-        roleId: storeState.roleId,
-        isCompleteAuth: storeState.isCompleteAuthenticated
+    const checkAuth = () => {
+      const state = useAuthStore.getState();
+
+      // --- Detailed debugging of isCompleteAuthenticated conditions ---
+      const hasBasicAuth = !!(
+        state.token &&
+        typeof state.token === 'string' &&
+        state.token.length > 10 &&
+        state.userName
+      );
+
+      const hasRealUserId = !!(
+        state.userId &&
+        !isNaN(Number(state.userId)) &&
+        state.userId !== state.userName
+      );
+
+      const hasCompleteParams = !!(
+        state.loginParameters?.clientId &&
+        state.loginParameters?.roleId &&
+        state.loginParameters?.organizationId &&
+        state.loginParameters?.warehouseId
+      );
+
+      const hasRoleData = !!(
+        state.roleId &&
+        state.organizationId &&
+        state.warehouseId
+      );
+
+      const authenticated = hasBasicAuth && hasRealUserId && hasCompleteParams && hasRoleData;
+
+      console.log('🧭 Navigation - Detailed Auth Check:', {
+        hasBasicAuth,
+        hasRealUserId,
+        hasCompleteParams,
+        hasRoleData,
+        userId: state.userId,
+        userName: state.userName,
+        loginParameters: state.loginParameters,
+        roleId: state.roleId,
+        orgId: state.organizationId,
+        whId: state.warehouseId,
       });
-      
-      setIsCheckingAuth(false);
+      // -----------------------------------------------------------------
+
+      setIsAuthenticated(authenticated);
+      console.log('🧭 Navigation - Auth Check:', {
+        authenticated,
+        hasToken: !!state.token,
+        tokenLength: state.token?.length || 0,
+        userName: state.userName,
+        isCompleteAuthenticated: state.isCompleteAuthenticated, // should match authenticated
+      });
     };
-    
-    checkSession();
+
+    // Initial check after store is ready
+    const timer = setTimeout(() => {
+      checkAuth();
+      setIsCheckingAuth(false);
+    }, 800);
+
+    // Subscribe to store changes
+    const unsubscribe = useAuthStore.subscribe(checkAuth);
+
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, []);
-  
-  // Listen for auth state changes
-  useEffect(() => {
-    if (!isCheckingAuth) {
-      console.log('🧭 Navigation: Auth state updated', {
-        isAuthenticated,
-        userId,
-        userName
-      });
-    }
-  }, [isAuthenticated, userId, userName, isCheckingAuth]);
-  
+
   // Show loading while checking
   if (isCheckingAuth) {
     return (
@@ -92,26 +99,21 @@ const Navigation = () => {
       </NavigationContainer>
     );
   }
-  
+
   return (
     <NavigationContainer>
       <AppInitializer>
-        <Stack.Navigator 
-          screenOptions={{ 
+        <Stack.Navigator
+          key={isAuthenticated ? 'app' : 'auth'} // Force remount on change
+          screenOptions={{
             headerShown: false,
-            animation: 'none' // Disable animation to prevent flicker
+            animation: 'none',
           }}
         >
           {isAuthenticated ? (
-            <Stack.Screen 
-              name="App" 
-              component={AppNavigator}
-            />
+            <Stack.Screen name="App" component={AppNavigator} />
           ) : (
-            <Stack.Screen 
-              name="Auth" 
-              component={AuthNavigator}
-            />
+            <Stack.Screen name="Auth" component={AuthNavigator} />
           )}
         </Stack.Navigator>
       </AppInitializer>

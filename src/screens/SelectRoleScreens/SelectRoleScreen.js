@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   BackHandler,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -25,6 +24,7 @@ import {
 } from '../../hooks/useAuth';
 import colors from '../../constants/Colors';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import CustomAlert from '../../components/CustomAlert'; 
 
 const { height, width } = Dimensions.get('window');
 
@@ -72,6 +72,39 @@ const SelectRoleScreen = ({ navigation, route }) => {
     return `${day}/${month}/${year}`;
   });
 
+  // Alert state for CustomAlert
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertType, setAlertType] = useState('info');
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertConfirmText, setAlertConfirmText] = useState('OK');
+  const [alertCancelText, setAlertCancelText] = useState('Cancel');
+  const [alertShowCancel, setAlertShowCancel] = useState(false);
+  const [onConfirmAction, setOnConfirmAction] = useState(null);
+  const [onCancelAction, setOnCancelAction] = useState(null);
+
+  // Function to show custom alert
+  const showAlert = ({
+    type = 'info',
+    title,
+    message,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm,
+    onCancel,
+  }) => {
+    setAlertType(type);
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertConfirmText(confirmText);
+    setAlertCancelText(cancelText);
+    setAlertShowCancel(showCancel);
+    setOnConfirmAction(() => onConfirm || (() => setAlertVisible(false)));
+    setOnCancelAction(() => onCancel || (() => setAlertVisible(false)));
+    setAlertVisible(true);
+  };
+
   // Queries
   const { 
     data: roles = [], 
@@ -113,12 +146,24 @@ const SelectRoleScreen = ({ navigation, route }) => {
   // Handle errors
   useEffect(() => {
     if (error) {
-      Alert.alert('Error', error);
-      clearError();
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: error,
+        onConfirm: () => {
+          clearError();
+          setAlertVisible(false);
+        }
+      });
     }
     
     if (rolesError) {
-      Alert.alert('Error', 'Failed to load roles. Please try again.');
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to load roles. Please try again.',
+        onConfirm: () => setAlertVisible(false)
+      });
     }
   }, [error, rolesError]);
 
@@ -126,7 +171,12 @@ const SelectRoleScreen = ({ navigation, route }) => {
   const handleLogin = async () => {
     // Validation
     if (!selectedRole || !selectedOrganization || !selectedWarehouse) {
-      Alert.alert('Required', 'Please select Role, Organization, and Company');
+      showAlert({
+        type: 'warning',
+        title: 'Required',
+        message: 'Please select Role, Organization, and Company',
+        onConfirm: () => setAlertVisible(false)
+      });
       return;
     }
 
@@ -177,7 +227,12 @@ const SelectRoleScreen = ({ navigation, route }) => {
         errorMessage = 'Could not retrieve user information. Please try again.';
       }
       
-      Alert.alert('Login Failed', errorMessage);
+      showAlert({
+        type: 'error',
+        title: 'Login Failed',
+        message: errorMessage,
+        onConfirm: () => setAlertVisible(false)
+      });
       
     } finally {
       setIsLoadingLocal(false);
@@ -238,8 +293,12 @@ const SelectRoleScreen = ({ navigation, route }) => {
 
   // Handle calendar icon click (for future implementation)
   const handleCalendarClick = () => {
-    // This will be implemented in the future
-    Alert.alert('Info', 'Date picker will be implemented in future update');
+    showAlert({
+      type: 'info',
+      title: 'Info',
+      message: 'Date picker will be implemented in future update',
+      onConfirm: () => setAlertVisible(false)
+    });
   };
 
   // Check if all fields are selected
@@ -258,9 +317,9 @@ const SelectRoleScreen = ({ navigation, route }) => {
       'A': '𝗔', 'B': '𝗕', 'C': '𝗖', 'D': '𝗗', 'E': '𝗘',
       'F': '𝗙', 'G': '𝗚', 'H': '𝗛', 'I': '𝗜', 'J': '𝗝',
       'K': '𝗞', 'L': '𝗟', 'M': '𝗠', 'N': '𝗡', 'O': '𝗢',
-      'P': '𝗣', 'Q': '𝗤', 'R': '𝗥', 'S': '𝗦', 'T': '𝗧',
-      'U': '𝗨', 'V': '𝗩', 'W': '𝗪', 'X': '𝗫', 'Y': '𝗬',
-      'Z': '𝗭',
+      'P': '𝗣', 'Q': '𝗤', 'R': '𝗥', 'S': '𝘀', 'T': '𝘁',
+      'U': '𝘂', 'V': '𝘃', 'W': '𝘄', 'X': '𝘅', 'Y': '𝘆',
+      'Z': '𝘇',
       'a': '𝗮', 'b': '𝗯', 'c': '𝗰', 'd': '𝗱', 'e': '𝗲',
       'f': '𝗳', 'g': '𝗴', 'h': '𝗵', 'i': '𝗶', 'j': '𝗷',
       'k': '𝗸', 'l': '𝗹', 'm': '𝗺', 'n': '𝗻', 'o': '𝗼',
@@ -357,7 +416,7 @@ const SelectRoleScreen = ({ navigation, route }) => {
                 <Picker.Item 
                   label="🔷 SELECT ROLE 🔷"
                   value="" 
-                  color="#0c0c0c"  // Red for attention
+                  color="#0c0c0c"
                   fontFamily="K2D-Bold"
                   style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
                 />
@@ -408,7 +467,7 @@ const SelectRoleScreen = ({ navigation, route }) => {
                 <Picker.Item 
                   label={selectedRole ? "🔷 SELECT ORGANIZATION 🔷" : "⏳ FIRST SELECT ROLE"}
                   value="" 
-                  color={"#0c0c0c"}  // Orange when enabled, gray when disabled
+                  color={"#0c0c0c"}
                   fontFamily="K2D-Bold"
                   style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
                 />
@@ -464,7 +523,6 @@ const SelectRoleScreen = ({ navigation, route }) => {
                   }
                   value="" 
                   color={"#000000"}
-                  
                   fontFamily="K2D-Bold"
                   style={Platform.OS === 'ios' ? styles.boldPlaceholder : {}}
                 />
@@ -577,6 +635,25 @@ const SelectRoleScreen = ({ navigation, route }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertVisible}
+        type={alertType}
+        title={alertTitle}
+        message={alertMessage}
+        confirmText={alertConfirmText}
+        cancelText={alertCancelText}
+        showCancelButton={alertShowCancel}
+        onConfirm={() => {
+          if (onConfirmAction) onConfirmAction();
+          setAlertVisible(false);
+        }}
+        onCancel={() => {
+          if (onCancelAction) onCancelAction();
+          setAlertVisible(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -774,18 +851,16 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
 
-  // NEW STYLES FOR BOLD PLACEHOLDERS
   boldPlaceholder: {
-    fontSize: 17,  // Larger than regular items
+    fontSize: 17,
     fontWeight: 'bold',
   },
   
   regularItem: {
-    fontSize: 16,  // Regular size
+    fontSize: 16,
     fontWeight: 'normal',
   },
 
-  // Date container with icon
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,4 +1,4 @@
-// screens/CRM/AddActivity.js - UPDATED with custom themed alerts
+// screens/CRM/AddActivity.js – Fully themed with CRMTheme and safe‑area header fix
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -12,24 +12,23 @@ import {
   ScrollView,
   Platform,
   Keyboard,
-  Alert,
   Modal,
   FlatList,
   ActivityIndicator,
   TextInput as RNTextInput,
   StatusBar,
+  SafeAreaView,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { useMutation, useQueryClient } from 'react-query';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import EvilIcons from 'react-native-vector-icons/EvilIcons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { TextInput } from 'react-native-paper';
 import CustomHeader from '../../components/CustomHeader';
-import { 
-  useCreateFollowup, 
+import {
+  useCreateFollowup,
   useUpdateFollowup,
-  useDeleteFollowup 
+  useDeleteFollowup,
 } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
 import { useAuthStore } from '../../store/authStore';
@@ -38,30 +37,26 @@ import moment from 'moment';
 // Import theme
 import theme from '../../constants/CRMTheme/CRMTheme';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
-import CustomAlert from '../../components/CustomAlert'; 
+import CustomAlert from '../../components/CustomAlert';
+
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
 const AddActivity = ({ route, navigation }) => {
   const { data, mode } = route.params;
   const queryClient = useQueryClient();
-  
-  // Get auth state
+
   const authUserId = useAuthStore((state) => state.userId);
   const authUserName = useAuthStore((state) => state.userName);
-  
-  console.log('🔐 AddActivity - Current logged in user:', { authUserId, authUserName });
-  
-  // State to track if component is mounted
+
   const [isMounted, setIsMounted] = useState(false);
   const [initialRepSet, setInitialRepSet] = useState(false);
 
-  // Custom alert state
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     title: '',
     message: '',
-    type: 'info', // 'info', 'success', 'error', 'warning', 'delete'
+    type: 'info',
     onConfirm: null,
     onCancel: null,
     confirmText: 'OK',
@@ -69,15 +64,11 @@ const AddActivity = ({ route, navigation }) => {
     showCancelButton: false,
   });
 
-  // useEffect to set mounted state after first render
   useEffect(() => {
     setIsMounted(true);
-    return () => {
-      setIsMounted(false);
-    };
+    return () => setIsMounted(false);
   }, []);
 
-  // State
   const [fromDate, setFromDate] = useState(new Date());
   const [toDate, setToDate] = useState(new Date());
   const [isComplete, setIsComplete] = useState(false);
@@ -85,267 +76,167 @@ const AddActivity = ({ route, navigation }) => {
   const [selectedActivity, setSelectedActivity] = useState('Select Activity Type');
   const [description, setDescription] = useState('');
 
-  // Sales Representative State
   const [selectedSalesRepId, setSelectedSalesRepId] = useState(null);
   const [selectedSalesRepName, setSelectedSalesRepName] = useState('');
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [salesRepSearch, setSalesRepSearch] = useState('');
 
-  // Calendar state
-  const [calendarMode, setCalendarMode] = useState('from'); // 'from' or 'to'
+  const [calendarMode, setCalendarMode] = useState('from');
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarTitle, setCalendarTitle] = useState('Select Date');
 
-  // Animations
   const activityAnim = React.useRef(new Animated.Value(0)).current;
 
-  // Hooks - Pass isMounted to control query execution
   const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives(isMounted);
 
-  // Mutations
   const createFollowupMutation = useCreateFollowup();
   const updateFollowupMutation = useUpdateFollowup();
   const deleteFollowupMutation = useDeleteFollowup();
 
-  // Activity type mapping
   const activityTypeMap = {
-    'Email': 'EM',
-    'Phone': 'PC', 
-    'Meeting': 'ME',
-    'Task': 'TA',
+    Email: 'EM',
+    Phone: 'PC',
+    Meeting: 'ME',
+    Task: 'TA',
   };
 
-  // Reverse mapping for display
   const activityLabelMap = {
-    'EM': 'Email',
-    'PC': 'Phone',
-    'ME': 'Meeting',
-    'TA': 'Task',
+    EM: 'Email',
+    PC: 'Phone',
+    ME: 'Meeting',
+    TA: 'Task',
   };
 
-  // Filter sales reps based on search query
   const filteredSalesReps = useMemo(() => {
-    if (!salesRepSearch.trim()) {
-      return salesReps;
-    }
+    if (!salesRepSearch.trim()) return salesReps;
     const query = salesRepSearch.toLowerCase();
-    return salesReps.filter(rep =>
-      rep.Name && rep.Name.toLowerCase().includes(query)
-    );
+    return salesReps.filter((rep) => rep.Name && rep.Name.toLowerCase().includes(query));
   }, [salesReps, salesRepSearch]);
 
-  // Get selected sales rep name
   const selectedRepName = useMemo(() => {
     if (!selectedSalesRepId) return '';
-    const rep = salesReps.find(r => r.id === selectedSalesRepId);
+    const rep = salesReps.find((r) => r.id === selectedSalesRepId);
     return rep ? rep.Name : selectedSalesRepName;
   }, [selectedSalesRepId, salesReps, selectedSalesRepName]);
 
-  // Set default sales rep to current user once salesReps are loaded
   useEffect(() => {
-    // Only run for create mode and when we haven't set initial rep yet
     if (mode === 'create' && !initialRepSet && salesReps.length > 0 && authUserId && !selectedSalesRepId) {
-      console.log('🎯 AddActivity - Setting default sales rep to current user:', authUserId);
-      
-      // Try to find current user in sales reps list by ID
-      const currentUserAsRep = salesReps.find(rep => rep.id === parseInt(authUserId));
-      
+      const currentUserAsRep = salesReps.find((rep) => rep.id === parseInt(authUserId, 10));
       if (currentUserAsRep) {
-        console.log('✅ Found current user in sales reps list:', currentUserAsRep.Name);
         setSelectedSalesRepId(currentUserAsRep.id);
         setSelectedSalesRepName(currentUserAsRep.Name);
         setInitialRepSet(true);
       } else {
-        console.log('⚠️ Current user not found in sales reps list, looking by name...');
-        
-        // Try to find by name as fallback
-        const userByName = salesReps.find(rep => 
-          rep.Name && rep.Name.toLowerCase() === authUserName?.toLowerCase()
+        const userByName = salesReps.find(
+          (rep) => rep.Name && rep.Name.toLowerCase() === authUserName?.toLowerCase()
         );
-        
         if (userByName) {
-          console.log('✅ Found current user by name:', userByName.Name);
           setSelectedSalesRepId(userByName.id);
           setSelectedSalesRepName(userByName.Name);
           setInitialRepSet(true);
-        } else {
-          console.log('❌ Could not find current user in sales reps list');
-          console.log('Auth User:', { id: authUserId, name: authUserName });
         }
       }
     }
   }, [mode, salesReps, authUserId, authUserName, selectedSalesRepId, initialRepSet]);
 
-  // Initialize form for edit mode
   useEffect(() => {
     if (mode === 'edit' && data) {
-      console.log('Initializing edit mode with data:', data);
-      
-      // Set activity type
       const activityId = data?.ContactActivityType?.id;
       setSelectedActivity(activityLabelMap[activityId] || 'Select Activity Type');
-      
-      // Set dates
-      if (data.StartDate) {
-        setFromDate(new Date(data.StartDate));
-      }
-      if (data.EndDate) {
-        setToDate(new Date(data.EndDate));
-      }
-      
-      // Set sales rep
+      if (data.StartDate) setFromDate(new Date(data.StartDate));
+      if (data.EndDate) setToDate(new Date(data.EndDate));
       if (data.SalesRep_ID?.id) {
         setSelectedSalesRepId(data.SalesRep_ID.id);
         setSelectedSalesRepName(data.SalesRep_ID.identifier || '');
         setInitialRepSet(true);
       }
-      
-      // Set other fields
       setDescription(data.Description || '');
       setIsComplete(data.IsComplete || false);
     } else if (mode === 'create' && data?.id) {
-      console.log('Initializing create mode for lead:', data.id);
-      // Reset form for create mode
       setSelectedActivity('Select Activity Type');
       setFromDate(new Date());
       setToDate(new Date());
       setDescription('');
       setIsComplete(false);
-      // Don't reset sales rep here - it will be set by the default rep useEffect
     }
   }, [mode, data]);
 
-  // Format date for API
-  const formatDate = (date) => {
-    return date.toISOString().split('.')[0] + 'Z';
-  };
+  const formatDate = (date) => date.toISOString().split('.')[0] + 'Z';
+  const formatDisplayDate = (date) => moment(date).format('DD MMM YYYY');
 
-  // Format date for display
-  const formatDisplayDate = (date) => {
-    return moment(date).format('DD MMM YYYY');
-  };
-
-  // Custom alert helper functions
   const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
     setAlertConfig({
       visible: true,
       title,
       message,
       type,
-      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
-      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onConfirm: onConfirm || (() => setAlertConfig((prev) => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig((prev) => ({ ...prev, visible: false }))),
       confirmText: type === 'delete' ? 'Delete' : 'OK',
       cancelText: 'Cancel',
       showCancelButton: type === 'delete' || type === 'warning',
     });
   };
 
-  const showSuccessAlert = (message, onConfirm = null) => {
-    showAlert('Success', message, 'success', onConfirm);
-  };
+  const showSuccessAlert = (message, onConfirm = null) => showAlert('Success', message, 'success', onConfirm);
+  const showErrorAlert = (message, onConfirm = null) => showAlert('Error', message, 'error', onConfirm);
+  const showValidationAlert = (message) => showAlert('Validation Error', message, 'warning');
+  const showDeleteConfirmation = (onConfirm) => showAlert('Delete Activity', 'Are you sure you want to delete this activity?', 'delete', onConfirm);
+  const hideAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false }));
 
-  const showErrorAlert = (message, onConfirm = null) => {
-    showAlert('Error', message, 'error', onConfirm);
-  };
-
-  const showValidationAlert = (message) => {
-    showAlert('Validation Error', message, 'warning');
-  };
-
-  const showDeleteConfirmation = (onConfirm) => {
-    showAlert(
-      'Delete Activity',
-      'Are you sure you want to delete this activity?',
-      'delete',
-      onConfirm
-    );
-  };
-
-  const hideAlert = () => {
-    setAlertConfig(prev => ({ ...prev, visible: false }));
-  };
-
-  // Handle save with validation
   const handleSave = async () => {
-    // Validation
     if (selectedActivity === 'Select Activity Type' && mode === 'create') {
       showValidationAlert('Please select an activity type.');
       return;
     }
-
     if (!description.trim()) {
       showValidationAlert('Please enter a description.');
       return;
     }
-
     if (!selectedSalesRepId) {
       showValidationAlert('Please select a sales representative.');
       return;
     }
 
     const activityId = activityTypeMap[selectedActivity];
-
-    // Prepare payload
     const payload = {
       StartDate: formatDate(fromDate),
       EndDate: formatDate(toDate),
       Description: description.trim(),
       IsComplete: isComplete,
-      SalesRep_ID: {
-        id: selectedSalesRepId,
-        identifier: selectedSalesRepName
-      }
+      SalesRep_ID: { id: selectedSalesRepId, identifier: selectedSalesRepName },
     };
 
-    // For create mode, add activity type and lead ID
     if (mode === 'create') {
       payload.ContactActivityType = { id: activityId };
-      payload.AD_User_ID = data; // This should be the lead object or just ID
+      payload.AD_User_ID = data;
     }
-
-    console.log('Saving activity with payload:', payload);
 
     try {
       if (mode === 'edit') {
-        // Update existing activity
-        await updateFollowupMutation.mutateAsync({
-          id: data.id,
-          updates: payload,
-        });
-        
+        await updateFollowupMutation.mutateAsync({ id: data.id, updates: payload });
         if (isMounted) {
           showSuccessAlert('Activity updated successfully!', () => {
             hideAlert();
-            if (isMounted) {
-              navigation.goBack();
-            }
+            if (isMounted) navigation.goBack();
           });
         }
       } else {
-        // Create new activity
         await createFollowupMutation.mutateAsync(payload);
-        
         if (isMounted) {
           showSuccessAlert('Activity created successfully!', () => {
             hideAlert();
-            if (isMounted) {
-              navigation.goBack();
-            }
+            if (isMounted) navigation.goBack();
           });
         }
       }
     } catch (error) {
-      console.error('Save error:', error);
-      if (isMounted) {
-        showErrorAlert(`Failed to save activity: ${error.message || 'Unknown error'}`);
-      }
+      if (isMounted) showErrorAlert(`Failed to save activity: ${error.message || 'Unknown error'}`);
     }
   };
 
-  // Handle delete
   const handleDelete = () => {
     if (mode !== 'edit' || !data?.id) return;
-
     showDeleteConfirmation(async () => {
       try {
         await deleteFollowupMutation.mutateAsync(data.id);
@@ -358,14 +249,11 @@ const AddActivity = ({ route, navigation }) => {
         }
       } catch (error) {
         hideAlert();
-        if (isMounted) {
-          showErrorAlert('Failed to delete activity.');
-        }
+        if (isMounted) showErrorAlert('Failed to delete activity.');
       }
     });
   };
 
-  // Animation helpers
   const toggleActivitySection = () => {
     setActivityCollapsed(!activityCollapsed);
     Animated.timing(activityAnim, {
@@ -381,7 +269,6 @@ const AddActivity = ({ route, navigation }) => {
       outputRange: ['0deg', '180deg'],
     });
 
-  // Date handlers
   const handleFromDatePress = () => {
     setCalendarMode('from');
     setCalendarTitle('Select Start Date');
@@ -396,15 +283,10 @@ const AddActivity = ({ route, navigation }) => {
 
   const handleDateSelect = (date) => {
     const selectedDate = new Date(date);
-    
     if (calendarMode === 'from') {
       setFromDate(selectedDate);
-      // If from date is after to date, update to date as well
-      if (selectedDate > toDate) {
-        setToDate(selectedDate);
-      }
+      if (selectedDate > toDate) setToDate(selectedDate);
     } else {
-      // Ensure to date is not before from date
       if (selectedDate < fromDate) {
         showValidationAlert('End date cannot be before start date.');
         return;
@@ -419,7 +301,6 @@ const AddActivity = ({ route, navigation }) => {
     setActivityCollapsed(true);
   };
 
-  // Handle sales rep selection
   const handleSelectSalesRep = (rep) => {
     setSelectedSalesRepId(rep.id);
     setSelectedSalesRepName(rep.Name);
@@ -427,14 +308,12 @@ const AddActivity = ({ route, navigation }) => {
     setSalesRepSearch('');
   };
 
-  // Clear selected sales rep
   const handleClearSalesRep = () => {
     setSelectedSalesRepId(null);
     setSelectedSalesRepName('');
-    setInitialRepSet(false); // Allow re-setting default if cleared
+    setInitialRepSet(false);
   };
 
-  // Render sales rep item
   const renderSalesRepItem = ({ item }) => (
     <TouchableOpacity
       style={[
@@ -446,49 +325,57 @@ const AddActivity = ({ route, navigation }) => {
     >
       <View style={styles.repItemContent}>
         <Text style={styles.repName}>{item.Name}</Text>
-        {item.EMail && (
-          <Text style={styles.repEmail}>{item.EMail}</Text>
-        )}
-        {item.id === parseInt(authUserId) && (
+        {item.EMail && <Text style={styles.repEmail}>{item.EMail}</Text>}
+        {item.id === parseInt(authUserId, 10) && (
           <Text style={styles.currentUserBadge}>(You)</Text>
         )}
       </View>
       {selectedSalesRepId === item.id && (
-        <Icon name="check" size={20} color={Colors.primary} />
+        <Icon name="check" size={Layout.iconSize.sm} color={Colors.primary} />
       )}
     </TouchableOpacity>
   );
 
-  // Loading state
-  const isLoading = createFollowupMutation.isLoading || 
-                    updateFollowupMutation.isLoading || 
-                    deleteFollowupMutation.isLoading || 
-                    loadingSalesReps;
+  const isLoading =
+    createFollowupMutation.isLoading ||
+    updateFollowupMutation.isLoading ||
+    deleteFollowupMutation.isLoading ||
+    loadingSalesReps;
+
+  // Safe area header wrapper
+  const HeaderWrapper = Platform.OS === 'ios' ? SafeAreaView : View;
+  const headerWrapperStyle = Platform.OS === 'android'
+    ? { paddingTop: RNStatusBar.currentHeight || 0, backgroundColor: 'transparent' }
+    : { backgroundColor: 'transparent' };
 
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" />
-      <CustomHeader 
-        title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
-        LeftIcon="arrow-left"
-        LeftPress={() => navigation.goBack()}
-        RightIcon={null}
-        RightPress={null}
-      />
+      <HeaderWrapper style={headerWrapperStyle}>
+        <CustomHeader
+          title={mode === 'edit' ? 'Edit Activity' : 'Add Activity'}
+          LeftIcon="arrow-left"
+          LeftPress={() => navigation.goBack()}
+          RightIcon={null}
+          RightPress={null}
+        />
+      </HeaderWrapper>
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>
-            {createFollowupMutation.isLoading ? 'Creating...' : 
-             updateFollowupMutation.isLoading ? 'Updating...' :
-             deleteFollowupMutation.isLoading ? 'Deleting...' :
-             'Loading data...'}
+            {createFollowupMutation.isLoading
+              ? 'Creating...'
+              : updateFollowupMutation.isLoading
+              ? 'Updating...'
+              : deleteFollowupMutation.isLoading
+              ? 'Deleting...'
+              : 'Loading data...'}
           </Text>
         </View>
       )}
 
-      {/* Custom Alert Modal */}
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -499,9 +386,7 @@ const AddActivity = ({ route, navigation }) => {
           hideAlert();
         }}
         onCancel={() => {
-          if (alertConfig.onCancel) {
-            alertConfig.onCancel();
-          }
+          if (alertConfig.onCancel) alertConfig.onCancel();
           hideAlert();
         }}
         confirmText={alertConfig.confirmText}
@@ -509,7 +394,6 @@ const AddActivity = ({ route, navigation }) => {
         showCancelButton={alertConfig.showCancelButton}
       />
 
-      {/* Calendar Modal */}
       <CalendarModal
         visible={showCalendar}
         initialDate={calendarMode === 'from' ? fromDate : toDate}
@@ -519,7 +403,6 @@ const AddActivity = ({ route, navigation }) => {
         minDate={calendarMode === 'to' ? fromDate : undefined}
       />
 
-      {/* Sales Representative Modal - Same as AddLeads */}
       <Modal
         visible={showSalesRepModal}
         animationType="slide"
@@ -540,41 +423,36 @@ const AddActivity = ({ route, navigation }) => {
                 }}
                 style={styles.closeButton}
               >
-                <Icon name="close" size={24} color="#333" />
+                <Icon name="close" size={24} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
-            
-            {/* Search Input */}
+
             <View style={styles.searchContainer}>
-              <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+              <Icon name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
               <RNTextInput
                 style={styles.searchInput}
                 placeholder="Search by name..."
-                placeholderTextColor="#999"
+                placeholderTextColor={Colors.textTertiary}
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
                 autoFocus={true}
               />
               {salesRepSearch.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setSalesRepSearch('')}
-                  style={styles.clearSearchButton}
-                >
-                  <Icon name="close" size={18} color="#666" />
+                <TouchableOpacity onPress={() => setSalesRepSearch('')} style={styles.clearSearchButton}>
+                  <Icon name="close" size={18} color={Colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
-            
-            {/* Sales Representatives List */}
+
             <FlatList
               data={filteredSalesReps}
               renderItem={renderSalesRepItem}
               keyExtractor={(item) => item.id.toString()}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Icon name="person-off" size={50} color="#ccc" />
+                  <Icon name="person-off" size={50} color={Colors.borderDark} />
                   <Text style={styles.emptyText}>
-                    {salesRepSearch.trim() 
+                    {salesRepSearch.trim()
                       ? `No sales representatives found for "${salesRepSearch}"`
                       : 'No sales representatives available'}
                   </Text>
@@ -583,8 +461,7 @@ const AddActivity = ({ route, navigation }) => {
               style={styles.repList}
               contentContainerStyle={styles.repListContent}
             />
-            
-            {/* Footer */}
+
             <View style={styles.modalFooter}>
               <Text style={styles.footerText}>
                 {filteredSalesReps.length} of {salesReps.length} sales representatives
@@ -600,173 +477,131 @@ const AddActivity = ({ route, navigation }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView
-            style={styles.formWrapper}
-            contentContainerStyle={styles.formContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Activity Type (only for create mode) */}
-            {mode === 'create' && (
-              <View style={styles.fieldContainer}>
-                <View style={styles.labelContainer}>
-                  <Text style={styles.label}>Activity Type</Text>
-                  <Text style={styles.requiredStar}> *</Text>
+          <View style={styles.innerContainer}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.formCard}>
+                {mode === 'create' && (
+                  <View style={styles.fieldContainer}>
+                    <TouchableOpacity
+                      onPress={toggleActivitySection}
+                      style={styles.selector}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.selectorText,
+                          selectedActivity === 'Select Activity Type' && styles.placeholderText,
+                        ]}
+                      >
+                        {selectedActivity}
+                      </Text>
+                      <Animated.View style={{ transform: [{ rotate: getRotation(activityAnim) }] }}>
+                        <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.textPrimary} />
+                      </Animated.View>
+                    </TouchableOpacity>
+
+                    {!activityCollapsed && (
+                      <View style={styles.optionsContainer}>
+                        {Object.keys(activityTypeMap).map((type) => (
+                          <TouchableOpacity
+                            key={type}
+                            onPress={() => selectActivity(type)}
+                            style={styles.optionItem}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.optionText}>{type}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.pickerContainer}>
+                  <TouchableOpacity
+                    style={[styles.salesRepSelector, !selectedSalesRepId && styles.selectorError]}
+                    onPress={() => setShowSalesRepModal(true)}
+                    activeOpacity={0.7}
+                  >
+                    {selectedRepName ? (
+                      <View style={styles.selectedRepContainer}>
+                        <View style={styles.selectedRepInfo}>
+                          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+                        </View>
+                        <View style={styles.rightContainer}>
+                          <TouchableOpacity
+                            style={styles.clearButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              handleClearSalesRep();
+                            }}
+                          >
+                            <Icon name="close" size={18} color={Colors.textSecondary} />
+                          </TouchableOpacity>
+                          <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.textPrimary} />
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.placeholderText}>Select Sales Representative</Text>
+                        <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <TouchableOpacity onPress={handleFromDatePress} style={styles.selector} activeOpacity={0.7}>
+                    <Text style={styles.selectorText}>{formatDisplayDate(fromDate)}</Text>
+                    <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <TouchableOpacity onPress={handleToDatePress} style={styles.selector} activeOpacity={0.7}>
+                    <Text style={styles.selectorText}>{formatDisplayDate(toDate)}</Text>
+                    <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
+                    <RNTextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Enter activity description..."
+                      placeholderTextColor={Colors.textTertiary}
+                      value={description}
+                      onChangeText={setDescription}
+                      multiline={true}
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                    />
+                  </View>
                 </View>
 
                 <TouchableOpacity
-                  onPress={toggleActivitySection}
-                  style={styles.selector}
+                  onPress={() => setIsComplete(!isComplete)}
+                  style={styles.checkboxContainer}
                   activeOpacity={0.7}
                 >
-                  <Text style={[
-                    styles.selectorText,
-                    selectedActivity === 'Select Activity Type' && styles.placeholderText
-                  ]}>
-                    {selectedActivity}
+                  <Icon
+                    name={isComplete ? 'check-box' : 'check-box-outline-blank'}
+                    size={Layout.iconSize.lg}
+                    color={isComplete ? Colors.primary : Colors.textSecondary}
+                  />
+                  <Text style={[styles.checkboxLabel, isComplete && styles.checkboxLabelChecked]}>
+                    Mark as Complete
                   </Text>
-                  <Animated.View
-                    style={{ transform: [{ rotate: getRotation(activityAnim) }] }}
-                  >
-                    <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
-                  </Animated.View>
                 </TouchableOpacity>
-
-                {!activityCollapsed && (
-                  <View style={styles.optionsContainer}>
-                    {Object.keys(activityTypeMap).map((type) => (
-                      <TouchableOpacity
-                        key={type}
-                        onPress={() => selectActivity(type)}
-                        style={styles.optionItem}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.optionText}>{type}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
               </View>
-            )}
+            </ScrollView>
 
-           {/* Sales Representative - Searchable Picker - Same as AddLeads */}
-<View style={styles.pickerContainer}>
-  <View style={styles.labelContainer}>
-    <Text style={styles.label}>Assigned To (Sales Representative)*</Text>
-    <Text style={styles.requiredStar}> *</Text>
-  </View>
-  <TouchableOpacity
-    style={[
-      styles.salesRepSelector,
-      !selectedSalesRepId && styles.selectorError,
-    ]}
-    onPress={() => setShowSalesRepModal(true)}
-    activeOpacity={0.7}
-  >
-    {selectedRepName ? (
-      <View style={styles.selectedRepContainer}>
-        <View style={styles.selectedRepInfo}>
-          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
-        </View>
-        <View style={styles.rightContainer}>
-          <TouchableOpacity
-            style={styles.clearButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleClearSalesRep();
-            }}
-          >
-            <Icon name="close" size={18} color="#666" />
-          </TouchableOpacity>
-         <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
-        </View>
-      </View>
-    ) : (
-      <>
-        <Text style={styles.placeholderText}>Select Sales Representative</Text>
-   <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
-      </>
-    )}
-  </TouchableOpacity>
-</View>
-
-            {/* Start Date */}
-            <View style={styles.fieldContainer}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.label}>Start Date</Text>
-                <Text style={styles.requiredStar}> *</Text>
-              </View>
-              <TouchableOpacity
-                onPress={handleFromDatePress}
-                style={styles.selector}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.selectorText}>
-                  {formatDisplayDate(fromDate)}
-                </Text>
-                <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* End Date */}
-            <View style={styles.fieldContainer}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.label}>End Date</Text>
-                <Text style={styles.requiredStar}> *</Text>
-              </View>
-              <TouchableOpacity
-                onPress={handleToDatePress}
-                style={styles.selector}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.selectorText}>
-                  {formatDisplayDate(toDate)}
-                </Text>
-                <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.primary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Description */}
-            <View style={styles.fieldContainer}>
-              <View style={styles.labelContainer}>
-                <Text style={styles.label}>Description</Text>
-                <Text style={styles.requiredStar}> *</Text>
-              </View>
-              <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                <RNTextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter activity description..."
-                  placeholderTextColor={Colors.textTertiary}
-                  value={description}
-                  onChangeText={setDescription}
-                  multiline={true}
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              </View>
-            </View>
-
-            {/* Complete Checkbox */}
-            <TouchableOpacity
-              onPress={() => setIsComplete(!isComplete)}
-              style={styles.checkboxContainer}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name={isComplete ? 'check-box' : 'check-box-outline-blank'}
-                size={Layout.iconSize.lg}
-                color={isComplete ? Colors.primary : Colors.textSecondary}
-              />
-              <Text style={[
-                styles.checkboxLabel,
-                isComplete && styles.checkboxLabelChecked
-              ]}>
-                Mark as Complete
-              </Text>
-            </TouchableOpacity>
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtonsContainer}>
+            {/* Bottom fixed buttons */}
+            <View style={styles.bottomButtonContainer}>
               {mode === 'edit' && (
                 <TouchableOpacity
                   onPress={handleDelete}
@@ -783,9 +618,9 @@ const AddActivity = ({ route, navigation }) => {
               <TouchableOpacity
                 onPress={handleSave}
                 style={[
-                  styles.actionButton, 
+                  styles.actionButton,
                   styles.saveButton,
-                  mode !== 'edit' && styles.fullWidthButton
+                  mode !== 'edit' && styles.fullWidthButton,
                 ]}
                 disabled={createFollowupMutation.isLoading || updateFollowupMutation.isLoading}
                 activeOpacity={0.7}
@@ -793,26 +628,28 @@ const AddActivity = ({ route, navigation }) => {
                 <Text style={styles.saveButtonText}>
                   {createFollowupMutation.isLoading || updateFollowupMutation.isLoading
                     ? 'Saving...'
-                    : mode === 'edit' ? 'Update' : 'Save'}
+                    : mode === 'edit'
+                    ? 'Update'
+                    : 'Save'}
                 </Text>
               </TouchableOpacity>
             </View>
-
-            <View style={styles.bottomSpacing} />
-          </ScrollView>
+          </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </View>
   );
 };
 
-// Styles - Updated to match AddLeads UI
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EDEBEB',
+    backgroundColor: Colors.background,
   },
   keyboardView: {
+    flex: 1,
+  },
+  innerContainer: {
     flex: 1,
   },
   loadingOverlay: {
@@ -821,108 +658,75 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#333',
-    fontFamily: 'K2D-Medium',
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.medium,
   },
-  formWrapper: {
-    flex: 1,
-    backgroundColor: '#fff',
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
   },
-  formContent: {
-    padding: 20,
+  formCard: {
+    backgroundColor: Colors.cardBackground,
+    borderRadius: Layout.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.lg,
+    paddingHorizontal: 0,
   },
   fieldContainer: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   pickerContainer: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  label: {
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 14,
-    letterSpacing: 0.5,
-  },
-  requiredStar: {
-    color: '#FF3B30',
-    fontSize: 14,
-    fontFamily: 'K2D-SemiBold',
-    marginLeft: 2,
-  },
-  
-  // Selector Styles
   selector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    height: 48,
-    backgroundColor: '#FFFFFF',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    height: Layout.input.height,
+    backgroundColor: Colors.backgroundLight,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   selectorText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
-  
-  // Sales Rep Selector Styles (copied from AddLeads)
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   selectorError: {
-    borderColor: '#FF3B30',
-    shadowColor: '#FF3B30',
+    borderColor: Colors.error,
+    shadowColor: Colors.error,
   },
   selectedRepContainer: {
     flex: 1,
@@ -934,292 +738,261 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.xs,
   },
   selectedRepText: {
-    fontSize: 15,
-    color: '#333',
-    fontFamily: 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
   },
   placeholderText: {
-    fontSize: 15,
-    color: '#999',
-    fontFamily: 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
     flex: 1,
   },
   clearButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: Spacing.xxs,
+    marginLeft: Spacing.xs,
   },
-  
-  // Options Dropdown
   optionsContainer: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
+    marginTop: Spacing.xs,
+    backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
     overflow: 'hidden',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   optionItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.borderLight,
   },
   optionText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
-
-  // Input Styles
   inputWrapper: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    backgroundColor: Colors.backgroundLight,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    
-    // Elevation for Android
     elevation: 3,
   },
   input: {
-    height: 48,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
+    height: Layout.input.height,
+    paddingHorizontal: Spacing.md,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
     includeFontPadding: false,
   },
   textAreaWrapper: {
-    minHeight: 100,
+    minHeight: verticalScale(100),
   },
   textArea: {
-    minHeight: 100,
+    minHeight: verticalScale(100),
     textAlignVertical: 'top',
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
-
-  // Checkbox
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
+    marginLeft: Spacing.sm,
   },
   checkboxLabel: {
-    fontSize: 15,
-    fontFamily: 'K2D-Medium',
-    color: '#666',
-    marginLeft: 8,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.xs,
   },
   checkboxLabelChecked: {
-    color: '#2F4FE3',
+    color: Colors.primary,
   },
-
-  // Action Buttons
-  actionButtonsContainer: {
+  // Bottom fixed button container
+  bottomButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 16,
-    marginTop: 20,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 8,
   },
   actionButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 100,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: Layout.borderRadius.md,
+    minWidth: scale(100),
     alignItems: 'center',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
-    
-    // Elevation for Android
     elevation: 4,
   },
   fullWidthButton: {
     flex: 1,
   },
   deleteButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
   },
   deleteButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   saveButton: {
-    backgroundColor: '#2F4FE3',
+    backgroundColor: Colors.primary,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
   },
-  bottomSpacing: {
-    height: 20,
-  },
-
-  // Modal Styles (copied from AddLeads)
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomWidth: 0,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    
-    // Elevation for Android
     elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.borderLight,
   },
   modalTitle: {
-    fontSize: 18,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
   closeButton: {
-    padding: 4,
+    padding: Spacing.xs,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    margin: 16,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    
-    // Elevation for Android
-    elevation: 2,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: Spacing.xs,
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#333',
-    paddingVertical: 0,
+    height: Layout.input.height,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
+    padding: 0,
   },
   clearSearchButton: {
-    padding: 4,
+    padding: Spacing.xxs,
   },
   repList: {
-    maxHeight: 400,
+    maxHeight: Layout.modal.maxHeight - Layout.button.height.md * 4,
   },
   repListContent: {
-    paddingBottom: 16,
+    paddingBottom: Spacing.md,
   },
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.borderLight,
   },
   selectedRepItem: {
-    backgroundColor: '#f0f5ff',
+    backgroundColor: Colors.infoLight,
   },
   repItemContent: {
     flex: 1,
   },
   repName: {
-    fontSize: 15,
-    fontFamily: 'K2D-SemiBold',
-    color: '#333',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
   repEmail: {
-    fontSize: 12,
-    color: '#666',
-    fontFamily: 'K2D-Regular',
-    marginTop: 2,
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
   },
   currentUserBadge: {
-    fontSize: 10,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-Medium',
-    marginTop: 2,
-  },
-  currentUserBadgeSmall: {
-    fontSize: 10,
-    color: '#2F4FE3',
-    fontFamily: 'K2D-Medium',
-    marginLeft: 4,
+    fontSize: Typography.fontSize.xsmall,
+    color: Colors.primary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: Spacing.xxs,
   },
   rightContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xxs,
+  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingVertical: Spacing.xxxl,
+    paddingHorizontal: Spacing.lg,
   },
   emptyText: {
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
-    color: '#999',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
     textAlign: 'center',
-    marginTop: 12,
+    marginTop: Spacing.md,
   },
   modalFooter: {
-    padding: 16,
+    padding: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: Colors.borderLight,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 13,
-    fontFamily: 'K2D-Regular',
-    color: '#666',
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
   },
 });
 

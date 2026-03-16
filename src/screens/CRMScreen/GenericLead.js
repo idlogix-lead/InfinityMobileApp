@@ -1,4 +1,4 @@
-// screens/CRM/GenericLeadScreen.js - FIXED version with LeadEdit pattern
+// screens/CRM/GenericLeadScreen.js - Updated with Ionicons FAB
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
@@ -492,74 +492,64 @@ const GenericLead = ({ navigation, route }) => {
   };
 
   // Render lead card with live data
-  const renderLeadCard = ({ item }) => {
-    // Get the latest lead data from cache
-    const liveLead = getLatestLeadData(item.id) || item;
+ // Render lead card with live data
+const renderLeadCard = ({ item }) => {
+  // Get the latest lead data from cache
+  const liveLead = getLatestLeadData(item.id) || item;
 
-    const userActivity = followups.filter(
-      act => act?.AD_User_ID?.id === liveLead?.id,
-    );
+  const userActivity = followups.filter(
+    act => act?.AD_User_ID?.id === liveLead?.id,
+  );
 
-    const lastActivity = [...userActivity].sort(
-      (a, b) => new Date(b.Created) - new Date(a.Created),
-    )[0];
+  const lastActivity = [...userActivity].sort(
+    (a, b) => new Date(b.Created) - new Date(a.Created),
+  )[0];
 
-    const lastActivityType =
-      lastActivity?.ContactActivityType?.identifier || 'N/A';
-    const activityCount = userActivity.length;
+  const lastActivityType =
+    lastActivity?.ContactActivityType?.identifier || 'N/A';
+  const activityCount = userActivity.length;
 
-    // Get status color from leadStatuses
-    const statusColor = leadStatuses.find(s => s.id === liveLead.statusId)?.color || Colors.primary;
+  // Get status color from leadStatuses
+  const statusColor = leadStatuses.find(s => s.id === liveLead.statusId)?.color || Colors.primary;
 
-    return (
-      <View style={styles.cardContainer}>
-        <TouchableOpacity
-          style={styles.cardTouchable}
-          onPress={() => {
-            navigation.navigate('LeadsDetail', { data: liveLead });
+  return (
+    <View style={styles.cardContainer}>
+      <TouchableOpacity
+        style={styles.cardTouchable}
+        onPress={() => {
+          navigation.navigate('LeadsDetail', { data: liveLead });
+        }}
+        activeOpacity={0.7}>
+        <CRMCard
+          leadId={liveLead.id}
+          // ✅ Display company name instead of organization
+          header={liveLead.companyName || liveLead.BPName}
+          name={liveLead?.Name}
+          email={liveLead?.email || liveLead?.EMail}
+          cellNo={liveLead?.phone || liveLead?.Phone}
+          count={activityCount}
+          interactionType={lastActivityType}
+          status={liveLead?.statusName || liveLead?.LeadStatus?.identifier}
+          statusColor={statusColor}
+          Description={liveLead?.Description}
+          company={liveLead.BPName}
+          mail={() => handleMail(liveLead?.EMail)}
+          phone={() => handlePhone(liveLead?.Phone)}
+          dateText={liveLead?.Updated || liveLead?.Created}
+          actOnPress={() => {
+            navigation.navigate('AddActivity', {
+              data: liveLead,
+              mode: 'create',
+            });
           }}
-          activeOpacity={0.7}>
-          <CRMCard
-            leadId={liveLead.id}
-            header={
-              liveLead.organizationName ||
-              liveLead.AD_Org_ID?.identifier ||
-              liveLead.clientName ||
-              liveLead.AD_Client_ID?.identifier
-            }
-            name={liveLead?.Name}
-            email={liveLead?.email || liveLead?.EMail}
-            cellNo={liveLead?.phone || liveLead?.Phone}
-            count={activityCount}
-            interactionType={lastActivityType}
-            status={liveLead?.statusName || liveLead?.LeadStatus?.identifier}
-            statusColor={statusColor}
-            Description={liveLead?.Description}
-            company={
-              liveLead.companyName ||
-              liveLead.BPName ||
-              liveLead.clientName ||
-              liveLead.AD_Client_ID?.identifier ||
-              liveLead.organizationName ||
-              liveLead.AD_Org_ID?.identifier
-            }
-            mail={() => handleMail(liveLead?.EMail)}
-            phone={() => handlePhone(liveLead?.Phone)}
-            dateText={liveLead?.Updated || liveLead?.Created}
-            actOnPress={() => {
-              navigation.navigate('AddActivity', {
-                data: liveLead,
-                mode: 'create',
-              });
-            }}
-            onPress={() => {
-              navigation.navigate('LeadEdit', { data: liveLead });
-            }}
-          />
-        </TouchableOpacity>
-      </View>
-    );
-  };
+          onPress={() => {
+            navigation.navigate('LeadEdit', { data: liveLead });
+          }}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
 
   // Loading state
   if (!initialLeads || initialLeads.length === 0) {
@@ -917,12 +907,13 @@ const GenericLead = ({ navigation, route }) => {
             />
           </View>
 
-          {/* Floating Action Button */}
+          {/* Floating Action Button - Updated to match CrmScreen */}
           <TouchableOpacity
             onPress={() => navigation.navigate('AddLeads')}
             style={styles.floatingButton}
+            disabled={refreshing}
             activeOpacity={0.8}>
-            <Text style={styles.floatingButtonText}>+</Text>
+            <Ionicons name="add" size={scale(30)} color={Colors.textInverse} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -930,7 +921,7 @@ const GenericLead = ({ navigation, route }) => {
   );
 };
 
-// All styles remain exactly the same
+// All styles remain exactly the same, except floatingButtonText removed
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1055,11 +1046,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-   
   },
   sortInfoContainer: {
     paddingHorizontal: spacing.md,
-   
     borderRadius: Layout.borderRadius.md,
   },
   totalCountText: {},
@@ -1125,12 +1114,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 3,
     zIndex: 1000,
-  },
-  floatingButtonText: {
-    color: Colors.textInverse,
-    fontFamily: Typography.fontFamily.bold,
-    fontSize: scale(28),
-    lineHeight: scale(30),
   },
   modalOverlay: {
     flex: 1,

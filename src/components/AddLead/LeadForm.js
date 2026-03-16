@@ -1,4 +1,5 @@
-// components/forms/FormInput.js
+// components/forms/FormInput.js – Updated with CRMTheme
+
 import React, { useState } from 'react';
 import {
   TextInput,
@@ -6,29 +7,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
-  FlatList,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Menu, Divider } from 'react-native-paper';
+import CountryPicker from 'react-native-country-picker-modal';
+import { isValidPhoneNumber } from 'libphonenumber-js';
+import CRMTheme from '../../constants/CRMTheme/CRMTheme'; // adjust path if needed
 
-// Country codes with flags and dial codes
-const COUNTRY_CODES = [
-  { code: 'PK', dialCode: '+92', name: 'Pakistan', flag: '🇵🇰' },
-  { code: 'US', dialCode: '+1', name: 'United States', flag: '🇺🇸' },
-  { code: 'GB', dialCode: '+44', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: 'AE', dialCode: '+971', name: 'UAE', flag: '🇦🇪' },
-  { code: 'SA', dialCode: '+966', name: 'Saudi Arabia', flag: '🇸🇦' },
-  { code: 'IN', dialCode: '+91', name: 'India', flag: '🇮🇳' },
-  { code: 'CA', dialCode: '+1', name: 'Canada', flag: '🇨🇦' },
-  { code: 'AU', dialCode: '+61', name: 'Australia', flag: '🇦🇺' },
-  { code: 'DE', dialCode: '+49', name: 'Germany', flag: '🇩🇪' },
-  { code: 'FR', dialCode: '+33', name: 'France', flag: '🇫🇷' },
-  { code: 'CN', dialCode: '+86', name: 'China', flag: '🇨🇳' },
-  { code: 'JP', dialCode: '+81', name: 'Japan', flag: '🇯🇵' },
-];
+const { Colors, Typography, Layout, Spacing } = CRMTheme;
 
-// Regular FormInput with shadow and elevation
+// Regular FormInput – flat design
 export const FormInput = ({
   label,
   required = false,
@@ -58,22 +45,20 @@ export const FormInput = ({
           </Text>
           {icon && onIconPress && (
             <TouchableOpacity onPress={onIconPress}>
-              <MaterialCommunityIcons
-                name={icon}
-                size={18}
-                color="#2F4FE3"
-              />
+              <MaterialCommunityIcons name={icon} size={18} color={Colors.primary} />
             </TouchableOpacity>
           )}
         </View>
       )}
-      
-      <View style={[
-        styles.inputWrapper,
-        focused && styles.inputWrapperFocused,
-        error && styles.inputWrapperError,
-        !editable && styles.inputWrapperDisabled,
-      ]}>
+
+      <View
+        style={[
+          styles.inputWrapper,
+          focused && styles.inputWrapperFocused,
+          error && styles.inputWrapperError,
+          !editable && styles.inputWrapperDisabled,
+        ]}
+      >
         <TextInput
           style={[
             styles.input,
@@ -83,7 +68,7 @@ export const FormInput = ({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#999"
+          placeholderTextColor={Colors.textTertiary}
           onFocus={onFocus}
           onBlur={onBlur}
           multiline={multiline}
@@ -92,41 +77,73 @@ export const FormInput = ({
           {...props}
         />
       </View>
-      
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
 
-// Phone Input Component with Country Code Selection
+// Helper to convert country code to flag emoji
+const getFlagEmoji = (countryCode) => {
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map((char) => 127397 + char.charCodeAt());
+  return String.fromCodePoint(...codePoints);
+};
+
+// Phone Input Component with Country Code Selection – flat design
 export const PhoneInput = ({
   label,
   required = false,
-  value,
-  onChangeText,
+  value,                // national number only (without dial code)
+  onChangeText,          // receives national number only
   placeholder = 'Enter phone number',
-  error,
+  error: externalError,
   focused,
   onFocus,
   onBlur,
   editable = true,
   containerStyle,
-  defaultCountryCode = '+92', // Pakistan by default
-  onCountryCodeChange,
+  defaultCountryCode = 'PK',  // ISO country code (e.g., 'PK', 'US')
+  onCountryChange,            // optional callback with country object
   ...props
 }) => {
-  const [selectedCountry, setSelectedCountry] = useState(
-    COUNTRY_CODES.find(c => c.dialCode === defaultCountryCode) || COUNTRY_CODES[0]
-  );
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [country, setCountry] = useState({
+    cca2: defaultCountryCode,
+    callingCode: ['92'],      // fallback; will be updated by picker
+  });
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [internalError, setInternalError] = useState('');
 
-  const handleCountrySelect = (country) => {
-    setSelectedCountry(country);
-    setMenuVisible(false);
-    if (onCountryCodeChange) {
-      onCountryCodeChange(country.dialCode);
+  // Use external error if provided, otherwise internal validation error
+  const error = externalError || internalError;
+
+  const handleCountrySelect = (selected) => {
+    setCountry({
+      cca2: selected.cca2,
+      callingCode: selected.callingCode,
+    });
+    setPickerVisible(false);
+    setInternalError('');
+    if (onCountryChange) {
+      onCountryChange(selected);
+    }
+  };
+
+  const handleBlur = (e) => {
+    if (onBlur) onBlur(e);
+
+    if (value && country?.callingCode?.[0]) {
+      const fullNumber = `+${country.callingCode[0]}${value}`;
+      const isValid = isValidPhoneNumber(fullNumber, country.cca2);
+      if (!isValid) {
+        setInternalError('Invalid phone number for selected country');
+      } else {
+        setInternalError('');
+      }
+    } else {
+      setInternalError('');
     }
   };
 
@@ -140,270 +157,224 @@ export const PhoneInput = ({
           </Text>
         </View>
       )}
-      
-      <View style={styles.phoneInputRow}>
-        {/* Country Code Picker */}
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <TouchableOpacity
-              style={[
-                styles.countryPicker,
-                focused && styles.countryPickerFocused,
-                error && styles.countryPickerError,
-                !editable && styles.countryPickerDisabled,
-              ]}
-              onPress={() => editable && setMenuVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
-              <Text style={styles.dialCode}>{selectedCountry.dialCode}</Text>
-              <MaterialCommunityIcons 
-                name="chevron-down" 
-                size={18} 
-                color={editable ? "#666" : "#999"} 
-              />
-            </TouchableOpacity>
-          }
-          style={styles.countryMenu}
-        >
-          {COUNTRY_CODES.map((country, index) => (
-            <React.Fragment key={country.code}>
-              <Menu.Item
-                onPress={() => handleCountrySelect(country)}
-                title={`${country.flag} ${country.dialCode} ${country.name}`}
-                titleStyle={[
-                  styles.menuItemTitle,
-                  selectedCountry.code === country.code && styles.menuItemSelected
-                ]}
-              />
-              {index < COUNTRY_CODES.length - 1 && <Divider />}
-            </React.Fragment>
-          ))}
-        </Menu>
 
-        {/* Phone Number Input */}
-        <View style={[
-          styles.phoneInputWrapper,
-          focused && styles.phoneInputWrapperFocused,
-          error && styles.phoneInputWrapperError,
-          !editable && styles.phoneInputWrapperDisabled,
-          styles.flexible,
-        ]}>
-          <TextInput
-            style={[styles.phoneInput, !editable && styles.inputDisabled]}
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor="#999"
-            onFocus={onFocus}
-            onBlur={onBlur}
-            keyboardType="phone-pad"
-            editable={editable}
-            {...props}
+      <View style={styles.phoneInputRow}>
+        {/* Country picker button – only flag */}
+        <TouchableOpacity
+          style={[
+            styles.countryPicker,
+            focused && styles.countryPickerFocused,
+            error && styles.countryPickerError,
+            !editable && styles.countryPickerDisabled,
+          ]}
+          onPress={() => editable && setPickerVisible(true)}
+          activeOpacity={0.7}
+        >
+          <CountryPicker
+            {...{
+              visible: pickerVisible,
+              onClose: () => setPickerVisible(false),
+              onSelect: handleCountrySelect,
+              withEmoji: true,
+              withFilter: true,
+              withFlag: true,
+              withCallingCode: false,
+              withCountryNameButton: false,
+              withAlphaFilter: true,
+              countryCode: country.cca2,
+              containerButtonStyle: styles.hiddenPicker,
+            }}
           />
+          <Text style={styles.countryFlag}>{getFlagEmoji(country.cca2)}</Text>
+          <MaterialCommunityIcons
+            name="chevron-down"
+            size={18}
+            color={editable ? Colors.textSecondary : Colors.textTertiary}
+          />
+        </TouchableOpacity>
+
+        {/* Phone input area – unified field with dial code prefix */}
+        <View
+          style={[
+            styles.phoneInputArea,
+            focused && styles.phoneInputAreaFocused,
+            error && styles.phoneInputAreaError,
+            !editable && styles.phoneInputAreaDisabled,
+            styles.flexible,
+          ]}
+        >
+          <View style={styles.phoneInputContainer}>
+            <Text style={styles.prefixText}>+{country.callingCode?.[0]}</Text>
+            <TextInput
+              style={[styles.phoneInput, !editable && styles.inputDisabled]}
+              value={value}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^0-9]/g, '');
+                onChangeText(cleaned);
+                setInternalError('');
+              }}
+              placeholder={placeholder}
+              placeholderTextColor={Colors.textTertiary}
+              onFocus={onFocus}
+              onBlur={handleBlur}
+              keyboardType="phone-pad"
+              editable={editable}
+              {...props}
+            />
+          </View>
         </View>
       </View>
-      
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: Spacing.lg, // 16
   },
   labelContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 6, // keep as is; could use scale(6) if desired
+    marginLeft: Spacing.lg, // 4
   },
   label: {
-    color: '#333',
-    fontFamily: 'K2D-SemiBold',
-    fontSize: 14,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.semiBold,
+    fontSize: Typography.fontSize.h4, // 18 scaled
     letterSpacing: 0.5,
   },
   required: {
-    color: '#FF3B30',
+    color: Colors.error,
   },
-  
-  // Input Wrapper with Shadow and Elevation
+
+  // Regular Input Wrapper (for FormInput)
   inputWrapper: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    backgroundColor: Colors.backgroundLight,
+   
   },
   inputWrapperFocused: {
-    borderColor: '#2F4FE3',
-    shadowColor: '#2F4FE3',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    borderColor: Colors.primary,
   },
   inputWrapperError: {
-    borderColor: '#FF3B30',
-    shadowColor: '#FF3B30',
-    shadowOpacity: 0.1,
+    borderColor: Colors.error,
   },
   inputWrapperDisabled: {
-    backgroundColor: '#F5F5F5',
-    borderColor: '#E0E0E0',
-    shadowOpacity: 0.05,
-    elevation: 1,
+    backgroundColor: Colors.backgroundDark,
   },
   input: {
-    height: 48,
-    paddingHorizontal: 16,
-    color: '#333',
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
+    height: 48, // could use verticalScale(48) if you prefer
+    paddingHorizontal: Spacing.lg, // 16
+    paddingVertical: Spacing.sm, // 8
+    color: Colors.textPrimary,
+    fontSize: Typography.fontSize.h4, // 18
+    fontFamily: Typography.fontFamily.medium,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 1,
+    borderColor: Colors.border,
   },
   multilineInput: {
     height: 100,
     textAlignVertical: 'top',
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
-  
+
   // Phone Input Specific Styles
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm, // 8
   },
   countryPicker: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.lg, // 8
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minWidth: 100,
-    
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.sm, // 8
+    paddingVertical: Spacing.xs, // 4 (original 8? but we'll keep 4 to match original flag button height)
+    minWidth: 60,
+    justifyContent: 'space-between',
   },
   countryPickerFocused: {
-    borderColor: '#2F4FE3',
-    shadowColor: '#2F4FE3',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    borderColor: Colors.primary,
   },
   countryPickerError: {
-    borderColor: '#FF3B30',
-    shadowColor: '#FF3B30',
-    shadowOpacity: 0.1,
+    borderColor: Colors.error,
   },
   countryPickerDisabled: {
-    backgroundColor: '#F5F5F5',
-    borderColor: '#E0E0E0',
-    shadowOpacity: 0.05,
-    elevation: 1,
+    backgroundColor: Colors.backgroundDark,
+    borderColor: Colors.border,
   },
   countryFlag: {
-    fontSize: 18,
-    marginRight: 6,
+    fontSize: 20, // keep as is; flag emoji size
+    marginRight: Spacing.xs, // 4
   },
-  dialCode: {
-    fontSize: 14,
-    fontFamily: 'K2D-Medium',
-    color: '#333',
-    marginRight: 4,
+  hiddenPicker: {
+    display: 'none',
   },
-  phoneInputWrapper: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
+
+  // New unified input area (replaces phoneInputWrapper)
+  phoneInputArea: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: Layout.borderRadius.lg, // 8
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    flex: 1,
   },
-  phoneInputWrapperFocused: {
-    borderColor: '#2F4FE3',
-    shadowColor: '#2F4FE3',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+  phoneInputAreaFocused: {
+    borderBottomColor: Colors.primary,
+    borderBottomWidth: 2,
   },
-  phoneInputWrapperError: {
-    borderColor: '#FF3B30',
-    shadowColor: '#FF3B30',
-    shadowOpacity: 0.1,
+  phoneInputAreaError: {
+    borderBottomColor: Colors.error,
   },
-  phoneInputWrapperDisabled: {
-    backgroundColor: '#F5F5F5',
-    borderColor: '#E0E0E0',
-    shadowOpacity: 0.05,
-    elevation: 1,
+  phoneInputAreaDisabled: {
+    backgroundColor: Colors.backgroundDark,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm, // 8
+    height: 40, // keep as is
+  },
+  prefixText: {
+    fontSize: Typography.fontSize.large, // 18
+    fontFamily: Typography.fontFamily.medium,
+    color: Colors.textSecondary, // was #535353 – using textSecondary
+    marginRight: Spacing.xs, // 4
   },
   phoneInput: {
-    height: 48,
-    paddingHorizontal: 16,
-    color: '#333',
-    fontSize: 15,
-    fontFamily: 'K2D-Regular',
+    flex: 1,
+    height: 48, // keep as is
+    color: Colors.textSecondary,
+    fontSize: Typography.fontSize.large, // 18
+    fontFamily: Typography.fontFamily.medium,
+    padding: 0,
+    margin: 0,
   },
   flexible: {
     flex: 1,
   },
   inputDisabled: {
-    color: '#999',
+    color: Colors.textTertiary,
   },
-  
-  // Country Menu Styles
-  countryMenu: {
-    marginTop: 40,
-  },
-  menuItemTitle: {
-    fontSize: 14,
-    fontFamily: 'K2D-Regular',
-  },
-  menuItemSelected: {
-    color: '#2F4FE3',
-    fontFamily: 'K2D-SemiBold',
-  },
-  
+
   // Error Text
   errorText: {
-    color: '#FF3B30',
-    fontSize: 11,
-    marginTop: 4,
-    marginLeft: 4,
-    fontFamily: 'K2D-Regular',
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall, // 10 scaled
+    marginTop: Spacing.xs, // 4
+    marginLeft: Spacing.xs, // 4
+    fontFamily: Typography.fontFamily.regular,
   },
 });
 
-// Export both components
 export default FormInput;
