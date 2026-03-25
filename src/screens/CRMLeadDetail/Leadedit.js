@@ -1,5 +1,4 @@
-// LeadEdit.js – Updated with robust address parsing and safe‑area header
-
+// LeadEdit.js – Fully updated with location-based address handling and conversion flow
 import {
   ScrollView,
   StyleSheet,
@@ -26,19 +25,26 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Menu, Divider } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
-import { useUpdateLead, useLeadStatistics, useCompletedLeadActivities, useLeadStatuses, useCountries } from '../../hooks/CRMhooks/useCRM';
+import {
+  useUpdateLead,
+  useLeadStatistics,
+  useCompletedLeadActivities,
+  useLeadStatuses,
+  useCountries,
+  useLocation,
+} from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../services/CRMAPI/useLead';
 import { useQueryClient } from 'react-query';
 import theme from '../../constants/CRMTheme/CRMTheme';
 import { useAuthStore } from '../../store/authStore';
 import CustomAlert from '../../components/CustomAlert';
-// Import PhoneInput from forms (used only in edit mode)
 import { PhoneInput } from '../../components/AddLead/LeadForm';
+import crmApiService from '../../services/CRMAPI/crmApiService';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
-// Validation functions (same as AddLead)
+// Validation functions
 const validateEmail = (email) => {
   if (!email) return true;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,7 +63,7 @@ const validateDate = (date) => {
   return dateRegex.test(date);
 };
 
-// Fallback countries (same as AddLeads)
+// Fallback countries
 const FALLBACK_COUNTRIES = [
   { id: 271, name: 'Pakistan', countryCode: 'PK' },
   { id: 1000002, name: 'United States', countryCode: 'US' },
@@ -73,7 +79,7 @@ const FALLBACK_COUNTRIES = [
   { id: 1000012, name: 'India', countryCode: 'IN' },
 ];
 
-// Common dial codes (used for phone input)
+// Common dial codes
 const DIAL_CODES = [
   { label: '+92 (PK)', value: '+92' },
   { label: '+1 (US)', value: '+1' },
@@ -89,7 +95,7 @@ const DIAL_CODES = [
   { label: '+91 (IN)', value: '+91' },
 ];
 
-// Helper to parse a full phone number into dial code and number
+// Helper to parse phone
 const parsePhone = (phone) => {
   if (!phone) return { dialCode: '+92', number: '' };
   for (const dc of DIAL_CODES) {
@@ -97,7 +103,6 @@ const parsePhone = (phone) => {
       return { dialCode: dc.value, number: phone.slice(dc.value.length) };
     }
   }
-  // If no match, assume the whole thing is number and use default dial code
   return { dialCode: '+92', number: phone };
 };
 
@@ -118,7 +123,7 @@ const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
         {title}
       </Text>
     </TouchableOpacity>
-    
+
     {active && (
       <View style={styles.activeTabArrowContainer}>
         <View style={styles.activeTabArrow} />
@@ -127,7 +132,7 @@ const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
   </View>
 );
 
-// Activity Item (unchanged)
+// Activity Item
 const ActivityItem = ({ activity }) => {
   const getActivityIcon = (type) => {
     switch (type?.toLowerCase()) {
@@ -179,7 +184,7 @@ const ActivityItem = ({ activity }) => {
   );
 };
 
-// Addable Field – shown when field is empty in view mode
+// Addable Field
 const AddableField = ({ label, placeholder, onAddPress }) => (
   <View style={styles.addableField}>
     <Text style={styles.viewLabel}>{label}</Text>
@@ -199,7 +204,7 @@ const SectionHeader = ({ title }) => (
   </View>
 );
 
-// Inline Swipe Button (for booleans)
+// Inline Swipe Button
 const InlineSwipeButton = ({ label, value, onValueChange, editable = true }) => {
   if (!editable) {
     return (
@@ -229,7 +234,7 @@ const InlineSwipeButton = ({ label, value, onValueChange, editable = true }) => 
   );
 };
 
-// Text Field (flat) – supports single and multiline
+// Text Field
 const TextField = ({
   label, value, onChangeText, placeholder, error, editable = true,
   keyboardType = 'default', required = false, multiline = false, numberOfLines = 1,
@@ -271,7 +276,7 @@ const TextField = ({
   );
 };
 
-// Dropdown Field (flat) with addable behavior
+// Dropdown Field
 const DropdownField = ({
   label, value, options, onSelect, editable = true, placeholder = 'Select option',
   required = false, onAddPress,
@@ -320,7 +325,7 @@ const DropdownField = ({
   );
 };
 
-// Sales Rep Selector (flat) with addable behavior
+// Sales Rep Field
 const SalesRepField = ({
   label, value, selectedName, onPress, onClear, error, editable = true, required = false,
 }) => {
@@ -361,20 +366,18 @@ const SalesRepField = ({
   );
 };
 
-// ========== UPDATED: Country Picker Field (Menu based) ==========
+// Country Picker Field
 const CountryPickerField = ({
   label,
-  value,                // country code (e.g., 'PK')
+  value,
   onValueChange,
   editable = true,
   required = false,
   onAddPress,
-  countries,            // list of countries from API/fallback
+  countries,
   loading,
 }) => {
   const [menuVisible, setMenuVisible] = useState(false);
-
-  // Find the selected country object based on value (countryCode)
   const selectedCountry = useMemo(() => {
     if (!value) return null;
     return countries.find(c => c.countryCode === value) || null;
@@ -454,7 +457,6 @@ const LeadEdit = ({ route, navigation }) => {
   const { data: leadStatuses = [], isLoading: statusesLoading } = useLeadStatuses();
   const { data: countriesFromApi = [], isLoading: countriesLoading } = useCountries(isMounted);
 
-  // Combine API countries with fallback
   const countries = useMemo(() => {
     if (countriesFromApi.length > 0) {
       return countriesFromApi.map(c => ({
@@ -477,7 +479,11 @@ const LeadEdit = ({ route, navigation }) => {
   const [salesRepSearch, setSalesRepSearch] = useState('');
   const [isConverting, setIsConverting] = useState(false);
 
-  // Contact address fields (split)
+  // Location
+  const locationId = displayLead?.C_Location_ID?.id;
+  const { data: locationData, isLoading: locationLoading } = useLocation(locationId, isMounted && !!locationId);
+
+  // Contact address fields
   const [contactStreet, setContactStreet] = useState('');
   const [contactCity, setContactCity] = useState('');
   const [contactCountryCode, setContactCountryCode] = useState('');
@@ -486,12 +492,13 @@ const LeadEdit = ({ route, navigation }) => {
   // Business partner address (single field)
   const [bpAddress, setBpAddress] = useState('');
 
-  // Phone split states (for PhoneInput)
-  const [phoneNumber, setPhoneNumber] = useState('');          // national number only
-  const [phoneDialCode, setPhoneDialCode] = useState('+92');   // derived from country
+  // Phone split
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneDialCode, setPhoneDialCode] = useState('+92');
 
-  // Helper to combine contact address for display/payload
+  // Combined contact address for display
   const combinedContactAddress = useMemo(() => {
+    if (locationData?.identifier) return locationData.identifier;
     const parts = [];
     if (contactStreet) parts.push(contactStreet);
     if (contactCity) parts.push(contactCity);
@@ -500,7 +507,7 @@ const LeadEdit = ({ route, navigation }) => {
       if (country) parts.push(country.name);
     }
     return parts.join(', ');
-  }, [contactStreet, contactCity, contactCountryCode, countries]);
+  }, [contactStreet, contactCity, contactCountryCode, countries, locationData]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -557,7 +564,7 @@ const LeadEdit = ({ route, navigation }) => {
   const { data: activities = [], isLoading: activitiesLoading, refetch: refetchActivities } =
     useCompletedLeadActivities(displayLead?.id);
 
-  // Alert helpers (unchanged)
+  // Alert helpers
   const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
     setAlertConfig({
       visible: true, title, message, type,
@@ -600,7 +607,20 @@ const LeadEdit = ({ route, navigation }) => {
     };
   }, [formData.statusId, formData.statusLabel, leadStatuses]);
 
-  // ========== IMPROVED ADDRESS PARSING (now re-runs when countries are ready) ==========
+  // Populate address fields from locationData
+  useEffect(() => {
+    if (locationData && countries.length > 0) {
+      setContactStreet(locationData.Address1 || '');
+      setContactCity(locationData.City || '');
+      const country = countries.find(c => c.id === locationData.C_Country_ID?.id);
+      if (country) {
+        setContactCountryCode(country.countryCode);
+        setContactCountryId(country.id);
+      }
+    }
+  }, [locationData, countries]);
+
+  // Initial form population
   useEffect(() => {
     if (!displayLead) return;
 
@@ -636,55 +656,16 @@ const LeadEdit = ({ route, navigation }) => {
       organization: displayLead?.AD_Org_ID?.identifier || 'Starlet Innovation Pvt Ltd',
     });
 
-    // Parse address only if countries list is ready (non‑empty)
-    if (countries.length > 0) {
-      const fullAddress = displayLead?.C_Location_ID?.identifier || displayLead?.UserAddress1 || '';
-      const parts = fullAddress.split(',').map(p => p.trim()).filter(p => p);
-      let street = '';
-      let city = '';
-      let countryCode = '';
-      let countryId = null;
-
-      if (parts.length > 0) {
-        // Try to find a country match from the end
-        for (let i = parts.length - 1; i >= 0; i--) {
-          const part = parts[i];
-          const matchedCountry = countries.find(c => c.name.toLowerCase() === part.toLowerCase());
-          if (matchedCountry) {
-            countryCode = matchedCountry.countryCode;
-            countryId = matchedCountry.id;
-            // Remaining parts before i are street+city
-            const remaining = parts.slice(0, i).join(', ');
-            // Split remaining into street (first part) and city (rest)
-            const remainingParts = remaining.split(',').map(p => p.trim()).filter(p => p);
-            street = remainingParts[0] || '';
-            city = remainingParts.slice(1).join(', ') || '';
-            break;
-          }
-        }
-        // If no country found, put everything in street
-        if (!countryCode) {
-          street = fullAddress;
-        }
-      }
-
-      setContactStreet(street);
-      setContactCity(city);
-      setContactCountryCode(countryCode);
-      setContactCountryId(countryId);
-    }
-
     setBpAddress(displayLead?.UserAddress2 || '');
 
-    // Parse phone for PhoneInput
     const { dialCode, number } = parsePhone(displayLead?.Phone || '');
     setPhoneDialCode(dialCode);
     setPhoneNumber(number);
 
     setErrors({});
-  }, [displayLead, leadStatuses, countries]); // Re-run when countries become available
+  }, [displayLead, leadStatuses]);
 
-  // Update formData.phone when phoneNumber or phoneDialCode changes (only in edit mode)
+  // Update phone in formData when parts change
   useEffect(() => {
     if (isEditMode) {
       const fullPhone = phoneDialCode + phoneNumber;
@@ -717,6 +698,7 @@ const LeadEdit = ({ route, navigation }) => {
     return true;
   };
 
+  // ========== Navigate to Add Sale Opportunity ==========
   const navigateToAddOpportunity = () => {
     navigation.navigate('AddSaleOppor', {
       leadData: {
@@ -741,85 +723,163 @@ const LeadEdit = ({ route, navigation }) => {
     });
   };
 
-  const handleStatusUpdate = (status) => {
+  // ========== ADDRESS SAVING HELPER ==========
+  const saveAddress = async () => {
+    if (!contactStreet && !contactCity && !contactCountryId) {
+      return null;
+    }
+    const locationPayload = {
+      Address1: contactStreet || '',
+      City: contactCity || '',
+      C_Country_ID: { id: contactCountryId },
+      AD_Client_ID: { id: formData.businessPartnerId || 1000000 },
+      AD_Org_ID: { id: formData.organizationId || 1000000 },
+      IsActive: true,
+    };
+    try {
+      const newLocation = await crmApiService.createLocation(locationPayload);
+      return newLocation.id;
+    } catch (error) {
+      console.error('Failed to save location:', error);
+      showErrorAlert('Could not save address. Please try again.');
+      throw error;
+    }
+  };
+
+  // ========== HANDLE STATUS UPDATE (with conversion) ==========
+  const handleStatusUpdate = async (status) => {
     const newStatusId = status.id;
     const newStatusName = status.name;
     const oldStatusName = formData.statusLabel;
     const isConvertedStatus = newStatusName.toLowerCase() === 'converted';
 
-    if (isEditMode && isConvertedStatus && oldStatusName !== 'Converted') {
-      if (!validateForm()) return;
-      setIsConverting(true);
-      const payload = {
-        Name: formData.name, EMail: formData.email || '', Phone: formData.phone || '', Phone2: formData.phone2 || '',
-        Birthday: formData.birthday || null, IsSalesLead: formData.salesLead, IsVendorLead: formData.vendorLead,
-        BPName: formData.companyName || '',
-        AD_Org_ID: { id: formData.organizationId, identifier: formData.organizationLabel },
-        SalesRep_ID: formData.salesRepId ? { id: formData.salesRepId, identifier: formData.salesRepLabel } : null,
-        AD_Client_ID: { id: formData.businessPartnerId, identifier: formData.businessPartnerLabel },
-        Description: formData.description || '', IsActive: formData.active, Value: formData.searchKey || '',
-        LeadSourceDescription: formData.leadSourceDesc || '', LeadStatusDescription: formData.leadStatusDesc || '',
-        Comments: formData.comments || '',
-        LeadStatus: { id: newStatusId, identifier: newStatusName },
-        LeadSource: { id: formData.leadSourceId, identifier: formData.leadSourceLabel },
-        UserAddress1: combinedContactAddress,
-        UserAddress2: bpAddress,
-      };
-      updateLeadMutation.mutate({ id: displayLead.id, updates: payload }, {
-        onSuccess: () => {
-          updateFormData('statusId', newStatusId);
-          updateFormData('statusLabel', newStatusName);
-          updateFormData('statusColor', status.color);
-          setStatusMenuVisible(false);
-          setIsEditMode(false);
-          refetchLeadStatistics();
-          queryClient.invalidateQueries(['leads']);
-          queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
-          setIsConverting(false);
-          showConfirmationAlert('Lead Converted', 'Lead converted. Create sales opportunity now?', navigateToAddOpportunity);
-        },
-        onError: () => { showErrorAlert('Failed to update status.'); setIsConverting(false); }
-      });
-    } else {
+    // For non‑converted status changes, just update local state
+    if (!isEditMode || !isConvertedStatus || oldStatusName === 'Converted') {
       updateFormData('statusId', newStatusId);
       updateFormData('statusLabel', newStatusName);
       updateFormData('statusColor', status.color);
       setStatusMenuVisible(false);
+      return;
+    }
+
+    // === Converted: save lead with new status and offer opportunity creation ===
+    if (!validateForm()) return;
+
+    setIsConverting(true);
+    setStatusMenuVisible(false);
+
+    try {
+      // 1. Save address (if any)
+      const newLocationId = await saveAddress();
+
+      // 2. Prepare payload with new status and location
+      const payload = {
+        Name: formData.name,
+        EMail: formData.email || '',
+        Phone: formData.phone || '',
+        Phone2: formData.phone2 || '',
+        Birthday: formData.birthday || null,
+        IsSalesLead: formData.salesLead,
+        IsVendorLead: formData.vendorLead,
+        BPName: formData.companyName || '',
+        AD_Org_ID: { id: formData.organizationId, identifier: formData.organizationLabel },
+        SalesRep_ID: formData.salesRepId ? { id: formData.salesRepId, identifier: formData.salesRepLabel } : null,
+        AD_Client_ID: { id: formData.businessPartnerId, identifier: formData.businessPartnerLabel },
+        Description: formData.description || '',
+        IsActive: formData.active,
+        Value: formData.searchKey || '',
+        LeadSourceDescription: formData.leadSourceDesc || '',
+        LeadStatusDescription: formData.leadStatusDesc || '',
+        Comments: formData.comments || '',
+        LeadStatus: { id: newStatusId, identifier: newStatusName },
+        LeadSource: { id: formData.leadSourceId, identifier: formData.leadSourceLabel },
+        ...(newLocationId && { C_Location_ID: { id: newLocationId } }),
+        UserAddress1: null,
+        UserAddress2: bpAddress || null,
+      };
+
+      await updateLeadMutation.mutateAsync({ id: displayLead.id, updates: payload });
+
+      // 3. Update local form data with new status
+      setFormData(prev => ({
+        ...prev,
+        statusId: newStatusId,
+        statusLabel: newStatusName,
+        statusColor: status.color,
+      }));
+
+      // 4. Refresh related data
+      refetchLeadStatistics();
+      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+
+      // 5. Exit edit mode
+      setIsEditMode(false);
+
+      // 6. Ask user to create opportunity
+      showConfirmationAlert(
+        'Lead Converted',
+        'Lead has been successfully converted. Would you like to create a sales opportunity now?',
+        navigateToAddOpportunity
+      );
+    } catch (error) {
+      // Error already shown in saveAddress or mutation, but we catch to reset converting state
+      console.error('Conversion failed:', error);
+    } finally {
+      setIsConverting(false);
     }
   };
 
-  const handleSave = () => {
+  // ========== HANDLE SAVE (normal save) ==========
+  const handleSave = async () => {
     if (!validateForm()) return;
-    const payload = {
-      Name: formData.name, EMail: formData.email || '', Phone: formData.phone || '', Phone2: formData.phone2 || '',
-      Birthday: formData.birthday || null, IsSalesLead: formData.salesLead, IsVendorLead: formData.vendorLead,
-      BPName: formData.companyName || '',
-      AD_Org_ID: { id: formData.organizationId, identifier: formData.organizationLabel },
-      SalesRep_ID: formData.salesRepId ? { id: formData.salesRepId, identifier: formData.salesRepLabel } : null,
-      AD_Client_ID: { id: formData.businessPartnerId, identifier: formData.businessPartnerLabel },
-      Description: formData.description || '', IsActive: formData.active, Value: formData.searchKey || '',
-      LeadSourceDescription: formData.leadSourceDesc || '', LeadStatusDescription: formData.leadStatusDesc || '',
-      Comments: formData.comments || '',
-      LeadStatus: { id: formData.statusId, identifier: formData.statusLabel },
-      LeadSource: { id: formData.leadSourceId, identifier: formData.leadSourceLabel },
-      UserAddress1: combinedContactAddress,
-      UserAddress2: bpAddress,
-    };
-    updateLeadMutation.mutate({ id: displayLead.id, updates: payload }, {
-      onSuccess: () => {
-        const isConverted = formData.statusLabel.toLowerCase() === 'converted';
-        if (isConverted) {
-          showConfirmationAlert('Lead Converted', 'Lead converted. Create sales opportunity?', navigateToAddOpportunity);
-        } else {
-          showSuccessAlert('Lead updated successfully!', () => { hideAlert(); setIsEditMode(false); });
-        }
-        refetchLeadStatistics();
-        queryClient.invalidateQueries(['leads']);
-        queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
-        setErrors({});
-      },
-      onError: (error) => showErrorAlert(error.message || 'Failed to update lead'),
-    });
+
+    try {
+      const newLocationId = await saveAddress();
+
+      const payload = {
+        Name: formData.name,
+        EMail: formData.email || '',
+        Phone: formData.phone || '',
+        Phone2: formData.phone2 || '',
+        Birthday: formData.birthday || null,
+        IsSalesLead: formData.salesLead,
+        IsVendorLead: formData.vendorLead,
+        BPName: formData.companyName || '',
+        AD_Org_ID: { id: formData.organizationId, identifier: formData.organizationLabel },
+        SalesRep_ID: formData.salesRepId ? { id: formData.salesRepId, identifier: formData.salesRepLabel } : null,
+        AD_Client_ID: { id: formData.businessPartnerId, identifier: formData.businessPartnerLabel },
+        Description: formData.description || '',
+        IsActive: formData.active,
+        Value: formData.searchKey || '',
+        LeadSourceDescription: formData.leadSourceDesc || '',
+        LeadStatusDescription: formData.leadStatusDesc || '',
+        Comments: formData.comments || '',
+        LeadStatus: { id: formData.statusId, identifier: formData.statusLabel },
+        LeadSource: { id: formData.leadSourceId, identifier: formData.leadSourceLabel },
+        ...(newLocationId && { C_Location_ID: { id: newLocationId } }),
+        UserAddress1: null,
+        UserAddress2: bpAddress || null,
+      };
+
+      await updateLeadMutation.mutateAsync({ id: displayLead.id, updates: payload });
+
+      const isConverted = formData.statusLabel.toLowerCase() === 'converted';
+      if (isConverted) {
+        showConfirmationAlert('Lead Converted', 'Lead converted. Create sales opportunity?', navigateToAddOpportunity);
+      } else {
+        showSuccessAlert('Lead updated successfully!', () => { hideAlert(); setIsEditMode(false); });
+      }
+
+      refetchLeadStatistics();
+      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries(['lead-completed-activities', displayLead.id]);
+      setErrors({});
+    } catch (error) {
+      if (!error.message?.includes('save address')) {
+        showErrorAlert(error.message || 'Failed to update lead');
+      }
+    }
   };
 
   const handleEditToggle = () => {
@@ -848,7 +908,6 @@ const LeadEdit = ({ route, navigation }) => {
 
   const handleBooleanToggle = (key, value) => updateFormData(key, value);
 
-  // Handle phone country change from PhoneInput (only used in edit mode)
   const handlePhoneCountryChange = (country) => {
     setPhoneDialCode(`+${country.callingCode[0]}`);
   };
@@ -870,7 +929,7 @@ const LeadEdit = ({ route, navigation }) => {
     </TouchableOpacity>
   );
 
-  // Render tab content (updated phone and country picker)
+  // Render tab content (unchanged from new version)
   const renderTabContent = () => {
     const handleAddPress = () => setIsEditMode(true);
 
@@ -912,7 +971,6 @@ const LeadEdit = ({ route, navigation }) => {
                 keyboardType="email-address"
                 onAddPress={handleAddPress}
               />
-              {/* Phone field: in edit mode use PhoneInput, in view mode show plain text or AddableField */}
               {!isEditMode ? (
                 !formData.phone ? (
                   <AddableField label="Phone" placeholder="Add phone number" onAddPress={handleAddPress} />
@@ -943,7 +1001,6 @@ const LeadEdit = ({ route, navigation }) => {
                     onChangeText={setContactStreet}
                     placeholder="Enter street address"
                     editable={isEditMode && !isConverting}
-                    onAddPress={handleAddPress}
                   />
                   <TextField
                     label="City"
@@ -951,9 +1008,7 @@ const LeadEdit = ({ route, navigation }) => {
                     onChangeText={setContactCity}
                     placeholder="Enter city"
                     editable={isEditMode && !isConverting}
-                    onAddPress={handleAddPress}
                   />
-                  {/* Updated CountryPickerField */}
                   <CountryPickerField
                     label="Country"
                     value={contactCountryCode}
@@ -962,7 +1017,6 @@ const LeadEdit = ({ route, navigation }) => {
                       setContactCountryId(id);
                     }}
                     editable={isEditMode && !isConverting}
-                    onAddPress={handleAddPress}
                     countries={countries}
                     loading={countriesLoading}
                   />
@@ -1194,19 +1248,18 @@ const LeadEdit = ({ route, navigation }) => {
     );
   }
 
-  if (statusesLoading) {
+  if (statusesLoading || locationLoading) {
     return (
       <View style={styles.container}>
         <CustomHeader title="Lead Details" LeftIcon="arrow-left" LeftPress={() => navigation.goBack()} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading statuses...</Text>
+          <Text style={styles.loadingText}>{locationLoading ? 'Loading location...' : 'Loading statuses...'}</Text>
         </View>
       </View>
     );
   }
 
-  // Safe area header wrapper
   const HeaderWrapper = Platform.OS === 'ios' ? SafeAreaView : View;
   const headerWrapperStyle = Platform.OS === 'android'
     ? { paddingTop: RNStatusBar.currentHeight || 0, backgroundColor: 'transparent' }
@@ -1242,7 +1295,7 @@ const LeadEdit = ({ route, navigation }) => {
       />
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Header Card (unchanged) */}
+        {/* Header Card */}
         <View style={styles.headerCard}>
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
@@ -1346,7 +1399,7 @@ const LeadEdit = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Tabs (unchanged) */}
+        {/* Tabs */}
         <View style={styles.tabsWrapper}>
           <View style={styles.tabsContainer}>
             <TabButton
@@ -1408,7 +1461,7 @@ const LeadEdit = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      {/* Sales Rep Modal (unchanged) */}
+      {/* Sales Rep Modal */}
       <RNModal
         visible={salesRepModalVisible}
         animationType="slide"
@@ -1466,7 +1519,7 @@ const LeadEdit = ({ route, navigation }) => {
   );
 };
 
-// ========== STYLES (unchanged from previous version) ==========
+// ========== STYLES (unchanged from new version) ==========
 const styles = StyleSheet.create({
   keyboardView: { flex: 1, backgroundColor: Colors.background },
   container: { flex: 1, backgroundColor: Colors.background },
@@ -1508,7 +1561,7 @@ const styles = StyleSheet.create({
   statusNote: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.infoLight, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: Spacing.xs },
   statusNoteText: { flex: 1, fontSize: Typography.fontSize.xsmall, fontFamily: Typography.fontFamily.regular, color: Colors.info },
 
-  // Tabs (unchanged)
+  // Tabs
   tabsWrapper: {
     marginHorizontal: Spacing.md,
     marginBottom: 0,
@@ -1549,8 +1602,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   tabButtonText: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
   },
   tabButtonTextActive: {
@@ -1596,8 +1649,8 @@ const styles = StyleSheet.create({
   booleanRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.md },
   booleanSpacer: { width: Spacing.md },
   viewRow: { marginBottom: Spacing.md, paddingBottom: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  viewLabel: { fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.xxs, textTransform: 'uppercase', letterSpacing: 0.5 },
-  viewValue: { fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, lineHeight: Typography.lineHeight.h4 },
+  viewLabel: { fontSize: Typography.fontSize.medium, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.xxs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  viewValue: { fontSize: Typography.fontSize.medium, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, lineHeight: Typography.lineHeight.h4 },
   addableField: { marginBottom: Spacing.sm},
   addableContainer: {
     flexDirection: 'row',
@@ -1651,7 +1704,6 @@ const styles = StyleSheet.create({
   selectedRepText: { fontSize: Typography.fontSize.small, color: Colors.textPrimary, fontFamily: Typography.fontFamily.regular, flex: 1 },
   placeholderText: { fontSize: Typography.fontSize.small, color: Colors.textTertiary, fontFamily: Typography.fontFamily.regular, flex: 1 },
   clearButton: { padding: Spacing.xxs, marginRight: Spacing.xxs },
-  // Phone input styles (unused but kept)
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1685,7 +1737,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
   },
-  // Country picker styles
   countryPickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1714,7 +1765,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: Typography.fontFamily.semiBold,
   },
-  // Rest unchanged...
   activityItem: { flexDirection: 'row', paddingVertical: Spacing.xs, alignItems: 'center' },
   activityIconContainer: { width: scale(28), height: scale(28), borderRadius: scale(14), backgroundColor: Colors.infoLight, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.sm },
   activityContent: { flex: 1 },
@@ -1739,7 +1789,6 @@ const styles = StyleSheet.create({
   saveButtonText: { color: Colors.textInverse, fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.semiBold },
   cancelButton: { alignItems: 'center', justifyContent: 'center', paddingVertical: 0, borderRadius: Layout.borderRadius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.backgroundLight, height: 48 },
   cancelButtonText: { color: Colors.textSecondary, fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.semiBold },
-  // Modal styles (flat)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContainer: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },

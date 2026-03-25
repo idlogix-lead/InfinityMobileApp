@@ -866,7 +866,7 @@ completeRelogin: async () => {
             console.log('Restored token status:', validation.reason);
           }
         }
-        return state;
+       
       },
     }
   )

@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   followupCardContent: {
     backgroundColor: Colors.cardBackground,
     borderRadius: Layout.borderRadius.md,
-    padding: Spacing.md,
+    padding: Spacing.sm,
     borderWidth: 0.5,
     borderColor: Colors.borderDark,
     borderLeftWidth: 1,
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
   tabButtonFirst: { borderTopLeftRadius: Layout.borderRadius.sm, borderBottomLeftRadius: Layout.borderRadius.sm },
   tabButtonLast: { borderTopRightRadius: Layout.borderRadius.sm, borderBottomRightRadius: Layout.borderRadius.sm },
   tabButtonActive: { backgroundColor: Colors.primary },
-  tabButtonText: { fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.medium, color: Colors.textSecondary },
+  tabButtonText: { fontSize: Typography.fontSize.medium, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary },
   tabButtonTextActive: { color: Colors.textInverse, fontFamily: Typography.fontFamily.semiBold },
   activeTabArrowContainer: {
     position: 'absolute',
@@ -836,8 +836,8 @@ const styles = StyleSheet.create({
 
   // View Row
   viewRow: { marginBottom: Spacing.md, paddingBottom: Spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  viewLabel: { fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.xxs, textTransform: 'uppercase', letterSpacing: 0.5 },
-  viewValue: { fontSize: Typography.fontSize.small, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, lineHeight: Typography.lineHeight.h4 },
+  viewLabel: { fontSize: Typography.fontSize.medium, fontFamily: Typography.fontFamily.bold, color: Colors.textSecondary, marginBottom: Spacing.xxs, textTransform: 'uppercase', letterSpacing: 0.5 },
+  viewValue: { fontSize: Typography.fontSize.medium, fontFamily: Typography.fontFamily.regular, color: Colors.textPrimary, lineHeight: Typography.lineHeight.h4 },
 
   // Boolean Row
   booleanRow: {

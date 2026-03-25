@@ -475,6 +475,17 @@ const crmApiService = {
       throw error;
     }
   },
+  // In crmApiService.js
+getLocationById: async (locationId) => {
+  try {
+    const url = buildUrl(`models/C_Location/${locationId}`);
+    const data = await makeRequest(url);
+    return data;
+  } catch (error) {
+    console.error('Get location by ID failed:', error.message);
+    throw error;
+  }
+},
   /**
    * Clear lead statuses cache
    */

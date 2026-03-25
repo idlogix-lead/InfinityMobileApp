@@ -405,6 +405,19 @@ export const useLeadById = (leadId, enabled = true) => {
     retry: 1,
   });
 };
+// In useCRM.js
+export const useLocation = (locationId, enabled = true) => {
+  return useQuery({
+    queryKey: ['location', locationId],
+    queryFn: async () => {
+      if (!locationId) return null;
+      const data = await crmApiService.getLocationById(locationId);
+      return data;
+    },
+    enabled: enabled && !!locationId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+};
 // ============================================
 // COUNTRIES HOOK
 // ============================================
@@ -418,22 +431,17 @@ export const useCountries = (enabled = true) => {
     queryKey: ['countries'],
     queryFn: async () => {
       console.log('🌍 Fetching countries...');
-      try {
-        const data = await crmApiService.getCountries();
-        console.log(`✅ Retrieved ${data.length} countries`);
-        return data;
-      } catch (error) {
-        console.error('❌ Failed to fetch countries:', error);
-        handleApiError(error, 'useCountries');
-        return [];
-      }
+      const data = await crmApiService.getCountries();
+      return data;
     },
-    enabled: enabled,
-    staleTime: 1000 * 60 * 60, // 1 hour (countries rarely change)
-    cacheTime: 1000 * 60 * 60 * 24, // 24 hours
+    enabled,
+    staleTime: 1000 * 60 * 60,       // 1 hour
+    cacheTime: 1000 * 60 * 60 * 24,  // 24 hours
+    refetchOnWindowFocus: false,
     retry: 2,
   });
 };
+
 
 
 
@@ -1066,19 +1074,13 @@ export const useSalesRepresentatives = (enabled = true) => {
     queryKey: ['sales-representatives'],
     queryFn: async () => {
       console.log('👥 Fetching sales representatives...');
-      try {
-        const data = await crmApiService.getSalesRepresentatives();
-        console.log(`✅ Retrieved ${data.length} sales representatives`);
-        return data;
-      } catch (error) {
-        console.error('❌ Failed to fetch sales representatives:', error);
-        handleApiError(error, 'useSalesRepresentatives');
-        return [];
-      }
+      const data = await crmApiService.getSalesRepresentatives();
+      return data;
     },
-    enabled: enabled,
-    staleTime: 1000 * 60 * 5,
-    cacheTime: 1000 * 60 * 10,
+    enabled,
+    staleTime: 1000 * 60 * 15,      // 15 minutes
+    cacheTime: 1000 * 60 * 60,       // 1 hour
+    refetchOnWindowFocus: false,     // optional
     retry: 2,
   });
 };

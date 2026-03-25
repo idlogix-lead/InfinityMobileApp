@@ -1,4 +1,5 @@
 // components/forms/FormInput.js – Updated with CRMTheme
+// Changes: label font size reduced to small, color changed to textSecondary
 
 import React, { useState } from 'react';
 import {
@@ -11,7 +12,7 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CountryPicker from 'react-native-country-picker-modal';
 import { isValidPhoneNumber } from 'libphonenumber-js';
-import CRMTheme from '../../constants/CRMTheme/CRMTheme'; // adjust path if needed
+import CRMTheme from '../../constants/CRMTheme/CRMTheme';
 
 const { Colors, Typography, Layout, Spacing } = CRMTheme;
 
@@ -96,8 +97,8 @@ const getFlagEmoji = (countryCode) => {
 export const PhoneInput = ({
   label,
   required = false,
-  value,                // national number only (without dial code)
-  onChangeText,          // receives national number only
+  value,
+  onChangeText,
   placeholder = 'Enter phone number',
   error: externalError,
   focused,
@@ -105,18 +106,17 @@ export const PhoneInput = ({
   onBlur,
   editable = true,
   containerStyle,
-  defaultCountryCode = 'PK',  // ISO country code (e.g., 'PK', 'US')
-  onCountryChange,            // optional callback with country object
+  defaultCountryCode = 'PK',
+  onCountryChange,
   ...props
 }) => {
   const [country, setCountry] = useState({
     cca2: defaultCountryCode,
-    callingCode: ['92'],      // fallback; will be updated by picker
+    callingCode: ['92'],
   });
   const [pickerVisible, setPickerVisible] = useState(false);
   const [internalError, setInternalError] = useState('');
 
-  // Use external error if provided, otherwise internal validation error
   const error = externalError || internalError;
 
   const handleCountrySelect = (selected) => {
@@ -232,20 +232,22 @@ export const PhoneInput = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Spacing.lg, // 16
+    marginBottom: Spacing.md,
   },
   labelContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6, // keep as is; could use scale(6) if desired
-    marginLeft: Spacing.lg, // 4
+    marginBottom: 2,
+    marginLeft: Spacing.md, 
   },
+  // 🔹 UPDATED: label font smaller and lighter
   label: {
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.semiBold,
-    fontSize: Typography.fontSize.h4, // 18 scaled
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium, 
     letterSpacing: 0.5,
+   
   },
   required: {
     color: Colors.error,
@@ -254,7 +256,6 @@ const styles = StyleSheet.create({
   // Regular Input Wrapper (for FormInput)
   inputWrapper: {
     backgroundColor: Colors.backgroundLight,
-   
   },
   inputWrapperFocused: {
     borderColor: Colors.primary,
@@ -266,12 +267,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundDark,
   },
   input: {
-    height: 48, // could use verticalScale(48) if you prefer
-    paddingHorizontal: Spacing.lg, // 16
-    paddingVertical: Spacing.sm, // 8
+    height: 40,
+    paddingHorizontal: Spacing.lg,
     color: Colors.textPrimary,
-    fontSize: Typography.fontSize.h4, // 18
-    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.h1,
+    fontFamily: Typography.fontFamily.bold,
     borderTopWidth: 0,
     borderLeftWidth: 0,
     borderRightWidth: 0,
@@ -289,17 +289,16 @@ const styles = StyleSheet.create({
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm, // 8
+    gap: Spacing.sm,
   },
   countryPicker: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.lg, // 8
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm, // 8
-    paddingVertical: Spacing.xs, // 4 (original 8? but we'll keep 4 to match original flag button height)
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
     minWidth: 60,
     justifyContent: 'space-between',
   },
@@ -314,17 +313,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   countryFlag: {
-    fontSize: 20, // keep as is; flag emoji size
-    marginRight: Spacing.xs, // 4
+    fontSize: 20,
+    marginRight: Spacing.xs,
   },
   hiddenPicker: {
     display: 'none',
   },
-
-  // New unified input area (replaces phoneInputWrapper)
   phoneInputArea: {
     backgroundColor: Colors.backgroundLight,
-    borderRadius: Layout.borderRadius.lg, // 8
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     flex: 1,
@@ -342,20 +338,20 @@ const styles = StyleSheet.create({
   phoneInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.sm, // 8
-    height: 40, // keep as is
+    paddingHorizontal: Spacing.sm,
+    height: 40,
   },
   prefixText: {
-    fontSize: Typography.fontSize.large, // 18
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.medium,
-    color: Colors.textSecondary, // was #535353 – using textSecondary
-    marginRight: Spacing.xs, // 4
+    color: Colors.textSecondary,
+    marginRight: Spacing.xs,
   },
   phoneInput: {
     flex: 1,
-    height: 48, // keep as is
+    height: 40,
     color: Colors.textSecondary,
-    fontSize: Typography.fontSize.large, // 18
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.medium,
     padding: 0,
     margin: 0,
@@ -367,12 +363,11 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
   },
 
-  // Error Text
   errorText: {
     color: Colors.error,
-    fontSize: Typography.fontSize.xsmall, // 10 scaled
-    marginTop: Spacing.xs, // 4
-    marginLeft: Spacing.xs, // 4
+    fontSize: Typography.fontSize.xsmall,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.xs,
     fontFamily: Typography.fontFamily.regular,
   },
 });

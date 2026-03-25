@@ -1,4 +1,5 @@
-// screens/CRM/AddSaleOppor.js – Submit button fixed at bottom + safe area header fix
+// screens/CRM/AddSaleOppor.js – Table‑like form with bottom borders only
+// All fields have uniform height and only bottom border, matching the "table" feel.
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
@@ -19,7 +20,6 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
-import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '../../store/authStore';
 import { useCreateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
@@ -33,12 +33,33 @@ const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
 // ============================================
-// UI COMPONENTS (unchanged)
+// UI COMPONENTS (with labels, bottom borders only)
 // ============================================
 
-const Input = React.memo(({ error, icon, containerStyle, ...props }) => (
-  <View style={containerStyle}>
-    <View style={[styles.inputContainer, error && styles.inputError]}>
+const FormInput = React.memo(({ label, required, value, onChangeText, error, keyboardType, autoCapitalize, containerStyle, inputStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>
+      {label}
+      {required && <Text style={styles.requiredStar}> *</Text>}
+    </Text>
+    <View style={[styles.inputWrapper, error && styles.inputError]}>
+      <TextInput
+        style={[styles.input, inputStyle]}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        placeholderTextColor={Colors.textTertiary}
+      />
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+));
+
+const ReadOnlyField = React.memo(({ label, value, icon, containerStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={[styles.inputWrapper, styles.readOnlyWrapper]}>
       {icon && (
         <MaterialCommunityIcons
           name={icon}
@@ -47,44 +68,21 @@ const Input = React.memo(({ error, icon, containerStyle, ...props }) => (
           style={styles.inputIcon}
         />
       )}
-      <TextInput
-        {...props}
-        placeholderTextColor={Colors.textTertiary}
-        style={[styles.input, icon && styles.inputWithIcon]}
-      />
+      <Text style={[styles.readOnlyText, icon && { paddingLeft: Spacing.xs }]}>
+        {value || 'Not provided'}
+      </Text>
     </View>
-    {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 ));
 
-const ReadOnly = ({ value, icon, containerStyle }) => (
-  <View style={[styles.inputContainer, styles.readOnlyContainer, containerStyle]}>
-    {icon && (
-      <MaterialCommunityIcons
-        name={icon}
-        size={Layout.iconSize.sm}
-        color={Colors.textSecondary}
-        style={styles.inputIcon}
-      />
-    )}
-    <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>
-      {value || 'Not provided'}
-    </Text>
-  </View>
-);
-
-const ContactDisplay = ({ leadData, containerStyle }) => {
+const ContactDisplay = React.memo(({ leadData, containerStyle }) => {
   const getContactDisplayName = () => {
     if (!leadData) return 'No lead data';
     if (leadData.companyName && leadData.name) {
       return `${leadData.name} (${leadData.companyName})`;
     }
-    if (leadData.companyName) {
-      return leadData.companyName;
-    }
-    if (leadData.name) {
-      return leadData.name;
-    }
+    if (leadData.companyName) return leadData.companyName;
+    if (leadData.name) return leadData.name;
     return 'Lead Contact';
   };
 
@@ -96,87 +94,171 @@ const ContactDisplay = ({ leadData, containerStyle }) => {
   };
 
   return (
-    <View
-      style={[
-        styles.inputContainer,
-        styles.readOnlyContainer,
-        styles.contactContainer,
-        containerStyle,
-      ]}
-    >
-      <MaterialCommunityIcons
-        name="account"
-        size={Layout.iconSize.sm}
-        color={Colors.primary}
-        style={styles.inputIcon}
-      />
-      <View style={styles.contactContent}>
-        <Text style={styles.contactName} numberOfLines={1}>
-          {getContactDisplayName()}
-        </Text>
-        {getContactDetails() ? (
-          <Text style={styles.contactDetails} numberOfLines={1}>
-            {getContactDetails()}
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>Lead Contact</Text>
+      <View style={[styles.inputWrapper, styles.readOnlyWrapper, styles.contactWrapper]}>
+        <MaterialCommunityIcons
+          name="account"
+          size={Layout.iconSize.sm}
+          color={Colors.primary}
+          style={styles.inputIcon}
+        />
+        <View style={styles.contactContent}>
+          <Text style={styles.contactName} numberOfLines={1}>
+            {getContactDisplayName()}
           </Text>
-        ) : null}
+          {getContactDetails() ? (
+            <Text style={styles.contactDetails} numberOfLines={1}>
+              {getContactDetails()}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </View>
   );
-};
+});
 
-const PickerField = ({ selectedValue, onValueChange, children, error, icon, placeholder, containerStyle }) => (
-  <View style={containerStyle}>
-    <View style={[styles.pickerContainer, error && styles.inputError]}>
-      {icon && (
-        <MaterialCommunityIcons
-          name={icon}
-          size={Layout.iconSize.sm}
-          color={Colors.textSecondary}
-          style={styles.pickerIcon}
-        />
-      )}
-      <Picker
-        selectedValue={selectedValue}
-        onValueChange={onValueChange}
-        style={[styles.picker, icon && styles.pickerWithIcon]}
-        dropdownIconColor={Colors.textSecondary}
+// Custom picker field with modal and search
+const CustomPickerField = React.memo(({ label, required, selectedValue, onValueChange, options, error, containerStyle }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const selectedOption = options.find(opt => opt.value === selectedValue);
+
+  // Filter options based on search text
+  const filteredOptions = useMemo(() => {
+    if (!searchText.trim()) return options;
+    const query = searchText.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(query)
+    );
+  }, [options, searchText]);
+
+  const handleSelect = (value) => {
+    onValueChange(value);
+    setShowModal(false);
+    setSearchText('');
+  };
+
+  return (
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.requiredStar}> *</Text>}
+      </Text>
+      <TouchableOpacity
+        style={[styles.inputWrapper, error && styles.inputError]}
+        onPress={() => setShowModal(true)}
+        activeOpacity={0.7}
       >
-        {placeholder && (
-          <Picker.Item
-            label={placeholder}
-            value={null}
-            color={Colors.textTertiary}
+        <View style={styles.chevronWrapper}>
+          <Text style={[styles.pickerText, !selectedValue && styles.placeholderText]}>
+            {selectedOption ? selectedOption.label : `Select ${label}`}
+          </Text>
+          <MaterialCommunityIcons
+            name="chevron-down"
+            size={Layout.iconSize.sm}
+            color={Colors.textSecondary}
+            style={styles.chevronIcon}
           />
-        )}
-        {children}
-      </Picker>
-    </View>
-    {error && <Text style={styles.errorText}>{error}</Text>}
-  </View>
-);
+        </View>
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
-const DatePickerField = ({ value, onPress, error, icon, containerStyle }) => {
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowModal(false);
+          setSearchText('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select {label}</Text>
+              <TouchableOpacity onPress={() => {
+                setShowModal(false);
+                setSearchText('');
+              }}>
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons
+                name="magnify"
+                size={Layout.iconSize.sm}
+                color={Colors.textSecondary}
+              />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder={`Search ${label}...`}
+                placeholderTextColor={Colors.textTertiary}
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus={true}
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchText('')}>
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={Layout.iconSize.sm}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <FlatList
+              data={filteredOptions}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.itemRow, selectedValue === item.value && styles.selectedItemRow]}
+                  onPress={() => handleSelect(item.value)}
+                >
+                  <Text style={styles.itemName}>{item.label}</Text>
+                  {selectedValue === item.value && (
+                    <MaterialCommunityIcons name="check" size={Layout.iconSize.md} color={Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.value.toString()}
+              ListEmptyComponent={
+                <View style={styles.modalEmpty}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={Layout.iconSize.xl} color={Colors.border} />
+                  <Text style={styles.modalEmptyText}>
+                    {searchText.trim() ? `No results for "${searchText}"` : 'No options available'}
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+});
+
+const DatePickerField = React.memo(({ label, required, value, onPress, error, containerStyle }) => {
   const formatDate = (date) => {
     if (!date) return '';
     return moment(date).format('DD MMM YYYY');
   };
 
   return (
-    <View style={containerStyle}>
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.requiredStar}> *</Text>}
+      </Text>
       <TouchableOpacity
-        style={[styles.inputContainer, error && styles.inputError]}
+        style={[styles.inputWrapper, error && styles.inputError]}
         onPress={onPress}
         activeOpacity={0.7}
       >
-        {icon && (
-          <MaterialCommunityIcons
-            name={icon}
-            size={Layout.iconSize.sm}
-            color={Colors.textSecondary}
-            style={styles.inputIcon}
-          />
-        )}
-        <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
+        <Text style={[styles.dateText, !value && styles.placeholderText]}>
           {value ? formatDate(value) : 'Select date'}
         </Text>
         <MaterialCommunityIcons
@@ -189,11 +271,11 @@ const DatePickerField = ({ value, onPress, error, icon, containerStyle }) => {
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
-};
+});
 
-const SwitchRow = ({ label, value, onValueChange, disabled, containerStyle }) => (
+const SwitchRow = React.memo(({ label, value, onValueChange, disabled, containerStyle }) => (
   <View style={[styles.switchRow, containerStyle]}>
-    {label ? <Text style={styles.switchLabel}>{label}</Text> : <View />}
+    <Text style={styles.switchLabel}>{label}</Text>
     <Switch
       value={value}
       onValueChange={onValueChange}
@@ -202,12 +284,15 @@ const SwitchRow = ({ label, value, onValueChange, disabled, containerStyle }) =>
       thumbColor={Colors.backgroundLight}
     />
   </View>
-);
+));
 
-const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear, containerStyle }) => (
-  <View style={[styles.editField, containerStyle]}>
+const BusinessPartnerSelector = React.memo(({ selectedBPName, error, onPress, onClear, containerStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>
+      Business Partner <Text style={styles.requiredStar}>*</Text>
+    </Text>
     <TouchableOpacity
-      style={[styles.selector, error && styles.selectorError]}
+      style={[styles.inputWrapper, error && styles.inputError]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -238,19 +323,20 @@ const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear, cont
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <View style={styles.chevronWrapper}>
           <Text style={styles.placeholderText}>Select Business Partner</Text>
           <MaterialCommunityIcons
             name="chevron-down"
             size={Layout.iconSize.sm}
             color={Colors.textSecondary}
+            style={styles.chevronIcon}
           />
-        </>
+        </View>
       )}
     </TouchableOpacity>
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
-);
+));
 
 const ErrorRetry = ({ message, onRetry, containerStyle }) => (
   <View style={[styles.errorContainer, containerStyle]}>
@@ -424,6 +510,7 @@ const AddSaleOppor = ({ navigation, route }) => {
     fetchAllData();
   }, []);
 
+  // Set default sales rep to current user (for new opportunities)
   useEffect(() => {
     if (mode !== 'edit' && !initialRepSet && salesReps.length > 0 && userId && !selectedSalesRepId) {
       console.log('🎯 AddSaleOppor - Setting default sales rep to current user:', userId);
@@ -463,6 +550,21 @@ const AddSaleOppor = ({ navigation, route }) => {
     }
   }, [mode, salesReps, userId, userName, selectedSalesRepId, initialRepSet]);
 
+  // Set default currency to PKR when currencies are loaded and no selection exists
+  useEffect(() => {
+    if (currencies.length > 0 && !selectedCurrencyId) {
+      const defaultCurrency = currencies.find((c) => c.ISO_Code === 'PKR' || c.id === '306');
+      if (defaultCurrency) {
+        console.log('💰 Setting default currency to PKR:', defaultCurrency.id);
+        setSelectedCurrencyId(defaultCurrency.id);
+      } else {
+        console.log('⚠️ PKR not found, falling back to first currency');
+        setSelectedCurrencyId(currencies[0]?.id);
+      }
+    }
+  }, [currencies, selectedCurrencyId]);
+
+  // Initialize from leadData (if any)
   useEffect(() => {
     if (leadData) {
       console.log('🔄 Initializing from leadData');
@@ -494,24 +596,14 @@ const AddSaleOppor = ({ navigation, route }) => {
         setInitialRepSet(true);
       }
 
-      if (currencies.length > 0) {
-        const defaultCurrency = currencies.find((c) => c.ISO_Code === 'PKR' || c.id === '306');
-        if (defaultCurrency) {
-          setSelectedCurrencyId(defaultCurrency.id);
-        }
+      // If leadData has a currency, we might override the default PKR
+      if (leadData.currencyId) {
+        setSelectedCurrencyId(leadData.currencyId);
       }
     }
   }, [leadData, mode]);
 
-  useEffect(() => {
-    if (leadData && currencies.length > 0 && !selectedCurrencyId) {
-      const defaultCurrency = currencies.find((c) => c.ISO_Code === 'PKR' || c.id === '306');
-      if (defaultCurrency) {
-        setSelectedCurrencyId(defaultCurrency.id);
-      }
-    }
-  }, [currencies, leadData]);
-
+  // Clear BP error when selected
   useEffect(() => {
     if (selectedBPId) {
       setErrors((prev) => ({ ...prev, bp: null }));
@@ -941,7 +1033,6 @@ const AddSaleOppor = ({ navigation, route }) => {
     );
   }
 
-  // Determine wrapper component and style for safe area handling
   const HeaderWrapper = Platform.OS === 'ios' ? SafeAreaView : View;
   const headerWrapperStyle = Platform.OS === 'android'
     ? { paddingTop: RNStatusBar.currentHeight || 0, backgroundColor: 'transparent' }
@@ -1166,7 +1257,7 @@ const AddSaleOppor = ({ navigation, route }) => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Form Card */}
+          {/* Form Card (table‑like border) */}
           <View style={styles.formCard}>
             {/* Business Partner */}
             <BusinessPartnerSelector
@@ -1174,13 +1265,16 @@ const AddSaleOppor = ({ navigation, route }) => {
               error={errors.bp}
               onPress={() => setShowBPModal(true)}
               onClear={handleClearBusinessPartner}
-              containerStyle={styles.fieldSpacer}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Sales Representative */}
-            <View style={[styles.editField, styles.fieldSpacer]}>
+            <View style={[styles.fieldContainer]}>
+              <Text style={styles.fieldLabel}>
+                Sales Representative <Text style={styles.requiredStar}>*</Text>
+              </Text>
               <TouchableOpacity
-                style={[styles.salesRepSelector, errors.salesRep && styles.selectorError]}
+                style={[styles.inputWrapper, errors.salesRep && styles.inputError]}
                 onPress={() => setShowSalesRepModal(true)}
                 activeOpacity={0.7}
               >
@@ -1197,26 +1291,28 @@ const AddSaleOppor = ({ navigation, route }) => {
                       >
                         <MaterialCommunityIcons
                           name="close-circle"
-                          size={18}
+                          size={14}
                           color={Colors.textSecondary}
                         />
                       </TouchableOpacity>
                       <MaterialCommunityIcons
                         name="chevron-down"
-                        size={20}
+                        size={16}
                         color={Colors.textSecondary}
+                        style={styles.chevronIcon}
                       />
                     </View>
                   </View>
                 ) : (
-                  <>
+                  <View style={styles.chevronWrapper}>
                     <Text style={styles.placeholderText}>Select Sales Representative</Text>
                     <MaterialCommunityIcons
                       name="chevron-down"
                       size={20}
                       color={Colors.textSecondary}
+                      style={styles.chevronIcon}
                     />
-                  </>
+                  </View>
                 )}
               </TouchableOpacity>
               {errors.salesRep && <Text style={styles.errorText}>{errors.salesRep}</Text>}
@@ -1224,102 +1320,87 @@ const AddSaleOppor = ({ navigation, route }) => {
 
             {/* Sales Stage */}
             {isLoadingStages ? (
-              <View style={[styles.loaderContainer, styles.fieldSpacer]}>
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
                 <ActivityIndicator size="small" color={Colors.primary} />
               </View>
             ) : stagesError ? (
-              <ErrorRetry message={stagesError} onRetry={fetchStages} containerStyle={styles.fieldSpacer} />
+              <ErrorRetry message={stagesError} onRetry={fetchStages} containerStyle={styles.fieldContainer} />
             ) : (
-              <PickerField
+              <CustomPickerField
+                label="Sales Stage"
+                required
                 selectedValue={selectedStageId}
                 onValueChange={handleStageChange}
+                options={stages.map(stage => ({ value: stage.id, label: stage.Name }))}
                 error={errors.stage}
-                icon="chart-line"
-                placeholder="Select Stage"
-                containerStyle={styles.fieldSpacer}
-              >
-                {stages.map((stage) => (
-                  <Picker.Item
-                    key={stage.id}
-                    label={stage.Name}
-                    value={stage.id}
-                    color={Colors.textPrimary}
-                  />
-                ))}
-              </PickerField>
+                containerStyle={styles.fieldContainer}
+              />
             )}
 
             {/* Probability */}
-            <Input
+            <FormInput
+              label="Probability (%)"
               value={probability}
               onChangeText={(text) => {
                 const filtered = text.replace(/[^0-9.]/g, '');
                 setProbability(filtered);
               }}
-              placeholder="Enter probability percentage"
               keyboardType="numeric"
-              icon="percent"
-              containerStyle={styles.fieldSpacer}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Campaign */}
             {isLoadingCampaigns ? (
-              <View style={[styles.loaderContainer, styles.fieldSpacer]}>
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
                 <ActivityIndicator size="small" color={Colors.primary} />
               </View>
             ) : campaignsError ? (
-              <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} containerStyle={styles.fieldSpacer} />
+              <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} containerStyle={styles.fieldContainer} />
             ) : (
-              <PickerField
+              <CustomPickerField
+                label="Campaign"
                 selectedValue={selectedCampaign}
                 onValueChange={setSelectedCampaign}
-                icon="bullhorn"
-                placeholder="Select Campaign"
-                containerStyle={styles.fieldSpacer}
-              >
-                {campaigns.map((campaign) => (
-                  <Picker.Item
-                    key={campaign.id}
-                    label={campaign.Name}
-                    value={campaign.id}
-                    color={Colors.textPrimary}
-                  />
-                ))}
-              </PickerField>
+                options={campaigns.map(campaign => ({ value: campaign.id, label: campaign.Name }))}
+                containerStyle={styles.fieldContainer}
+              />
             )}
 
             {/* Expected Close Date */}
             <DatePickerField
+              label="Expected Close Date"
+              required
               value={expectedCloseDate}
               onPress={() => setShowCalendar(true)}
               error={errors.date}
-              icon="calendar-clock"
-              containerStyle={styles.fieldSpacer}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Opportunity Amount */}
-            <Input
+            <FormInput
+              label="Opportunity Amount"
+              required
               value={amount}
               onChangeText={(v) => {
                 setAmount(v);
                 setErrors((prev) => ({ ...prev, amount: null }));
               }}
-              placeholder="Enter amount (e.g., 1000, 5000.50, 1000000)"
               keyboardType="numeric"
               error={errors.amount}
-              icon="currency-usd"
-              containerStyle={styles.fieldSpacer}
+              containerStyle={styles.fieldContainer}
             />
 
             {/* Currency */}
             {isLoadingCurrencies ? (
-              <View style={[styles.loaderContainer, styles.fieldSpacer]}>
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
                 <ActivityIndicator size="small" color={Colors.primary} />
               </View>
             ) : currenciesError ? (
-              <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} containerStyle={styles.fieldSpacer} />
+              <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} containerStyle={styles.fieldContainer} />
             ) : (
-              <PickerField
+              <CustomPickerField
+                label="Currency"
+                required
                 selectedValue={selectedCurrencyId}
                 onValueChange={(value) => {
                   if (value) {
@@ -1327,65 +1408,60 @@ const AddSaleOppor = ({ navigation, route }) => {
                     setErrors((prev) => ({ ...prev, currency: null }));
                   }
                 }}
+                options={currencies.map(currency => ({ value: currency.id, label: `${currency.ISO_Code} - ${currency.Description || ''}` }))}
                 error={errors.currency}
-                icon="currency-sign"
-                placeholder="Select Currency"
-                containerStyle={styles.fieldSpacer}
-              >
-                {currencies.map((currency) => (
-                  <Picker.Item
-                    key={currency.id}
-                    label={`${currency.ISO_Code} - ${currency.Description || ''}`}
-                    value={currency.id}
-                    color={Colors.textPrimary}
-                  />
-                ))}
-              </PickerField>
+                containerStyle={styles.fieldContainer}
+              />
             )}
 
-            {/* Active Switch with label */}
+            {/* Active Switch */}
             <SwitchRow
               label="Active"
               value={active}
               disabled
-              containerStyle={styles.fieldSpacer}
+              containerStyle={styles.fieldContainer}
             />
           </View>
-          {/* Add extra bottom padding to scroll content to avoid button overlap */}
-          <View style={styles.bottomPadding} />
+
+          {/* Info text (like AddLeads) */}
+          <Text style={styles.infoText}>Additional information can be updated later.</Text>
+          <View style={styles.bottomSpacer} />
         </ScrollView>
 
         {/* Fixed Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            (isSubmitting || isLoading || !selectedSalesRepId) && styles.submitButtonDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={isSubmitting || isLoading || !selectedSalesRepId}
-          activeOpacity={0.8}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator size="small" color={Colors.textInverse} />
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="plus-circle"
-                size={Layout.iconSize.md}
-                color={Colors.textInverse}
-              />
-              <Text style={styles.submitButtonText}>Create Opportunity</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (isSubmitting || isLoading || !selectedSalesRepId) && styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={isSubmitting || isLoading || !selectedSalesRepId}
+            activeOpacity={0.8}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color={Colors.textInverse} />
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name="plus-circle"
+                  size={Layout.iconSize.md}
+                  color={Colors.textInverse}
+                />
+                <Text style={styles.submitButtonText}>Create Opportunity</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </>
   );
 };
 
-// Updated styles (unchanged from your original)
+// ============================================
+// STYLES – Only bottom borders on all fields
+// ============================================
 const styles = StyleSheet.create({
-  // New main container to take full height
   mainContainer: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -1395,76 +1471,67 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md, // will be extended by bottomPadding
+    paddingVertical: Spacing.lg,
   },
   formCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Spacing.lg,
-    paddingHorizontal:0,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
-  bottomPadding: {
-    height: verticalScale(80), // space for fixed button
+  fieldContainer: {
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
   },
- 
-  inputContainer: {
+  fieldLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium,
+    letterSpacing: 0.5,
+    marginLeft: Spacing.md,
+  },
+  requiredStar: {
+    color: Colors.error,
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    minHeight: 42,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundLight,
+    minHeight: 40,
   },
   inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
-  inputIcon: {
-    paddingLeft: Spacing.sm,
+    borderBottomColor: Colors.error,
+    borderBottomWidth: 1.5,
   },
   input: {
     flex: 1,
-    height: 42,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+    padding: 0,
   },
-  inputWithIcon: {
-    paddingLeft: Spacing.xs,
-  },
-  readOnlyContainer: {
+  readOnlyWrapper: {
     backgroundColor: Colors.backgroundLight,
     opacity: 0.9,
   },
   readOnlyText: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.medium,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
-    textAlignVertical: 'center',
   },
-  contactContainer: {
-    minHeight: 52,
-    paddingVertical: Spacing.xs,
+  contactWrapper: {
+    alignItems: 'flex-start',
+    paddingVertical: Spacing.sm,
   },
   contactContent: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
+    paddingLeft: Spacing.sm,
   },
   contactName: {
     fontSize: Typography.fontSize.medium,
@@ -1477,45 +1544,19 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
-  pickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    
-    minHeight: 42,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  pickerIcon: {
-    paddingLeft: Spacing.sm,
-  },
-  picker: {
-    flex: 1,
-    height: 42,
-    color: Colors.textPrimary,
-  },
-  pickerWithIcon: {
-    marginLeft: -Spacing.xs,
-  },
   dateText: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
   },
   dateIcon: {
-    paddingRight: Spacing.sm,
+    paddingRight: Spacing.xs,
   },
-  textArea: {
-    minHeight: verticalScale(80),
-    textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
+  placeholderText: {
+    fontSize: Typography.fontSize.large,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
   },
   errorText: {
     color: Colors.error,
@@ -1529,25 +1570,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.md,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
   },
   switchLabel: {
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginLeft: Spacing.sm,
   },
   loaderContainer: {
     height: 42,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.sm,
   },
   errorContainer: {
     height: 42,
@@ -1559,6 +1601,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.error,
     borderRadius: Layout.borderRadius.sm,
     paddingHorizontal: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   errorRetryText: {
     color: Colors.error,
@@ -1604,7 +1647,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
   },
-  // Fixed submit button
+  buttonContainer: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
   submitButton: {
     backgroundColor: Colors.primary,
     flexDirection: 'row',
@@ -1613,8 +1661,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
-    marginHorizontal: Spacing.xxl,
-    marginBottom: Spacing.xxl,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1623,7 +1669,7 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.7,
-    backgroundColor: Colors.buttonDisabled,
+    backgroundColor: Colors.buttonDisabled || '#ccc',
     shadowOpacity: 0.2,
     elevation: 3,
   },
@@ -1632,30 +1678,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
   },
-  editField: {
-    // used for BusinessPartnerSelector and SalesRep container
+  infoText: {
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
-  selector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-   
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 0,
-    height: 42,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  selectorError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
+
   selectedItemContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -1671,13 +1703,8 @@ const styles = StyleSheet.create({
   },
   selectedItemText: {
     flex: 1,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
-  },
-  placeholderText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
   },
   clearButton: {
@@ -1685,8 +1712,18 @@ const styles = StyleSheet.create({
   },
   rightContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.xs,
+  },
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepText: {
+    fontSize: Typography.fontSize.large,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
   },
   modalOverlay: {
     flex: 1,
@@ -1694,15 +1731,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.lg,
-    borderTopRightRadius: Layout.borderRadius.lg,
+    backgroundColor: Colors.backgroundLight,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomWidth: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1718,7 +1753,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   closeButton: {
-    padding: 4,
+    padding: Spacing.xs,
   },
   modalSearch: {
     flexDirection: 'row',
@@ -1831,33 +1866,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
-  salesRepSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  selectedRepContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectedRepText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
-  },
   repItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1933,6 +1941,22 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     marginTop: Spacing.sm,
+  },
+  // New styles for consistent chevron alignment
+  chevronWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chevronIcon: {
+    marginRight: Spacing.sm, // Same as right padding of picker
+  },
+  pickerText: {
+    flex: 1,
+    fontSize: Typography.fontSize.large,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
 });
 

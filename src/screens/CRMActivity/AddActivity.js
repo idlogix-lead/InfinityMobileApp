@@ -42,6 +42,139 @@ import CustomAlert from '../../components/CustomAlert';
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
+// ============================================
+// UI COMPONENTS (copied from AddSaleOppor)
+// ============================================
+
+/** Label above each field */
+const FieldLabel = ({ label, required }) => (
+  <Text style={styles.fieldLabel}>
+    {label} {required && <Text style={styles.requiredStar}>*</Text>}
+  </Text>
+);
+
+/** Generic selector that opens a modal */
+const SelectorField = ({
+  label,
+  required,
+  value,
+  onPress,
+  error,
+  clearable,
+  onClear,
+  icon,
+}) => (
+  <View style={styles.fieldContainer}>
+    {label && <FieldLabel label={label} required={required} />}
+    <TouchableOpacity
+      style={[styles.selector, error && styles.selectorError]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {icon && (
+        <Icon
+          name={icon}
+          size={Layout.iconSize.xs}
+          color={Colors.textSecondary}
+          style={styles.selectorIcon}
+        />
+      )}
+      {value ? (
+        <View style={styles.selectedValueContainer}>
+          <Text style={styles.selectedValueText} numberOfLines={1}>
+            {value}
+          </Text>
+          {clearable && onClear && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+            >
+              <Icon name="close" size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <Text style={styles.placeholderText}> </Text>
+      )}
+      <AntDesign
+        name="down"
+        size={12}
+        color={Colors.textSecondary}
+        style={styles.chevron}
+      />
+    </TouchableOpacity>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
+/** Date picker field (opens calendar modal) */
+const DatePickerField = ({ label, required, value, onPress, error, icon }) => {
+  const formatDate = (date) => {
+    if (!date) return '';
+    return moment(date).format('DD MMM YYYY');
+  };
+
+  return (
+    <View style={styles.fieldContainer}>
+      {label && <FieldLabel label={label} required={required} />}
+      <TouchableOpacity
+        style={[styles.selector, error && styles.selectorError]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {icon && (
+          <EvilIcons
+            name={icon}
+            size={Layout.iconSize.sm}
+            color={Colors.textSecondary}
+            style={styles.selectorIcon}
+          />
+        )}
+        <Text style={[styles.selectedValueText, !value && styles.placeholderText]}>
+          {value ? formatDate(value) : ''}
+        </Text>
+        <EvilIcons
+          name="calendar"
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.chevron}
+        />
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
+    </View>
+  );
+};
+
+/** Text input with label */
+const Input = React.memo(({ label, required, error, icon, containerStyle, ...props }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    {label && <FieldLabel label={label} required={required} />}
+    <View style={[styles.inputContainer, error && styles.inputError]}>
+      {icon && (
+        <Icon
+          name={icon}
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.inputIcon}
+        />
+      )}
+      <RNTextInput
+        {...props}
+        placeholder="" // placeholder removed
+        placeholderTextColor={Colors.textTertiary}
+        style={[styles.input, icon && styles.inputWithIcon]}
+      />
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+));
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 const AddActivity = ({ route, navigation }) => {
   const { data, mode } = route.params;
   const queryClient = useQueryClient();
@@ -73,7 +206,7 @@ const AddActivity = ({ route, navigation }) => {
   const [toDate, setToDate] = useState(new Date());
   const [isComplete, setIsComplete] = useState(false);
   const [activityCollapsed, setActivityCollapsed] = useState(true);
-  const [selectedActivity, setSelectedActivity] = useState('Select Activity Type');
+  const [selectedActivity, setSelectedActivity] = useState('');
   const [description, setDescription] = useState('');
 
   const [selectedSalesRepId, setSelectedSalesRepId] = useState(null);
@@ -142,7 +275,7 @@ const AddActivity = ({ route, navigation }) => {
   useEffect(() => {
     if (mode === 'edit' && data) {
       const activityId = data?.ContactActivityType?.id;
-      setSelectedActivity(activityLabelMap[activityId] || 'Select Activity Type');
+      setSelectedActivity(activityLabelMap[activityId] || '');
       if (data.StartDate) setFromDate(new Date(data.StartDate));
       if (data.EndDate) setToDate(new Date(data.EndDate));
       if (data.SalesRep_ID?.id) {
@@ -153,7 +286,7 @@ const AddActivity = ({ route, navigation }) => {
       setDescription(data.Description || '');
       setIsComplete(data.IsComplete || false);
     } else if (mode === 'create' && data?.id) {
-      setSelectedActivity('Select Activity Type');
+      setSelectedActivity('');
       setFromDate(new Date());
       setToDate(new Date());
       setDescription('');
@@ -185,7 +318,7 @@ const AddActivity = ({ route, navigation }) => {
   const hideAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false }));
 
   const handleSave = async () => {
-    if (selectedActivity === 'Select Activity Type' && mode === 'create') {
+    if (!selectedActivity && mode === 'create') {
       showValidationAlert('Please select an activity type.');
       return;
     }
@@ -403,6 +536,7 @@ const AddActivity = ({ route, navigation }) => {
         minDate={calendarMode === 'to' ? fromDate : undefined}
       />
 
+      {/* Sales Representative Modal (kept similar to AddSaleOppor style) */}
       <Modal
         visible={showSalesRepModal}
         animationType="slide"
@@ -431,7 +565,7 @@ const AddActivity = ({ route, navigation }) => {
               <Icon name="search" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
               <RNTextInput
                 style={styles.searchInput}
-                placeholder="Search by name..."
+                placeholder="" // placeholder removed
                 placeholderTextColor={Colors.textTertiary}
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
@@ -453,7 +587,7 @@ const AddActivity = ({ route, navigation }) => {
                   <Icon name="person-off" size={50} color={Colors.borderDark} />
                   <Text style={styles.emptyText}>
                     {salesRepSearch.trim()
-                      ? `No sales representatives found for "${salesRepSearch}"`
+                      ? `No results for "${salesRepSearch}"`
                       : 'No sales representatives available'}
                   </Text>
                 </View>
@@ -464,7 +598,7 @@ const AddActivity = ({ route, navigation }) => {
 
             <View style={styles.modalFooter}>
               <Text style={styles.footerText}>
-                {filteredSalesReps.length} of {salesReps.length} sales representatives
+                {filteredSalesReps.length} of {salesReps.length}
               </Text>
             </View>
           </View>
@@ -486,6 +620,7 @@ const AddActivity = ({ route, navigation }) => {
               <View style={styles.formCard}>
                 {mode === 'create' && (
                   <View style={styles.fieldContainer}>
+                    <FieldLabel label="Activity Type" required />
                     <TouchableOpacity
                       onPress={toggleActivitySection}
                       style={styles.selector}
@@ -493,14 +628,14 @@ const AddActivity = ({ route, navigation }) => {
                     >
                       <Text
                         style={[
-                          styles.selectorText,
-                          selectedActivity === 'Select Activity Type' && styles.placeholderText,
+                          styles.selectedValueText,
+                          !selectedActivity && styles.placeholderText,
                         ]}
                       >
-                        {selectedActivity}
+                        {selectedActivity || ''}
                       </Text>
                       <Animated.View style={{ transform: [{ rotate: getRotation(activityAnim) }] }}>
-                        <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.textPrimary} />
+                        <AntDesign name="down" size={Layout.iconSize.xs} color={Colors.textPrimary} />
                       </Animated.View>
                     </TouchableOpacity>
 
@@ -521,68 +656,49 @@ const AddActivity = ({ route, navigation }) => {
                   </View>
                 )}
 
-                <View style={styles.pickerContainer}>
-                  <TouchableOpacity
-                    style={[styles.salesRepSelector, !selectedSalesRepId && styles.selectorError]}
-                    onPress={() => setShowSalesRepModal(true)}
-                    activeOpacity={0.7}
-                  >
-                    {selectedRepName ? (
-                      <View style={styles.selectedRepContainer}>
-                        <View style={styles.selectedRepInfo}>
-                          <Text style={styles.selectedRepText}>{selectedRepName}</Text>
-                        </View>
-                        <View style={styles.rightContainer}>
-                          <TouchableOpacity
-                            style={styles.clearButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleClearSalesRep();
-                            }}
-                          >
-                            <Icon name="close" size={18} color={Colors.textSecondary} />
-                          </TouchableOpacity>
-                          <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.textPrimary} />
-                        </View>
-                      </View>
-                    ) : (
-                      <>
-                        <Text style={styles.placeholderText}>Select Sales Representative</Text>
-                        <AntDesign name="down" size={Layout.iconSize.sm} color={Colors.primary} />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                {/* Sales Representative */}
+                <SelectorField
+                  label="Sales Representative"
+                  required
+                  value={selectedRepName}
+                  onPress={() => setShowSalesRepModal(true)}
+                  clearable={!!selectedSalesRepId}
+                  onClear={handleClearSalesRep}
+                  icon="person"
+                />
 
-                <View style={styles.fieldContainer}>
-                  <TouchableOpacity onPress={handleFromDatePress} style={styles.selector} activeOpacity={0.7}>
-                    <Text style={styles.selectorText}>{formatDisplayDate(fromDate)}</Text>
-                    <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.textPrimary} />
-                  </TouchableOpacity>
-                </View>
+                {/* Start Date */}
+                <DatePickerField
+                  label="Start Date"
+                  required
+                  value={fromDate}
+                  onPress={handleFromDatePress}
+                  icon="calendar"
+                />
 
-                <View style={styles.fieldContainer}>
-                  <TouchableOpacity onPress={handleToDatePress} style={styles.selector} activeOpacity={0.7}>
-                    <Text style={styles.selectorText}>{formatDisplayDate(toDate)}</Text>
-                    <EvilIcons name="calendar" size={Layout.iconSize.lg} color={Colors.textPrimary} />
-                  </TouchableOpacity>
-                </View>
+                {/* End Date */}
+                <DatePickerField
+                  label="End Date"
+                  required
+                  value={toDate}
+                  onPress={handleToDatePress}
+                  icon="calendar"
+                />
 
-                <View style={styles.fieldContainer}>
-                  <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                    <RNTextInput
-                      style={[styles.input, styles.textArea]}
-                      placeholder="Enter activity description..."
-                      placeholderTextColor={Colors.textTertiary}
-                      value={description}
-                      onChangeText={setDescription}
-                      multiline={true}
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
-                  </View>
-                </View>
+                {/* Description */}
+                <Input
+                  label="Description"
+                  required
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  containerStyle={styles.textAreaContainer}
+                  icon="description"
+                />
 
+                {/* Checkbox for completion (kept as is but styled to fit) */}
                 <TouchableOpacity
                   onPress={() => setIsComplete(!isComplete)}
                   style={styles.checkboxContainer}
@@ -670,89 +786,103 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.medium,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
   },
   formCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: Spacing.lg,
-    paddingHorizontal: 0,
+    borderRadius: Layout.borderRadius.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
   fieldContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
+   
   },
-  pickerContainer: {
-    marginBottom: Spacing.md,
+  fieldLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium,
+    letterSpacing: 0.5,
+    marginLeft: Spacing.sm,
   },
-  selector: {
+  requiredStar: {
+    color: Colors.error,
+  },
+  // Input styles (bottom border only)
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    height: Layout.input.height,
-    backgroundColor: Colors.backgroundLight,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    height: 42,
   },
-  selectorText: {
+  inputError: {
+    borderColor: Colors.error,
+    borderWidth: 1,
+  },
+  inputIcon: {
+    paddingLeft: Spacing.sm,
+  },
+  input: {
+    flex: 1,
+    height: 42,
+    paddingHorizontal: Spacing.sm,
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
-  salesRepSelector: {
+  inputWithIcon: {
+    paddingLeft: Spacing.xs,
+  },
+  textAreaContainer: {
+    marginBottom: Spacing.xs,
+  },
+  // Selector styles (bottom border only)
+  selector: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundLight,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingHorizontal: Spacing.sm,
+    height: 42,
   },
   selectorError: {
-    borderColor: Colors.error,
-    shadowColor: Colors.error,
+    borderBottomColor: Colors.error,
+    borderBottomWidth: 1.5,
   },
-  selectedRepContainer: {
+  selectorIcon: {
+    marginRight: Spacing.xs,
+  },
+  selectedValueContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectedRepInfo: {
+  selectedValueText: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  selectedRepText: {
     fontSize: Typography.fontSize.medium,
     color: Colors.textPrimary,
     fontFamily: Typography.fontFamily.regular,
   },
   placeholderText: {
+    flex: 1,
     fontSize: Typography.fontSize.medium,
     color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
-    flex: 1,
   },
   clearButton: {
     padding: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
+  chevron: {
     marginLeft: Spacing.xs,
   },
   optionsContainer: {
@@ -762,11 +892,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.md,
     overflow: 'hidden',
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   optionItem: {
     paddingVertical: Spacing.sm,
@@ -779,38 +904,10 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
   },
-  inputWrapper: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-    backgroundColor: Colors.backgroundLight,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  input: {
-    height: Layout.input.height,
-    paddingHorizontal: Spacing.md,
-    fontSize: Typography.fontSize.medium,
-    fontFamily: Typography.fontFamily.regular,
-    color: Colors.textPrimary,
-    includeFontPadding: false,
-  },
-  textAreaWrapper: {
-    minHeight: verticalScale(100),
-  },
-  textArea: {
-    minHeight: verticalScale(100),
-    textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.sm,
-  },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginVertical: Spacing.md,
     marginLeft: Spacing.sm,
   },
   checkboxLabel: {
@@ -822,20 +919,23 @@ const styles = StyleSheet.create({
   checkboxLabelChecked: {
     color: Colors.primary,
   },
+  // Error text
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
   // Bottom fixed button container
   bottomButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.xxl,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 8,
   },
   actionButton: {
     paddingVertical: Spacing.md,
@@ -843,11 +943,6 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     minWidth: scale(100),
     alignItems: 'center',
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
   },
   fullWidthButton: {
     flex: 1,
@@ -868,24 +963,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
   },
+  // Modal styles (matching AddSaleOppor)
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: Colors.cardBackground,
     borderTopLeftRadius: Layout.borderRadius.xl,
     borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomWidth: 0,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 12,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -912,13 +1003,15 @@ const styles = StyleSheet.create({
     margin: Spacing.md,
     paddingHorizontal: Spacing.sm,
     backgroundColor: Colors.backgroundLight,
+    gap: Spacing.xs,
+    height: verticalScale(42),
   },
   searchIcon: {
     marginRight: Spacing.xs,
   },
   searchInput: {
     flex: 1,
-    height: Layout.input.height,
+    height: verticalScale(42),
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
@@ -964,11 +1057,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: Typography.fontFamily.medium,
     marginTop: Spacing.xxs,
-  },
-  rightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xxs,
   },
   emptyContainer: {
     alignItems: 'center',

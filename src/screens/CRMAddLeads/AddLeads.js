@@ -1,5 +1,5 @@
-// screens/AddLeads.js – Updated with floating dropdown menu for country (no modal)
-// Fixed safe area header
+// screens/AddLeads.js – Table‑like form card design with labels
+// Added Company Name field after Address
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
@@ -30,22 +30,6 @@ import CustomAlert from '../../components/CustomAlert';
 import CRMTheme from '../../constants/CRMTheme/CRMTheme';
 import crmApiService from '../../services/CRMAPI/crmApiService';
 
-// Fallback countries with correct IDs from original component
-const FALLBACK_COUNTRIES = [
-  { id: 271, name: 'Pakistan', countryCode: 'PK' },
-  { id: 1000002, name: 'United States', countryCode: 'US' },
-  { id: 1000003, name: 'United Kingdom', countryCode: 'GB' },
-  { id: 1000004, name: 'Canada', countryCode: 'CA' },
-  { id: 1000005, name: 'Australia', countryCode: 'AU' },
-  { id: 1000006, name: 'Germany', countryCode: 'DE' },
-  { id: 1000007, name: 'France', countryCode: 'FR' },
-  { id: 1000008, name: 'Italy', countryCode: 'IT' },
-  { id: 1000009, name: 'Spain', countryCode: 'ES' },
-  { id: 1000010, name: 'UAE', countryCode: 'AE' },
-  { id: 1000011, name: 'China', countryCode: 'CN' },
-  { id: 1000012, name: 'India', countryCode: 'IN' },
-];
-
 const { height: windowHeight } = Dimensions.get('window');
 
 const AddLeads = () => {
@@ -57,11 +41,9 @@ const AddLeads = () => {
   const clientId = useAuthStore((state) => state.clientId);
   const orgId = useAuthStore((state) => state.organizationId);
 
-  // Fallbacks
   const defaultClientId = clientId || 1000000;
   const defaultOrgId = orgId || 1000001;
 
-  const [isMounted, setIsMounted] = useState(false);
   const [initialRepSet, setInitialRepSet] = useState(false);
 
   // Address card expanded state
@@ -71,8 +53,10 @@ const AddLeads = () => {
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
 
-  // Countries state (for address)
-  const [countries, setCountries] = useState(FALLBACK_COUNTRIES);
+  // Countries from React Query (cached)
+  const { data: countries = [], isLoading: countriesLoading } = useCountries();
+
+  // Selected country for address
   const [selectedCountry, setSelectedCountry] = useState(null);
 
   // Dropdown state for country (floating menu)
@@ -84,13 +68,21 @@ const AddLeads = () => {
   // Address summary
   const [addressSummary, setAddressSummary] = useState('');
 
-  // Fetch countries from API
-  const { data: countriesFromApi = [], isLoading: countriesLoading } = useCountries(isMounted);
-
   // Phone state
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneDialCode, setPhoneDialCode] = useState('+92');
   const [selectedPhoneCountry, setSelectedPhoneCountry] = useState(null);
+
+  // Lead Status
+  const leadStatusOptions = [
+    { id: 'N', label: 'New' },
+    { id: 'W', label: 'Working' },
+    { id: 'E', label: 'Expire' },
+    { id: 'C', label: 'Converted' },
+  ];
+  const [leadStatus, setLeadStatus] = useState('N');          // default 'New' (id)
+  const [leadStatusLabel, setLeadStatusLabel] = useState('New');
+  const [showStatusModal, setShowStatusModal] = useState(false);
 
   // Alert config
   const [alertConfig, setAlertConfig] = useState({
@@ -105,40 +97,13 @@ const AddLeads = () => {
     showCancelButton: false,
   });
 
-  useEffect(() => {
-    setIsMounted(true);
-    return () => setIsMounted(false);
-  }, []);
-
-  // Process API countries when they arrive (for address) – update list but keep selection null
-  useEffect(() => {
-    if (countriesFromApi && countriesFromApi.length > 0) {
-      const mapped = countriesFromApi.map(c => ({
-        id: c.id,
-        name: c.Name || c.identifier || 'Unknown',
-        countryCode: c.CountryCode || '',
-      }));
-      setCountries(mapped);
-      // Do not set a default selected country
-    }
-  }, [countriesFromApi]);
-
   // Form hook
-  const {
-    formData,
-    errors,
-    focusedField,
-    updateField,
-    setFocusedField,
-  } = useAddLeadForm();
+  const { formData, errors, focusedField, updateField, setFocusedField } = useAddLeadForm();
 
   const createLeadMutation = useCreateLead();
 
-  // Sales reps
-  const {
-    data: salesReps = [],
-    isLoading: loadingSalesReps,
-  } = useSalesRepresentatives(isMounted);
+  // Sales reps (cached)
+  const { data: salesReps = [], isLoading: loadingSalesReps } = useSalesRepresentatives();
 
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,7 +148,7 @@ const AddLeads = () => {
   const filteredCountries = useMemo(() => {
     if (!countrySearchQuery.trim()) return countries;
     const query = countrySearchQuery.toLowerCase();
-    return countries.filter(c => c.name.toLowerCase().includes(query));
+    return countries.filter(c => c.Name?.toLowerCase().includes(query) || c.identifier?.toLowerCase().includes(query));
   }, [countries, countrySearchQuery]);
 
   // Alert helpers
@@ -240,7 +205,7 @@ const AddLeads = () => {
     const parts = [];
     if (street) parts.push(street);
     if (city) parts.push(city);
-    if (selectedCountry?.name) parts.push(selectedCountry.name);
+    if (selectedCountry?.Name || selectedCountry?.identifier) parts.push(selectedCountry.Name || selectedCountry.identifier);
     setAddressSummary(parts.join(', '));
   }, [street, city, selectedCountry]);
 
@@ -252,6 +217,10 @@ const AddLeads = () => {
     }
     if (!formData.email?.trim()) {
       showValidationAlert('Email is required');
+      return false;
+    }
+    if (!formData.companyName?.trim()) {                     // NEW: Company Name validation
+      showValidationAlert('Company Name is required');
       return false;
     }
 
@@ -312,6 +281,8 @@ const AddLeads = () => {
       AD_Org_ID: { id: defaultOrgId },
       AD_Client_ID: { id: defaultClientId },
       IsActive: true,
+      LeadStatus: leadStatus,            // added status
+      BPName: formData.companyName,   // NEW: include company name
       ...(locationId && { C_Location_ID: { id: locationId } }),
     };
   };
@@ -334,17 +305,13 @@ const AddLeads = () => {
       console.log('📦 Lead payload:', JSON.stringify(leadPayload, null, 2));
       await createLeadMutation.mutateAsync(leadPayload);
 
-      if (isMounted) {
-        showSuccessAlert('Lead created successfully!', () => {
-          hideAlert();
-          if (isMounted) navigation.goBack();
-        });
-      }
+      showSuccessAlert('Lead created successfully!', () => {
+        hideAlert();
+        navigation.goBack();
+      });
     } catch (error) {
       console.error('❌ Lead creation error:', error);
-      if (isMounted) {
-        showErrorAlert(error.message || 'Failed to create lead. Please try again.');
-      }
+      showErrorAlert(error.message || 'Failed to create lead. Please try again.');
     }
   };
 
@@ -374,7 +341,7 @@ const AddLeads = () => {
     if (countryButtonRef.current) {
       countryButtonRef.current.measure((x, y, width, height, pageX, pageY) => {
         setDropdownPosition({
-          top: pageY + height, // below the button
+          top: pageY + height,
           left: pageX,
           width: width,
         });
@@ -383,30 +350,21 @@ const AddLeads = () => {
     }
   };
 
-  // Flat input styles
   const flatInputContainerStyle = {
-    marginBottom: CRMTheme.Spacing.md,
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    elevation: 0,
+    marginBottom: CRMTheme.Spacing.sm,
   };
 
   const flatInputStyle = {
     borderWidth: 1,
     borderColor: CRMTheme.Colors.border,
-    borderRadius: CRMTheme.Layout.borderRadius.md,
     paddingHorizontal: CRMTheme.Spacing.md,
     paddingVertical: CRMTheme.Spacing.sm,
-    fontSize: CRMTheme.Typography.fontSize.medium,
+    fontSize: CRMTheme.Typography.fontSize.large,
     fontFamily: CRMTheme.Typography.fontFamily.regular,
     color: CRMTheme.Colors.textPrimary,
     backgroundColor: CRMTheme.Colors.backgroundLight,
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    elevation: 0,
   };
 
-  // Determine wrapper component and style for safe area handling
   const HeaderWrapper = Platform.OS === 'ios' ? SafeAreaView : View;
   const headerWrapperStyle = Platform.OS === 'android'
     ? { paddingTop: RNStatusBar.currentHeight || 0, backgroundColor: 'transparent' }
@@ -446,20 +404,19 @@ const AddLeads = () => {
         </View>
       )}
 
-      {/* Main container – takes remaining space */}
       <View style={styles.mainContainer}>
-        {/* Scrollable content */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Form Card – all input fields */}
+          {/* Form Card with table‑like border */}
           <View style={styles.formCard}>
-            {/* Name */}
+            {/* Name - with label */}
             <FormInput
+              label="Name"
+              required
               value={formData.name}
               onChangeText={(value) => updateField('name', value)}
-              placeholder="Name *"
               error={errors.name}
               focused={focusedField === 'name'}
               onFocus={() => setFocusedField('name')}
@@ -468,11 +425,12 @@ const AddLeads = () => {
               inputStyle={flatInputStyle}
             />
 
-            {/* Email */}
+            {/* Email - with label */}
             <FormInput
+              label="Email"
+              required
               value={formData.email}
               onChangeText={(value) => updateField('email', value)}
-              placeholder="Email *"
               keyboardType="email-address"
               autoCapitalize="none"
               error={errors.email}
@@ -483,15 +441,15 @@ const AddLeads = () => {
               inputStyle={flatInputStyle}
             />
 
-            {/* Phone with integrated country picker */}
-            <View style={styles.Phone}>
+            {/* Phone - with label */}
+            <View style={styles.phoneContainer}>
               <PhoneInput
+                label="Phone"
                 required
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
                 onCountryChange={handlePhoneCountryChange}
                 defaultCountryCode="PK"
-                placeholder="Enter phone number"
                 error={errors.phone}
                 focused={focusedField === 'phone'}
                 onFocus={() => setFocusedField('phone')}
@@ -500,8 +458,8 @@ const AddLeads = () => {
               />
             </View>
 
-            {/* Address Expandable Card */}
-            <View style={styles.addressCard}>
+            {/* Address Expandable Section */}
+            <View style={styles.addressSection}>
               <TouchableOpacity
                 style={styles.addressHeader}
                 onPress={() => setAddressExpanded(!addressExpanded)}
@@ -518,28 +476,30 @@ const AddLeads = () => {
 
               {addressExpanded && (
                 <View style={styles.addressFields}>
-                  {/* Street – full width */}
+                  {/* Street - with label */}
                   <FormInput
+                    label="Street address"
                     value={street}
                     onChangeText={setStreet}
-                    placeholder="Street address"
                     containerStyle={flatInputContainerStyle}
                     inputStyle={flatInputStyle}
                   />
 
-                  {/* City and Country in a row */}
+                  {/* City and Country row */}
                   <View style={styles.row}>
                     <View style={styles.cityContainer}>
+                      {/* City - with label */}
                       <FormInput
+                        label="City"
                         value={city}
                         onChangeText={setCity}
-                        placeholder="City"
                         containerStyle={{ ...flatInputContainerStyle, marginBottom: 0 }}
                         inputStyle={flatInputStyle}
                       />
                     </View>
                     <View style={styles.countryContainer}>
-                      {/* Country picker button that opens floating menu */}
+                      {/* Country label */}
+                      <Text style={styles.fieldLabel}>Country</Text>
                       <TouchableOpacity
                         ref={countryButtonRef}
                         style={styles.countryPickerButton}
@@ -547,7 +507,7 @@ const AddLeads = () => {
                         activeOpacity={0.7}
                       >
                         <Text style={[styles.countryPickerText, !selectedCountry && styles.placeholderText]}>
-                          {selectedCountry?.name || 'Select Country'}
+                          {selectedCountry?.Name || selectedCountry?.identifier || 'Select Country'}
                         </Text>
                         <Icon name="arrow-drop-down" size={24} color={CRMTheme.Colors.textSecondary} />
                       </TouchableOpacity>
@@ -557,9 +517,37 @@ const AddLeads = () => {
               )}
             </View>
 
-            {/* Sales Representative */}
-            <View style={styles.pickerContainer}>
-              <Text style={styles.pickerLabel}>Sales Representative *</Text>
+            {/* Company Name - NEW FIELD */}
+            <FormInput
+              label="Company Name"
+              required
+              value={formData.companyName}
+              onChangeText={(value) => updateField('companyName', value)}
+              error={errors.companyName}
+              focused={focusedField === 'companyName'}
+              onFocus={() => setFocusedField('companyName')}
+              onBlur={() => setFocusedField(null)}
+              containerStyle={flatInputContainerStyle}
+              inputStyle={flatInputStyle}
+            />
+
+            {/* Lead Status - new field */}
+            <View style={styles.statusSection}>
+              <Text style={styles.fieldLabel}>Lead Status</Text>
+              <TouchableOpacity
+                style={styles.statusSelector}
+                onPress={() => setShowStatusModal(true)}
+              >
+                <Text style={styles.statusText}>{leadStatusLabel}</Text>
+                <Icon name="arrow-drop-down" size={24} color={CRMTheme.Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Sales Representative - with label matching new style */}
+            <View style={styles.salesRepSection}>
+              <Text style={styles.fieldLabel}>
+                Sales Representative <Text style={styles.requiredStar}>*</Text>
+              </Text>
               <TouchableOpacity
                 style={[
                   styles.salesRepSelector,
@@ -589,26 +577,29 @@ const AddLeads = () => {
             </View>
           </View>
 
-          {/* Information text below form card */}
           <Text style={styles.infoText}>Additional information can be updated later.</Text>
-
-          {/* Extra bottom padding to avoid button overlap */}
           <View style={styles.bottomSpacer} />
         </ScrollView>
 
-        {/* Fixed Submit Button at bottom */}
+        {/* Fixed Submit Button */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (createLeadMutation.isLoading || !formData.name || !formData.email || !phoneNumber || !formData.salesRep) && styles.submitButtonDisabled,
+              (createLeadMutation.isLoading || !formData.name || !formData.email || !phoneNumber || !formData.companyName || !formData.salesRep) && styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
-            disabled={createLeadMutation.isLoading || !formData.name || !formData.email || !phoneNumber || !formData.salesRep}
+            disabled={createLeadMutation.isLoading || !formData.name || !formData.email || !phoneNumber || !formData.companyName || !formData.salesRep}
+            activeOpacity={0.8}
           >
-            <Text style={styles.submitButtonText}>
-              {createLeadMutation.isLoading ? 'Creating...' : 'Create Lead'}
-            </Text>
+            {createLeadMutation.isLoading ? (
+              <ActivityIndicator size="small" color={CRMTheme.Colors.textInverse} />
+            ) : (
+              <>
+                <Icon name="add-circle" size={24} color={CRMTheme.Colors.textInverse} />
+                <Text style={styles.submitButtonText}>Create Lead</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -685,7 +676,53 @@ const AddLeads = () => {
         </View>
       </Modal>
 
-      {/* Floating Country Dropdown Menu */}
+      {/* Lead Status Modal - new */}
+      <Modal
+        visible={showStatusModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowStatusModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { maxHeight: 300 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Lead Status</Text>
+              <TouchableOpacity
+                onPress={() => setShowStatusModal(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color={CRMTheme.Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={leadStatusOptions}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.repItem,
+                    leadStatus === item.id && styles.selectedRepItem,
+                  ]}
+                  onPress={() => {
+                    setLeadStatus(item.id);
+                    setLeadStatusLabel(item.label);
+                    setShowStatusModal(false);
+                  }}
+                >
+                  <Text style={styles.repName}>{item.label}</Text>
+                  {leadStatus === item.id && (
+                    <Icon name="check" size={20} color={CRMTheme.Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={styles.repListContent}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Floating Country Dropdown Menu (unchanged) */}
       {showCountryDropdown && (
         <TouchableWithoutFeedback onPress={() => setShowCountryDropdown(false)}>
           <View style={StyleSheet.absoluteFillObject} />
@@ -738,7 +775,7 @@ const AddLeads = () => {
                   setCountrySearchQuery('');
                 }}
               >
-                <Text style={styles.countryDropdownItemText}>{item.name}</Text>
+                <Text style={styles.countryDropdownItemText}>{item.Name || item.identifier}</Text>
                 {selectedCountry?.id === item.id && (
                   <Icon name="check" size={20} color={CRMTheme.Colors.primary} />
                 )}
@@ -764,7 +801,6 @@ const AddLeads = () => {
   );
 };
 
-// Styles (add mainContainer)
 const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
@@ -791,13 +827,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: CRMTheme.Spacing.md,
     paddingVertical: CRMTheme.Spacing.lg,
   },
+  // Form Card with table‑like border and padding
   formCard: {
     backgroundColor: CRMTheme.Colors.backgroundLight,
-    borderRadius: CRMTheme.Layout.borderRadius.lg,
     borderWidth: 1,
     borderColor: CRMTheme.Colors.border,
-    paddingTop: CRMTheme.Spacing.lg,
-    paddingBottom: 0,
+    borderRadius: CRMTheme.Layout.borderRadius.md,
+    paddingTop: CRMTheme.Spacing.md,
+    paddingBottom: CRMTheme.Spacing.xs,
   },
   infoText: {
     fontSize: CRMTheme.Typography.fontSize.medium,
@@ -809,32 +846,32 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   bottomSpacer: {
-    height: CRMTheme.Spacing.md,
+    height: CRMTheme.Spacing.sm,
   },
-  addressCard: {
-    borderBottomWidth: 1,
-    borderBottomColor: CRMTheme.Colors.border,
-    backgroundColor: CRMTheme.Colors.backgroundLight,
+  phoneContainer: {
+    marginLeft: CRMTheme.Spacing.xs,
+  },
+  addressSection: {
     marginBottom: CRMTheme.Spacing.md,
-    overflow: 'hidden',
+    paddingRight: CRMTheme.Spacing.xs,
   },
   addressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: CRMTheme.Spacing.md,
     paddingVertical: CRMTheme.Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: CRMTheme.Colors.borderLight,
+    marginBottom: CRMTheme.Spacing.sm,
   },
   addressHeaderText: {
-    fontSize: CRMTheme.Typography.fontSize.large,
-    color: CRMTheme.Colors.textPrimary,
-    fontFamily: CRMTheme.Typography.fontFamily.regular,
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    color: CRMTheme.Colors.textSecondary,
+    fontFamily: CRMTheme.Typography.fontFamily.medium,
+    marginLeft: CRMTheme.Spacing.md,
   },
   addressFields: {
-    paddingVertical: CRMTheme.Spacing.sm,
-    paddingBottom: 0,
-    borderTopWidth: 1,
-    borderTopColor: CRMTheme.Colors.borderLight,
+    // No extra border, just spacing
   },
   row: {
     flexDirection: 'row',
@@ -848,42 +885,70 @@ const styles = StyleSheet.create({
   countryContainer: {
     flex: 1,
   },
+  // common label style for fields that don't use FormInput
+  fieldLabel: {
+    color: CRMTheme.Colors.textSecondary,
+    fontFamily: CRMTheme.Typography.fontFamily.medium,
+    fontSize: CRMTheme.Typography.fontSize.medium,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+    marginLeft: CRMTheme.Spacing.md,
+  },
+  requiredStar: {
+    color: CRMTheme.Colors.error,
+  },
   countryPickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: CRMTheme.Spacing.sm,
-    paddingHorizontal: CRMTheme.Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: CRMTheme.Colors.border,
-    backgroundColor: 'transparent',
-    height: 48,
+    borderBottomColor: CRMTheme.Colors.borderLight,
+    paddingHorizontal: CRMTheme.Spacing.md,
+    paddingVertical: CRMTheme.Spacing.sm,
+    backgroundColor: CRMTheme.Colors.backgroundLight,
+    height: 40,
   },
   countryPickerText: {
-    fontSize: CRMTheme.Typography.fontSize.large,
+    fontSize: CRMTheme.Typography.fontSize.medium,
     color: CRMTheme.Colors.textPrimary,
     fontFamily: CRMTheme.Typography.fontFamily.regular,
   },
   placeholderText: {
-    fontSize: CRMTheme.Typography.fontSize.large,
+    fontSize: CRMTheme.Typography.fontSize.medium,
     color: CRMTheme.Colors.textTertiary,
     fontFamily: CRMTheme.Typography.fontFamily.regular,
   },
-  pickerLabel: {
+  // Lead Status section
+  statusSection: {
+    marginBottom: CRMTheme.Spacing.sm,
+  },
+  statusSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: CRMTheme.Colors.borderLight,
+    paddingLeft: CRMTheme.Spacing.md,
+    paddingRight: CRMTheme.Spacing.xs,
+    paddingVertical: CRMTheme.Spacing.xs,
+    backgroundColor: CRMTheme.Colors.backgroundLight,
+  },
+  statusText: {
+    fontSize: CRMTheme.Typography.fontSize.large,
     color: CRMTheme.Colors.textPrimary,
     fontFamily: CRMTheme.Typography.fontFamily.regular,
-    fontSize: CRMTheme.Typography.fontSize.large,
-    marginBottom: CRMTheme.Spacing.xs,
-    marginLeft: CRMTheme.Spacing.sm,
+  },
+  // Sales rep section
+  salesRepSection: {
+    marginBottom: CRMTheme.Spacing.md,
   },
   salesRepSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderColor: CRMTheme.Colors.border,
-    paddingHorizontal: CRMTheme.Spacing.md,
-    paddingVertical: CRMTheme.Spacing.sm,
+    paddingLeft: CRMTheme.Spacing.md,
+    paddingRight: CRMTheme.Spacing.xs,
+    paddingVertical: CRMTheme.Spacing.xs,
     backgroundColor: CRMTheme.Colors.backgroundLight,
   },
   selectorError: {
@@ -913,29 +978,37 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     backgroundColor: CRMTheme.Colors.background,
-    paddingHorizontal: CRMTheme.Spacing.lg,
-    paddingVertical: CRMTheme.Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: CRMTheme.Colors.borderLight,
+    paddingHorizontal: CRMTheme.Spacing.xxl,
+    paddingVertical: CRMTheme.Spacing.lg,
+    marginBottom: CRMTheme.Spacing.lg,
   },
   submitButton: {
     backgroundColor: CRMTheme.Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: CRMTheme.Spacing.md,
     borderRadius: CRMTheme.Layout.borderRadius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
+    gap: CRMTheme.Spacing.sm,
+    shadowColor: CRMTheme.Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
   },
   submitButtonDisabled: {
-    backgroundColor: CRMTheme.Colors.buttonDisabled,
+    opacity: 0.7,
+    backgroundColor: CRMTheme.Colors.buttonDisabled || '#ccc',
+    shadowOpacity: 0.2,
+    elevation: 3,
   },
   submitButtonText: {
     color: CRMTheme.Colors.textInverse,
-    fontSize: CRMTheme.Typography.fontSize.button,
+    fontSize: CRMTheme.Typography.fontSize.medium,
     fontFamily: CRMTheme.Typography.fontFamily.semiBold,
   },
 
-  // Floating country dropdown menu
+  // Floating country dropdown menu (unchanged)
   countryDropdownMenu: {
     position: 'absolute',
     backgroundColor: CRMTheme.Colors.backgroundLight,
@@ -1008,7 +1081,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Modal styles (for sales rep)
+  // Modal styles (shared by sales rep and status)
   modalOverlay: {
     flex: 1,
     backgroundColor: CRMTheme.Colors.overlay,
@@ -1118,9 +1191,6 @@ const styles = StyleSheet.create({
     fontSize: CRMTheme.Typography.fontSize.small,
     fontFamily: CRMTheme.Typography.fontFamily.regular,
     color: CRMTheme.Colors.textSecondary,
-  },
-  Phone: {
-    marginLeft: CRMTheme.Spacing.sm,
   },
 });
 
