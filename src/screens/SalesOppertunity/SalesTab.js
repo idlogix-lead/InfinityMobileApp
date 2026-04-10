@@ -1,4 +1,4 @@
-// components/CRMSearch/SalesTab.js - Updated with better data display
+// components/CRMSearch/SalesTab.js - Updated to allow activity creation without lead ID
 import React from 'react';
 import {
   View,
@@ -18,18 +18,24 @@ const SalesTab = ({
   circularChartLabels,
   isRefreshing,
 }) => {
-  // Log received opportunities
+  // Log received opportunities (optional)
   React.useEffect(() => {
     console.log('📊 SalesTab received opportunities:', {
       count: salesOpportunities.length,
-      data: salesOpportunities.map(opp => ({
-        id: opp.id,
-        docNo: opp.DocumentNo,
-        amount: opp.OpportunityAmt,
-        stage: opp.salesStageName || opp.C_SalesStage_ID?.identifier
-      }))
     });
   }, [salesOpportunities]);
+
+  // Handle activity icon press – always navigate to AddActivity, even without lead ID
+  const handleActivityPress = (opportunity, leadData) => {
+    // Navigate to AddActivity screen, passing combined data.
+    navigation.navigate('AddActivity', {
+      data: {
+        ...leadData,      // may contain id, Name, EMail, Phone, BPName (some may be undefined)
+        opportunity,      // include the full opportunity for context
+      },
+      mode: 'create',
+    });
+  };
 
   // Render opportunities list
   const renderOpportunitiesList = () => {
@@ -52,7 +58,6 @@ const SalesTab = ({
     return (
       <View style={styles.opportunitiesListContainer}>
         {salesOpportunities.map((opportunity, index) => {
-          // Ensure we have a unique key
           const key = opportunity.id || `opp-${index}-${opportunity.DocumentNo || Date.now()}`;
           
           return (
@@ -60,6 +65,7 @@ const SalesTab = ({
               <OpportunityCard 
                 opportunity={opportunity}
                 onPress={(opp) => navigation.navigate('SalesDetail', { data: opp })}
+                onActivityPress={handleActivityPress}
                 showLeadInfo={true}
                 compact={false}
               />
@@ -94,17 +100,16 @@ const SalesTab = ({
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
-
   },
   container: {
     marginVertical: '4%',
   },
   opportunitiesSection: {
     backgroundColor: '#fff',
-  
     borderRadius: 8,
     marginHorizontal: 2,
     marginBottom: 16,

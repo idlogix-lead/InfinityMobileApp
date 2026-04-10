@@ -2,9 +2,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { keychainService } from '../services/KeyChainService';
-import { useAuthStore } from './authStore';
-import base64 from 'base-64'; // Import directly instead of using require
+import  keychainService  from '../services/KeyChainService';
+import { decodeJWT } from '../utils/authUtils'; // Import from utils
 
 // ============================================
 // SESSION MANAGER STORE
@@ -56,7 +55,7 @@ export const useSessionStore = create(
               isCurrent: session.userId === currentSessionId,
               serverConfig: session.serverConfig,
               isComplete: session.isComplete,
-              tokenValid // Add token validity flag
+              tokenValid
             };
           });
 
@@ -157,7 +156,6 @@ export const useSessionStore = create(
           
           if (!tokenValid) {
             console.log('⚠️ Switching to session with expired token');
-            // Still allow switching - let the API handle 401s
           }
           
           // Set as current session
@@ -244,30 +242,7 @@ export const useSessionStore = create(
     {
       name: 'session-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        // Don't persist registry in AsyncStorage (it's in Keychain)
-        // Just persist minimal state
-      }),
+      partialize: (state) => ({}),
     }
   )
 );
-
-// ============================================
-// MOVED decodeJWT OUTSIDE THE STORE
-// ============================================
-const decodeJWT = (token) => {
-  try {
-    if (!token) return null;
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = parts[1];
-    const base64Str = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64Str.padEnd(base64Str.length + (4 - base64Str.length % 4) % 4, '=');
-    
-    const decoded = base64.decode(padded);
-    return JSON.parse(decoded);
-  } catch (error) {
-    return null;
-  }
-};

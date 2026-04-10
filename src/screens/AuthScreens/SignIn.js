@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Alert,
 } from 'react-native';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Picker } from '@react-native-picker/picker';
@@ -22,6 +21,7 @@ import Ionicons from 'react-native-vector-icons/dist/Ionicons';
 import { useAuthStore } from '../../store/authStore';
 import { useBasicLogin, useCompleteLogin } from '../../hooks/useAuth';
 import colors from '../../constants/Colors';
+import CustomAlert from '../../components/CustomAlert'; // <-- Import CustomAlert
 
 const { height, width } = Dimensions.get('window');
 
@@ -31,6 +31,39 @@ const SignIn = ({ navigation }) => {
   const [selectedValue, setSelectedValue] = useState('English');
   const [checkedRem, setCheckedRem] = useState(true);
   const [checkedUseSavedRole, setCheckedUseSavedRole] = useState(true);
+  
+  // Alert state for CustomAlert
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertType, setAlertType] = useState('info');
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertConfirmText, setAlertConfirmText] = useState('OK');
+  const [alertCancelText, setAlertCancelText] = useState('Cancel');
+  const [alertShowCancel, setAlertShowCancel] = useState(false);
+  const [onConfirmAction, setOnConfirmAction] = useState(null);
+  const [onCancelAction, setOnCancelAction] = useState(null);
+
+  // Function to show custom alert
+  const showAlert = ({
+    type = 'info',
+    title,
+    message,
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = false,
+    onConfirm,
+    onCancel,
+  }) => {
+    setAlertType(type);
+    setAlertTitle(title);
+    setAlertMessage(message);
+    setAlertConfirmText(confirmText);
+    setAlertCancelText(cancelText);
+    setAlertShowCancel(showCancel);
+    setOnConfirmAction(() => onConfirm || (() => setAlertVisible(false)));
+    setOnCancelAction(() => onCancel || (() => setAlertVisible(false)));
+    setAlertVisible(true);
+  };
   
   // Responsive scaling factors
   const scaleWidth = (size) => (width / 375) * size;
@@ -88,7 +121,12 @@ const SignIn = ({ navigation }) => {
 
   const handleLogin = async () => {
     if (!userName.trim() || !password.trim()) {
-      Alert.alert('Validation', 'Please enter username and password');
+      showAlert({
+        type: 'warning',
+        title: 'Validation',
+        message: 'Please enter username and password',
+        onConfirm: () => setAlertVisible(false)
+      });
       return;
     }
 
@@ -109,7 +147,12 @@ const SignIn = ({ navigation }) => {
       const clients = loginData.clients || [];
       
       if (clients.length === 0) {
-        Alert.alert('Login Failed', 'No clients available for this user');
+        showAlert({
+          type: 'error',
+          title: 'Login Failed',
+          message: 'No clients available for this user',
+          onConfirm: () => setAlertVisible(false)
+        });
         setLoading(false);
         return;
       }
@@ -182,29 +225,41 @@ const SignIn = ({ navigation }) => {
             console.log('❌ Saved role login failed:', error.message);
             // If saved role fails, fall back to role selection
             setLoading(false);
-            Alert.alert('Auto-Login Failed', 'Unable to login with saved role. Please select role manually.');
-            proceedToRoleSelection(clients);
+            showAlert({
+              type: 'error',
+              title: 'Auto-Login Failed',
+              message: 'Unable to login with saved role. Please select role manually.',
+              onConfirm: () => {
+                setAlertVisible(false);
+                proceedToRoleSelection(clients);
+              }
+            });
           }
         } else {
           // No saved role data available
           console.log('❌ No saved role data available');
           setLoading(false);
-          Alert.alert(
-            'No Saved Role',
-            'No role data found. Please select a role.',
-            [
-              {
-                text: 'OK',
-                onPress: () => proceedToRoleSelection(clients)
-              }
-            ]
-          );
+          showAlert({
+            type: 'info',
+            title: 'No Saved Role',
+            message: 'No role data found. Please select a role.',
+            confirmText: 'OK',
+            onConfirm: () => {
+              setAlertVisible(false);
+              proceedToRoleSelection(clients);
+            }
+          });
         }
       }
       
     } catch (error) {
       setLoading(false);
-      Alert.alert('Login Failed', error.message || 'Please check your credentials');
+      showAlert({
+        type: 'error',
+        title: 'Login Failed',
+        message: error.message || 'Please check your credentials',
+        onConfirm: () => setAlertVisible(false)
+      });
     }
   };
 
@@ -240,8 +295,15 @@ const SignIn = ({ navigation }) => {
   // Show error alert if exists
   useEffect(() => {
     if (error) {
-      Alert.alert('Login Error', error);
-      clearError();
+      showAlert({
+        type: 'error',
+        title: 'Login Error',
+        message: error,
+        onConfirm: () => {
+          clearError();
+          setAlertVisible(false);
+        }
+      });
     }
   }, [error, clearError]); // Add clearError as dependency
 
@@ -446,6 +508,25 @@ const SignIn = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Custom Alert Modal */}
+      <CustomAlert
+        visible={alertVisible}
+        type={alertType}
+        title={alertTitle}
+        message={alertMessage}
+        confirmText={alertConfirmText}
+        cancelText={alertCancelText}
+        showCancelButton={alertShowCancel}
+        onConfirm={() => {
+          if (onConfirmAction) onConfirmAction();
+          setAlertVisible(false);
+        }}
+        onCancel={() => {
+          if (onCancelAction) onCancelAction();
+          setAlertVisible(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };

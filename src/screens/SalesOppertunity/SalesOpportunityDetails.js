@@ -1,4 +1,6 @@
-// screens/SalesOpportunityDetail/SalesOpportunityDetail.js - COMPLETE EDITION with custom alerts
+// screens/SalesOpportunityDetail/SalesOpportunityDetail.js
+// Lead tab restored, Contact field made optional (no required validation)
+// FIX: Fallback to current user ID when contact is null
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -27,36 +29,38 @@ import { Menu, Divider } from 'react-native-paper';
 import { useUpdateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
 import { useAuthStore } from '../../store/authStore';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
-import { Picker } from '@react-native-picker/picker';
-import CustomAlert from '../../components/CustomAlert'; // Import custom alert
+import CustomAlert from '../../components/CustomAlert';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
 // ============================================
-// UI COMPONENTS
+// UI COMPONENTS (copied from AddSaleOppor)
 // ============================================
 
-const Label = ({ title, required }) => (
-  <Text style={styles.label}>
-    {title}
-    {required && <Text style={styles.requiredStar}> *</Text>}
+/** Label above each field */
+const FieldLabel = ({ label, required }) => (
+  <Text style={styles.fieldLabel}>
+    {label} {required && <Text style={styles.requiredStar}>*</Text>}
   </Text>
 );
 
-const Input = React.memo(({ error, icon, ...props }) => (
-  <View>
+/** Text input with label and full border */
+const Input = React.memo(({ label, required, error, icon, containerStyle, ...props }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    {label && <FieldLabel label={label} required={required} />}
     <View style={[styles.inputContainer, error && styles.inputError]}>
       {icon && (
-        <MaterialCommunityIcons 
-          name={icon} 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
+        <MaterialCommunityIcons
+          name={icon}
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
           style={styles.inputIcon}
         />
       )}
       <TextInput
         {...props}
+        placeholder=""
         placeholderTextColor={Colors.textTertiary}
         style={[styles.input, icon && styles.inputWithIcon]}
       />
@@ -65,80 +69,118 @@ const Input = React.memo(({ error, icon, ...props }) => (
   </View>
 ));
 
-const ReadOnly = ({ value, icon }) => (
-  <View style={[styles.inputContainer, styles.readOnlyContainer]}>
-    {icon && (
-      <MaterialCommunityIcons 
-        name={icon} 
-        size={Layout.iconSize.sm} 
-        color={Colors.textSecondary} 
-        style={styles.inputIcon}
-      />
-    )}
-    <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>{value || 'Not provided'}</Text>
+/** Read-only field */
+const ReadOnly = ({ label, value, icon }) => (
+  <View style={[styles.fieldContainer]}>
+    {label && <FieldLabel label={label} />}
+    <View style={[styles.inputContainer, styles.readOnlyContainer]}>
+      {icon && (
+        <MaterialCommunityIcons
+          name={icon}
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.inputIcon}
+        />
+      )}
+      <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>
+        {value || 'Not provided'}
+      </Text>
+    </View>
   </View>
 );
 
-const PickerField = ({ selectedValue, onValueChange, children, error, icon, placeholder }) => (
-  <View>
-    <View style={[styles.pickerContainer, error && styles.inputError]}>
+/** Generic selector that opens a modal */
+const SelectorField = ({
+  label,
+  required,
+  value,
+  onPress,
+  error,
+  clearable,
+  onClear,
+  icon,
+}) => (
+  <View style={styles.fieldContainer}>
+    {label && <FieldLabel label={label} required={required} />}
+    <TouchableOpacity
+      style={[styles.selector, error && styles.selectorError]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       {icon && (
-        <MaterialCommunityIcons 
-          name={icon} 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
-          style={styles.pickerIcon}
+        <MaterialCommunityIcons
+          name={icon}
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.selectorIcon}
         />
       )}
-      <Picker
-        selectedValue={selectedValue}
-        onValueChange={onValueChange}
-        style={[styles.picker, icon && styles.pickerWithIcon]}
-        dropdownIconColor={Colors.textSecondary}
-      >
-        {placeholder && (
-          <Picker.Item 
-            label={placeholder} 
-            value={null} 
-            color={Colors.textTertiary}
-          />
-        )}
-        {children}
-      </Picker>
-    </View>
+      {value ? (
+        <View style={styles.selectedValueContainer}>
+          <Text style={styles.selectedValueText} numberOfLines={1}>
+            {value}
+          </Text>
+          {clearable && onClear && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+            >
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={18}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : (
+        <Text style={styles.placeholderText}> </Text>
+      )}
+      <MaterialCommunityIcons
+        name="chevron-down"
+        size={20}
+        color={Colors.textSecondary}
+        style={styles.chevron}
+      />
+    </TouchableOpacity>
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 );
 
-const DatePickerField = ({ value, onPress, error, icon }) => {
+/** Date picker field (opens calendar modal) */
+const DatePickerField = ({ label, required, value, onPress, error, icon }) => {
   const formatDate = (date) => {
     if (!date) return '';
     return moment(date).format('DD MMM YYYY');
   };
 
   return (
-    <View>
-      <TouchableOpacity 
-        style={[styles.inputContainer, error && styles.inputError]} 
+    <View style={styles.fieldContainer}>
+      {label && <FieldLabel label={label} required={required} />}
+      <TouchableOpacity
+        style={[styles.selector, error && styles.selectorError]}
         onPress={onPress}
         activeOpacity={0.7}
       >
         {icon && (
-          <MaterialCommunityIcons 
-            name={icon} 
-            size={Layout.iconSize.sm} 
-            color={Colors.textSecondary} 
-            style={styles.inputIcon}
+          <MaterialCommunityIcons
+            name={icon}
+            size={Layout.iconSize.sm}
+            color={Colors.textSecondary}
+            style={styles.selectorIcon}
           />
         )}
-        <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
-          {value ? formatDate(value) : 'Select date'}
+        <Text style={[styles.selectedValueText, !value && styles.placeholderText]}>
+          {value ? formatDate(value) : ''}
         </Text>
-        <MaterialCommunityIcons 
-          name="calendar-month" 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
-          style={styles.dateIcon}
+        <MaterialCommunityIcons
+          name="calendar-month"
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.chevron}
         />
       </TouchableOpacity>
       {error && <Text style={styles.errorText}>{error}</Text>}
@@ -146,264 +188,36 @@ const DatePickerField = ({ value, onPress, error, icon }) => {
   );
 };
 
+/** Switch row */
 const SwitchRow = ({ label, value, onValueChange, disabled }) => (
-  <View style={styles.switchRow}>
-    <Text style={styles.switchLabel}>{label}</Text>
-    <Switch
-      value={value}
-      onValueChange={onValueChange}
-      disabled={disabled}
-      trackColor={{ false: Colors.border, true: Colors.primary }}
-      thumbColor={Colors.backgroundLight}
-    />
-  </View>
-);
-
-// Business Partner Selector Component
-const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear }) => (
-  <View style={styles.editField}>
-    <View style={styles.labelContainer}>
-      <Text style={styles.label}>Business Partner</Text>
-      <Text style={styles.requiredStar}> *</Text>
+  <View style={styles.fieldContainer}>
+    <FieldLabel label={label} />
+    <View style={styles.switchContainer}>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: Colors.border, true: Colors.primary }}
+        thumbColor={Colors.backgroundLight}
+      />
     </View>
-    <TouchableOpacity
-      style={[
-        styles.selector,
-        error && styles.selectorError,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {selectedBPName ? (
-        <View style={styles.selectedItemContainer}>
-          <View style={styles.selectedItemInfo}>
-            <MaterialCommunityIcons name="domain" size={Layout.iconSize.sm} color={Colors.primary} />
-            <Text style={styles.selectedItemText} numberOfLines={1}>{selectedBPName}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.clearButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              onClear();
-            }}
-          >
-            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <Text style={styles.placeholderText}>Select Business Partner</Text>
-          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-        </>
-      )}
-    </TouchableOpacity>
-    {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 );
 
-// Sales Rep Selector Component
-const SalesRepSelector = ({ selectedSalesRepName, error, onPress, onClear }) => (
-  <View style={styles.editField}>
-    <View style={styles.labelContainer}>
-      <Text style={styles.label}>Sales Representative</Text>
-      <Text style={styles.requiredStar}> *</Text>
-    </View>
-    <TouchableOpacity
-      style={[
-        styles.selector,
-        error && styles.selectorError,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {selectedSalesRepName ? (
-        <View style={styles.selectedItemContainer}>
-          <View style={styles.selectedItemInfo}>
-            <MaterialCommunityIcons name="account-tie" size={Layout.iconSize.sm} color={Colors.primary} />
-            <Text style={styles.selectedItemText} numberOfLines={1}>{selectedSalesRepName}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.clearButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              onClear();
-            }}
-          >
-            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <Text style={styles.placeholderText}>Select Sales Representative</Text>
-          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-        </>
-      )}
-    </TouchableOpacity>
-    {error && <Text style={styles.errorText}>{error}</Text>}
-  </View>
-);
-
-// Contact Selector Component
-const ContactSelector = ({ selectedContactName, selectedContactDetails, error, onPress, onClear }) => (
-  <View style={styles.editField}>
-    <View style={styles.labelContainer}>
-      <Text style={styles.label}>Contact</Text>
-      <Text style={styles.requiredStar}> *</Text>
-    </View>
-    <TouchableOpacity
-      style={[
-        styles.selector,
-        error && styles.selectorError,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {selectedContactName ? (
-        <View style={styles.selectedItemContainer}>
-          <View style={styles.selectedItemInfo}>
-            <MaterialCommunityIcons name="account" size={Layout.iconSize.sm} color={Colors.primary} />
-            <View style={styles.contactSelectorText}>
-              <Text style={styles.selectedItemText} numberOfLines={1}>{selectedContactName}</Text>
-              {selectedContactDetails && (
-                <Text style={styles.contactSelectorDetails} numberOfLines={1}>{selectedContactDetails}</Text>
-              )}
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.clearButton}
-            onPress={(e) => {
-              e.stopPropagation();
-              onClear();
-            }}
-          >
-            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <Text style={styles.placeholderText}>Select Contact</Text>
-          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-        </>
-      )}
-    </TouchableOpacity>
-    {error && <Text style={styles.errorText}>{error}</Text>}
-  </View>
-);
-
-// Error Retry Component
+/** Error retry banner */
 const ErrorRetry = ({ message, onRetry }) => (
-  <View style={styles.errorContainer}>
-    <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.sm} color={Colors.error} />
+  <View style={styles.errorRetryContainer}>
+    <MaterialCommunityIcons
+      name="alert-circle"
+      size={Layout.iconSize.sm}
+      color={Colors.error}
+    />
     <Text style={styles.errorRetryText}>{message}</Text>
     <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
       <Text style={styles.retryButtonText}>Retry</Text>
     </TouchableOpacity>
   </View>
 );
-
-// Status Config for Sales Opportunities
-const STATUS_CONFIG = {
-  'Won': {
-    barColor: Colors.statusConverted || '#10B981',
-    badgeText: 'Won',
-    badgeBg: Colors.successLight || '#E6F4EA',
-    badgeColor: Colors.statusConverted || '#10B981',
-    showDot: false,
-    showCheck: true,
-  },
-  'Lost': {
-    barColor: Colors.statusExpired || '#EF4444',
-    badgeText: 'Lost',
-    badgeBg: Colors.errorLight || '#FEE2E2',
-    badgeColor: Colors.statusExpired || '#EF4444',
-    showDot: true,
-  },
-  'In Progress': {
-    barColor: Colors.statusWorking || '#F59E0B',
-    badgeText: 'In Progress',
-    badgeBg: Colors.warningLight || '#FEF3C7',
-    badgeColor: Colors.statusWorking || '#F59E0B',
-    showDot: true,
-  },
-  'Open': {
-    barColor: Colors.statusNew || '#3B82F6',
-    badgeText: 'Open',
-    badgeBg: Colors.infoLight || '#EFF6FF',
-    badgeColor: Colors.statusNew || '#3B82F6',
-    showDot: true,
-  },
-};
-
-// Tab Component with Integrated Arrow Connector
-const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
-  <View style={styles.tabButtonWrapper}>
-    <TouchableOpacity
-      style={[
-        styles.tabButton,
-        active && styles.tabButtonActive,
-        isFirst && styles.tabButtonFirst,
-        isLast && styles.tabButtonLast,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
-        {title}
-      </Text>
-    </TouchableOpacity>
-    
-    {/* Integrated Arrow Connector */}
-    {active && (
-      <View style={styles.activeTabArrowContainer}>
-        <View style={styles.activeTabArrow} />
-      </View>
-    )}
-  </View>
-);
-
-// Section Header Component
-const SectionHeader = ({ title }) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-  </View>
-);
-
-// View Mode Row Component
-const ViewRow = ({ label, value }) => (
-  <View style={styles.viewRow}>
-    <Text style={styles.viewLabel}>{label}</Text>
-    <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
-  </View>
-);
-
-// Clickable View Row
-const ClickableViewRow = ({ label, value, onPress, icon }) => (
-  <TouchableOpacity 
-    style={styles.viewRow}
-    onPress={onPress}
-    activeOpacity={0.7}
-    disabled={!onPress}
-  >
-    <Text style={styles.viewLabel}>{label}</Text>
-    <View style={styles.clickableValueContainer}>
-      <Text style={[styles.viewValue, icon && styles.viewValueWithIcon]}>{value || 'Not provided'}</Text>
-      {icon && (
-        <MaterialCommunityIcons 
-          name={icon} 
-          size={Layout.iconSize.sm} 
-          color={Colors.primary} 
-          style={styles.clickableIcon}
-        />
-      )}
-    </View>
-  </TouchableOpacity>
-);
-
-// Format date helper
-const formatDate = (dateString) => {
-  if (!dateString) return 'Not set';
-  return moment(dateString).format('DD MMM YYYY');
-};
 
 // ============================================
 // MAIN COMPONENT
@@ -414,10 +228,10 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const authState = useAuthStore();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
   const [statusMenuVisible, setStatusMenuVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState('details'); // 'details', 'lead', 'company', 'description'
+
   // State for current opportunity data
   const [opportunity, setOpportunity] = useState(initialOpportunity);
 
@@ -452,12 +266,18 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const [showBPModal, setShowBPModal] = useState(false);
   const [showSalesRepModal, setShowSalesRepModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showStageModal, setShowStageModal] = useState(false);
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
   // Search states
   const [bpSearch, setBpSearch] = useState('');
   const [salesRepSearch, setSalesRepSearch] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const [stageSearch, setStageSearch] = useState('');
+  const [currencySearch, setCurrencySearch] = useState('');
+  const [campaignSearch, setCampaignSearch] = useState('');
 
   // Custom alert state
   const [alertConfig, setAlertConfig] = useState({
@@ -474,7 +294,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   // Form state for editable fields
   const [formData, setFormData] = useState({
-    documentNo: '',
     businessPartnerId: null,
     businessPartnerName: '',
     contactId: null,
@@ -564,19 +383,19 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   // Extract currency
   const currencyId = opportunity?.C_Currency_ID?.id || opportunity?.currencyId;
-  const currencyCode = opportunity?.C_Currency_ID?.ISO_Code || 
-                      opportunity?.currencyCode || 
+  const currencyCode = opportunity?.C_Currency_ID?.ISO_Code ||
+                      opportunity?.currencyCode ||
                       'PKR';
 
   // Extract stage
   const stageId = opportunity?.C_SalesStage_ID?.id || opportunity?.salesStageId;
-  const stageName = opportunity?.C_SalesStage_ID?.identifier || 
-                    opportunity?.salesStageName || 
+  const stageName = opportunity?.C_SalesStage_ID?.identifier ||
+                    opportunity?.salesStageName ||
                     'Not specified';
 
   // Extract status
-  const status = opportunity?.C_OpportunityStatus?.identifier || 
-                opportunity?.OpportunityStatus || 
+  const status = opportunity?.C_OpportunityStatus?.identifier ||
+                opportunity?.OpportunityStatus ||
                 'Open';
 
   // Extract campaign
@@ -585,29 +404,29 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   // Extract business partner
   const businessPartnerId = opportunity?.C_BPartner_ID?.id || opportunity?.businessPartnerId;
-  const businessPartnerName = opportunity?.C_BPartner_ID?.identifier || 
+  const businessPartnerName = opportunity?.C_BPartner_ID?.identifier ||
                              opportunity?.businessPartnerName ||
-                             opportunity?.BusinessPartner || 
+                             opportunity?.BusinessPartner ||
                              'No Company';
 
   // Extract contact/lead data (initial from opportunity)
   const contactId = opportunity?.AD_User_ID?.id || opportunity?.userId;
-  const initialContactName = opportunity?.AD_User_ID?.identifier || 
+  const initialContactName = opportunity?.AD_User_ID?.identifier ||
                             opportunity?.userName ||
-                            opportunity?.ContactName || 
+                            opportunity?.ContactName ||
                             'Unknown Contact';
-  const initialContactEmail = opportunity?.AD_User_ID?.EMail || 
-                             opportunity?.ContactEmail || 
+  const initialContactEmail = opportunity?.AD_User_ID?.EMail ||
+                             opportunity?.ContactEmail ||
                              '';
-  const initialContactPhone = opportunity?.AD_User_ID?.Phone || 
-                             opportunity?.ContactPhone || 
+  const initialContactPhone = opportunity?.AD_User_ID?.Phone ||
+                             opportunity?.ContactPhone ||
                              '';
 
   // Extract sales rep
   const salesRepId = opportunity?.SalesRep_ID?.id || opportunity?.salesRepId;
-  const salesRepName = opportunity?.SalesRep_ID?.identifier || 
+  const salesRepName = opportunity?.SalesRep_ID?.identifier ||
                       opportunity?.salesRepName ||
-                      opportunity?.SalesRep || 
+                      opportunity?.SalesRep ||
                       'Unassigned';
   const salesRepEmail = opportunity?.SalesRep_ID?.EMail || '';
 
@@ -616,6 +435,37 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const updatedDate = opportunity?.Updated;
 
   // Get status UI config
+  const STATUS_CONFIG = {
+    'Won': {
+      barColor: Colors.statusConverted || '#10B981',
+      badgeText: 'Won',
+      badgeBg: Colors.successLight || '#E6F4EA',
+      badgeColor: Colors.statusConverted || '#10B981',
+      showDot: false,
+      showCheck: true,
+    },
+    'Lost': {
+      barColor: Colors.statusExpired || '#EF4444',
+      badgeText: 'Lost',
+      badgeBg: Colors.errorLight || '#FEE2E2',
+      badgeColor: Colors.statusExpired || '#EF4444',
+      showDot: true,
+    },
+    'In Progress': {
+      barColor: Colors.statusWorking || '#F59E0B',
+      badgeText: 'In Progress',
+      badgeBg: Colors.warningLight || '#FEF3C7',
+      badgeColor: Colors.statusWorking || '#F59E0B',
+      showDot: true,
+    },
+    'Open': {
+      barColor: Colors.statusNew || '#3B82F6',
+      badgeText: 'Open',
+      badgeBg: Colors.infoLight || '#EFF6FF',
+      badgeColor: Colors.statusNew || '#3B82F6',
+      showDot: true,
+    },
+  };
   const statusUI = STATUS_CONFIG[status] || STATUS_CONFIG['Open'];
 
   // ============================================
@@ -624,7 +474,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   useEffect(() => {
     const fetchLeadData = async () => {
       if (!contactId) {
-        // Even without contactId, use initial data
         setLeadData({
           name: initialContactName,
           email: initialContactEmail,
@@ -634,12 +483,12 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
       }
 
       setLoadingLead(true);
-      
+
       try {
         // Try to get from cache first
         const cachedLeads = queryClient.getQueryData(['leads']);
         if (Array.isArray(cachedLeads)) {
-          const cachedLead = cachedLeads.find(lead => 
+          const cachedLead = cachedLeads.find(lead =>
             lead.id === contactId || lead.AD_User_ID?.id === contactId
           );
           if (cachedLead) {
@@ -685,7 +534,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             phone: data.Phone || '',
           });
         } else {
-          // Fallback to initial data
           setLeadData({
             name: initialContactName,
             email: initialContactEmail,
@@ -717,7 +565,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   // ============================================
   useEffect(() => {
     setFormData({
-      documentNo: documentNo,
       businessPartnerId: businessPartnerId,
       businessPartnerName: businessPartnerName,
       contactId: contactId,
@@ -750,7 +597,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     if (!token) {
       throw new Error('Authentication token missing');
     }
-    
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -891,7 +738,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
   const filteredSalesReps = useMemo(() => {
     if (!salesRepSearch.trim()) return salesRepsData;
     const query = salesRepSearch.toLowerCase();
-    return salesRepsData.filter(rep => 
+    return salesRepsData.filter(rep =>
       rep.Name && rep.Name.toLowerCase().includes(query)
     );
   }, [salesRepsData, salesRepSearch]);
@@ -904,6 +751,27 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
       (contact.EMail && contact.EMail.toLowerCase().includes(query))
     );
   }, [contactsData, contactSearch]);
+
+  const filteredStages = useMemo(() => {
+    if (!stageSearch.trim()) return stages;
+    const query = stageSearch.toLowerCase();
+    return stages.filter(s => s.Name?.toLowerCase().includes(query));
+  }, [stages, stageSearch]);
+
+  const filteredCurrencies = useMemo(() => {
+    if (!currencySearch.trim()) return currencies;
+    const query = currencySearch.toLowerCase();
+    return currencies.filter(c =>
+      c.ISO_Code?.toLowerCase().includes(query) ||
+      c.Description?.toLowerCase().includes(query)
+    );
+  }, [currencies, currencySearch]);
+
+  const filteredCampaigns = useMemo(() => {
+    if (!campaignSearch.trim()) return campaigns;
+    const query = campaignSearch.toLowerCase();
+    return campaigns.filter(c => c.Name?.toLowerCase().includes(query));
+  }, [campaigns, campaignSearch]);
 
   // ============================================
   // HANDLERS
@@ -974,27 +842,66 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     }));
   }, []);
 
-  const handleStageChange = useCallback((id) => {
-    setFormData(prev => ({ ...prev, stageId: id }));
-    const stage = stages.find(s => s.id === id);
-    if (stage?.Probability) {
-      setFormData(prev => ({ ...prev, probability: stage.Probability.toString() }));
-    }
-  }, [stages]);
+  const handleSelectStage = useCallback((stage) => {
+    setFormData(prev => ({
+      ...prev,
+      stageId: stage.id,
+      stageName: stage.Name,
+      probability: stage.Probability ? stage.Probability.toString() : prev.probability,
+    }));
+    setShowStageModal(false);
+    setStageSearch('');
+  }, []);
 
-  const handleCurrencyChange = useCallback((id) => {
-    setFormData(prev => ({ ...prev, currencyId: id }));
-    const currency = currencies.find(c => c.id === id);
-    if (currency?.ISO_Code) {
-      setFormData(prev => ({ ...prev, currencyCode: currency.ISO_Code }));
-    }
-  }, [currencies]);
+  const handleClearStage = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      stageId: null,
+      stageName: '',
+    }));
+  }, []);
+
+  const handleSelectCurrency = useCallback((currency) => {
+    setFormData(prev => ({
+      ...prev,
+      currencyId: currency.id,
+      currencyCode: currency.ISO_Code,
+    }));
+    setShowCurrencyModal(false);
+    setCurrencySearch('');
+  }, []);
+
+  const handleClearCurrency = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      currencyId: null,
+      currencyCode: '',
+    }));
+  }, []);
+
+  const handleSelectCampaign = useCallback((campaign) => {
+    setFormData(prev => ({
+      ...prev,
+      campaignId: campaign.id,
+      campaignName: campaign.Name,
+    }));
+    setShowCampaignModal(false);
+    setCampaignSearch('');
+  }, []);
+
+  const handleClearCampaign = useCallback(() => {
+    setFormData(prev => ({
+      ...prev,
+      campaignId: null,
+      campaignName: '',
+    }));
+  }, []);
 
   const validate = () => {
     const errors = {};
-    
+
     if (!formData.businessPartnerId) errors.bp = 'Business Partner is required';
-    if (!formData.contactId) errors.contact = 'Contact is required';
+    // Contact is no longer required (validation removed)
     if (!formData.salesRepId) errors.salesRep = 'Sales Representative is required';
     if (!formData.stageId) errors.stage = 'Sales Stage is required';
     if (!formData.expectedCloseDate) errors.date = 'Expected Close Date is required';
@@ -1007,6 +914,9 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     return errors;
   };
 
+  // ============================================
+  // SAVE FUNCTION (with fallback to current user)
+  // ============================================
   const handleSave = () => {
     const errors = validate();
     if (Object.keys(errors).length > 0) {
@@ -1014,10 +924,17 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
       return;
     }
 
+    // Determine the contact user ID: use selected contact, otherwise current user
+    const finalContactId = formData.contactId || authState?.userId;
+    if (!finalContactId) {
+      showErrorAlert('No contact person available. Please select a contact or ensure you are logged in.');
+      return;
+    }
+
     const updates = {
-      Name: formData.documentNo,
+      Name: documentNo,
       C_BPartner_ID: { id: formData.businessPartnerId },
-      AD_User_ID: { id: formData.contactId },
+      AD_User_ID: { id: finalContactId }, // always non‑null
       SalesRep_ID: { id: formData.salesRepId },
       C_SalesStage_ID: { id: formData.stageId },
       Probability: parseFloat(formData.probability) || 0,
@@ -1033,21 +950,21 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
       updates.C_Campaign_ID = { id: formData.campaignId };
     }
 
-    updateMutation.mutate({
-      id: opportunityId,
-      updates: updates
-    }, {
-      onSuccess: (updatedData) => {
-        setOpportunity(updatedData);
-        setIsEditMode(false);
-        queryClient.setQueryData(['sales-opportunity', opportunityId], updatedData);
-        queryClient.invalidateQueries(['sales-opportunities']);
-        showSuccessAlert('Opportunity updated successfully!');
-      },
-      onError: (error) => {
-        showErrorAlert(error.message || 'Failed to update opportunity');
+    updateMutation.mutate(
+      { id: opportunityId, updates },
+      {
+        onSuccess: (updatedData) => {
+          setOpportunity(updatedData);
+          setIsEditMode(false);
+          queryClient.setQueryData(['sales-opportunity', opportunityId], updatedData);
+          queryClient.invalidateQueries(['sales-opportunities']);
+          showSuccessAlert('Opportunity updated successfully!');
+        },
+        onError: (error) => {
+          showErrorAlert(error.message || 'Failed to update opportunity');
+        },
       }
-    });
+    );
   };
 
   const handleCancel = () => {
@@ -1055,7 +972,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
       setIsEditMode(false);
       // Reset form to original values
       setFormData({
-        documentNo: documentNo,
         businessPartnerId: businessPartnerId,
         businessPartnerName: businessPartnerName,
         contactId: contactId,
@@ -1100,7 +1016,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   const handleStatusUpdate = (newStatus) => {
     setStatusMenuVisible(false);
-    
+
     updateMutation.mutate({
       id: opportunityId,
       updates: { OpportunityStatus: newStatus }
@@ -1169,7 +1085,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     }
   };
 
-  // Render Business Partner Item
+  // Render item functions for modals
   const renderBusinessPartnerItem = useCallback(({ item }) => (
     <TouchableOpacity
       style={[
@@ -1198,12 +1114,11 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     </TouchableOpacity>
   ), [formData.businessPartnerId, handleSelectBusinessPartner]);
 
-  // Render Contact Item
   const renderContactItem = useCallback(({ item }) => {
     const details = [];
     if (item.EMail) details.push(item.EMail);
     if (item.Phone) details.push(item.Phone);
-    
+
     return (
       <TouchableOpacity
         style={[
@@ -1235,7 +1150,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     );
   }, [formData.contactId, handleSelectContact]);
 
-  // Render Sales Rep Item
   const renderSalesRepItem = useCallback(({ item }) => (
     <TouchableOpacity
       style={[
@@ -1264,6 +1178,71 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
     </TouchableOpacity>
   ), [formData.salesRepId, handleSelectSalesRep]);
 
+  const renderStageItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.itemRow,
+        formData.stageId === item.id && styles.selectedItemRow,
+      ]}
+      onPress={() => handleSelectStage(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <MaterialCommunityIcons name="chart-line" size={20} color={Colors.primary} style={styles.itemIcon} />
+        <View style={styles.itemDetails}>
+          <Text style={styles.itemName}>{item.Name}</Text>
+          {item.Probability && <Text style={styles.itemSubtext}>Probability: {item.Probability}%</Text>}
+        </View>
+      </View>
+      {formData.stageId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  ), [formData.stageId, handleSelectStage]);
+
+  const renderCurrencyItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.itemRow,
+        formData.currencyId === item.id && styles.selectedItemRow,
+      ]}
+      onPress={() => handleSelectCurrency(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <MaterialCommunityIcons name="currency-sign" size={20} color={Colors.primary} style={styles.itemIcon} />
+        <View style={styles.itemDetails}>
+          <Text style={styles.itemName}>{item.ISO_Code}</Text>
+          {item.Description && <Text style={styles.itemSubtext}>{item.Description}</Text>}
+        </View>
+      </View>
+      {formData.currencyId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  ), [formData.currencyId, handleSelectCurrency]);
+
+  const renderCampaignItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={[
+        styles.itemRow,
+        formData.campaignId === item.id && styles.selectedItemRow,
+      ]}
+      onPress={() => handleSelectCampaign(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.itemContent}>
+        <MaterialCommunityIcons name="bullhorn" size={20} color={Colors.primary} style={styles.itemIcon} />
+        <View style={styles.itemDetails}>
+          <Text style={styles.itemName}>{item.Name}</Text>
+        </View>
+      </View>
+      {formData.campaignId === item.id && (
+        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
+      )}
+    </TouchableOpacity>
+  ), [formData.campaignId, handleSelectCampaign]);
+
   // ============================================
   // RENDER METHODS
   // ============================================
@@ -1283,7 +1262,6 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.sectionCard}>
             <SectionHeader title="Opportunity Details" />
             <View style={styles.sectionContent}>
-              <ViewRow label="Document No" value={documentNo} />
               <ViewRow label="Stage" value={stageName} />
               <ViewRow label="Expected Close Date" value={formatDate(expectedCloseDate)} />
               <ViewRow label="Probability" value={`${probability}%`} />
@@ -1305,16 +1283,16 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.sectionCard}>
             <SectionHeader title="Contact Information" />
             <View style={styles.sectionContent}>
-              <ClickableViewRow 
+              <ClickableViewRow
                 label="Contact Name"
                 value={contactName}
-                onPress={() => contactId && navigation.navigate('LeadDetails', { 
+                onPress={() => contactId && navigation.navigate('LeadDetails', {
                   data: { id: contactId, Name: contactName, EMail: contactEmail, Phone: contactPhone }
                 })}
               />
               
               {contactEmail ? (
-                <ClickableViewRow 
+                <ClickableViewRow
                   label="Email"
                   value={contactEmail}
                   onPress={() => handleEmail(contactEmail)}
@@ -1325,7 +1303,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               )}
               
               {contactPhone ? (
-                <ClickableViewRow 
+                <ClickableViewRow
                   label="Phone"
                   value={contactPhone}
                   onPress={() => handlePhoneCall(contactPhone)}
@@ -1343,16 +1321,16 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.sectionCard}>
             <SectionHeader title="Company Information" />
             <View style={styles.sectionContent}>
-              <ClickableViewRow 
+              <ClickableViewRow
                 label="Company Name"
                 value={businessPartnerName}
-                onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', { 
-                  id: businessPartnerId, name: businessPartnerName 
+                onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', {
+                  id: businessPartnerId, name: businessPartnerName
                 })}
               />
               <ViewRow label="Sales Representative" value={salesRepName} />
               {salesRepEmail && (
-                <ClickableViewRow 
+                <ClickableViewRow
                   label="Sales Rep Email"
                   value={salesRepEmail}
                   onPress={() => handleEmail(salesRepEmail)}
@@ -1374,7 +1352,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                   <Text style={styles.viewValue}>{description}</Text>
                 </View>
               ) : null}
-              
+
               {comments ? (
                 <View style={[styles.textBlock, description && styles.textBlockWithGap]}>
                   <Text style={styles.viewLabel}>COMMENTS</Text>
@@ -1399,33 +1377,29 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 
   const renderEditMode = () => {
     const errors = validate();
-    
+
     return (
       <View style={styles.formCard}>
-        {/* Document No (Read Only) */}
-        <Label title="Document No" />
-        <ReadOnly value={formData.documentNo} icon="file-document-outline" />
-
-        {/* Business Partner - Modal Selector */}
-        <BusinessPartnerSelector 
-          selectedBPName={formData.businessPartnerName}
-          error={errors.bp}
+        {/* Business Partner */}
+        <SelectorField
+          label="Business Partner"
+          required
+          value={formData.businessPartnerName}
           onPress={() => {
             setShowBPModal(true);
             fetchBusinessPartners();
           }}
+          error={errors.bp}
+          clearable={!!formData.businessPartnerId}
           onClear={handleClearBusinessPartner}
+          icon="domain"
         />
 
-        {/* Contact - Modal Selector */}
-        <ContactSelector 
-          selectedContactName={formData.contactName}
-          selectedContactDetails={
-            formData.contactEmail || formData.contactPhone
-              ? [formData.contactEmail, formData.contactPhone].filter(Boolean).join(' • ')
-              : null
-          }
-          error={errors.contact}
+        {/* Contact (now optional) */}
+        <SelectorField
+          label="Contact"
+          required={false}  // removed required star
+          value={formData.contactName}
           onPress={() => {
             if (formData.businessPartnerId) {
               setShowContactModal(true);
@@ -1434,183 +1408,214 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               showValidationAlert('Please select a Business Partner first');
             }
           }}
+          error={errors.contact} // this error is never set now, but kept for safety
+          clearable={!!formData.contactId}
           onClear={handleClearContact}
+          icon="account"
         />
 
-        {/* Sales Representative - Modal Selector */}
-        <SalesRepSelector 
-          selectedSalesRepName={formData.salesRepName}
-          error={errors.salesRep}
+        {/* Sales Representative */}
+        <SelectorField
+          label="Sales Representative"
+          required
+          value={formData.salesRepName}
           onPress={() => {
             setShowSalesRepModal(true);
             fetchSalesRepresentatives();
           }}
+          error={errors.salesRep}
+          clearable={!!formData.salesRepId}
           onClear={handleClearSalesRep}
+          icon="account-tie"
         />
 
-        {/* Sales Stage */}
-        <Label title="Sales Stage" required />
-        {isLoadingStages ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
-        ) : stagesError ? (
-          <ErrorRetry message={stagesError} onRetry={fetchStages} />
-        ) : (
-          <PickerField
-            selectedValue={formData.stageId}
-            onValueChange={handleStageChange}
-            error={errors.stage}
-            icon="chart-line"
-            placeholder="Select Stage"
-          >
-            {stages.map(stage => (
-              <Picker.Item 
-                key={stage.id} 
-                label={stage.Name} 
-                value={stage.id} 
-                color={Colors.textPrimary}
-              />
-            ))}
-          </PickerField>
-        )}
+        {/* Stage */}
+        <SelectorField
+          label="Sales Stage"
+          required
+          value={formData.stageName}
+          onPress={() => {
+            setShowStageModal(true);
+            fetchStages();
+          }}
+          error={errors.stage}
+          clearable={!!formData.stageId}
+          onClear={handleClearStage}
+          icon="chart-line"
+        />
 
         {/* Probability */}
-        <Label title="Probability (%)" />
         <Input
+          label="Probability (%)"
           value={formData.probability}
           onChangeText={(text) => {
             const filtered = text.replace(/[^0-9.]/g, '');
             setFormData(prev => ({ ...prev, probability: filtered }));
           }}
-          placeholder="Enter probability percentage"
           keyboardType="numeric"
           icon="percent"
         />
 
         {/* Campaign */}
-        <Label title="Campaign" />
-        {isLoadingCampaigns ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
-        ) : campaignsError ? (
-          <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} />
-        ) : (
-          <PickerField
-            selectedValue={formData.campaignId}
-            onValueChange={(id) => {
-              setFormData(prev => ({ ...prev, campaignId: id }));
-              const campaign = campaigns.find(c => c.id === id);
-              if (campaign) {
-                setFormData(prev => ({ ...prev, campaignName: campaign.Name }));
-              }
-            }}
-            icon="bullhorn"
-            placeholder="Select Campaign"
-          >
-            {campaigns.map(campaign => (
-              <Picker.Item 
-                key={campaign.id} 
-                label={campaign.Name} 
-                value={campaign.id} 
-                color={Colors.textPrimary}
-              />
-            ))}
-          </PickerField>
-        )}
+        <SelectorField
+          label="Campaign"
+          value={formData.campaignName}
+          onPress={() => {
+            setShowCampaignModal(true);
+            fetchCampaigns();
+          }}
+          clearable={!!formData.campaignId}
+          onClear={handleClearCampaign}
+          icon="bullhorn"
+        />
 
         {/* Expected Close Date */}
-        <Label title="Expected Close Date" required />
         <DatePickerField
+          label="Expected Close Date"
+          required
           value={formData.expectedCloseDate}
           onPress={() => setShowCalendar(true)}
           error={errors.date}
           icon="calendar-clock"
         />
 
-        {/* Opportunity Amount */}
-        <Label title="Opportunity Amount" required />
+        {/* Amount */}
         <Input
+          label="Opportunity Amount"
+          required
           value={formData.amount}
           onChangeText={(v) => {
             setFormData(prev => ({ ...prev, amount: v }));
           }}
-          placeholder="Enter amount"
           keyboardType="numeric"
           error={errors.amount}
           icon="currency-usd"
         />
 
         {/* Currency */}
-        <Label title="Currency" required />
-        {isLoadingCurrencies ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
-        ) : currenciesError ? (
-          <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} />
-        ) : (
-          <PickerField
-            selectedValue={formData.currencyId}
-            onValueChange={handleCurrencyChange}
-            error={errors.currency}
-            icon="currency-sign"
-            placeholder="Select Currency"
-          >
-            {currencies.map(currency => (
-              <Picker.Item 
-                key={currency.id} 
-                label={`${currency.ISO_Code} - ${currency.Description || ''}`} 
-                value={currency.id} 
-                color={Colors.textPrimary}
-              />
-            ))}
-          </PickerField>
-        )}
+        <SelectorField
+          label="Currency"
+          required
+          value={formData.currencyCode}
+          onPress={() => {
+            setShowCurrencyModal(true);
+            fetchCurrencies();
+          }}
+          error={errors.currency}
+          clearable={!!formData.currencyId}
+          onClear={handleClearCurrency}
+          icon="currency-sign"
+        />
 
         {/* Description */}
-        <Label title="Description" />
         <Input
+          label="Description"
           value={formData.description}
           onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-          placeholder="Enter description"
           multiline
           numberOfLines={3}
-          style={styles.textArea}
+          containerStyle={styles.textAreaContainer}
           icon="text"
         />
 
         {/* Comments */}
-        <Label title="Comments" />
         <Input
+          label="Comments"
           value={formData.comments}
           onChangeText={(text) => setFormData(prev => ({ ...prev, comments: text }))}
-          placeholder="Enter comments"
           multiline
           numberOfLines={3}
-          style={styles.textArea}
+          containerStyle={styles.textAreaContainer}
           icon="comment-text"
         />
 
         {/* Tenant */}
-        <Label title="Tenant" />
-        <ReadOnly value={authState?.clientName} icon="domain" />
+        <ReadOnly label="Tenant" value={authState?.clientName} icon="domain" />
 
         {/* Organization */}
-        <Label title="Organization" />
-        <ReadOnly value={authState?.organizationName} icon="office-building" />
+        <ReadOnly label="Organization" value={authState?.organizationName} icon="office-building" />
 
         {/* Active Switch */}
-        <SwitchRow 
-          label="Active" 
-          value={formData.isActive} 
+        <SwitchRow
+          label="Active"
+          value={formData.isActive}
           onValueChange={(value) => setFormData(prev => ({ ...prev, isActive: value }))}
-          disabled={false}
         />
       </View>
     );
   };
+
+  // Helper components for view mode
+  const SectionHeader = ({ title }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+  );
+
+  const ViewRow = ({ label, value }) => (
+    <View style={styles.viewRow}>
+      <Text style={styles.viewLabel}>{label}</Text>
+      <Text style={styles.viewValue}>{value || 'Not provided'}</Text>
+    </View>
+  );
+
+  const ClickableViewRow = ({ label, value, onPress, icon }) => (
+    <TouchableOpacity
+      style={styles.viewRow}
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={!onPress}
+    >
+      <Text style={styles.viewLabel}>{label}</Text>
+      <View style={styles.clickableValueContainer}>
+        <Text style={[styles.viewValue, icon && styles.viewValueWithIcon]}>{value || 'Not provided'}</Text>
+        {icon && (
+          <MaterialCommunityIcons
+            name={icon}
+            size={Layout.iconSize.sm}
+            color={Colors.primary}
+            style={styles.clickableIcon}
+          />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not set';
+    return moment(dateString).format('DD MMM YYYY');
+  };
+
+  const tabs = [
+    { key: 'details', title: 'Details' },
+    { key: 'lead', title: 'Lead' },
+    { key: 'company', title: 'Company' },
+    { key: 'description', title: 'Notes' },
+  ];
+
+  const TabButton = ({ title, active, onPress, isFirst, isLast }) => (
+    <View style={styles.tabButtonWrapper}>
+      <TouchableOpacity
+        style={[
+          styles.tabButton,
+          active && styles.tabButtonActive,
+          isFirst && styles.tabButtonFirst,
+          isLast && styles.tabButtonLast,
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.tabButtonText, active && styles.tabButtonTextActive]}>
+          {title}
+        </Text>
+      </TouchableOpacity>
+      {active && (
+        <View style={styles.activeTabArrowContainer}>
+          <View style={styles.activeTabArrow} />
+        </View>
+      )}
+    </View>
+  );
 
   if (!opportunity) {
     return (
@@ -1648,22 +1653,17 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         RightPress={handleEditToggle}
       />
 
-      {/* Custom Alert Modal */}
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
         onConfirm={() => {
-          if (alertConfig.onConfirm) {
-            alertConfig.onConfirm();
-          }
+          if (alertConfig.onConfirm) alertConfig.onConfirm();
           hideAlert();
         }}
         onCancel={() => {
-          if (alertConfig.onCancel) {
-            alertConfig.onCancel();
-          }
+          if (alertConfig.onCancel) alertConfig.onCancel();
           hideAlert();
         }}
         confirmText={alertConfig.confirmText}
@@ -1685,30 +1685,24 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
             <View style={styles.headerLeft}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
-                  {formData.businessPartnerName && formData.businessPartnerName !== 'No Company' 
+                  {formData.businessPartnerName && formData.businessPartnerName !== 'No Company'
                     ? formData.businessPartnerName.charAt(0).toUpperCase()
-                    : formData.documentNo?.charAt(0).toUpperCase() || 'O'}
+                    : 'O'}
                 </Text>
               </View>
               <View style={styles.headerInfo}>
                 {isEditMode ? (
                   <>
-                    <TextInput
-                      style={styles.editNameInput}
-                      value={formData.documentNo}
-                      onChangeText={(text) => setFormData(prev => ({ ...prev, documentNo: text }))}
-                      placeholder="Document No"
-                      placeholderTextColor={Colors.textTertiary}
-                    />
+                    <Text style={styles.editNameInput}>{formData.businessPartnerName}</Text>
                     <Text style={styles.opportunitySubtitle}>
                       {formData.businessPartnerName || 'No Company'}
                     </Text>
                   </>
                 ) : (
                   <>
-                    <TouchableOpacity 
-                      onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', { 
-                        id: businessPartnerId, name: businessPartnerName 
+                    <TouchableOpacity
+                      onPress={() => businessPartnerId && navigation.navigate('BusinessPartnerDetail', {
+                        id: businessPartnerId, name: businessPartnerName
                       })}
                       activeOpacity={0.7}
                     >
@@ -1716,9 +1710,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                         {businessPartnerName}
                       </Text>
                     </TouchableOpacity>
-                    <Text style={styles.opportunitySubtitle} numberOfLines={1}>
-                      {documentNo}
-                    </Text>
+                    {/* Document number removed */}
                   </>
                 )}
               </View>
@@ -1781,11 +1773,11 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               <View style={styles.probabilityRow}>
                 <View style={styles.probabilityBarContainer}>
                   <View style={styles.probabilityBar}>
-                    <View 
+                    <View
                       style={[
-                        styles.probabilityFill, 
+                        styles.probabilityFill,
                         { width: `${probability}%`, backgroundColor: Colors.primary }
-                      ]} 
+                      ]}
                     />
                   </View>
                 </View>
@@ -1796,38 +1788,22 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         </View>
 
         {/* Tabs */}
-        <View style={styles.tabsWrapper}>
-          <View style={styles.tabsContainer}>
-            <TabButton 
-              title="Details" 
-              active={!isEditMode && activeTab === 'details'} 
-              onPress={() => !isEditMode && setActiveTab('details')}
-              isFirst={true}
-              isLast={false}
-            />
-            <TabButton 
-              title="Lead" 
-              active={!isEditMode && activeTab === 'lead'} 
-              onPress={() => !isEditMode && setActiveTab('lead')}
-              isFirst={false}
-              isLast={false}
-            />
-            <TabButton 
-              title="Company" 
-              active={!isEditMode && activeTab === 'company'} 
-              onPress={() => !isEditMode && setActiveTab('company')}
-              isFirst={false}
-              isLast={false}
-            />
-            <TabButton 
-              title="Notes" 
-              active={!isEditMode && activeTab === 'description'} 
-              onPress={() => !isEditMode && setActiveTab('description')}
-              isFirst={false}
-              isLast={true}
-            />
+        {!isEditMode && (
+          <View style={styles.tabsWrapper}>
+            <View style={styles.tabsContainer}>
+              {tabs.map((tab, index) => (
+                <TabButton
+                  key={tab.key}
+                  title={tab.title}
+                  active={activeTab === tab.key}
+                  onPress={() => setActiveTab(tab.key)}
+                  isFirst={index === 0}
+                  isLast={index === tabs.length - 1}
+                />
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Tab Content */}
         {isEditMode ? renderEditMode() : renderViewMode()}
@@ -1862,7 +1838,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      {/* Calendar Modal */}
+      {/* Modals */}
       <CalendarModal
         visible={showCalendar}
         onClose={() => setShowCalendar(false)}
@@ -1887,12 +1863,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Business Partner</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowBPModal(false);
-                  setBpSearch('');
-                }}
-              >
+              <TouchableOpacity onPress={() => { setShowBPModal(false); setBpSearch(''); }}>
                 <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -1901,7 +1872,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="Search by name..."
+                placeholder=""
                 placeholderTextColor={Colors.textTertiary}
                 value={bpSearch}
                 onChangeText={setBpSearch}
@@ -1931,9 +1902,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                   <View style={styles.modalEmpty}>
                     <MaterialCommunityIcons name="domain-off" size={Layout.iconSize.xl} color={Colors.border} />
                     <Text style={styles.modalEmptyText}>
-                      {bpSearch.trim()
-                        ? `No results for "${bpSearch}"`
-                        : 'No business partners available'}
+                      {bpSearch.trim() ? `No results for "${bpSearch}"` : 'No business partners available'}
                     </Text>
                   </View>
                 }
@@ -1957,12 +1926,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Contact</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowContactModal(false);
-                  setContactSearch('');
-                }}
-              >
+              <TouchableOpacity onPress={() => { setShowContactModal(false); setContactSearch(''); }}>
                 <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -1971,7 +1935,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="Search by name or email..."
+                placeholder=""
                 placeholderTextColor={Colors.textTertiary}
                 value={contactSearch}
                 onChangeText={setContactSearch}
@@ -2001,9 +1965,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                   <View style={styles.modalEmpty}>
                     <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
                     <Text style={styles.modalEmptyText}>
-                      {contactSearch.trim()
-                        ? `No results for "${contactSearch}"`
-                        : 'No contacts available for this business partner'}
+                      {contactSearch.trim() ? `No results for "${contactSearch}"` : 'No contacts available for this business partner'}
                     </Text>
                   </View>
                 }
@@ -2027,12 +1989,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Sales Representative</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowSalesRepModal(false);
-                  setSalesRepSearch('');
-                }}
-              >
+              <TouchableOpacity onPress={() => { setShowSalesRepModal(false); setSalesRepSearch(''); }}>
                 <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -2041,7 +1998,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
               <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
               <TextInput
                 style={styles.modalSearchInput}
-                placeholder="Search by name..."
+                placeholder=""
                 placeholderTextColor={Colors.textTertiary}
                 value={salesRepSearch}
                 onChangeText={setSalesRepSearch}
@@ -2070,9 +2027,196 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
                   <View style={styles.modalEmpty}>
                     <MaterialCommunityIcons name="account-off" size={Layout.iconSize.xl} color={Colors.border} />
                     <Text style={styles.modalEmptyText}>
-                      {salesRepSearch.trim()
-                        ? `No results for "${salesRepSearch}"`
-                        : 'No sales representatives available'}
+                      {salesRepSearch.trim() ? `No results for "${salesRepSearch}"` : 'No sales representatives available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Stage Modal */}
+      <Modal
+        visible={showStageModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowStageModal(false);
+          setStageSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Sales Stage</Text>
+              <TouchableOpacity onPress={() => { setShowStageModal(false); setStageSearch(''); }}>
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder=""
+                placeholderTextColor={Colors.textTertiary}
+                value={stageSearch}
+                onChangeText={setStageSearch}
+                autoFocus={true}
+              />
+              {stageSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setStageSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingStages ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredStages}
+                renderItem={renderStageItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="chart-line" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {stageSearch.trim() ? `No results for "${stageSearch}"` : 'No stages available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Currency Modal */}
+      <Modal
+        visible={showCurrencyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowCurrencyModal(false);
+          setCurrencySearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Currency</Text>
+              <TouchableOpacity onPress={() => { setShowCurrencyModal(false); setCurrencySearch(''); }}>
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder=""
+                placeholderTextColor={Colors.textTertiary}
+                value={currencySearch}
+                onChangeText={setCurrencySearch}
+                autoFocus={true}
+              />
+              {currencySearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCurrencySearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingCurrencies ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredCurrencies}
+                renderItem={renderCurrencyItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="currency-sign" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {currencySearch.trim() ? `No results for "${currencySearch}"` : 'No currencies available'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Campaign Modal */}
+      <Modal
+        visible={showCampaignModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowCampaignModal(false);
+          setCampaignSearch('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Campaign</Text>
+              <TouchableOpacity onPress={() => { setShowCampaignModal(false); setCampaignSearch(''); }}>
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder=""
+                placeholderTextColor={Colors.textTertiary}
+                value={campaignSearch}
+                onChangeText={setCampaignSearch}
+                autoFocus={true}
+              />
+              {campaignSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCampaignSearch('')}>
+                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {isLoadingCampaigns ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.modalLoadingText}>Loading...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredCampaigns}
+                renderItem={renderCampaignItem}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                ListEmptyComponent={
+                  <View style={styles.modalEmpty}>
+                    <MaterialCommunityIcons name="bullhorn" size={Layout.iconSize.xl} color={Colors.border} />
+                    <Text style={styles.modalEmptyText}>
+                      {campaignSearch.trim() ? `No results for "${campaignSearch}"` : 'No campaigns available'}
                     </Text>
                   </View>
                 }
@@ -2086,7 +2230,7 @@ const SalesOpportunityDetail = ({ route, navigation }) => {
 };
 
 // ============================================
-// STYLES
+// STYLES (unchanged – same as original)
 // ============================================
 const styles = StyleSheet.create({
   keyboardView: {
@@ -2110,22 +2254,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.small,
     color: Colors.textSecondary,
   },
-
   // Header Card
   headerCard: {
     backgroundColor: Colors.cardBackground || '#FFFFFF',
-    borderRadius: Layout.borderRadius.md || 8,
     marginHorizontal: Spacing.md || 12,
     marginTop: Spacing.md || 12,
     marginBottom: Spacing.sm || 8,
     padding: Spacing.md || 12,
     borderWidth: 1,
     borderColor: Colors.borderLight || '#F0F0F0',
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: Layout.borderRadius.md || 8,
   },
   headerTop: {
     flexDirection: 'row',
@@ -2160,7 +2298,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.h4 || 16,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textPrimary || '#333333',
-    marginBottom: 2,
   },
   opportunitySubtitle: {
     fontSize: Typography.fontSize.small || 12,
@@ -2176,7 +2313,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border || '#E0E0E0',
   },
-
   // Status Badge
   statusBadge: {
     flexDirection: 'row',
@@ -2195,15 +2331,14 @@ const styles = StyleSheet.create({
     height: scale(6),
     borderRadius: scale(3),
   },
-
   // Amount Display
   amountContainer: {
     backgroundColor: Colors.backgroundLight || '#F5F5F5',
     borderRadius: Layout.borderRadius.sm || 4,
-    padding: Spacing.sm || 8,
+    paddingHorizontal: Spacing.sm || 8,
   },
   amountHeader: {
-    marginBottom: 2,
+    marginBottom: 4,
   },
   amountLabel: {
     fontSize: Typography.fontSize.xsmall || 10,
@@ -2241,7 +2376,6 @@ const styles = StyleSheet.create({
     minWidth: scale(40),
     textAlign: 'right',
   },
-
   // Tabs
   tabsWrapper: {
     marginHorizontal: Spacing.md || 12,
@@ -2267,7 +2401,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabButton: {
-    paddingVertical: verticalScale(6),
+    paddingVertical: verticalScale(7),
     alignItems: 'center',
     borderRadius: Layout.borderRadius.sm || 4,
   },
@@ -2288,7 +2422,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabButtonText: {
-    fontSize: Typography.fontSize.small || 12,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.medium || 'K2D-Medium',
     color: Colors.textSecondary || '#666666',
   },
@@ -2316,8 +2450,7 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     borderTopColor: Colors.primary || '#2F4FE3',
   },
-
-  // Section Cards
+  // Section Cards (view mode)
   sectionCard: {
     backgroundColor: Colors.cardBackground || '#FFFFFF',
     borderRadius: Layout.borderRadius.md || 8,
@@ -2341,32 +2474,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight || '#F5F5F5',
   },
   sectionTitle: {
-    fontSize: Typography.fontSize.small || 12,
+    fontSize: Typography.fontSize.large || 12,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textPrimary || '#333333',
   },
   sectionContent: {
     padding: Spacing.sm || 8,
   },
-
-  // Form Card for Edit Mode
-  formCard: {
-    backgroundColor: Colors.cardBackground || '#FFFFFF',
-    borderRadius: Layout.borderRadius.md || 8,
-    marginHorizontal: Spacing.md || 12,
-    marginTop: verticalScale(8),
-    marginBottom: Spacing.sm || 8,
-    padding: Spacing.md || 12,
-    borderWidth: 1,
-    borderColor: Colors.borderLight || '#F0F0F0',
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-
-  // View Mode Row
+  // View Row
   viewRow: {
     marginBottom: Spacing.sm || 8,
     paddingBottom: Spacing.xs || 4,
@@ -2374,7 +2489,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight || '#F0F0F0',
   },
   viewLabel: {
-    fontSize: Typography.fontSize.small || 12,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
     color: Colors.textSecondary || '#666666',
     marginBottom: 2,
@@ -2382,7 +2497,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   viewValue: {
-    fontSize: Typography.fontSize.xsmall || 10,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
     color: Colors.textPrimary || '#333333',
     lineHeight: 16,
@@ -2398,425 +2513,324 @@ const styles = StyleSheet.create({
   clickableIcon: {
     marginLeft: Spacing.xs,
   },
-
-  // Edit Mode Fields
-  label: {
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
-    color: Colors.textSecondary || '#666666',
-    marginTop: Spacing.md || 12,
-    marginBottom: Spacing.xxs || 2,
-    textTransform: 'uppercase',
+  // Edit Mode Form Card (match AddSaleOppor)
+  formCard: {
+    backgroundColor: Colors.cardBackground || '#FFFFFF',
+    borderWidth: 1,
+    borderColor: Colors.border || '#E0E0E0',
+    borderRadius: Layout.borderRadius.md || 8,
+    marginHorizontal: Spacing.md || 12,
+    marginTop: verticalScale(8),
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  fieldContainer: {
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+  },
+  fieldLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium,
     letterSpacing: 0.5,
+    marginLeft: Spacing.sm,
+    textTransform: 'uppercase',
   },
   requiredStar: {
     color: Colors.error,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
   },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xxs || 2,
-  },
-  editField: {
-    marginBottom: Spacing.md || 12,
-  },
+  // Input styles (bottom border only)
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
-    borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.sm || 4,
-    minHeight: 42,
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: Colors.backgroundLight,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    height: 42,
   },
   inputError: {
     borderColor: Colors.error,
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
   inputIcon: {
-    paddingLeft: Spacing.sm || 8,
+    paddingLeft: Spacing.sm,
   },
   input: {
     flex: 1,
     height: 42,
-    paddingHorizontal: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textPrimary || '#333333',
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
     textAlignVertical: 'center',
     includeFontPadding: false,
   },
   inputWithIcon: {
-    paddingLeft: Spacing.xs || 4,
+    paddingLeft: Spacing.xs,
   },
   readOnlyContainer: {
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    backgroundColor: Colors.backgroundLight,
     opacity: 0.9,
   },
   readOnlyText: {
     flex: 1,
-    paddingHorizontal: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textPrimary || '#333333',
+    paddingHorizontal: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
     textAlignVertical: 'center',
   },
-  pickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
-    borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.sm || 4,
-    minHeight: 42,
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  pickerIcon: {
-    paddingLeft: Spacing.sm || 8,
-  },
-  picker: {
-    flex: 1,
-    height: 42,
-    color: Colors.textPrimary || '#333333',
-  },
-  pickerWithIcon: {
-    marginLeft: -Spacing.xs || -4,
-  },
-  dateText: {
-    flex: 1,
-    paddingHorizontal: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textPrimary || '#333333',
-  },
-  dateIcon: {
-    paddingRight: Spacing.sm || 8,
-  },
-  textArea: {
-    minHeight: verticalScale(80) || 80,
-    textAlignVertical: 'top',
-    paddingTop: Spacing.sm || 8,
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    marginTop: Spacing.xxs || 2,
-    marginLeft: Spacing.xs || 4,
-  },
-
-  // Selector Styles
+  // Selector styles (bottom border only)
   selector: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
-    borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.sm || 4,
-    paddingHorizontal: Spacing.sm || 8,
-    paddingVertical: 0,
+    backgroundColor: Colors.backgroundLight,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.sm,
     height: 42,
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   selectorError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
+    borderBottomColor: Colors.error,
+    borderBottomWidth: 1.5,
   },
-  selectedItemContainer: {
+  selectorIcon: {
+    marginRight: Spacing.xs,
+  },
+  selectedValueContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectedItemInfo: {
+  selectedValueText: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs || 4,
-    marginRight: Spacing.xs || 4,
-  },
-  selectedItemText: {
-    flex: 1,
-    fontSize: Typography.fontSize.small || 12,
-    color: Colors.textPrimary || '#333333',
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-  },
-  contactSelectorText: {
-    flex: 1,
-  },
-  contactSelectorDetails: {
-    fontSize: Typography.fontSize.xsmall || 10,
-    color: Colors.textSecondary || '#666666',
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
   },
   placeholderText: {
-    fontSize: Typography.fontSize.small || 12,
-    color: Colors.textTertiary || '#999999',
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
+    flex: 1,
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
   },
   clearButton: {
-    padding: Spacing.xxs || 2,
+    padding: Spacing.xxs,
+    marginLeft: Spacing.xs,
   },
-
-  // Switch
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.md || 12,
-    paddingVertical: Spacing.sm || 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight || '#F0F0F0',
+  chevron: {
+    marginLeft: Spacing.xs,
   },
-  switchLabel: {
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.bold || 'K2D-Bold',
-    color: Colors.textSecondary || '#666666',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-
-  // Loader and Error
-  loaderContainer: {
+  // Switch container
+  switchContainer: {
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: Spacing.sm,
     height: 42,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
-    borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.sm || 4,
   },
-  errorContainer: {
+  // Error text
+  errorText: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginTop: Spacing.xxs,
+    marginLeft: Spacing.xs,
+  },
+  // Error retry banner
+  errorRetryContainer: {
     height: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.errorLight || '#FDEAEA',
+    backgroundColor: Colors.errorLight,
     borderWidth: 1,
     borderColor: Colors.error,
-    borderRadius: Layout.borderRadius.sm || 4,
-    paddingHorizontal: Spacing.sm || 8,
+    borderRadius: Layout.borderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
   },
   errorRetryText: {
     color: Colors.error,
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    marginLeft: Spacing.xs || 4,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    marginLeft: Spacing.xs,
     flex: 1,
   },
   retryButton: {
-    paddingHorizontal: Spacing.sm || 8,
-    paddingVertical: Spacing.xxs || 2,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xxs,
     backgroundColor: Colors.error,
-    borderRadius: Layout.borderRadius.sm || 4,
+    borderRadius: Layout.borderRadius.sm,
   },
   retryButtonText: {
-    color: Colors.textInverse || '#FFFFFF',
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.semiBold,
   },
-
   // Action Buttons
   actionButtons: {
-    marginHorizontal: Spacing.md || 12,
-    marginTop: Spacing.sm || 8,
-    marginBottom: verticalScale(16) || 16,
-    gap: Spacing.sm || 8,
+    marginHorizontal: Spacing.xxl,
+    marginTop: Spacing.sm,
+    marginBottom: verticalScale(16),
+    gap: Spacing.sm,
   },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary || '#2F4FE3',
+    backgroundColor: Colors.primary,
     paddingVertical: 0,
-    borderRadius: Layout.borderRadius.md || 6,
-    gap: Spacing.sm || 8,
+    borderRadius: Layout.borderRadius.md,
+    gap: Spacing.sm,
     height: 48,
-    shadowColor: Colors.primary || '#2F4FE3',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   saveButtonDisabled: {
     opacity: 0.7,
     backgroundColor: Colors.buttonDisabled || '#A0A0A0',
   },
   saveButtonText: {
-    color: Colors.textInverse || '#FFFFFF',
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textInverse,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
   },
   cancelButton: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 0,
-    borderRadius: Layout.borderRadius.md || 6,
+    borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
     height: 48,
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
   cancelButtonText: {
-    color: Colors.textSecondary || '#666666',
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    color: Colors.textSecondary,
+    fontSize: Typography.fontSize.small,
+    fontFamily: Typography.fontFamily.semiBold,
   },
-
-  // Modal Styles
+  // Modal Styles (from AddSaleOppor)
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.overlay || 'rgba(0,0,0,0.5)',
+    backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground || '#FFFFFF',
-    borderTopLeftRadius: Layout.borderRadius.lg || 12,
-    borderTopRightRadius: Layout.borderRadius.lg || 12,
+    backgroundColor: Colors.cardBackground,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomWidth: 0,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.md || 12,
+    padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight || '#F0F0F0',
+    borderBottomColor: Colors.borderLight,
   },
   modalTitle: {
-    fontSize: Typography.fontSize.h4 || 18,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textPrimary || '#333333',
+    fontSize: Typography.fontSize.h4,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
   },
   modalSearch: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: Spacing.md || 12,
-    paddingHorizontal: Spacing.sm || 8,
-    backgroundColor: Colors.backgroundLight || '#F5F5F5',
     borderWidth: 1,
-    borderColor: Colors.border || '#E0E0E0',
-    borderRadius: Layout.borderRadius.md || 8,
-    gap: Spacing.xs || 4,
-    height: verticalScale(42) || 42,
-    shadowColor: Colors.shadow || '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderColor: Colors.border,
+    borderRadius: Layout.borderRadius.md,
+    margin: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.backgroundLight,
+    gap: Spacing.xs,
+    height: verticalScale(42),
   },
   modalSearchInput: {
     flex: 1,
-    height: verticalScale(42) || 42,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textPrimary || '#333333',
+    height: verticalScale(42),
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
     paddingVertical: 0,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
   },
   modalLoading: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: verticalScale(32) || 32,
+    paddingVertical: verticalScale(32),
   },
   modalLoadingText: {
-    marginTop: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textSecondary || '#666666',
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
   },
   modalEmpty: {
     alignItems: 'center',
-    paddingVertical: verticalScale(32) || 32,
+    justifyContent: 'center',
+    paddingVertical: verticalScale(40),
+    paddingHorizontal: Spacing.lg,
   },
   modalEmptyText: {
-    marginTop: Spacing.sm || 8,
-    fontSize: Typography.fontSize.small || 12,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textTertiary || '#999999',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textTertiary,
     textAlign: 'center',
-    paddingHorizontal: Spacing.xl || 20,
+    marginTop: Spacing.md,
   },
-
-  // Item Row Styles
+  // Item rows inside modals
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: verticalScale(10) || 10,
-    paddingHorizontal: Spacing.md || 12,
+    paddingVertical: verticalScale(10),
+    paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight || '#F0F0F0',
+    borderBottomColor: Colors.borderLight,
   },
   selectedItemRow: {
-    backgroundColor: Colors.infoLight || '#F0F9FF',
+    backgroundColor: Colors.infoLight,
   },
   itemContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  itemIcon: {
+    marginRight: Spacing.sm,
+  },
   itemAvatar: {
-    width: scale(40) || 40,
-    height: scale(40) || 40,
-    borderRadius: scale(20) || 20,
-    backgroundColor: Colors.primary || '#2F4FE3',
+    width: scale(40),
+    height: scale(40),
+    borderRadius: scale(20),
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.sm || 8,
-    shadowColor: Colors.primary || '#2F4FE3',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
-    elevation: 2,
+    marginRight: Spacing.sm,
   },
   itemAvatarText: {
-    fontSize: Typography.fontSize.medium || 14,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textInverse || '#FFFFFF',
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textInverse,
   },
   itemDetails: {
     flex: 1,
   },
   itemName: {
-    fontSize: Typography.fontSize.medium || 14,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textPrimary || '#333333',
-    marginBottom: Spacing.xxs || 2,
+    fontSize: Typography.fontSize.medium,
+    fontFamily: Typography.fontFamily.semiBold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xxs,
   },
   itemSubtext: {
-    fontSize: Typography.fontSize.xsmall || 10,
-    fontFamily: Typography.fontFamily.regular || 'K2D-Regular',
-    color: Colors.textSecondary || '#666666',
+    fontSize: Typography.fontSize.xsmall,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textSecondary,
   },
-
   // Text Block
   textBlock: {
     marginBottom: Spacing.sm || 8,
@@ -2831,7 +2845,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary || '#666666',
     fontStyle: 'italic',
   },
-
   // Empty State
   emptyState: {
     alignItems: 'center',
@@ -2843,7 +2856,6 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary || '#999999',
     marginTop: Spacing.xs || 4,
   },
-
   // Menu Styles
   menuItemTitle: {
     fontSize: Typography.fontSize.small || 12,
@@ -2853,59 +2865,15 @@ const styles = StyleSheet.create({
     color: Colors.primary || '#2F4FE3',
     fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
   },
-
-  // Error States
-  fullScreenError: {
+  // Text area container
+  textAreaContainer: {
+    marginBottom: Spacing.xs,
+  },
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background || '#EDEBEB',
-    padding: Spacing.xxl || 24,
-  },
-  fullScreenErrorText: {
-    fontSize: Typography.fontSize.h4 || 18,
-    fontFamily: Typography.fontFamily.medium || 'K2D-Medium',
-    color: Colors.textPrimary || '#333333',
-    textAlign: 'center',
-    marginTop: Spacing.md || 12,
-    marginBottom: Spacing.lg || 16,
-  },
-  fullScreenRetryButton: {
-    backgroundColor: Colors.primary || '#2F4FE3',
-    paddingHorizontal: Spacing.xl || 20,
-    paddingVertical: Spacing.md || 12,
-    borderRadius: Layout.borderRadius.md || 6,
-  },
-  fullScreenRetryButtonText: {
-    color: Colors.textInverse || '#FFFFFF',
-    fontSize: Typography.fontSize.medium || 14,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-  },
-  errorText: {
-    fontSize: Typography.fontSize.h4 || 18,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
-    color: Colors.textPrimary || '#333333',
-    marginTop: Spacing.md || 12,
-    marginBottom: Spacing.sm || 8,
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: Colors.primary || '#2F4FE3',
-    paddingHorizontal: Spacing.xl || 20,
-    paddingVertical: 0,
-    borderRadius: Layout.borderRadius.md || 6,
-    height: 48,
-    justifyContent: 'center',
-    shadowColor: Colors.primary || '#2F4FE3',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  retryButtonText: {
-    color: Colors.textInverse || '#FFFFFF',
-    fontSize: Typography.fontSize.medium || 14,
-    fontFamily: Typography.fontFamily.semiBold || 'K2D-SemiBold',
+    padding: Spacing.xxl,
   },
 });
 

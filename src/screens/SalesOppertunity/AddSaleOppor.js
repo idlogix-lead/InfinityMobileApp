@@ -1,4 +1,5 @@
-// screens/CRM/AddSaleOppor.js - UPDATED with custom alerts
+// screens/CRM/AddSaleOppor.js – Table‑like form with bottom borders only
+// All fields have uniform height and only bottom border, matching the "table" feel.
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
@@ -14,9 +15,11 @@ import {
   Modal,
   FlatList,
   Pressable,
+  Platform,
+  SafeAreaView,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import CustomHeader from '../../components/CustomHeader';
-import { Picker } from '@react-native-picker/picker';
 import { useAuthStore } from '../../store/authStore';
 import { useCreateSalesOpportunity } from '../../hooks/CRMhooks/useCRM';
 import { useSalesRepresentatives } from '../../hooks/CRMhooks/useCRM';
@@ -24,72 +27,62 @@ import theme from '../../constants/CRMTheme/CRMTheme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import CalendarModal from '../../components/RequestScreenComponents/Calendar/CalendarModal';
 import moment from 'moment';
-import CustomAlert from '../../components/CustomAlert'; // Make sure this path is correct based on your project structure
+import CustomAlert from '../../components/CustomAlert';
 
 const { Colors, Typography, Layout, Spacing } = theme;
 const { scale, verticalScale } = Layout;
 
 // ============================================
-// MOVE UI COMPONENTS OUTSIDE MAIN COMPONENT
+// UI COMPONENTS (with labels, bottom borders only)
 // ============================================
 
-const Label = ({ title, required }) => (
-  <Text style={styles.label}>
-    {title}
-    {required && <Text style={styles.requiredStar}> *</Text>}
-  </Text>
-);
-
-// FIXED: Memoize Input component to prevent unnecessary re-renders
-const Input = React.memo(({ error, icon, ...props }) => (
-  <View>
-    <View style={[styles.inputContainer, error && styles.inputError]}>
-      {icon && (
-        <MaterialCommunityIcons 
-          name={icon} 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
-          style={styles.inputIcon}
-        />
-      )}
+const FormInput = React.memo(({ label, required, value, onChangeText, error, keyboardType, autoCapitalize, containerStyle, inputStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>
+      {label}
+      {required && <Text style={styles.requiredStar}> *</Text>}
+    </Text>
+    <View style={[styles.inputWrapper, error && styles.inputError]}>
       <TextInput
-        {...props}
+        style={[styles.input, inputStyle]}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
         placeholderTextColor={Colors.textTertiary}
-        style={[styles.input, icon && styles.inputWithIcon]}
       />
     </View>
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
 ));
 
-const ReadOnly = ({ value, icon }) => (
-  <View style={[styles.inputContainer, styles.readOnlyContainer]}>
-    {icon && (
-      <MaterialCommunityIcons 
-        name={icon} 
-        size={Layout.iconSize.sm} 
-        color={Colors.textSecondary} 
-        style={styles.inputIcon}
-      />
-    )}
-    <Text style={[styles.readOnlyText, icon && styles.inputWithIcon]}>{value || 'Not provided'}</Text>
+const ReadOnlyField = React.memo(({ label, value, icon, containerStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={[styles.inputWrapper, styles.readOnlyWrapper]}>
+      {icon && (
+        <MaterialCommunityIcons
+          name={icon}
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
+          style={styles.inputIcon}
+        />
+      )}
+      <Text style={[styles.readOnlyText, icon && { paddingLeft: Spacing.xs }]}>
+        {value || 'Not provided'}
+      </Text>
+    </View>
   </View>
-);
+));
 
-// Contact Display Component
-const ContactDisplay = ({ leadData }) => {
+const ContactDisplay = React.memo(({ leadData, containerStyle }) => {
   const getContactDisplayName = () => {
     if (!leadData) return 'No lead data';
-    
     if (leadData.companyName && leadData.name) {
       return `${leadData.name} (${leadData.companyName})`;
     }
-    if (leadData.companyName) {
-      return leadData.companyName;
-    }
-    if (leadData.name) {
-      return leadData.name;
-    }
+    if (leadData.companyName) return leadData.companyName;
+    if (leadData.name) return leadData.name;
     return 'Lead Contact';
   };
 
@@ -101,96 +94,187 @@ const ContactDisplay = ({ leadData }) => {
   };
 
   return (
-    <View style={[styles.inputContainer, styles.readOnlyContainer, styles.contactContainer]}>
-      <MaterialCommunityIcons 
-        name="account" 
-        size={Layout.iconSize.sm} 
-        color={Colors.primary} 
-        style={styles.inputIcon}
-      />
-      <View style={styles.contactContent}>
-        <Text style={styles.contactName} numberOfLines={1}>
-          {getContactDisplayName()}
-        </Text>
-        {getContactDetails() ? (
-          <Text style={styles.contactDetails} numberOfLines={1}>
-            {getContactDetails()}
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>Lead Contact</Text>
+      <View style={[styles.inputWrapper, styles.readOnlyWrapper, styles.contactWrapper]}>
+        <MaterialCommunityIcons
+          name="account"
+          size={Layout.iconSize.sm}
+          color={Colors.primary}
+          style={styles.inputIcon}
+        />
+        <View style={styles.contactContent}>
+          <Text style={styles.contactName} numberOfLines={1}>
+            {getContactDisplayName()}
           </Text>
-        ) : null}
+          {getContactDetails() ? (
+            <Text style={styles.contactDetails} numberOfLines={1}>
+              {getContactDetails()}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </View>
   );
-};
+});
 
-const PickerField = ({ selectedValue, onValueChange, children, error, icon, placeholder }) => (
-  <View>
-    <View style={[styles.pickerContainer, error && styles.inputError]}>
-      {icon && (
-        <MaterialCommunityIcons 
-          name={icon} 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
-          style={styles.pickerIcon}
-        />
-      )}
-      <Picker
-        selectedValue={selectedValue}
-        onValueChange={onValueChange}
-        style={[styles.picker, icon && styles.pickerWithIcon]}
-        dropdownIconColor={Colors.textSecondary}
+// Custom picker field with modal and search
+const CustomPickerField = React.memo(({ label, required, selectedValue, onValueChange, options, error, containerStyle }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const selectedOption = options.find(opt => opt.value === selectedValue);
+
+  // Filter options based on search text
+  const filteredOptions = useMemo(() => {
+    if (!searchText.trim()) return options;
+    const query = searchText.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(query)
+    );
+  }, [options, searchText]);
+
+  const handleSelect = (value) => {
+    onValueChange(value);
+    setShowModal(false);
+    setSearchText('');
+  };
+
+  return (
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.requiredStar}> *</Text>}
+      </Text>
+      <TouchableOpacity
+        style={[styles.inputWrapper, error && styles.inputError]}
+        onPress={() => setShowModal(true)}
+        activeOpacity={0.7}
       >
-        {placeholder && (
-          <Picker.Item 
-            label={placeholder} 
-            value={null} 
-            color={Colors.textTertiary}
+        <View style={styles.chevronWrapper}>
+          <Text style={[styles.pickerText, !selectedValue && styles.placeholderText]}>
+            {selectedOption ? selectedOption.label : `Select ${label}`}
+          </Text>
+          <MaterialCommunityIcons
+            name="chevron-down"
+            size={Layout.iconSize.sm}
+            color={Colors.textSecondary}
+            style={styles.chevronIcon}
           />
-        )}
-        {children}
-      </Picker>
-    </View>
-    {error && <Text style={styles.errorText}>{error}</Text>}
-  </View>
-);
+        </View>
+      </TouchableOpacity>
+      {error && <Text style={styles.errorText}>{error}</Text>}
 
-const DatePickerField = ({ value, onPress, error, icon }) => {
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowModal(false);
+          setSearchText('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select {label}</Text>
+              <TouchableOpacity onPress={() => {
+                setShowModal(false);
+                setSearchText('');
+              }}>
+                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.modalSearch}>
+              <MaterialCommunityIcons
+                name="magnify"
+                size={Layout.iconSize.sm}
+                color={Colors.textSecondary}
+              />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder={`Search ${label}...`}
+                placeholderTextColor={Colors.textTertiary}
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus={true}
+              />
+              {searchText.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchText('')}>
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={Layout.iconSize.sm}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <FlatList
+              data={filteredOptions}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.itemRow, selectedValue === item.value && styles.selectedItemRow]}
+                  onPress={() => handleSelect(item.value)}
+                >
+                  <Text style={styles.itemName}>{item.label}</Text>
+                  {selectedValue === item.value && (
+                    <MaterialCommunityIcons name="check" size={Layout.iconSize.md} color={Colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item.value.toString()}
+              ListEmptyComponent={
+                <View style={styles.modalEmpty}>
+                  <MaterialCommunityIcons name="alert-circle-outline" size={Layout.iconSize.xl} color={Colors.border} />
+                  <Text style={styles.modalEmptyText}>
+                    {searchText.trim() ? `No results for "${searchText}"` : 'No options available'}
+                  </Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+});
+
+const DatePickerField = React.memo(({ label, required, value, onPress, error, containerStyle }) => {
   const formatDate = (date) => {
     if (!date) return '';
     return moment(date).format('DD MMM YYYY');
   };
 
   return (
-    <View>
-      <TouchableOpacity 
-        style={[styles.inputContainer, error && styles.inputError]} 
+    <View style={[styles.fieldContainer, containerStyle]}>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.requiredStar}> *</Text>}
+      </Text>
+      <TouchableOpacity
+        style={[styles.inputWrapper, error && styles.inputError]}
         onPress={onPress}
         activeOpacity={0.7}
       >
-        {icon && (
-          <MaterialCommunityIcons 
-            name={icon} 
-            size={Layout.iconSize.sm} 
-            color={Colors.textSecondary} 
-            style={styles.inputIcon}
-          />
-        )}
-        <Text style={[styles.dateText, icon && styles.inputWithIcon]}>
+        <Text style={[styles.dateText, !value && styles.placeholderText]}>
           {value ? formatDate(value) : 'Select date'}
         </Text>
-        <MaterialCommunityIcons 
-          name="calendar-month" 
-          size={Layout.iconSize.sm} 
-          color={Colors.textSecondary} 
+        <MaterialCommunityIcons
+          name="calendar-month"
+          size={Layout.iconSize.sm}
+          color={Colors.textSecondary}
           style={styles.dateIcon}
         />
       </TouchableOpacity>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
-};
+});
 
-const SwitchRow = ({ label, value, onValueChange, disabled }) => (
-  <View style={styles.switchRow}>
+const SwitchRow = React.memo(({ label, value, onValueChange, disabled, containerStyle }) => (
+  <View style={[styles.switchRow, containerStyle]}>
     <Text style={styles.switchLabel}>{label}</Text>
     <Switch
       value={value}
@@ -200,28 +284,29 @@ const SwitchRow = ({ label, value, onValueChange, disabled }) => (
       thumbColor={Colors.backgroundLight}
     />
   </View>
-);
+));
 
-// Business Partner Selector Component
-const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear }) => (
-  <View style={styles.editField}>
-    <View style={styles.labelContainer}>
-      <Text style={styles.label}>Business Partner</Text>
-      <Text style={styles.requiredStar}> *</Text>
-    </View>
+const BusinessPartnerSelector = React.memo(({ selectedBPName, error, onPress, onClear, containerStyle }) => (
+  <View style={[styles.fieldContainer, containerStyle]}>
+    <Text style={styles.fieldLabel}>
+      Business Partner <Text style={styles.requiredStar}>*</Text>
+    </Text>
     <TouchableOpacity
-      style={[
-        styles.selector,
-        error && styles.selectorError,
-      ]}
+      style={[styles.inputWrapper, error && styles.inputError]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       {selectedBPName ? (
         <View style={styles.selectedItemContainer}>
           <View style={styles.selectedItemInfo}>
-            <MaterialCommunityIcons name="domain" size={Layout.iconSize.sm} color={Colors.primary} />
-            <Text style={styles.selectedItemText} numberOfLines={1}>{selectedBPName}</Text>
+            <MaterialCommunityIcons
+              name="domain"
+              size={Layout.iconSize.sm}
+              color={Colors.primary}
+            />
+            <Text style={styles.selectedItemText} numberOfLines={1}>
+              {selectedBPName}
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.clearButton}
@@ -230,24 +315,36 @@ const BusinessPartnerSelector = ({ selectedBPName, error, onPress, onClear }) =>
               onClear();
             }}
           >
-            <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+            <MaterialCommunityIcons
+              name="close-circle"
+              size={Layout.iconSize.sm}
+              color={Colors.textSecondary}
+            />
           </TouchableOpacity>
         </View>
       ) : (
-        <>
+        <View style={styles.chevronWrapper}>
           <Text style={styles.placeholderText}>Select Business Partner</Text>
-          <MaterialCommunityIcons name="chevron-down" size={Layout.iconSize.sm} color={Colors.textSecondary} />
-        </>
+          <MaterialCommunityIcons
+            name="chevron-down"
+            size={Layout.iconSize.sm}
+            color={Colors.textSecondary}
+            style={styles.chevronIcon}
+          />
+        </View>
       )}
     </TouchableOpacity>
     {error && <Text style={styles.errorText}>{error}</Text>}
   </View>
-);
+));
 
-// Error Retry Component
-const ErrorRetry = ({ message, onRetry }) => (
-  <View style={styles.errorContainer}>
-    <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.sm} color={Colors.error} />
+const ErrorRetry = ({ message, onRetry, containerStyle }) => (
+  <View style={[styles.errorContainer, containerStyle]}>
+    <MaterialCommunityIcons
+      name="alert-circle"
+      size={Layout.iconSize.sm}
+      color={Colors.error}
+    />
     <Text style={styles.errorRetryText}>{message}</Text>
     <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
       <Text style={styles.retryButtonText}>Retry</Text>
@@ -259,24 +356,27 @@ const ErrorRetry = ({ message, onRetry }) => (
 // MAIN COMPONENT
 // ============================================
 const AddSaleOppor = ({ navigation, route }) => {
-  // Get params from route
   const { leadData, followupData, mode } = route.params || {};
-  
-  // Log the incoming leadData for debugging
-  console.log('📦 AddSaleOppor - Received leadData:', leadData ? JSON.stringify({
-    id: leadData.id,
-    name: leadData.name,
-    email: leadData.email,
-    phone: leadData.phone,
-    companyName: leadData.companyName,
-    businessPartnerId: leadData.businessPartnerId,
-    businessPartnerName: leadData.businessPartnerName,
-    userId: leadData.userId,
-    salesRepId: leadData.salesRepId
-  }) : 'No');
-  
+
+  console.log(
+    '📦 AddSaleOppor - Received leadData:',
+    leadData
+      ? JSON.stringify({
+          id: leadData.id,
+          name: leadData.name,
+          email: leadData.email,
+          phone: leadData.phone,
+          companyName: leadData.companyName,
+          businessPartnerId: leadData.businessPartnerId,
+          businessPartnerName: leadData.businessPartnerName,
+          userId: leadData.userId,
+          salesRepId: leadData.salesRepId,
+        })
+      : 'No'
+  );
+
   const createOpportunity = useCreateSalesOpportunity();
-  
+
   /* ---------------- AUTH STORE ---------------- */
   const authState = useAuthStore();
   const userId = authState?.userId;
@@ -304,7 +404,7 @@ const AddSaleOppor = ({ navigation, route }) => {
   const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(true);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
   const [isLoadingBusinessPartners, setIsLoadingBusinessPartners] = useState(true);
-  
+
   const [stagesError, setStagesError] = useState(null);
   const [currenciesError, setCurrenciesError] = useState(null);
   const [campaignsError, setCampaignsError] = useState(null);
@@ -317,7 +417,6 @@ const AddSaleOppor = ({ navigation, route }) => {
   const [businessPartnersData, setBusinessPartnersData] = useState([]);
 
   /* ---------------- OPPORTUNITY STATE ---------------- */
-  // Business Partner State with Modal
   const [selectedBPId, setSelectedBPId] = useState(null);
   const [selectedBPName, setSelectedBPName] = useState('');
   const [showBPModal, setShowBPModal] = useState(false);
@@ -325,9 +424,6 @@ const AddSaleOppor = ({ navigation, route }) => {
 
   const [bpContacts, setBpContacts] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [documentNo, setDocumentNo] = useState('');
-  const [description, setDescription] = useState('');
-  const [comments, setComments] = useState('');
 
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
   const [amount, setAmount] = useState('');
@@ -347,8 +443,6 @@ const AddSaleOppor = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRepId, setSelectedSalesRepId] = useState(null);
   const [selectedSalesRepName, setSelectedSalesRepName] = useState('');
-  
-  // State to track if initial rep has been set
   const [initialRepSet, setInitialRepSet] = useState(false);
 
   /* ---------------- UI STATE ---------------- */
@@ -357,22 +451,20 @@ const AddSaleOppor = ({ navigation, route }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Use the same hook as AddLeads and AddActivity
-  const { 
-    data: salesReps = [], 
+  const {
+    data: salesReps = [],
     isLoading: loadingSalesReps,
-    error: salesRepsError
+    error: salesRepsError,
   } = useSalesRepresentatives(true);
 
-  // Custom alert helper functions
   const showAlert = (title, message, type = 'info', onConfirm = null, onCancel = null) => {
     setAlertConfig({
       visible: true,
       title,
       message,
       type,
-      onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
-      onCancel: onCancel || (() => setAlertConfig(prev => ({ ...prev, visible: false }))),
+      onConfirm: onConfirm || (() => setAlertConfig((prev) => ({ ...prev, visible: false }))),
+      onCancel: onCancel || (() => setAlertConfig((prev) => ({ ...prev, visible: false }))),
       confirmText: type === 'delete' ? 'Delete' : 'OK',
       cancelText: 'Cancel',
       showCancelButton: type === 'delete' || type === 'warning',
@@ -392,7 +484,7 @@ const AddSaleOppor = ({ navigation, route }) => {
   };
 
   const hideAlert = () => {
-    setAlertConfig(prev => ({ ...prev, visible: false }));
+    setAlertConfig((prev) => ({ ...prev, visible: false }));
   };
 
   // ============================================
@@ -400,35 +492,32 @@ const AddSaleOppor = ({ navigation, route }) => {
   // ============================================
   useEffect(() => {
     console.log('🚀 AddSaleOppor mounted - fetching all data');
-    
+
     const fetchAllData = async () => {
       try {
         await Promise.all([
           fetchStages(),
           fetchCurrencies(),
           fetchCampaigns(),
-          fetchBusinessPartners()
+          fetchBusinessPartners(),
         ]);
         console.log('✅ All data fetched successfully');
       } catch (error) {
         console.error('❌ Error fetching initial data:', error);
       }
     };
-    
+
     fetchAllData();
-    setDocumentNo('Auto Generated');
   }, []);
 
-  // Set default sales rep to current user once salesReps are loaded
+  // Set default sales rep to current user (for new opportunities)
   useEffect(() => {
-    // Only run for create mode and when we haven't set initial rep yet
     if (mode !== 'edit' && !initialRepSet && salesReps.length > 0 && userId && !selectedSalesRepId) {
       console.log('🎯 AddSaleOppor - Setting default sales rep to current user:', userId);
       console.log('Current user name from auth:', userName);
-      
-      // Try to find current user in sales reps list by ID
-      const currentUserAsRep = salesReps.find(rep => rep.id === parseInt(userId));
-      
+
+      const currentUserAsRep = salesReps.find((rep) => rep.id === parseInt(userId));
+
       if (currentUserAsRep) {
         console.log('✅ Found current user in sales reps list:', currentUserAsRep.Name);
         setSelectedSalesRepId(currentUserAsRep.id);
@@ -436,12 +525,11 @@ const AddSaleOppor = ({ navigation, route }) => {
         setInitialRepSet(true);
       } else {
         console.log('⚠️ Current user not found in sales reps list, looking by name...');
-        
-        // Try to find by name as fallback
-        const userByName = salesReps.find(rep => 
-          rep.Name && rep.Name.toLowerCase() === userName?.toLowerCase()
+
+        const userByName = salesReps.find(
+          (rep) => rep.Name && rep.Name.toLowerCase() === userName?.toLowerCase()
         );
-        
+
         if (userByName) {
           console.log('✅ Found current user by name:', userByName.Name);
           setSelectedSalesRepId(userByName.id);
@@ -449,33 +537,50 @@ const AddSaleOppor = ({ navigation, route }) => {
           setInitialRepSet(true);
         } else {
           console.log('❌ Could not find current user in sales reps list');
-          console.log('Auth User:', { id: userId, name: userName });
-          console.log('Available sales reps:', salesReps.map(r => ({ id: r.id, name: r.Name })));
+          console.log(
+            'Auth User:',
+            { id: userId, name: userName }
+          );
+          console.log(
+            'Available sales reps:',
+            salesReps.map((r) => ({ id: r.id, name: r.Name }))
+          );
         }
       }
     }
   }, [mode, salesReps, userId, userName, selectedSalesRepId, initialRepSet]);
 
-  // Initialize from leadData after data is loaded
+  // Set default currency to PKR when currencies are loaded and no selection exists
+  useEffect(() => {
+    if (currencies.length > 0 && !selectedCurrencyId) {
+      const defaultCurrency = currencies.find((c) => c.ISO_Code === 'PKR' || c.id === '306');
+      if (defaultCurrency) {
+        console.log('💰 Setting default currency to PKR:', defaultCurrency.id);
+        setSelectedCurrencyId(defaultCurrency.id);
+      } else {
+        console.log('⚠️ PKR not found, falling back to first currency');
+        setSelectedCurrencyId(currencies[0]?.id);
+      }
+    }
+  }, [currencies, selectedCurrencyId]);
+
+  // Initialize from leadData (if any)
   useEffect(() => {
     if (leadData) {
       console.log('🔄 Initializing from leadData');
-      
-      // Set Business Partner FIRST
+
       if (leadData.businessPartnerId) {
         console.log('✅ Setting business partner ID:', leadData.businessPartnerId);
         console.log('✅ Setting business partner Name:', leadData.businessPartnerName);
-        
+
         setSelectedBPId(leadData.businessPartnerId);
         setSelectedBPName(leadData.businessPartnerName || leadData.companyName || '');
-        
-        // Fetch BP contacts for this business partner
+
         if (leadData.businessPartnerId) {
           fetchBpUsers(leadData.businessPartnerId);
         }
       }
-      
-      // Set User/Contact AUTOMATICALLY from lead data
+
       if (leadData.userId) {
         console.log('✅ Setting user ID from leadData.userId:', leadData.userId);
         setSelectedUserId(leadData.userId);
@@ -483,53 +588,25 @@ const AddSaleOppor = ({ navigation, route }) => {
         console.log('✅ Setting user ID from leadData.id:', leadData.id);
         setSelectedUserId(leadData.id);
       }
-      
-      // Set Description
-      if (followupData?.description) {
-        setDescription(followupData.description);
-      } else if (leadData.description) {
-        setDescription(leadData.description);
-      } else if (leadData.name) {
-        setDescription(`Opportunity from lead: ${leadData.name}`);
-      }
-      
-      // Set Comments
-      if (leadData.comments) {
-        setComments(leadData.comments);
-      }
-      
-      // Set Sales Rep from leadData if available (only for edit mode or if provided)
+
       if (leadData.salesRepId && mode === 'edit') {
         console.log('✅ Setting sales rep ID from leadData:', leadData.salesRepId);
         setSelectedSalesRepId(leadData.salesRepId);
         setSelectedSalesRepName(leadData.salesRepLabel || '');
         setInitialRepSet(true);
       }
-      
-      // Set default currency (PKR - 306) if available
-      if (currencies.length > 0) {
-        const defaultCurrency = currencies.find(c => c.ISO_Code === 'PKR' || c.id === '306');
-        if (defaultCurrency) {
-          setSelectedCurrencyId(defaultCurrency.id);
-        }
+
+      // If leadData has a currency, we might override the default PKR
+      if (leadData.currencyId) {
+        setSelectedCurrencyId(leadData.currencyId);
       }
     }
-  }, [leadData, followupData, mode]);
+  }, [leadData, mode]);
 
-  // Separate effect to handle when currencies load after leadData is set
-  useEffect(() => {
-    if (leadData && currencies.length > 0 && !selectedCurrencyId) {
-      const defaultCurrency = currencies.find(c => c.ISO_Code === 'PKR' || c.id === '306');
-      if (defaultCurrency) {
-        setSelectedCurrencyId(defaultCurrency.id);
-      }
-    }
-  }, [currencies, leadData]);
-
-  // Clear BP error on mount if we have pre-filled data
+  // Clear BP error when selected
   useEffect(() => {
     if (selectedBPId) {
-      setErrors(prev => ({ ...prev, bp: null }));
+      setErrors((prev) => ({ ...prev, bp: null }));
     }
   }, [selectedBPId]);
 
@@ -541,19 +618,18 @@ const AddSaleOppor = ({ navigation, route }) => {
     if (!token) {
       throw new Error('Authentication token missing');
     }
-    
-    // Add timeout to prevent hanging requests
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     try {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
           ...options.headers,
         },
       });
@@ -569,11 +645,11 @@ const AddSaleOppor = ({ navigation, route }) => {
       return data;
     } catch (error) {
       clearTimeout(timeoutId);
-      
+
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - please try again');
       }
-      
+
       console.error('API Request Failed:', error.message);
       throw error;
     }
@@ -595,7 +671,7 @@ const AddSaleOppor = ({ navigation, route }) => {
   const fetchStages = async () => {
     setIsLoadingStages(true);
     setStagesError(null);
-    
+
     try {
       const url = buildApiUrl('models/C_SalesStage');
       console.log('🔍 Fetching stages from:', url);
@@ -614,7 +690,7 @@ const AddSaleOppor = ({ navigation, route }) => {
   const fetchCurrencies = async () => {
     setIsLoadingCurrencies(true);
     setCurrenciesError(null);
-    
+
     try {
       const url = buildApiUrl('models/C_Currency');
       console.log('🔍 Fetching currencies from:', url);
@@ -633,7 +709,7 @@ const AddSaleOppor = ({ navigation, route }) => {
   const fetchCampaigns = async () => {
     setIsLoadingCampaigns(true);
     setCampaignsError(null);
-    
+
     try {
       const url = buildApiUrl('models/C_Campaign');
       console.log('🔍 Fetching campaigns from:', url);
@@ -649,11 +725,10 @@ const AddSaleOppor = ({ navigation, route }) => {
     }
   };
 
-  // Fetch all business partners
   const fetchBusinessPartners = async () => {
     setIsLoadingBusinessPartners(true);
     setBusinessPartnersError(null);
-    
+
     try {
       const url = buildApiUrl('models/C_BPartner');
       console.log('🔍 Fetching business partners from:', url);
@@ -669,23 +744,24 @@ const AddSaleOppor = ({ navigation, route }) => {
     }
   };
 
-  /* ---------------- FETCH BUSINESS PARTNER DETAILS ---------------- */
   const fetchBusinessPartnerDetails = async (bpId) => {
     if (!bpId) return;
-    
+
     try {
       const url = buildApiUrl(`models/C_BPartner/${bpId}`);
       const data = await makeAuthenticatedRequest(url);
       if (data) {
         setSelectedBPName(data.Name || '');
-        setErrors(prev => ({ ...prev, bp: null }));
+        setErrors((prev) => ({ ...prev, bp: null }));
       }
     } catch (error) {
       console.log('BP fetch error', error.message);
     }
   };
 
-  /* ---------------- FETCH BP USERS ---------------- */
+  // ============================================
+  // Fetch BP users and auto-select contact person
+  // ============================================
   const fetchBpUsers = async (bpId) => {
     if (!bpId) return;
     try {
@@ -695,18 +771,17 @@ const AddSaleOppor = ({ navigation, route }) => {
       const users = data.records || [];
       console.log(`✅ Found ${users.length} users for BP ${bpId}`);
       setBpContacts(users);
-      
-      // IMPORTANT: Automatically select the lead user if it exists
-      if (leadData?.userId) {
-        console.log('🔍 Looking for lead user ID:', leadData.userId);
-        const matchingUser = users.find(u => u.id === leadData.userId);
-        if (matchingUser) {
-          console.log('✅ Found matching lead user, auto-selecting:', matchingUser.Name);
-          setSelectedUserId(matchingUser.id);
+
+      // Auto-select logic: if leadData provides a userId that exists in the list, use it.
+      // Otherwise, select the first contact (if any).
+      if (users.length > 0) {
+        if (leadData?.userId && users.some(u => u.id === leadData.userId)) {
+          setSelectedUserId(leadData.userId);
         } else {
-          console.log('⚠️ Lead user not found in BP contacts, keeping existing selection');
-          // Keep the existing selection (already set from leadData)
+          setSelectedUserId(users[0].id);
         }
+      } else {
+        setSelectedUserId(null);
       }
     } catch (error) {
       console.log('BP users fetch error', error.message);
@@ -721,26 +796,20 @@ const AddSaleOppor = ({ navigation, route }) => {
       return businessPartnersData;
     }
     const query = bpSearch.toLowerCase();
-    return businessPartnersData.filter(bp =>
-      bp.Name && bp.Name.toLowerCase().includes(query)
-    );
+    return businessPartnersData.filter((bp) => bp.Name && bp.Name.toLowerCase().includes(query));
   }, [businessPartnersData, bpSearch]);
 
   const filteredSalesReps = useMemo(() => {
     if (!searchQuery.trim()) {
       return salesReps;
     }
-    
     const query = searchQuery.toLowerCase();
-    return salesReps.filter(rep => 
-      rep.Name && rep.Name.toLowerCase().includes(query)
-    );
+    return salesReps.filter((rep) => rep.Name && rep.Name.toLowerCase().includes(query));
   }, [salesReps, searchQuery]);
 
-  // Get selected sales rep name
   const selectedRepName = useMemo(() => {
     if (!selectedSalesRepId) return '';
-    const rep = salesReps.find(r => r.id === selectedSalesRepId);
+    const rep = salesReps.find((r) => r.id === selectedSalesRepId);
     return rep ? rep.Name : selectedSalesRepName;
   }, [selectedSalesRepId, salesReps, selectedSalesRepName]);
 
@@ -752,14 +821,14 @@ const AddSaleOppor = ({ navigation, route }) => {
     setSelectedSalesRepName(rep.Name);
     setShowSalesRepModal(false);
     setSearchQuery('');
-    setErrors(prev => ({ ...prev, salesRep: null }));
+    setErrors((prev) => ({ ...prev, salesRep: null }));
     setInitialRepSet(true);
   }, []);
 
   const handleClearSalesRep = useCallback(() => {
     setSelectedSalesRepId(null);
     setSelectedSalesRepName('');
-    setInitialRepSet(false); // Allow re-setting default if cleared
+    setInitialRepSet(false);
   }, []);
 
   const handleSelectBusinessPartner = useCallback((bp) => {
@@ -769,7 +838,7 @@ const AddSaleOppor = ({ navigation, route }) => {
     setShowBPModal(false);
     setBpSearch('');
     fetchBpUsers(bp.id);
-    setErrors(prev => ({ ...prev, bp: null }));
+    setErrors((prev) => ({ ...prev, bp: null }));
   }, []);
 
   const handleClearBusinessPartner = useCallback(() => {
@@ -779,25 +848,28 @@ const AddSaleOppor = ({ navigation, route }) => {
     setSelectedUserId(null);
   }, []);
 
-  const handleStageChange = useCallback((id) => {
-    setSelectedStageId(id);
-    const stage = stages.find(s => s.id === id);
-    if (stage?.Probability) {
-      setProbability(stage.Probability.toString());
-    } else {
-      setProbability(''); // Clear probability if stage has no default
-    }
-    setErrors(prev => ({ ...prev, stage: null }));
-  }, [stages]);
+  const handleStageChange = useCallback(
+    (id) => {
+      setSelectedStageId(id);
+      const stage = stages.find((s) => s.id === id);
+      if (stage?.Probability) {
+        setProbability(stage.Probability.toString());
+      } else {
+        setProbability('');
+      }
+      setErrors((prev) => ({ ...prev, stage: null }));
+    },
+    [stages]
+  );
 
   /* ---------------- VALIDATION ---------------- */
   const validate = () => {
     const e = {};
-    
+
     if (!selectedBPId) {
       e.bp = 'Business Partner is required';
     }
-    
+
     if (!selectedStageId) e.stage = 'Sales Stage is required';
     if (!expectedCloseDate) e.date = 'Expected Close Date is required';
     if (!amount) e.amount = 'Opportunity Amount is required';
@@ -820,25 +892,22 @@ const AddSaleOppor = ({ navigation, route }) => {
     console.log('📝 Submitting form with selectedBPId:', selectedBPId);
     console.log('📝 Selected User ID:', selectedUserId);
     console.log('📝 Selected Sales Rep ID:', selectedSalesRepId);
-    
+
     if (!validate()) return;
 
     setIsSubmitting(true);
-    
+
     const opportunityData = {
       AD_Client_ID: { id: clientId },
       AD_Org_ID: { id: organizationId },
-      AD_User_ID: { id: selectedUserId || userId }, // Fallback to current user if no contact selected
+      AD_User_ID: { id: selectedUserId || userId },
       SalesRep_ID: { id: selectedSalesRepId },
       C_SalesStage_ID: { id: selectedStageId },
       Probability: probability ? Number(probability) : 0,
       ExpectedCloseDate: expectedCloseDate,
       OpportunityAmt: Number(amount),
       C_Currency_ID: { id: selectedCurrencyId },
-      Description: description,
-      Comments: comments,
       IsActive: active,
-       
     };
 
     if (selectedBPId) {
@@ -861,88 +930,90 @@ const AddSaleOppor = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error('❌ Create opportunity error:', error);
-      
+
       let errorMessage = 'Failed to create opportunity';
       if (error.message) {
         errorMessage = error.message;
       }
-      
+
       showErrorAlert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Render Business Partner Item
-  const renderBusinessPartnerItem = useCallback(({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.itemRow,
-        selectedBPId === item.id && styles.selectedItemRow,
-      ]}
-      onPress={() => handleSelectBusinessPartner(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.itemContent}>
-        <View style={styles.itemAvatar}>
-          <Text style={styles.itemAvatarText}>
-            {item.Name?.charAt(0).toUpperCase() || '?'}
-          </Text>
+  const renderBusinessPartnerItem = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        style={[styles.itemRow, selectedBPId === item.id && styles.selectedItemRow]}
+        onPress={() => handleSelectBusinessPartner(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.itemContent}>
+          <View style={styles.itemAvatar}>
+            <Text style={styles.itemAvatarText}>
+              {item.Name?.charAt(0).toUpperCase() || '?'}
+            </Text>
+          </View>
+          <View style={styles.itemDetails}>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.Name}
+            </Text>
+            {item.Value && <Text style={styles.itemSubtext}>Code: {item.Value}</Text>}
+          </View>
         </View>
-        <View style={styles.itemDetails}>
-          <Text style={styles.itemName} numberOfLines={1}>{item.Name}</Text>
-          {item.Value && (
-            <Text style={styles.itemSubtext}>Code: {item.Value}</Text>
+        {selectedBPId === item.id && (
+          <MaterialCommunityIcons
+            name="check-circle"
+            size={Layout.iconSize.md}
+            color={Colors.primary}
+          />
+        )}
+      </TouchableOpacity>
+    ),
+    [selectedBPId, handleSelectBusinessPartner]
+  );
+
+  const renderSalesRepItem = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        style={[styles.repItem, selectedSalesRepId === item.id && styles.selectedRepItem]}
+        onPress={() => handleSelectSalesRep(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.repItemContent}>
+          <Text style={styles.repName}>{item.Name}</Text>
+          {item.EMail && <Text style={styles.repEmail}>{item.EMail}</Text>}
+          {item.id === parseInt(userId) && (
+            <Text style={styles.currentUserBadge}>(You)</Text>
           )}
         </View>
-      </View>
-      {selectedBPId === item.id && (
-        <MaterialCommunityIcons name="check-circle" size={Layout.iconSize.md} color={Colors.primary} />
-      )}
-    </TouchableOpacity>
-  ), [selectedBPId, handleSelectBusinessPartner]);
-
-  // Render Sales Rep Item - Same as AddLeads pattern
-  const renderSalesRepItem = useCallback(({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.repItem,
-        selectedSalesRepId === item.id && styles.selectedRepItem,
-      ]}
-      onPress={() => handleSelectSalesRep(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.repItemContent}>
-        <Text style={styles.repName}>{item.Name}</Text>
-        {item.EMail && (
-          <Text style={styles.repEmail}>{item.EMail}</Text>
+        {selectedSalesRepId === item.id && (
+          <MaterialCommunityIcons name="check" size={20} color={Colors.primary} />
         )}
-        {item.id === parseInt(userId) && (
-          <Text style={styles.currentUserBadge}>(You)</Text>
-        )}
-      </View>
-      {selectedSalesRepId === item.id && (
-        <MaterialCommunityIcons name="check" size={20} color={Colors.primary} />
-      )}
-    </TouchableOpacity>
-  ), [selectedSalesRepId, handleSelectSalesRep, userId]);
+      </TouchableOpacity>
+    ),
+    [selectedSalesRepId, handleSelectSalesRep, userId]
+  );
 
-  // Check if any data is loading
-  const isLoading = isLoadingStages || isLoadingCurrencies || isLoadingCampaigns || loadingSalesReps || isLoadingBusinessPartners;
-  
-  // Check if there are any errors
-  const hasError = stagesError || currenciesError || campaignsError || salesRepsError || businessPartnersError;
+  const isLoading =
+    isLoadingStages || isLoadingCurrencies || isLoadingCampaigns || loadingSalesReps || isLoadingBusinessPartners;
+  const hasError =
+    stagesError || currenciesError || campaignsError || salesRepsError || businessPartnersError;
 
-  // If there's an error, show retry option
   if (hasError && !isLoading) {
     return (
       <>
         <StatusBar translucent backgroundColor="transparent" />
         <CustomHeader title="Add Sale Opportunity" LeftIcon="arrow-left" LeftPress={() => navigation.goBack()} />
         <View style={styles.fullScreenError}>
-          <MaterialCommunityIcons name="alert-circle" size={Layout.iconSize.xxxl} color={Colors.error} />
+          <MaterialCommunityIcons
+            name="alert-circle"
+            size={Layout.iconSize.xxxl}
+            color={Colors.error}
+          />
           <Text style={styles.fullScreenErrorText}>Failed to load required data</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.fullScreenRetryButton}
             onPress={() => {
               setStagesError(null);
@@ -962,27 +1033,29 @@ const AddSaleOppor = ({ navigation, route }) => {
     );
   }
 
+  const HeaderWrapper = Platform.OS === 'ios' ? SafeAreaView : View;
+  const headerWrapperStyle = Platform.OS === 'android'
+    ? { paddingTop: RNStatusBar.currentHeight || 0, backgroundColor: 'transparent' }
+    : { backgroundColor: 'transparent' };
+
   return (
     <>
       <StatusBar translucent backgroundColor="transparent" />
-      <CustomHeader title="Add Sale Opportunity" LeftIcon="arrow-left" LeftPress={() => navigation.goBack()} />
+      <HeaderWrapper style={headerWrapperStyle}>
+        <CustomHeader title="Add Sale Opportunity" LeftIcon="arrow-left" LeftPress={() => navigation.goBack()} />
+      </HeaderWrapper>
 
-      {/* Custom Alert Modal */}
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
         type={alertConfig.type}
         onConfirm={() => {
-          if (alertConfig.onConfirm) {
-            alertConfig.onConfirm();
-          }
+          if (alertConfig.onConfirm) alertConfig.onConfirm();
           hideAlert();
         }}
         onCancel={() => {
-          if (alertConfig.onCancel) {
-            alertConfig.onCancel();
-          }
+          if (alertConfig.onCancel) alertConfig.onCancel();
           hideAlert();
         }}
         confirmText={alertConfig.confirmText}
@@ -990,13 +1063,12 @@ const AddSaleOppor = ({ navigation, route }) => {
         showCancelButton={alertConfig.showCancelButton}
       />
 
-      {/* Calendar Modal */}
       <CalendarModal
         visible={showCalendar}
         onClose={() => setShowCalendar(false)}
         onSelectDate={(date) => {
           setExpectedCloseDate(date);
-          setErrors(prev => ({ ...prev, date: null }));
+          setErrors((prev) => ({ ...prev, date: null }));
           setShowCalendar(false);
         }}
         title="Select Expected Close Date"
@@ -1022,12 +1094,20 @@ const AddSaleOppor = ({ navigation, route }) => {
                   setBpSearch('');
                 }}
               >
-                <MaterialCommunityIcons name="close" size={Layout.iconSize.lg} color={Colors.textPrimary} />
+                <MaterialCommunityIcons
+                  name="close"
+                  size={Layout.iconSize.lg}
+                  color={Colors.textPrimary}
+                />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalSearch}>
-              <MaterialCommunityIcons name="magnify" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+              <MaterialCommunityIcons
+                name="magnify"
+                size={Layout.iconSize.sm}
+                color={Colors.textSecondary}
+              />
               <TextInput
                 style={styles.modalSearchInput}
                 placeholder="Search by name..."
@@ -1038,7 +1118,11 @@ const AddSaleOppor = ({ navigation, route }) => {
               />
               {bpSearch.length > 0 && (
                 <TouchableOpacity onPress={() => setBpSearch('')}>
-                  <MaterialCommunityIcons name="close-circle" size={Layout.iconSize.sm} color={Colors.textSecondary} />
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={Layout.iconSize.sm}
+                    color={Colors.textSecondary}
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -1058,7 +1142,11 @@ const AddSaleOppor = ({ navigation, route }) => {
                 windowSize={10}
                 ListEmptyComponent={
                   <View style={styles.modalEmpty}>
-                    <MaterialCommunityIcons name="domain-off" size={Layout.iconSize.xl} color={Colors.border} />
+                    <MaterialCommunityIcons
+                      name="domain-off"
+                      size={Layout.iconSize.xl}
+                      color={Colors.border}
+                    />
                     <Text style={styles.modalEmptyText}>
                       {bpSearch.trim()
                         ? `No results for "${bpSearch}"`
@@ -1072,7 +1160,7 @@ const AddSaleOppor = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      {/* Sales Representative Modal - Same as AddLeads pattern */}
+      {/* Sales Representative Modal */}
       <Modal
         visible={showSalesRepModal}
         animationType="slide"
@@ -1097,9 +1185,13 @@ const AddSaleOppor = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
 
-            {/* Search Input */}
             <View style={styles.searchContainer}>
-              <MaterialCommunityIcons name="magnify" size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+              <MaterialCommunityIcons
+                name="magnify"
+                size={20}
+                color={Colors.textSecondary}
+                style={styles.searchIcon}
+              />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search by name..."
@@ -1113,7 +1205,11 @@ const AddSaleOppor = ({ navigation, route }) => {
                   onPress={() => setSearchQuery('')}
                   style={styles.clearSearchButton}
                 >
-                  <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textSecondary} />
+                  <MaterialCommunityIcons
+                    name="close-circle"
+                    size={18}
+                    color={Colors.textSecondary}
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -1143,8 +1239,7 @@ const AddSaleOppor = ({ navigation, route }) => {
                 }
               />
             )}
-            
-            {/* Footer with count */}
+
             <View style={styles.modalFooter}>
               <Text style={styles.footerText}>
                 {filteredSalesReps.length} of {salesReps.length} sales representatives
@@ -1154,357 +1249,292 @@ const AddSaleOppor = ({ navigation, route }) => {
         </View>
       </Modal>
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.formCard}>
-          {/* Document No */}
-          <Label title="Document No" />
-          <ReadOnly value={documentNo} icon="file-document-outline" />
+      {/* Main content with ScrollView and fixed submit button */}
+      <View style={styles.mainContainer}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Form Card (table‑like border) */}
+          <View style={styles.formCard}>
+            {/* Business Partner */}
+            <BusinessPartnerSelector
+              selectedBPName={selectedBPName}
+              error={errors.bp}
+              onPress={() => setShowBPModal(true)}
+              onClear={handleClearBusinessPartner}
+              containerStyle={styles.fieldContainer}
+            />
 
-          {/* Business Partner - Modal Selector */}
-          <BusinessPartnerSelector 
-            selectedBPName={selectedBPName}
-            error={errors.bp}
-            onPress={() => setShowBPModal(true)}
-            onClear={handleClearBusinessPartner}
-          />
-
-          {/* User / Contact - Custom Display Component */}
-          <Label title="Contact" />
-          <ContactDisplay leadData={leadData} />
-
-          {/* Sales Representative - Same as AddLeads pattern */}
-          <View style={styles.editField}>
-            <View style={styles.labelContainer}>
-              <Text style={styles.label}>Sales Representative</Text>
-              <Text style={styles.requiredStar}> *</Text>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.salesRepSelector,
-                errors.salesRep && styles.selectorError,
-              ]}
-              onPress={() => setShowSalesRepModal(true)}
-              activeOpacity={0.7}
-            >
-              {selectedRepName ? (
-                <View style={styles.selectedRepContainer}>
-                  <Text style={styles.selectedRepText}>{selectedRepName}</Text>
-                  <View style={styles.rightContainer}>
-                    <TouchableOpacity
-                      style={styles.clearButton}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleClearSalesRep();
-                      }}
-                    >
-                      <MaterialCommunityIcons name="close-circle" size={18} color={Colors.textSecondary} />
-                    </TouchableOpacity>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.textSecondary} />
+            {/* Sales Representative */}
+            <View style={[styles.fieldContainer]}>
+              <Text style={styles.fieldLabel}>
+                Sales Representative <Text style={styles.requiredStar}>*</Text>
+              </Text>
+              <TouchableOpacity
+                style={[styles.inputWrapper, errors.salesRep && styles.inputError]}
+                onPress={() => setShowSalesRepModal(true)}
+                activeOpacity={0.7}
+              >
+                {selectedRepName ? (
+                  <View style={styles.selectedRepContainer}>
+                    <Text style={styles.selectedRepText}>{selectedRepName}</Text>
+                    <View style={styles.rightContainer}>
+                      <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleClearSalesRep();
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name="close-circle"
+                          size={14}
+                          color={Colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                      <MaterialCommunityIcons
+                        name="chevron-down"
+                        size={16}
+                        color={Colors.textSecondary}
+                        style={styles.chevronIcon}
+                      />
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.placeholderText}>Select Sales Representative</Text>
-                  <MaterialCommunityIcons name="chevron-down" size={20} color={Colors.textSecondary} />
-                </>
-              )}
-            </TouchableOpacity>
-            {errors.salesRep && (
-              <Text style={styles.errorText}>{errors.salesRep}</Text>
+                ) : (
+                  <View style={styles.chevronWrapper}>
+                    <Text style={styles.placeholderText}>Select Sales Representative</Text>
+                    <MaterialCommunityIcons
+                      name="chevron-down"
+                      size={20}
+                      color={Colors.textSecondary}
+                      style={styles.chevronIcon}
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
+              {errors.salesRep && <Text style={styles.errorText}>{errors.salesRep}</Text>}
+            </View>
+
+            {/* Sales Stage */}
+            {isLoadingStages ? (
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            ) : stagesError ? (
+              <ErrorRetry message={stagesError} onRetry={fetchStages} containerStyle={styles.fieldContainer} />
+            ) : (
+              <CustomPickerField
+                label="Sales Stage"
+                required
+                selectedValue={selectedStageId}
+                onValueChange={handleStageChange}
+                options={stages.map(stage => ({ value: stage.id, label: stage.Name }))}
+                error={errors.stage}
+                containerStyle={styles.fieldContainer}
+              />
             )}
+
+            {/* Probability */}
+            <FormInput
+              label="Probability (%)"
+              value={probability}
+              onChangeText={(text) => {
+                const filtered = text.replace(/[^0-9.]/g, '');
+                setProbability(filtered);
+              }}
+              keyboardType="numeric"
+              containerStyle={styles.fieldContainer}
+            />
+
+            {/* Campaign */}
+            {isLoadingCampaigns ? (
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            ) : campaignsError ? (
+              <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} containerStyle={styles.fieldContainer} />
+            ) : (
+              <CustomPickerField
+                label="Campaign"
+                selectedValue={selectedCampaign}
+                onValueChange={setSelectedCampaign}
+                options={campaigns.map(campaign => ({ value: campaign.id, label: campaign.Name }))}
+                containerStyle={styles.fieldContainer}
+              />
+            )}
+
+            {/* Expected Close Date */}
+            <DatePickerField
+              label="Expected Close Date"
+              required
+              value={expectedCloseDate}
+              onPress={() => setShowCalendar(true)}
+              error={errors.date}
+              containerStyle={styles.fieldContainer}
+            />
+
+            {/* Opportunity Amount */}
+            <FormInput
+              label="Opportunity Amount"
+              required
+              value={amount}
+              onChangeText={(v) => {
+                setAmount(v);
+                setErrors((prev) => ({ ...prev, amount: null }));
+              }}
+              keyboardType="numeric"
+              error={errors.amount}
+              containerStyle={styles.fieldContainer}
+            />
+
+            {/* Currency */}
+            {isLoadingCurrencies ? (
+              <View style={[styles.loaderContainer, styles.fieldContainer]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            ) : currenciesError ? (
+              <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} containerStyle={styles.fieldContainer} />
+            ) : (
+              <CustomPickerField
+                label="Currency"
+                required
+                selectedValue={selectedCurrencyId}
+                onValueChange={(value) => {
+                  if (value) {
+                    setSelectedCurrencyId(value);
+                    setErrors((prev) => ({ ...prev, currency: null }));
+                  }
+                }}
+                options={currencies.map(currency => ({ value: currency.id, label: `${currency.ISO_Code} - ${currency.Description || ''}` }))}
+                error={errors.currency}
+                containerStyle={styles.fieldContainer}
+              />
+            )}
+
+            {/* Active Switch */}
+            <SwitchRow
+              label="Active"
+              value={active}
+              disabled
+              containerStyle={styles.fieldContainer}
+            />
           </View>
 
-          {/* Sales Stage */}
-          <Label title="Sales Stage" required />
-          {isLoadingStages ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-            </View>
-          ) : stagesError ? (
-            <ErrorRetry message={stagesError} onRetry={fetchStages} />
-          ) : (
-            <PickerField
-              selectedValue={selectedStageId}
-              onValueChange={handleStageChange}
-              error={errors.stage}
-              icon="chart-line"
-              placeholder="Select Stage"
-            >
-              {stages.map(stage => (
-                <Picker.Item 
-                  key={stage.id} 
-                  label={stage.Name} 
-                  value={stage.id} 
-                  color={Colors.textPrimary}
+          {/* Info text (like AddLeads) */}
+          <Text style={styles.infoText}>Additional information can be updated later.</Text>
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Fixed Submit Button */}
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              (isSubmitting || isLoading || !selectedSalesRepId) && styles.submitButtonDisabled,
+            ]}
+            onPress={handleSubmit}
+            disabled={isSubmitting || isLoading || !selectedSalesRepId}
+            activeOpacity={0.8}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color={Colors.textInverse} />
+            ) : (
+              <>
+                <MaterialCommunityIcons
+                  name="plus-circle"
+                  size={Layout.iconSize.md}
+                  color={Colors.textInverse}
                 />
-              ))}
-            </PickerField>
-          )}
-
-          {/* Probability - EDITABLE TEXT INPUT */}
-          <Label title="Probability (%)" />
-          <Input
-            value={probability}
-            onChangeText={(text) => {
-              // Allow only numbers and decimal point
-              const filtered = text.replace(/[^0-9.]/g, '');
-              setProbability(filtered);
-            }}
-            placeholder="Enter probability percentage"
-            keyboardType="numeric"
-            icon="percent"
-          />
-
-          {/* Campaign */}
-          <Label title="Campaign" />
-          {isLoadingCampaigns ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-            </View>
-          ) : campaignsError ? (
-            <ErrorRetry message={campaignsError} onRetry={fetchCampaigns} />
-          ) : (
-            <PickerField
-              selectedValue={selectedCampaign}
-              onValueChange={setSelectedCampaign}
-              icon="bullhorn"
-              placeholder="Select Campaign"
-            >
-              {campaigns.map(campaign => (
-                <Picker.Item 
-                  key={campaign.id} 
-                  label={campaign.Name} 
-                  value={campaign.id} 
-                  color={Colors.textPrimary}
-                />
-              ))}
-            </PickerField>
-          )}
-
-          {/* Expected Close Date */}
-          <Label title="Expected Close Date" required />
-          <DatePickerField
-            value={expectedCloseDate}
-            onPress={() => setShowCalendar(true)}
-            error={errors.date}
-            icon="calendar-clock"
-          />
-
-          {/* Opportunity Amount - FULL WIDTH TEXT INPUT */}
-          <Label title="Opportunity Amount" required />
-          <Input
-            value={amount}
-            onChangeText={(v) => {
-              setAmount(v);
-              setErrors(prev => ({ ...prev, amount: null }));
-            }}
-            placeholder="Enter amount (e.g., 1000, 5000.50, 1000000)"
-            keyboardType="numeric"
-            error={errors.amount}
-            icon="currency-usd"
-          />
-
-          {/* Currency */}
-          <Label title="Currency" required />
-          {isLoadingCurrencies ? (
-            <View style={styles.loaderContainer}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-            </View>
-          ) : currenciesError ? (
-            <ErrorRetry message={currenciesError} onRetry={fetchCurrencies} />
-          ) : (
-            <PickerField
-              selectedValue={selectedCurrencyId}
-              onValueChange={(value) => {
-                if (value) {
-                  setSelectedCurrencyId(value);
-                  setErrors(prev => ({ ...prev, currency: null }));
-                }
-              }}
-              error={errors.currency}
-              icon="currency-sign"
-              placeholder="Select Currency"
-            >
-              {currencies.map(currency => (
-                <Picker.Item 
-                  key={currency.id} 
-                  label={`${currency.ISO_Code} - ${currency.Description || ''}`} 
-                  value={currency.id} 
-                  color={Colors.textPrimary}
-                />
-              ))}
-            </PickerField>
-          )}
-
-          {/* Description */}
-          <Label title="Description" />
-          <Input
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Enter description"
-            multiline
-            numberOfLines={3}
-            style={styles.textArea}
-            icon="text"
-          />
-
-          {/* Comments */}
-          <Label title="Comments" />
-          <Input
-            value={comments}
-            onChangeText={setComments}
-            placeholder="Enter comments"
-            multiline
-            numberOfLines={3}
-            style={styles.textArea}
-            icon="comment-text"
-          />
-
-          {/* Tenant */}
-          <Label title="Tenant" />
-          <ReadOnly value={clientName} icon="domain" />
-
-          {/* Organization */}
-          <Label title="Organization" />
-          <ReadOnly value={organizationName} icon="office-building" />
-
-          {/* Company */}
-          <Label title="Company" />
-          <ReadOnly value={organizationName || 'Default'} icon="warehouse" />
-
-          {/* Active Switch */}
-          <SwitchRow label="Active" value={active} disabled />
+                <Text style={styles.submitButtonText}>Create Opportunity</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
-      </ScrollView>
-
-      <TouchableOpacity 
-        style={[styles.submitButton, (isSubmitting || isLoading || !selectedSalesRepId) && styles.submitButtonDisabled]} 
-        onPress={handleSubmit}
-        disabled={isSubmitting || isLoading || !selectedSalesRepId}
-        activeOpacity={0.8}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator size="small" color={Colors.textInverse} />
-        ) : (
-          <>
-            <MaterialCommunityIcons name="plus-circle" size={Layout.iconSize.md} color={Colors.textInverse} />
-            <Text style={styles.submitButtonText}>Create Opportunity</Text>
-          </>
-        )}
-      </TouchableOpacity>
+      </View>
     </>
   );
 };
 
-// Keep all the styles from your original file
+// ============================================
+// STYLES – Only bottom borders on all fields
+// ============================================
 const styles = StyleSheet.create({
-  container: {
+  mainContainer: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-  contentContainer: {
-    paddingBottom: verticalScale(100),
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.lg,
   },
   formCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: Layout.borderRadius.lg,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    padding: Spacing.lg,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    
-    // Elevation for Android
-    elevation: 3,
-  },
-  label: {
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold,
-    color: Colors.textSecondary,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xxs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  requiredStar: {
-    color: Colors.error,
-    fontSize: Typography.fontSize.small,
-    fontFamily: Typography.fontFamily.bold,
-  },
-  labelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xxs,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    minHeight: 42,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
+    borderRadius: Layout.borderRadius.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  fieldContainer: {
+    marginBottom: Spacing.xs,
+    paddingHorizontal: Spacing.xs,
+  },
+  fieldLabel: {
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    fontSize: Typography.fontSize.medium,
+    letterSpacing: 0.5,
+    marginLeft: Spacing.md,
+  },
+  requiredStar: {
+    color: Colors.error,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundLight,
+    minHeight: 40,
   },
   inputError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
-  inputIcon: {
-    paddingLeft: Spacing.sm,
+    borderBottomColor: Colors.error,
+    borderBottomWidth: 1.5,
   },
   input: {
     flex: 1,
-    height: 42,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
+    padding: 0,
   },
-  inputWithIcon: {
-    paddingLeft: Spacing.xs,
-  },
-  readOnlyContainer: {
+  readOnlyWrapper: {
     backgroundColor: Colors.backgroundLight,
     opacity: 0.9,
   },
   readOnlyText: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
-    textAlignVertical: 'center',
   },
-  contactContainer: {
-    minHeight: 52,
-    paddingVertical: Spacing.xs,
+  contactWrapper: {
+    alignItems: 'flex-start',
+    paddingVertical: Spacing.sm,
   },
   contactContent: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
+    paddingLeft: Spacing.sm,
   },
   contactName: {
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
     color: Colors.textPrimary,
     marginBottom: Spacing.xxs,
@@ -1514,49 +1544,19 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
-  pickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    minHeight: 42,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  pickerIcon: {
-    paddingLeft: Spacing.sm,
-  },
-  picker: {
-    flex: 1,
-    height: 42,
-    color: Colors.textPrimary,
-  },
-  pickerWithIcon: {
-    marginLeft: -Spacing.xs,
-  },
   dateText: {
     flex: 1,
-    paddingHorizontal: Spacing.sm,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textPrimary,
   },
   dateIcon: {
-    paddingRight: Spacing.sm,
+    paddingRight: Spacing.xs,
   },
-  textArea: {
-    minHeight: verticalScale(80),
-    textAlignVertical: 'top',
-    paddingTop: Spacing.sm,
+  placeholderText: {
+    fontSize: Typography.fontSize.large,
+    color: Colors.textTertiary,
+    fontFamily: Typography.fontFamily.regular,
   },
   errorText: {
     color: Colors.error,
@@ -1569,13 +1569,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    marginBottom: Spacing.sm,
+    marginLeft: Spacing.md,
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.md,
   },
   switchLabel: {
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.bold,
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -1586,9 +1587,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    marginBottom: Spacing.sm,
   },
   errorContainer: {
     height: 42,
@@ -1600,6 +1601,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.error,
     borderRadius: Layout.borderRadius.sm,
     paddingHorizontal: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   errorRetryText: {
     color: Colors.error,
@@ -1645,11 +1647,13 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
   },
+  buttonContainer: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
   submitButton: {
-    position: 'absolute',
-    bottom: Spacing.lg,
-    left: Spacing.md,
-    right: Spacing.md,
     backgroundColor: Colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1657,19 +1661,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.sm,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
-    
-    // Elevation for Android
     elevation: 6,
   },
   submitButtonDisabled: {
     opacity: 0.7,
-    backgroundColor: Colors.buttonDisabled,
+    backgroundColor: Colors.buttonDisabled || '#ccc',
     shadowOpacity: 0.2,
     elevation: 3,
   },
@@ -1678,36 +1678,16 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.medium,
     fontFamily: Typography.fontFamily.semiBold,
   },
+  infoText: {
+    fontSize: Typography.fontSize.medium,
+    color: Colors.textSecondary,
+    fontFamily: Typography.fontFamily.medium,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
 
-  // Selector Styles
-  editField: {
-    marginBottom: Spacing.md,
-  },
-  selector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 0,
-    height: 42,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  selectorError: {
-    borderColor: Colors.error,
-    borderWidth: 1.5,
-  },
   selectedItemContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -1723,13 +1703,8 @@ const styles = StyleSheet.create({
   },
   selectedItemText: {
     flex: 1,
-    fontSize: Typography.fontSize.small,
+    fontSize: Typography.fontSize.large,
     color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
-  },
-  placeholderText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textTertiary,
     fontFamily: Typography.fontFamily.regular,
   },
   clearButton: {
@@ -1737,30 +1712,32 @@ const styles = StyleSheet.create({
   },
   rightContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.xs,
   },
-
-  // Modal Styles
+  selectedRepContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectedRepText: {
+    fontSize: Typography.fontSize.large,
+    color: Colors.textPrimary,
+    fontFamily: Typography.fontFamily.regular,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: Colors.cardBackground,
-    borderTopLeftRadius: Layout.borderRadius.lg,
-    borderTopRightRadius: Layout.borderRadius.lg,
+    backgroundColor: Colors.backgroundLight,
+    borderTopLeftRadius: Layout.borderRadius.xl,
+    borderTopRightRadius: Layout.borderRadius.xl,
     maxHeight: '80%',
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    
-    // Elevation for Android
-    elevation: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomWidth: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1776,7 +1753,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   closeButton: {
-    padding: 4,
+    padding: Spacing.xs,
   },
   modalSearch: {
     flexDirection: 'row',
@@ -1789,14 +1766,10 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.xs,
     height: verticalScale(42),
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   modalSearchInput: {
@@ -1843,8 +1816,6 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
   },
-
-  // Item Row Styles
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1870,14 +1841,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.sm,
-    
-    // Shadow for iOS
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   itemAvatarText: {
@@ -1898,39 +1865,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xsmall,
     fontFamily: Typography.fontFamily.regular,
     color: Colors.textSecondary,
-  },
-
-  // Sales Rep specific styles (matching AddLeads)
-  salesRepSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.backgroundLight,
-    
-    // Shadow for iOS
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    
-    // Elevation for Android
-    elevation: 2,
-  },
-  selectedRepContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectedRepText: {
-    fontSize: Typography.fontSize.small,
-    color: Colors.textPrimary,
-    fontFamily: Typography.fontFamily.regular,
   },
   repItem: {
     flexDirection: 'row',
@@ -1975,14 +1909,10 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     gap: Spacing.xs,
     height: verticalScale(42),
-    
-    // Shadow for iOS
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    
-    // Elevation for Android
     elevation: 2,
   },
   searchIcon: {
@@ -2011,6 +1941,22 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     marginTop: Spacing.sm,
+  },
+  // New styles for consistent chevron alignment
+  chevronWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chevronIcon: {
+    marginRight: Spacing.sm, // Same as right padding of picker
+  },
+  pickerText: {
+    flex: 1,
+    fontSize: Typography.fontSize.large,
+    fontFamily: Typography.fontFamily.regular,
+    color: Colors.textPrimary,
   },
 });
 

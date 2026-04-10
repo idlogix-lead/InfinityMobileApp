@@ -1,4 +1,4 @@
-// components/CRMCard/MinimalOpportunityCard.js - FIXED with proper API fetching
+// components/CRMCard/MinimalOpportunityCard.js - FIXED: always allow Add Activity even without lead ID
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -218,21 +218,24 @@ const OpportunityCard = ({
     }
   };
 
-  // Handle activity icon press
+  // Handle activity icon press – always allow navigation, even without leadId
   const handleActivityPress = (e) => {
     e.stopPropagation();
     
     const leadDataForActivity = {
-      id: leadId,
+      id: leadId,  // may be undefined
       Name: leadName,
       EMail: leadEmail,
       Phone: leadPhone,
       BPName: businessPartner,
+      // Include full opportunity for context
+      opportunity: opportunity,
     };
 
     if (onActivityPress) {
       onActivityPress(opportunity, leadDataForActivity);
-    } else if (leadId) {
+    } else {
+      // Always navigate to AddActivity, regardless of leadId presence
       navigation.navigate('AddActivity', {
         data: leadDataForActivity,
         mode: 'create',
@@ -307,7 +310,7 @@ const OpportunityCard = ({
               </TouchableOpacity>
             ) : null}
 
-            {/* Activity Icon */}
+            {/* Activity Icon – always visible */}
             <TouchableOpacity 
               onPress={handleActivityPress} 
               style={styles.iconButton}

@@ -452,7 +452,40 @@ const crmApiService = {
       return defaultStatuses;
     }
   },
+    /**
+   * Create a new location (C_Location)
+   */
+  /**
+   * Create a new location (C_Location)
+   */
+  createLocation: async (locationData) => {
+    try {
+      const url = buildUrl('models/C_Location');
+      console.log('📍 Create location URL:', url);
 
+      const data = await makeRequest(url, {
+        method: 'POST',
+        body: locationData,
+      });
+
+      console.log('✅ Location created successfully with ID:', data.id);
+      return data;
+    } catch (error) {
+      console.error('Create location failed:', error.message);
+      throw error;
+    }
+  },
+  // In crmApiService.js
+getLocationById: async (locationId) => {
+  try {
+    const url = buildUrl(`models/C_Location/${locationId}`);
+    const data = await makeRequest(url);
+    return data;
+  } catch (error) {
+    console.error('Get location by ID failed:', error.message);
+    throw error;
+  }
+},
   /**
    * Clear lead statuses cache
    */
@@ -608,6 +641,9 @@ const crmApiService = {
   /**
    * Create a new lead
    */
+   /**
+   * Create a new lead
+   */
   createLead: async (leadData) => {
     try {
       const url = buildUrl('models/AD_User');
@@ -618,7 +654,13 @@ const crmApiService = {
         body: leadData,
       });
 
-      console.log('✅ Lead created successfully');
+      console.log('✅ Lead created successfully. Returned data:', {
+        id: data.id,
+        SalesRep_ID: data.SalesRep_ID,
+        IsSalesLead: data.IsSalesLead,
+        Name: data.Name,
+      });
+
       return data;
     } catch (error) {
       console.error('Create lead failed:', error.message);
@@ -1117,25 +1159,7 @@ const crmApiService = {
   /**
    * Get lead sources
    */
-  getLeadSources: async () => {
-    try {
-      const url = buildUrl('models/C_LeadSource');
-      console.log('📞 Get lead sources URL:', url);
 
-      const data = await makeRequest(url);
-      const records = Array.isArray(data.records) ? data.records : [];
-
-      console.log(`✅ Retrieved ${records.length} lead sources`);
-      return records;
-    } catch (error) {
-      console.error('Get lead sources failed:', error.message);
-
-      if (error.message === 'SESSION_EXPIRED') {
-        throw error;
-      }
-      return [];
-    }
-  },
 
   /**
    * Get currencies
@@ -1159,7 +1183,44 @@ const crmApiService = {
       return [];
     }
   },
+getCountries: async () => {
+  try {
+    let allRecords = [];
+    let skip = 0;
+    const pageSize = 100; // Must match the API's max page size (or any value <= server limit)
+    let hasMore = true;
 
+    while (hasMore) {
+      // Build base URL from buildUrl (without pagination)
+      const baseUrl = buildUrl('models/C_Country');
+      // Append pagination parameters: $top and $skip
+      const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}$top=${pageSize}&$skip=${skip}`;
+
+      console.log(`🌍 Fetching countries page (skip=${skip})...`);
+
+      const data = await makeRequest(url);
+      const records = Array.isArray(data.records) ? data.records : [];
+      allRecords = [...allRecords, ...records];
+
+      // Determine if more pages exist
+      const totalCount = data['row-count'] || 0; // Use row-count from response (246)
+      if (totalCount > 0) {
+        hasMore = allRecords.length < totalCount;
+      } else {
+        // Fallback: if no total count provided, check if we got a full page
+        hasMore = records.length === pageSize;
+      }
+
+      skip += pageSize; // move to next page
+    }
+
+    console.log(`✅ Retrieved ${allRecords.length} countries total`);
+    return allRecords;
+  } catch (error) {
+    console.error('❌ Get countries failed:', error.message);
+    return [];
+  }
+},
   /**
    * Get sales stages
    */
@@ -1183,5 +1244,6 @@ const crmApiService = {
     }
   },
 };
+
 
 export default crmApiService;

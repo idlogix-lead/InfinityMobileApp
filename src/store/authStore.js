@@ -658,6 +658,9 @@ completeRelogin: async () => {
         }
       });
       
+      // ✅ CRITICAL: Update the keychain with the new token and all session data
+      await get().saveCurrentSession();
+      
       return data.token;
     }
     
@@ -863,7 +866,7 @@ completeRelogin: async () => {
             console.log('Restored token status:', validation.reason);
           }
         }
-        return state;
+       
       },
     }
   )
