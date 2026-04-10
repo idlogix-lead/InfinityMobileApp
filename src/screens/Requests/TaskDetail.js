@@ -28,6 +28,7 @@ import ReqHeader from '../../components/ReqHeader';
 import {Picker} from '@react-native-picker/picker';
 import RNFS from 'react-native-fs';
 import FileViewer from 'react-native-file-viewer';
+import RNBlobUtil from 'react-native-blob-util';
 
 import {useTaskStore} from '../../store/requestStore';
 import {
@@ -50,6 +51,7 @@ import {
 import Create from './Create';
 import moment from 'moment';
 import {getAuthState} from '../../utils/apiUtils';
+import ReferencesSection from '../../components/RequestScreenComponents/ReferenceSection';
 
 const TaskDetail = ({route}) => {
   // const {task} = route.params;
@@ -315,27 +317,10 @@ const TaskDetail = ({route}) => {
       Alert.alert('Error', 'Cannot open file');
     }
   };
-  // const openAttachment = async file => {
-  //   try {
-  //     const localPath = `${RNFS.DocumentDirectoryPath}/${file.name}`;
-
-  //     await RNFS.downloadFile({
-  //       fromUrl: file.downloadUrl,
-  //       toFile: localPath,
-  //     }).promise;
-
-  //     await FileViewer.open(localPath);
-  //   } catch (error) {
-  //     console.log(error);
-  //     Alert.alert('Error', 'Cannot open file');
-  //   }
-  // };
 
   // const openAttachment = async () => {
   //   try {
-  //     // const token = await AsyncStorage.getItem('token');
-  //     // const {token} = aut
-  //     const {token} = getAuthState;
+  //     const {token} = getAuthState();
 
   //     const localPath = await downloadAttachmentApi({
   //       taskId: task.id,
@@ -343,11 +328,50 @@ const TaskDetail = ({route}) => {
   //       token,
   //     });
 
-  //     await FileViewer.open(localPath);
+  //     setAttachmentModal(false);
+
+  //     await FileViewer.open(localPath, {
+  //       showOpenWithDialog: true,
+  //     });
+  //   } catch (error) {
+  //     console.log('OPEN ERROR:', error);
+  //     Alert.alert('Error', 'Cannot open file');
+  //   }
+  // };
+  // const openAttachment = async () => {
+  //   try {
+  //     const {token} = getAuthState();
+
+  //     if (!selectedAttachment?.name) return;
+
+  //     const fileName = selectedAttachment.name;
+
+  //     const localPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+
+  //     const downloadedPath = await downloadAttachmentApi({
+  //       taskId: task.id,
+  //       fileName,
+  //       token,
+  //       savePath: localPath,
+  //     });
+  //     console.log('Downloaded Path:', downloadedPath);
+  //     console.log('File extension:', downloadedPath.split('.').pop());
 
   //     setAttachmentModal(false);
+  //     const exists = await RNFS.exists(downloadedPath);
+
+  //     if (!exists) {
+  //       Alert.alert('Error', 'Downloaded file not found');
+  //       return;
+  //     }
+
+  //     await FileViewer.open(downloadedPath, {
+  //       showOpenWithDialog: true,
+  //       mimeType: 'application/pdf',
+  //       forceOpenWithSystemPicker: true,
+  //     });
   //   } catch (error) {
-  //     console.log(error);
+  //     console.log('OPEN ERROR:', error);
   //     Alert.alert('Error', 'Cannot open file');
   //   }
   // };
@@ -356,22 +380,42 @@ const TaskDetail = ({route}) => {
     try {
       const {token} = getAuthState();
 
-      const localPath = await downloadAttachmentApi({
+      if (!selectedAttachment?.name) return;
+
+      const fileName = selectedAttachment.name;
+
+      const localPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+
+      const downloadedPath = await downloadAttachmentApi({
         taskId: task.id,
-        fileName: selectedAttachment.name,
+        fileName,
         token,
+        savePath: localPath,
       });
 
       setAttachmentModal(false);
 
-      await FileViewer.open(localPath, {
-        showOpenWithDialog: true,
-      });
+      try {
+        // ⭐ Primary opener
+        await FileViewer.open(downloadedPath, {
+          showOpenWithDialog: true,
+          mimeType: 'application/pdf',
+        });
+      } catch (primaryError) {
+        console.log('FileViewer failed → fallback BlobUtil');
+
+        // ⭐ Fallback opener
+        await RNBlobUtil.android.actionViewIntent(
+          downloadedPath,
+          'application/pdf',
+        );
+      }
     } catch (error) {
       console.log('OPEN ERROR:', error);
       Alert.alert('Error', 'Cannot open file');
     }
   };
+
   const downloadAttachmentFile = async () => {
     try {
       const {token} = getAuthState();
@@ -808,7 +852,42 @@ const TaskDetail = ({route}) => {
           </View>
           <View style={[styles.divider, {backgroundColor: '#ccc'}]} />
 
+
           {/* REFERENCES */}
+          <View style={styles.sectionContainerRef}>
+            <TouchableOpacity
+              style={styles.sectionHeaderRef}
+              onPress={() => setShowReferences(prev => !prev)}>
+              <Text style={styles.asanaTitle}>References</Text>
+              <MaterialIcons
+                name={
+                  showReferences ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
+                }
+                size={24}
+                color="#555"
+              />
+            </TouchableOpacity>
+            {showReferences && (
+              <ReferencesSection
+                task={task}
+                editableTask={editableTask}
+                setEditableTask={setEditableTask}
+                openDropdown={openDropdown}
+                setOpenDropdown={setOpenDropdown}
+                users={users}
+                projects={projects}
+                assets={assets}
+                campaigns={campaigns}
+                rma={rma}
+                bpartner={bpartner}
+                reqStatus={reqStatus}
+                updateTask={updateTask}
+                refetchTask={refetchTask}
+                styles={styles}
+                autoSaveTask={autoSaveTask}
+              />
+            )}
+          </View>
 
           <View style={[styles.divider, {backgroundColor: '#ccc'}]} />
 
@@ -971,682 +1050,6 @@ const TaskDetail = ({route}) => {
               ))
             )}
           </View> */}
-          {/* REFERENCES */}
-          <View style={styles.sectionContainerRef}>
-            <TouchableOpacity
-              style={styles.sectionHeaderRef}
-              onPress={() => setShowReferences(prev => !prev)}>
-              <Text style={styles.asanaTitle}>References</Text>
-              <MaterialIcons
-                name={
-                  showReferences ? 'keyboard-arrow-up' : 'keyboard-arrow-down'
-                }
-                size={24}
-                color="#555"
-              />
-            </TouchableOpacity>
-            {showReferences && (
-              <View style={styles.sectionBodyRef}>
-                {/* BUSINESS PARTNER */}
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Business Partner</Text>
-
-                  {/* <TextInput
-                    value={bpSearch}
-                    placeholder={
-                      editableTask.BussinessPartner || 'Select Business Partner'
-                    }
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('bp'); // ✅ global key
-                      setFilteredBPs(bpartner || []);
-                    }}
-                    onChangeText={text => {
-                      setBpSearch(text);
-                      setOpenDropdown('bp');
-
-                      const filtered = !text
-                        ? bpartner || []
-                        : bpartner.filter(bp =>
-                            (bp.identifier || '')
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredBPs(filtered);
-                    }}
-                  /> */}
-
-                  <TextInput
-                    value={bpSearch || ''} // ✅ NEVER undefined
-                    placeholder={
-                      editableTask.BussinessPartnerName ||
-                      'Select Business Partner'
-                    }
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('bp');
-                      setFilteredBPs(bpartner || []);
-                    }}
-                    onChangeText={text => {
-                      const safeText = text || '';
-                      setBpSearch(safeText);
-                      setOpenDropdown('bp');
-
-                      const filtered = !safeText
-                        ? bpartner || []
-                        : bpartner.filter(bp =>
-                            (bp.identifier || '')
-                              .toLowerCase()
-                              .includes(safeText.toLowerCase()),
-                          );
-
-                      setFilteredBPs(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'bp' && filteredBPs.length > 0 && (
-                    <FlatList
-                      data={filteredBPs}
-                      keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdownFix}
-                      nestedScrollEnabled={true}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({item}) => (
-                        <TouchableOpacity
-                          style={styles.bpDropdownItem}
-                          // onPress={async () => {
-                          //   // ✅ UI
-                          //   setBpSearch(item.identifier);
-                          //   setOpenDropdown(null); // ✅ close on select
-
-                          //   setEditableTask(prev => ({
-                          //     ...prev,
-                          //     BussinessPartner: item.id,
-                          //   }));
-
-                          //   try {
-                          //     await updateTask({
-                          //       taskId: task.id,
-                          //       payload: {C_BPartner_ID: item.id},
-                          //     });
-
-                          //     setTask(prev => ({
-                          //       ...prev,
-                          //       C_BPartner_ID: {
-                          //         id: item.id,
-                          //         identifier: item.identifier,
-                          //       },
-                          //     }));
-
-                          //     refetchTask();
-                          //   } catch (err) {
-                          //     Alert.alert(
-                          //       'Error',
-                          //       'Failed to update Business Partner',
-                          //     );
-                          //   }
-                          // }}
-                          onPress={async () => {
-                            // ✅ UI FIRST
-                            setBpSearch(item.identifier);
-                            setOpenDropdown(null);
-
-                            setEditableTask(prev => ({
-                              ...prev,
-                              BussinessPartner: item.id, // ✅ ID ONLY
-                              BussinessPartnerName: item.identifier, // ✅ display
-                            }));
-
-                            try {
-                              await updateTask({
-                                taskId: task.id,
-                                payload: {C_BPartner_ID: item.id},
-                              });
-
-                              setTask(prev => ({
-                                ...prev,
-                                C_BPartner_ID: {
-                                  id: item.id,
-                                  identifier: item.identifier,
-                                },
-                              }));
-
-                              refetchTask();
-                            } catch (err) {
-                              Alert.alert(
-                                'Error',
-                                'Failed to update Business Partner',
-                              );
-                            }
-                          }}>
-                          <Text style={styles.bpDropdownItemText}>
-                            {item.Name}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
-
-                {/* USER CONTACT */}
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>User Contact</Text>
-
-                  <TextInput
-                    value={editableTask.UserContactSearch || ''}
-                    placeholder={editableTask.UserContact || 'Select User'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('user'); // ✅ global key
-                      setFilteredUsers(users || []);
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({
-                        ...prev,
-                        UserContactSearch: text,
-                      }));
-                      setOpenDropdown('user');
-
-                      const filtered = !text
-                        ? users || []
-                        : users.filter(user =>
-                            (user.Name || '')
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredUsers(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'user' && filteredUsers.length > 0 && (
-                    <FlatList
-                      data={filteredUsers}
-                      keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdown}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({item}) => (
-                        <TouchableOpacity
-                          style={styles.bpDropdownItem}
-                          onPress={async () => {
-                            // ✅ UI state
-                            setEditableTask(prev => ({
-                              ...prev,
-                              UserContact: item.Name,
-                              UserContactSearch: item.Name,
-                            }));
-
-                            setOpenDropdown(null); // ✅ close on select
-
-                            try {
-                              await updateTask({
-                                taskId: task.id,
-                                payload: {AD_User_ID: item.id},
-                              });
-
-                              setTask(prev => ({
-                                ...prev,
-                                AD_User_ID: {
-                                  id: item.id,
-                                  identifier: item.Name,
-                                },
-                              }));
-
-                              refetchTask();
-                            } catch (err) {
-                              Alert.alert(
-                                'Error',
-                                'Failed to update User Contact',
-                              );
-                            }
-                          }}>
-                          <Text style={styles.bpDropdownItemText}>
-                            {item.Name}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
-
-                {/* PROJECT */}
-
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Project</Text>
-
-                  <TextInput
-                    value={editableTask.ProjectSearch || ''}
-                    placeholder={editableTask.Project || 'Select Project'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('project'); // ✅ global
-                      setFilteredProjects(projects || []);
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({...prev, ProjectSearch: text}));
-                      setOpenDropdown('project');
-
-                      const filtered = !text
-                        ? projects || []
-                        : projects.filter(p =>
-                            `${p.Value}_${p.Name}`
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredProjects(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'project' &&
-                    filteredProjects.length > 0 && (
-                      <FlatList
-                        data={filteredProjects}
-                        keyExtractor={item => item.id.toString()}
-                        style={styles.bpDropdown}
-                        keyboardShouldPersistTaps="handled"
-                        renderItem={({item}) => (
-                          <TouchableOpacity
-                            style={styles.bpDropdownItem}
-                            onPress={async () => {
-                              const identifier = `${item.Value}_${item.Name}`;
-
-                              // ✅ UI state
-                              setEditableTask(prev => ({
-                                ...prev,
-                                Project: identifier,
-                                ProjectSearch: identifier,
-                              }));
-
-                              setOpenDropdown(null); // ✅ close on select
-
-                              try {
-                                await updateTask({
-                                  taskId: task.id,
-                                  payload: {C_Project_ID: item.id},
-                                });
-
-                                setTask(prev => ({
-                                  ...prev,
-                                  C_Project_ID: {
-                                    id: item.id,
-                                    identifier,
-                                  },
-                                }));
-
-                                refetchTask();
-                              } catch (err) {
-                                Alert.alert(
-                                  'Error',
-                                  'Failed to update Project',
-                                );
-                              }
-                            }}>
-                            <Text style={styles.bpDropdownItemText}>
-                              {item.Name}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      />
-                    )}
-                </View>
-                {/* STATUS */}
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Status</Text>
-
-                  <TextInput
-                    value={editableTask.StatusSearch || ''}
-                    placeholder={editableTask.Status || 'Select Status'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('status');
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({
-                        ...prev,
-                        StatusSearch: text,
-                      }));
-                      setOpenDropdown('status');
-                    }}
-                  />
-
-                  {openDropdown === 'status' && reqStatus?.length > 0 && (
-                    <FlatList
-                      data={reqStatus}
-                      keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdown}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({item}) => {
-                        const identifier = `${item.SeqNo}_${item.Name}`;
-
-                        return (
-                          <TouchableOpacity
-                            style={styles.bpDropdownItem}
-                            onPress={async () => {
-                              // ✅ UI UPDATE
-                              setEditableTask(prev => ({
-                                ...prev,
-                                Status: identifier,
-                                StatusSearch: identifier,
-                              }));
-
-                              setOpenDropdown(null);
-
-                              try {
-                                // ✅ BACKEND UPDATE (only id)
-                                await updateTask({
-                                  taskId: task.id,
-                                  payload: {
-                                    R_Status_ID: item.id,
-                                  },
-                                });
-
-                                // ✅ LOCAL STORE UPDATE (full object)
-                                setTask(prev => ({
-                                  ...prev,
-                                  R_Status_ID: {
-                                    propertyLabel: 'Status',
-                                    id: item.id,
-                                    identifier,
-                                    'model-name': 'r_status',
-                                  },
-                                }));
-
-                                refetchTask();
-                              } catch (err) {
-                                Alert.alert('Error', 'Failed to update Status');
-                              }
-                            }}>
-                            <Text style={styles.bpDropdownItemText}>
-                              {identifier}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  )}
-                </View>
-
-                <ReferenceField label="Asset" value={editableTask.Asset} />
-                {/* ASSET */}
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Asset</Text>
-
-                  <TextInput
-                    value={editableTask.AssetSearch || ''}
-                    placeholder={editableTask.Asset || 'Select Asset'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('asset'); // ✅ global control
-                      setFilteredAssets(assets || []);
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({...prev, AssetSearch: text}));
-                      setOpenDropdown('asset');
-
-                      const filtered = !text
-                        ? assets || []
-                        : assets.filter(a =>
-                            `${a.Value}_${a.Name}`
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredAssets(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'asset' && filteredAssets.length > 0 && (
-                    <FlatList
-                      data={filteredAssets}
-                      keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdown}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({item}) => (
-                        <TouchableOpacity
-                          style={styles.bpDropdownItem}
-                          onPress={async () => {
-                            const identifier = `${item.Value}_${item.Name}`;
-
-                            // ✅ UI state
-                            setEditableTask(prev => ({
-                              ...prev,
-                              Asset: identifier,
-                              AssetSearch: identifier,
-                            }));
-
-                            setOpenDropdown(null); // ✅ close on select
-
-                            try {
-                              await updateTask({
-                                taskId: task.id,
-                                payload: {A_Asset_ID: item.id},
-                              });
-
-                              setTask(prev => ({
-                                ...prev,
-                                A_Asset_ID: {
-                                  id: item.id,
-                                  identifier,
-                                },
-                              }));
-
-                              refetchTask();
-                            } catch (err) {
-                              Alert.alert('Error', 'Failed to update Asset');
-                            }
-                          }}>
-                          <Text style={styles.bpDropdownItemText}>
-                            {item.Name}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
-
-                <ReferenceField label="Order" value={editableTask.Order} />
-                <ReferenceField
-                  label="Invoice"
-                  value={editableTask.InvoiceID}
-                />
-                <ReferenceField label="Product" value={editableTask.Product} />
-                <ReferenceField label="Payment" value={editableTask.Payment} />
-                <ReferenceField
-                  label="Shipment / Receipt"
-                  value={editableTask.ShipmentReceipt}
-                />
-                <ReferenceField label="RMA" value={editableTask.RMA} />
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>RMA</Text>
-
-                  <TextInput
-                    value={editableTask.RMASearch || ''}
-                    placeholder={editableTask.RMA || 'Select RMA'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('rma'); // ✅ global control
-                      setFilteredRMA(rma || []);
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({...prev, RMASearch: text}));
-                      setOpenDropdown('rma');
-
-                      const filtered = !text
-                        ? rma || []
-                        : rma.filter(a =>
-                            `${a.id}_${a.DocumentNo}`
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredRMA(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'rma' && filteredRMA.length > 0 && (
-                    <FlatList
-                      data={filteredRMA}
-                      keyExtractor={item => item.id.toString()}
-                      style={styles.bpDropdown}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({item}) => (
-                        <TouchableOpacity
-                          style={styles.bpDropdownItem}
-                          onPress={async () => {
-                            const identifier = `${item.id}_${item.DocumentNo}`;
-
-                            // ✅ UI state
-                            setEditableTask(prev => ({
-                              ...prev,
-                              rma: identifier,
-                              RMASearch: identifier,
-                            }));
-
-                            setOpenDropdown(null); // ✅ close on select
-
-                            try {
-                              await updateTask({
-                                taskId: task.id,
-                                payload: {M_RMA_ID: item.id},
-                              });
-
-                              setTask(prev => ({
-                                ...prev,
-                                M_RMA_ID: {
-                                  id: item.id,
-                                  identifier,
-                                },
-                              }));
-
-                              refetchTask();
-                            } catch (err) {
-                              Alert.alert('Error', 'Failed to update RMA');
-                            }
-                          }}>
-                          <Text style={styles.bpDropdownItemText}>
-                            {item.DocumentNo}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    />
-                  )}
-                </View>
-
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Request Amount</Text>
-
-                  <TextInput
-                    value={editableTask.RequestAmt?.toString() || ''}
-                    onChangeText={text => {
-                      // sirf numbers allow
-                      const numeric = text.replace(/[^0-9.]/g, '');
-                      setEditableTask(prev => ({
-                        ...prev,
-                        RequestAmt: numeric,
-                      }));
-                    }}
-                    onBlur={autoSaveTask}
-                    keyboardType="numeric"
-                    placeholder="Enter amount"
-                    style={styles.bpInput} // same style reuse
-                  />
-                </View>
-
-                <View style={styles.referenceContainer}>
-                  <Text style={styles.referenceLabel}>Campaign</Text>
-
-                  <TextInput
-                    value={editableTask.CampaignSearch || ''}
-                    placeholder={editableTask.Campaign || 'Select Campaign'}
-                    placeholderTextColor="#333"
-                    style={styles.bpInput}
-                    onFocus={() => {
-                      setOpenDropdown('campaign'); // ✅ only this dropdown
-                      setFilteredCampaigns(campaigns || []);
-                    }}
-                    onChangeText={text => {
-                      setEditableTask(prev => ({
-                        ...prev,
-                        CampaignSearch: text,
-                      }));
-                      setOpenDropdown('campaign');
-
-                      const filtered = !text
-                        ? campaigns || []
-                        : campaigns.filter(c =>
-                            `${c.Value}_${c.Name}`
-                              .toLowerCase()
-                              .includes(text.toLowerCase()),
-                          );
-
-                      setFilteredCampaigns(filtered);
-                    }}
-                  />
-
-                  {openDropdown === 'campaign' &&
-                    filteredCampaigns.length > 0 && (
-                      <FlatList
-                        data={filteredCampaigns}
-                        keyExtractor={item => item.id.toString()}
-                        style={styles.bpDropdown}
-                        keyboardShouldPersistTaps="handled"
-                        renderItem={({item}) => (
-                          <TouchableOpacity
-                            style={styles.bpDropdownItem}
-                            onPress={async () => {
-                              const identifier = `${item.Value}_${item.Name}`;
-
-                              // ✅ UI state
-                              setEditableTask(prev => ({
-                                ...prev,
-                                Campaign: identifier,
-                                CampaignSearch: identifier,
-                              }));
-
-                              setOpenDropdown(null); // ✅ CLOSE ON SELECT
-
-                              try {
-                                await updateTask({
-                                  taskId: task.id,
-                                  payload: {C_Campaign_ID: item.id},
-                                });
-
-                                setTask(prev => ({
-                                  ...prev,
-                                  C_Campaign_ID: {
-                                    id: item.id,
-                                    identifier,
-                                  },
-                                }));
-
-                                refetchTask();
-                              } catch (err) {
-                                Alert.alert(
-                                  'Error',
-                                  'Failed to update Campaign',
-                                );
-                              }
-                            }}>
-                            <Text style={styles.bpDropdownItemText}>
-                              {item.Name}
-                            </Text>
-                          </TouchableOpacity>
-                        )}
-                      />
-                    )}
-                </View>
-              </View>
-            )}
-          </View>
 
           {/* ACTIVITY */}
           <View style={styles.activityContainer}>
@@ -2569,6 +1972,7 @@ const styles = StyleSheet.create({
   // Reference Field
   referenceContainer: {
     marginBottom: 12,
+    zIndex: 10,
   },
   referenceLabel: {
     fontSize: 13,

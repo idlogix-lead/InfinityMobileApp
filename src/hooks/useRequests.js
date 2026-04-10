@@ -126,12 +126,13 @@ export const useMyProjects = () => useQuery('my-projects', fetchMyProjects);
 
 export const useTaskUpdates = taskId =>
   useQuery(['task-updates', taskId], () => fetchTaskUpdates(taskId), {
-    refetchInterval: 5000, // optional: auto-refresh every 5s
+    refetchInterval: 1800000, // optional: auto-refresh every 5s
   });
 
 export const useMyComments = userName =>
   useQuery(['task-updates', userName], () => fetchMyComments(userName), {
-    refetchInterval: 5000, // optional: auto-refresh every 5s
+    refetchInterval: 1800000, // optional: auto-refresh every 5s
+    
   });
 
 export const useStandardResponses = () =>

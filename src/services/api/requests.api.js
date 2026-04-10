@@ -50,16 +50,19 @@ const processQueue = (error, token = null) => {
 // ============================================
 // JWT DECODER (NEW)
 // ============================================
-const decodeJWT = (token) => {
+const decodeJWT = token => {
   try {
     if (!token) return null;
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    
+
     const payload = parts[1];
     const base64Str = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64Str.padEnd(base64Str.length + (4 - base64Str.length % 4) % 4, '=');
-    
+    const padded = base64Str.padEnd(
+      base64Str.length + ((4 - (base64Str.length % 4)) % 4),
+      '=',
+    );
+
     const decoded = require('base-64').decode(padded);
     return JSON.parse(decoded);
   } catch (error) {
@@ -70,25 +73,25 @@ const decodeJWT = (token) => {
 // ============================================
 // TOKEN VALIDATION (NEW)
 // ============================================
-const validateToken = (token) => {
+const validateToken = token => {
   try {
-    if (!token) return { isValid: false, reason: 'NO_TOKEN' };
-    
+    if (!token) return {isValid: false, reason: 'NO_TOKEN'};
+
     const decoded = decodeJWT(token);
-    if (!decoded) return { isValid: false, reason: 'INVALID_TOKEN' };
-    
+    if (!decoded) return {isValid: false, reason: 'INVALID_TOKEN'};
+
     if (decoded.exp) {
       const expirationTime = decoded.exp * 1000;
       const currentTime = Date.now();
-      
+
       if (currentTime >= expirationTime) {
-        return { isValid: false, reason: 'EXPIRED' };
+        return {isValid: false, reason: 'EXPIRED'};
       }
     }
-    
-    return { isValid: true };
+
+    return {isValid: true};
   } catch (error) {
-    return { isValid: false, reason: 'VALIDATION_ERROR' };
+    return {isValid: false, reason: 'VALIDATION_ERROR'};
   }
 };
 
@@ -125,26 +128,28 @@ const makeRequest = async (url, options = {}) => {
 
   // Validate token before making request
   const validation = validateToken(token);
-  
+
   // If token is expired, trigger complete relogin
   if (!validation.isValid && validation.reason === 'EXPIRED') {
     console.log('⚠️ [Requests API] Token expired, checking relogin status...');
-    
+
     if (isReloginning) {
       console.log('⏳ [Requests API] Relogin in progress, queueing request...');
       return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
+        failedQueue.push({resolve, reject});
       });
     }
-    
+
     isReloginning = true;
-    
+
     try {
       console.log('🔄 [Requests API] Starting complete login auto-relogin...');
       const newToken = await authState.completeRelogin?.();
-      
+
       if (newToken) {
-        console.log('✅ [Requests API] Complete login relogin successful, processing queue...');
+        console.log(
+          '✅ [Requests API] Complete login relogin successful, processing queue...',
+        );
         token = newToken;
         processQueue(null, newToken);
       } else {
@@ -162,7 +167,7 @@ const makeRequest = async (url, options = {}) => {
 
   try {
     console.log(`🌐 [Requests API] Making request to: ${url}`);
-    
+
     const res = await axios({
       url,
       method: options.method || 'GET',
@@ -178,30 +183,38 @@ const makeRequest = async (url, options = {}) => {
   } catch (error) {
     // Handle 401 Unauthorized
     if (error.response?.status === 401) {
-      console.log('🔐 [Requests API] Got 401, checking if we should relogin...');
-      
+      console.log(
+        '🔐 [Requests API] Got 401, checking if we should relogin...',
+      );
+
       if (options._retry) {
         console.log('❌ [Requests API] Already tried relogin, giving up');
         throw new Error('SESSION_EXPIRED');
       }
-      
+
       if (isReloginning) {
-        console.log('⏳ [Requests API] Relogin in progress, queueing request...');
+        console.log(
+          '⏳ [Requests API] Relogin in progress, queueing request...',
+        );
         return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
+          failedQueue.push({resolve, reject});
         });
       }
-      
+
       isReloginning = true;
-      
+
       try {
-        console.log('🔄 [Requests API] Attempting complete login relogin due to 401...');
+        console.log(
+          '🔄 [Requests API] Attempting complete login relogin due to 401...',
+        );
         const newToken = await authState.completeRelogin?.();
-        
+
         if (newToken) {
-          console.log('✅ [Requests API] Complete login relogin successful, retrying request...');
+          console.log(
+            '✅ [Requests API] Complete login relogin successful, retrying request...',
+          );
           processQueue(null, newToken);
-          
+
           return makeRequest(url, {
             ...options,
             _retry: true,
@@ -222,13 +235,13 @@ const makeRequest = async (url, options = {}) => {
         isReloginning = false;
       }
     }
-    
+
     console.error('❌ [Requests API] Request failed:', {
       url,
       status: error.response?.status,
-      message: error.message
+      message: error.message,
     });
-    
+
     throw error;
   }
 };
@@ -237,7 +250,7 @@ const makeRequest = async (url, options = {}) => {
 // SIMPLIFIED makeAddRequest (can use makeRequest)
 // ============================================
 const makeAddRequest = async (url, options = {}) => {
-  return makeRequest(url, { ...options, method: options.method || 'POST' });
+  return makeRequest(url, {...options, method: options.method || 'POST'});
 };
 
 // ============================================
@@ -630,14 +643,43 @@ export const fetchAttachments = async taskId => {
 
   return res?.attachments || [];
 };
-export const downloadAttachment = async ({taskId, fileName, token}) => {
+// export const downloadAttachment = async ({taskId, fileName, token}) => {
+//   const baseURL = getBaseURL();
+
+//   const url = `${baseURL}/models/R_Request/${taskId}/attachments/${encodeURIComponent(
+//     fileName,
+//   )}`;
+
+//   const localPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+
+//   const result = await RNFS.downloadFile({
+//     fromUrl: url,
+//     toFile: localPath,
+//     headers: {
+//       Authorization: `Bearer ${token}`,
+//     },
+//   }).promise;
+
+//   if (result.statusCode !== 200) {
+//     throw new Error('Download failed');
+//   }
+
+//   return localPath;
+// };
+
+export const downloadAttachment = async ({
+  taskId,
+  fileName,
+  token,
+  savePath,
+}) => {
   const baseURL = getBaseURL();
 
   const url = `${baseURL}/models/R_Request/${taskId}/attachments/${encodeURIComponent(
     fileName,
   )}`;
 
-  const localPath = `${RNFS.DownloadDirectoryPath}/${fileName}`;
+  const localPath = savePath || `${RNFS.DocumentDirectoryPath}/${fileName}`;
 
   const result = await RNFS.downloadFile({
     fromUrl: url,
@@ -647,9 +689,7 @@ export const downloadAttachment = async ({taskId, fileName, token}) => {
     },
   }).promise;
 
-  if (result.statusCode !== 200) {
-    throw new Error('Download failed');
-  }
+  if (result.statusCode !== 200) throw new Error('Download failed');
 
   return localPath;
 };
